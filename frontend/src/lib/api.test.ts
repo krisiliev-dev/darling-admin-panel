@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { api, ApiError } from './api'
 
 // The error-detail handling lives in the internal `request`; exercise it via api.get.

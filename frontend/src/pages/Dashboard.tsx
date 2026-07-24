@@ -351,7 +351,7 @@ function LiveInventory() {
 
       {/* KPI tiles — turnover/DSI/GMROI show '—' until sales accrue */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9rem, 1fr))', gap: '.8rem' }}>
-        <Stat label="Оборот на склада" value={num(k.turnover, '×')} suffix={k.turnover == null ? '' : '×'} instant
+        <Stat label="Оборот на склада" value={num(k.turnover)} suffix={k.turnover == null ? '' : '×'} instant
           tone={k.turnover != null && k.turnover < 2 ? 'blocked' : undefined} hint="пъти/год. (здравословно 2–6×)" />
         <Stat label="Дни в склад (DSI)" value={num(k.dsi)} suffix={k.dsi == null ? '' : ' дни'} instant
           tone={k.dsi != null && k.dsi > 180 ? 'blocked' : undefined} hint="до продажба" />
