@@ -124,8 +124,10 @@ h1, h2, h3, .display { font-family: var(--type); font-weight: 700; letter-spacin
   transform: rotate(-8deg); opacity: .82; text-transform: uppercase; font-size: .85rem;
 }
 .sticky-note {
-  background: var(--sticky); font-family: var(--hand); color: #2e2909;
-  padding: 1rem 1.1rem .9rem; box-shadow: 2px 4px 8px rgba(0,0,0,.2); line-height: 1.35;
+  background: var(--sticky); font-family: var(--hand); color: #2b2607;
+  /* handwriting stays for the desk feel, but bigger + bolder + darker so it actually reads */
+  font-size: 1.04rem; font-weight: 600; letter-spacing: .01em;
+  padding: 1rem 1.1rem .9rem; box-shadow: 2px 4px 8px rgba(0,0,0,.2); line-height: 1.5;
 }
 
 /* --- the PENCIL vs PEN metaphor: AI draft is grey handwriting --- */
