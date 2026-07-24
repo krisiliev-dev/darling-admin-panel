@@ -1,0 +1,567 @@
+# -*- coding: utf-8 -*-
+"""Courier-agnostic shipping layer for the ops console / admin panel (owner 2026-07-19).
+
+A single interface over the Bulgarian couriers so fulfilment can create a shipment, print a
+label, quote a price, track, and list pickup points without caring which courier it is.
+Replaces paying for izprati.bg — same capabilities, in-house.
+
+Adapters (by priority):
+  Speedy   — REST/JSON, api.speedy.bg/v1, userName/password in body   [primary, implemented]
+  Econt    — JSON, ee.econt.com/services, HTTP Basic                  [primary, implemented]
+  BoxNow   — API, automated parcel lockers                            [pickup boxes, stub]
+  SameDay  — API + easybox lockers                                    [pickup boxes, stub]
+  PigeonExpress, Evropat                                              [secondary, stub]
+
+Credentials live in ~/.hermes/.env, one pair per courier, e.g. SPEEDY_USER / SPEEDY_PASS.
+This module self-loads that file (process env wins), so callers that don't pre-load it (the
+FastAPI panel) still find the keys. Nothing here creates a REAL shipment until credentials
+are present AND the caller passes do_write=True — a label is a real-world action, so the
+console confirms before committing. calculate()/offices()/track() are side-effect-free.
+"""
+import base64
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+from functools import lru_cache
+from pathlib import Path
+
+_ENV_FILE = Path.home() / ".hermes" / ".env"
+
+
+@lru_cache(maxsize=1)
+def _env_file_vals():
+    """Parse ~/.hermes/.env once (same minimal parser as barsy_api)."""
+    vals = {}
+    if _ENV_FILE.exists():
+        for ln in _ENV_FILE.read_text(encoding="utf-8").splitlines():
+            ln = ln.strip()
+            if not ln or ln.startswith("#") or "=" not in ln:
+                continue
+            k, v = ln.split("=", 1)
+            vals[k.strip()] = v.strip()
+    return vals
+
+
+def _cred(key):
+    """Process env overrides the shared secret file."""
+    return os.environ.get(key) or _env_file_vals().get(key, "")
+
+
+# each entry: env var names for credentials + the API base
+REGISTRY = {
+    "speedy":  {"user": "SPEEDY_USER",  "pass": "SPEEDY_PASS",  "base": "https://api.speedy.bg/v1"},
+    "econt":   {"user": "ECONT_USER",   "pass": "ECONT_PASS",   "base": "https://ee.econt.com/services"},
+    "boxnow":  {"user": "BOXNOW_ID",    "pass": "BOXNOW_SECRET", "base": "https://api.boxnow.bg/api/v1"},
+    "sameday": {"user": "SAMEDAY_USER", "pass": "SAMEDAY_PASS", "base": "https://api.sameday.bg/api"},
+    "pigeon":  {"user": "PIGEON_USER",  "pass": "PIGEON_PASS",  "base": ""},
+    "evropat": {"user": "EVROPAT_USER", "pass": "EVROPAT_PASS", "base": ""},
+}
+
+BG_LABELS = {"speedy": "Спиди", "econt": "Еконт", "boxnow": "BoxNow",
+             "sameday": "Sameday", "pigeon": "Pigeon Express", "evropat": "Европът"}
+
+# Bulgaria is on the euro since 2026 — couriers quote and collect COD in EUR.
+CURRENCY = "EUR"
+
+
+class CourierError(Exception):
+    pass
+
+
+class Shipment:
+    """Normalized shipment request fulfilment builds from a Shopify order; each adapter maps
+    it to that courier's payload. Delivery is EITHER to a door `address` OR to `office_id`
+    (a courier office / locker) — pass one."""
+    def __init__(self, order_ref, recipient, phone, address=None, office_id=None,
+                 cod_amount=0.0, weight_kg=1.0, contents="стоки за дома", parcels=1,
+                 declared_value=None, note="", email="", private_person=True,
+                 fragile=False, inspection=False):
+        self.order_ref = order_ref            # Shopify order name, for our records
+        self.recipient = recipient            # full name
+        self.phone = phone
+        self.email = email
+        self.private_person = private_person
+        self.address = address                # dict {city, postcode, street, street_no, ...} for door
+        self.office_id = office_id            # OR a courier office / locker id for pickup
+        self.cod_amount = float(cod_amount)   # наложен платеж (EUR); 0 = prepaid
+        self.weight_kg = float(weight_kg)
+        self.contents = contents
+        self.parcels = int(parcels)
+        self.declared_value = declared_value
+        self.note = note
+        self.fragile = bool(fragile)           # Дарлинг policy: home goods are usually fragile
+        self.inspection = bool(inspection)     # преглед — recipient may OPEN before paying (not test)
+
+
+class Courier:
+    """Base adapter. Subclasses implement the per-courier API calls."""
+    name = "base"
+
+    def __init__(self):
+        cfg = REGISTRY[self.name]
+        self.user = _cred(cfg["user"])
+        self.password = _cred(cfg["pass"])
+        self.base = cfg["base"]
+
+    def configured(self):
+        return bool(self.user and self.password and self.base)
+
+    def _require(self):
+        if not self.configured():
+            raise CourierError(
+                f"{BG_LABELS.get(self.name, self.name)}: липсват ключове "
+                f"({REGISTRY[self.name]['user']}/{REGISTRY[self.name]['pass']}) в ~/.hermes/.env")
+
+    # --- interface (each adapter overrides) ------------------------------------------
+    def ping(self) -> dict:
+        """Cheap auth check + sender identity. {ok, sender_name, sender_place} or raises."""
+        raise NotImplementedError
+
+    def create_shipment(self, shp: "Shipment", do_write=False) -> dict:
+        """Create the shipment (only when do_write=True). Returns
+        {shipment_id, tracking_number, cod_amount, price, currency, label_ref}."""
+        raise NotImplementedError
+
+    def label_pdf(self, shipment_id) -> bytes:
+        """Printable label as PDF bytes."""
+        raise NotImplementedError
+
+    def track(self, tracking_number) -> dict:
+        """{status, status_bg, delivered: bool, last_ts, events:[...]}"""
+        raise NotImplementedError
+
+    def offices(self, city=None):
+        """Pickup points / lockers, for the office picker."""
+        raise NotImplementedError
+
+    def calculate(self, shp: "Shipment") -> dict:
+        """{price, currency} quote — no side effects."""
+        raise NotImplementedError
+
+
+def get(name) -> Courier:
+    name = (name or "").lower()
+    cls = _ADAPTERS.get(name)
+    if not cls:
+        raise CourierError(f"unknown courier: {name}")
+    return cls()
+
+
+def available():
+    """[(name, bg_label, configured?)] — drives the console's courier picker."""
+    out = []
+    for n in REGISTRY:
+        try:
+            out.append((n, BG_LABELS.get(n, n), get(n).configured()))
+        except Exception:
+            out.append((n, BG_LABELS.get(n, n), False))
+    return out
+
+
+# ======================================================================================
+# Speedy — api.speedy.bg/v1. userName/password in the JSON body of every request.
+# ======================================================================================
+class Speedy(Courier):
+    name = "speedy"
+    DEFAULT_SERVICE_ID = 505  # "СТАНДАРТ 24 ЧАСА" (COD-allowed; confirmed on this contract)
+
+    def _post(self, path, payload, raw=False):
+        self._require()
+        body = dict(payload)
+        body["userName"] = self.user
+        body["password"] = self.password
+        req = urllib.request.Request(
+            self.base + path, data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                data = r.read()
+        except urllib.error.HTTPError as e:
+            raise CourierError(f"Спиди HTTP {e.code}: {e.read().decode('utf-8','replace')[:200]}")
+        except Exception as e:
+            raise CourierError(f"Спиди мрежова грешка: {e}")
+        if raw:
+            return data
+        out = json.loads(data.decode("utf-8", "replace"))
+        if isinstance(out, dict) and out.get("error"):
+            err = out["error"]
+            raise CourierError(f"Спиди: {err.get('message', err)}")
+        return out
+
+    @lru_cache(maxsize=1)
+    def _sender(self):
+        """The contract's registered sender (auto-discovered — no manual config needed)."""
+        clients = self._post("/client/contract", {"language": "BG"}).get("clients", [])
+        if not clients:
+            raise CourierError("Спиди: няма подател по договора.")
+        return clients[0]
+
+    def ping(self):
+        s = self._sender()
+        return {"ok": True, "sender_name": s.get("clientName", ""),
+                "sender_place": s.get("address", {}).get("siteAddressString", ""),
+                "client_id": s.get("clientId")}
+
+    def _resolve_site(self, city, postcode=None):
+        """Speedy needs a numeric siteId, not a free-text city name. Resolve it via
+        /location/site (best match on name, optionally postcode)."""
+        if not city:
+            return None
+        try:
+            out = self._post("/location/site", {"countryId": 100, "name": city.strip()})
+        except Exception:
+            return None
+        sites = out.get("sites") or []
+        if postcode:
+            for s in sites:
+                if str(s.get("postCode")) == str(postcode):
+                    return s.get("id")
+        return sites[0].get("id") if sites else None
+
+    def _recipient(self, shp: "Shipment"):
+        r = {"privatePerson": bool(shp.private_person),
+             "clientName": shp.recipient, "contactName": shp.recipient,
+             "phone1": {"number": shp.phone}}
+        if shp.email:
+            r["email"] = shp.email
+        if shp.office_id:
+            r["pickupOfficeId"] = int(shp.office_id)
+        else:
+            a = shp.address or {}
+            site_id = a.get("site_id") or self._resolve_site(a.get("city"), a.get("postcode"))
+            r["address"] = {
+                "countryId": 100,
+                "siteId": site_id,
+                "siteName": None if site_id else a.get("city"),
+                "postCode": a.get("postcode"),
+                "streetName": a.get("street"),
+                "streetId": a.get("street_id"),
+                "streetNo": a.get("street_no", "") or "1",
+                "blockNo": a.get("block", ""),
+                "entranceNo": a.get("entrance", ""),
+                "floorNo": a.get("floor", ""),
+                "apartmentNo": a.get("apartment", ""),
+                "addressNote": a.get("note", ""),
+            }
+        return r
+
+    def _service(self, shp: "Shipment"):
+        svc = {"serviceId": self.DEFAULT_SERVICE_ID, "autoAdjustPickupDate": True}
+        add = {}
+        if shp.cod_amount > 0:
+            add["cod"] = {"amount": round(shp.cod_amount, 2), "currencyCode": CURRENCY,
+                          "processingType": "CASH"}
+        if shp.declared_value:
+            add["declaredValue"] = {"amount": round(float(shp.declared_value), 2),
+                                    "currencyCode": CURRENCY}
+        if shp.inspection:
+            # преглед: option-before-payment OPEN. ⚠ VERIFY-LIVE: Speedy OBPD also needs a
+            # return-shipment service configured; confirm on the first real label.
+            add["obpd"] = {"option": "OPEN", "returnShipmentPayer": "SENDER"}
+        # NOTE: Speedy has no simple "fragile" boolean (it's packaging/handling); shp.fragile is
+        # carried for parity but not mapped to a Speedy field — revisit if a contract service exists.
+        if add:
+            svc["additionalServices"] = add
+        return svc
+
+    def _shipment_payload(self, shp: "Shipment"):
+        return {
+            "language": "BG",
+            "sender": {"clientId": self._sender().get("clientId")},
+            "recipient": self._recipient(shp),
+            "service": self._service(shp),
+            "content": {"parcelsCount": shp.parcels, "totalWeight": shp.weight_kg,
+                        "contents": shp.contents, "package": "КАШОН"},
+            # COD collected from recipient; if prepaid the sender pays the courier fee
+            "payment": {"courierServicePayer": "RECIPIENT" if shp.cod_amount > 0 else "SENDER"},
+            "ref1": shp.order_ref,
+        }
+
+    def _calc_payload(self, shp: "Shipment"):
+        """Speedy /calculate wants a different recipient shape than /shipment: the location
+        goes under `addressLocation` (a resolved siteId), and services are a LIST."""
+        rec = {"privatePerson": bool(shp.private_person), "phone1": {"number": shp.phone}}
+        if shp.office_id:
+            rec["pickupOfficeId"] = int(shp.office_id)
+        else:
+            a = shp.address or {}
+            site_id = a.get("site_id") or self._resolve_site(a.get("city"), a.get("postcode"))
+            if not site_id:
+                raise CourierError("Спиди: не намерих населеното място на получателя.")
+            rec["addressLocation"] = {"siteId": site_id}
+        return {
+            "language": "BG", "sender": {"clientId": self._sender().get("clientId")},
+            "recipient": rec,
+            "service": {"serviceIds": [self.DEFAULT_SERVICE_ID], "autoAdjustPickupDate": True},
+            "content": {"parcelsCount": shp.parcels, "totalWeight": shp.weight_kg,
+                        "contents": shp.contents, "package": "КАШОН"},
+            "payment": {"courierServicePayer": "RECIPIENT" if shp.cod_amount > 0 else "SENDER"},
+        }
+
+    def calculate(self, shp: "Shipment"):
+        out = self._post("/calculate", self._calc_payload(shp))
+        calcs = out.get("calculations") or []
+        if not calcs:
+            raise CourierError("Спиди: няма изчисление за този адрес.")
+        price = calcs[0].get("price", {})
+        return {"price": round(price.get("total", 0), 2), "currency": price.get("currency", CURRENCY),
+                "courier": "speedy"}
+
+    def validate(self, shp: "Shipment"):
+        """Speedy BG has NO label-validate mode (unlike Econt's mode:"validate"). The cost-free check
+        is /calculate — it prices the request and rejects a bad address, but does NOT fully validate
+        every service option. To confirm option fields (обявена стойност / преглед) with certainty,
+        create_shipment(do_write=True) then cancel() before pickup (no charge). This returns calculate."""
+        return self.calculate(shp)
+
+    def create_shipment(self, shp: "Shipment", do_write=False):
+        if not do_write:
+            raise CourierError("Спиди: create_shipment изисква do_write=True (реален етикет).")
+        out = self._post("/shipment", self._shipment_payload(shp))
+        parcels = out.get("parcels") or []
+        return {
+            "courier": "speedy",
+            "shipment_id": out.get("id"),
+            "tracking_number": str(parcels[0].get("id")) if parcels else str(out.get("id")),
+            "cod_amount": shp.cod_amount,
+            "price": round((out.get("price") or {}).get("total", 0), 2),
+            "currency": (out.get("price") or {}).get("currency", CURRENCY),
+            "label_ref": out.get("id"),
+        }
+
+    def cancel(self, shipment_id, comment="test"):
+        """Cancel a shipment BEFORE pickup — no charge. Speedy BG has no separate sandbox host, so the
+        cost-free way to verify a full label (incl. options like обявена стойност / преглед) is to
+        create a real shipment, read the response, then cancel it here before the courier collects."""
+        return self._post("/shipment/cancel", {"shipmentId": str(shipment_id), "comment": comment})
+
+    def label_pdf(self, shipment_id):
+        return self._post("/print",
+                          {"parcels": [{"parcel": {"id": int(shipment_id)}}], "paperSize": "A6"},
+                          raw=True)
+
+    def track(self, tracking_number):
+        out = self._post("/track", {"parcels": [{"id": str(tracking_number)}], "language": "BG"})
+        parcels = out.get("parcels") or []
+        ops = (parcels[0].get("operations") if parcels else []) or []
+        last = ops[-1] if ops else {}
+        return {
+            "status": last.get("operationCode", ""),
+            "status_bg": last.get("description", "няма данни"),
+            "delivered": any(o.get("operationCode") == 803 for o in ops),  # 803 = delivered
+            "last_ts": last.get("dateTime", ""),
+            "events": [{"ts": o.get("dateTime", ""), "text": o.get("description", "")} for o in ops],
+        }
+
+    def offices(self, city=None):
+        payload = {"countryId": 100, "language": "BG"}
+        if city:
+            payload["name"] = city
+        out = self._post("/location/office", payload)
+        return [{"id": o.get("id"), "name": o.get("name"),
+                 "address": o.get("address", {}).get("fullAddressString", ""),
+                 "city": o.get("address", {}).get("siteName", "")}
+                for o in (out.get("offices") or [])]
+
+
+# ======================================================================================
+# Econt — ee.econt.com/services. HTTP Basic auth; JSON in, JSON out.
+# ======================================================================================
+class Econt(Courier):
+    name = "econt"
+
+    def _post(self, path, payload):
+        self._require()
+        tok = base64.b64encode(f"{self.user}:{self.password}".encode()).decode("ascii")
+        req = urllib.request.Request(
+            self.base + path, data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": "Basic " + tok})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                text = r.read().decode("utf-8", "replace").strip()
+        except urllib.error.HTTPError as e:
+            raise CourierError(f"Еконт HTTP {e.code}: {e.read().decode('utf-8','replace')[:200]}")
+        except Exception as e:
+            raise CourierError(f"Еконт мрежова грешка: {e}")
+        if not text:
+            return {}  # some Econt endpoints (getClientProfiles for a bare account) return empty
+        out = json.loads(text)
+        if isinstance(out, dict) and out.get("type") and "error" in str(out.get("type", "")).lower():
+            raise CourierError(f"Еконт: {out.get('message', out)}")
+        return out
+
+    @lru_cache(maxsize=1)
+    def _profile(self):
+        out = self._post("/Profile/ProfileService.getClientProfiles.json", {})
+        profiles = out.get("profiles") or []
+        return profiles[0] if profiles else {}
+
+    def ping(self):
+        # Confirm auth with a light nomenclature call (profile can be empty for this account).
+        self._post("/Nomenclatures/NomenclaturesService.getCountries.json", {})
+        p = self._profile()
+        client = p.get("client", {}) if p else {}
+        addrs = p.get("addresses") or []
+        place = ""
+        if addrs:
+            city = addrs[0].get("city") or {}
+            full = addrs[0].get("fullAddress") or addrs[0].get("street") or ""
+            place = " ".join(x for x in [city.get("name") or "", full] if x).strip()
+        return {"ok": True, "sender_name": client.get("name") or self.user,
+                "sender_place": place, "sender_configured": bool(addrs)}
+
+    def _sender_block(self):
+        """Sender client + address from the Econt profile (falls back to ECONT_SENDER_* env)."""
+        p = self._profile()
+        client = p.get("client") if p else None
+        addrs = p.get("addresses") if p else None
+        sender_client = None
+        sender_address = None
+        if client:
+            sender_client = {"name": client.get("name"),
+                             "phones": [ph for ph in (client.get("phones") or [])] or [_cred("ECONT_SENDER_PHONE")]}
+        if addrs:
+            a = addrs[0]
+            sender_address = {"city": a.get("city"), "street": a.get("street"),
+                              "num": a.get("num"), "other": a.get("other", "")}
+        return sender_client, sender_address
+
+    def _label(self, shp: "Shipment"):
+        sc, sa = self._sender_block()
+        label = {
+            "senderClient": sc,
+            "senderAddress": sa,
+            "receiverClient": {"name": shp.recipient, "phones": [shp.phone]},
+            "packCount": shp.parcels,
+            "shipmentType": "pack",
+            "weight": shp.weight_kg,
+            "shipmentDescription": shp.contents,
+        }
+        if shp.email:
+            label["receiverClient"]["email"] = shp.email
+        if shp.office_id:
+            label["receiverOfficeCode"] = str(shp.office_id)
+        else:
+            a = shp.address or {}
+            label["receiverAddress"] = {
+                "city": {"name": a.get("city"), "postCode": a.get("postcode"),
+                         "country": {"code3": "BGR"}},
+                "street": a.get("street", ""), "num": a.get("street_no", ""),
+                "other": a.get("note", ""),
+            }
+        services = {}
+        if shp.cod_amount > 0:
+            services.update({"cdAmount": round(shp.cod_amount, 2), "cdType": "get",
+                             "cdCurrency": CURRENCY})
+        if shp.declared_value:
+            # обявена стойност / застраховка. ⚠ VERIFY-LIVE: confirm exact Econt field at first label.
+            services["declaredValueAmount"] = round(float(shp.declared_value), 2)
+        if services:
+            label["services"] = services
+        # преглед — recipient may OPEN the parcel before paying (Дарлинг policy; not "тест").
+        # ⚠ VERIFY-LIVE: confirm the Econt field name on the first real label.
+        if shp.inspection:
+            label["payAfterAccept"] = True
+        if shp.fragile:
+            # Econt has no boolean "fragile"; flag it in the description so the courier handles it.
+            label["shipmentDescription"] = f"{shp.contents} · чупливо"
+        return label
+
+    def calculate(self, shp: "Shipment"):
+        out = self._post("/Shipments/LabelService.createLabel.json",
+                         {"label": self._label(shp), "mode": "calculate"})
+        label = out.get("label", out)
+        return {"price": round(label.get("totalPrice", 0) or 0, 2),
+                "currency": label.get("currency", CURRENCY), "courier": "econt"}
+
+    def validate(self, shp: "Shipment"):
+        """mode:"validate" — checks the full label request (address + option fields) WITHOUT creating
+        a shipment or incurring cost. Use to confirm option field names (declaredValue/преглед/etc.)
+        cost-free before the first real label. Returns the raw courier response."""
+        return self._post("/Shipments/LabelService.createLabel.json",
+                          {"label": self._label(shp), "mode": "validate"})
+
+    def create_shipment(self, shp: "Shipment", do_write=False):
+        if not do_write:
+            raise CourierError("Еконт: create_shipment изисква do_write=True (реален етикет).")
+        out = self._post("/Shipments/LabelService.createLabel.json",
+                         {"label": self._label(shp), "mode": "create"})
+        label = out.get("label", out)
+        return {
+            "courier": "econt",
+            "shipment_id": label.get("shipmentNumber"),
+            "tracking_number": label.get("shipmentNumber"),
+            "cod_amount": shp.cod_amount,
+            "price": round(label.get("totalPrice", 0) or 0, 2),
+            "currency": label.get("currency", CURRENCY),
+            "label_ref": label.get("pdfURL"),  # Econt returns a URL to the PDF
+        }
+
+    def cancel(self, shipment_id, comment="test"):
+        """Delete a shipment before it's handed to the courier — no charge. Same purpose as Speedy's
+        cancel: create a real label to verify the full request cost-free, then remove it."""
+        return self._post("/Shipments/LabelService.deleteLabels.json",
+                          {"shipmentNumbers": [str(shipment_id)]})
+
+    def label_pdf(self, shipment_id):
+        # Econt exposes the label as a URL; fetch it. shipment_id here is the pdfURL.
+        url = shipment_id if str(shipment_id).startswith("http") else None
+        if not url:
+            raise CourierError("Еконт: подай pdfURL (label_ref) за изтегляне на етикета.")
+        # SSRF guard: this fetches a URL that may originate from stored/upstream data. Pin it to
+        # Econt's own host so it can never be turned into an arbitrary internal GET.
+        host = (urllib.parse.urlsplit(url).hostname or "").lower()
+        if host != "ee.econt.com" and not host.endswith(".econt.com"):
+            raise CourierError("Еконт: неразрешен адрес за етикет.")
+        with urllib.request.urlopen(url, timeout=40) as r:
+            return r.read()
+
+    def track(self, tracking_number):
+        out = self._post("/Shipments/ShipmentService.getShipmentStatuses.json",
+                         {"shipmentNumbers": [str(tracking_number)]})
+        statuses = out.get("shipmentStatuses") or []
+        st = statuses[0].get("status", {}) if statuses else {}
+        history = st.get("trackingEvents") or []
+        return {
+            "status": st.get("shortDeliveryStatus", ""),
+            "status_bg": st.get("deliveryStatus", "няма данни"),
+            "delivered": (st.get("shortDeliveryStatus", "") or "").lower() == "delivered",
+            "last_ts": history[-1].get("time", "") if history else "",
+            "events": [{"ts": e.get("time", ""), "text": e.get("destinationDetails", "") or e.get("officeName", "")}
+                       for e in history],
+        }
+
+    def offices(self, city=None):
+        out = self._post("/Nomenclatures/NomenclaturesService.getOffices.json",
+                         {"countryCode": "BGR"})
+        offices = out.get("offices") or []
+        if city:
+            cl = city.lower()
+            offices = [o for o in offices if cl in (o.get("address", {}).get("city", {}).get("name", "") or "").lower()]
+        return [{"id": o.get("code"), "name": o.get("name"),
+                 "address": o.get("address", {}).get("fullAddress", ""),
+                 "city": o.get("address", {}).get("city", {}).get("name", "")}
+                for o in offices[:400]]
+
+
+# --- locker / secondary couriers: same interface, wired when their creds arrive --------
+class BoxNow(Courier):
+    name = "boxnow"
+
+
+class Sameday(Courier):
+    name = "sameday"
+
+
+class Pigeon(Courier):
+    name = "pigeon"
+
+
+class Evropat(Courier):
+    name = "evropat"
+
+
+_ADAPTERS = {"speedy": Speedy, "econt": Econt, "boxnow": BoxNow,
+             "sameday": Sameday, "pigeon": Pigeon, "evropat": Evropat}

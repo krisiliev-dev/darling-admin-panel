@@ -20,13 +20,19 @@ Each re-export is the existing, battle-tested module — same behaviour, cleaner
 import os
 import sys
 
-# make the existing agent-pipeline modules importable without moving them
+# make the existing agent-pipeline modules importable without moving them.
+# Prefer the real ../../agent-pipeline sibling (server + dev, where pipeline.db also lives). When it
+# isn't present — a standalone checkout of just this repo, e.g. CI — fall back to the bundled
+# snapshot of the SAME client modules in ./_vendor, so the panel still imports. The server never
+# uses _vendor (its sibling exists); keep _vendor in sync if those 9 modules change.
 _AGENT_PIPELINE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "agent-pipeline"))
-if _AGENT_PIPELINE not in sys.path:
-    sys.path.insert(0, _AGENT_PIPELINE)
+_VENDOR = os.path.join(os.path.dirname(__file__), "_vendor")
+_CORE_DIR = _AGENT_PIPELINE if os.path.isdir(_AGENT_PIPELINE) else _VENDOR
+if _CORE_DIR not in sys.path:
+    sys.path.insert(0, _CORE_DIR)
 
-CORE_ROOT = _AGENT_PIPELINE          # where the real code + pipeline.db live, for now
+CORE_ROOT = _CORE_DIR                 # where the real code + pipeline.db live, for now
 
 # --- the shared surface -------------------------------------------------------------
 import db                     # noqa: E402  system-of-record (SQLite; the one DB the panel reads)

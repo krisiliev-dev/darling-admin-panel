@@ -1,0 +1,5 @@
+# Test-only dependencies (CI + local test runs). Runtime deps are in requirements.txt.
+-r requirements.txt
+pytest
+pytest-asyncio
+pytest-timeout
