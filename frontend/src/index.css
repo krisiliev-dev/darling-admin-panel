@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+
+/* ============================================================================
+   Дарлинг panel — the paper design system, ported from design.html.
+   Physical-office aesthetic: bond-paper sheets on a dark desk. AI writes in
+   PENCIL (grey draft), humans in PEN. Light = paper on a desk, dark = dim desk.
+   ========================================================================== */
+
+/* --- runtime theme tokens (switch on prefers-color-scheme + [data-theme]) --- */
+:root {
+  --desk:#3b342a; --desk-tex:rgba(0,0,0,.18);
+  --paper:#f4efe1; --paper2:#efe7d4; --manila:#e7d9b6;
+  --ink:#211d16; --pencil:#6b6250; --pencil2:#a49a86;
+  --red:#b12f26; --red-ink:#a52a22;
+  --sticky:#f6e884; --sticky-edge:#e6d55f;
+  --tape:rgba(226,214,180,.55); --clip:#8f959b;
+  --line:#d9d0bb; --rule:#c9d9e6;
+  --ready:#2f7d4f; --blocked:#b12f26; --pending:#a88a2e;
+  --shadow:0 1px 1px rgba(0,0,0,.12),0 10px 24px rgba(30,22,10,.22);
+  --type:"Courier New",Courier,monospace;
+  --serif:Georgia,"Times New Roman",serif;
+  --hand:"Segoe Print","Bradley Hand","Comic Sans MS",cursive;
+}
+@media (prefers-color-scheme:dark) {
+  :root {
+    --desk:#0c0b09; --desk-tex:rgba(0,0,0,.4);
+    --paper:#2b2b2b; --paper2:#313131; --manila:#3a3730;
+    --ink:#ece7db; --pencil:#b0a893; --pencil2:#847d6f;
+    --red:#e0655c; --red-ink:#e26b62;
+    --sticky:#b6a850; --sticky-edge:#9c8f3f;
+    --tape:rgba(120,116,100,.32); --clip:#6d7278;
+    --line:#454239; --rule:#3d4650;
+    --ready:#5fbf85; --blocked:#e0655c; --pending:#d3b24e;
+    --shadow:0 1px 1px rgba(0,0,0,.4),0 12px 30px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="light"] {
+  --desk:#3b342a; --desk-tex:rgba(0,0,0,.18);
+  --paper:#f4efe1; --paper2:#efe7d4; --manila:#e7d9b6;
+  --ink:#211d16; --pencil:#6b6250; --pencil2:#a49a86;
+  --red:#b12f26; --red-ink:#a52a22;
+  --sticky:#f6e884; --sticky-edge:#e6d55f;
+  --tape:rgba(226,214,180,.55); --clip:#8f959b;
+  --line:#d9d0bb; --rule:#c9d9e6;
+  --ready:#2f7d4f; --blocked:#b12f26; --pending:#a88a2e;
+  --shadow:0 1px 1px rgba(0,0,0,.12),0 10px 24px rgba(30,22,10,.22);
+}
+:root[data-theme="dark"] {
+  --desk:#0c0b09; --desk-tex:rgba(0,0,0,.4);
+  --paper:#2b2b2b; --paper2:#313131; --manila:#3a3730;
+  --ink:#ece7db; --pencil:#b0a893; --pencil2:#847d6f;
+  --red:#e0655c; --red-ink:#e26b62;
+  --sticky:#b6a850; --sticky-edge:#9c8f3f;
+  --tape:rgba(120,116,100,.32); --clip:#6d7278;
+  --line:#454239; --rule:#3d4650;
+  --ready:#5fbf85; --blocked:#e0655c; --pending:#d3b24e;
+  --shadow:0 1px 1px rgba(0,0,0,.4),0 12px 30px rgba(0,0,0,.5);
+}
+
+/* --- expose the runtime tokens as Tailwind utilities (bg-paper, text-ink…) --- */
+@theme inline {
+  --color-desk: var(--desk);
+  --color-paper: var(--paper);
+  --color-paper2: var(--paper2);
+  --color-manila: var(--manila);
+  --color-ink: var(--ink);
+  --color-pencil: var(--pencil);
+  --color-pencil2: var(--pencil2);
+  --color-red: var(--red);
+  --color-red-ink: var(--red-ink);
+  --color-sticky: var(--sticky);
+  --color-line: var(--line);
+  --color-clip: var(--clip);
+  --color-ready: var(--ready);
+  --color-blocked: var(--blocked);
+  --color-pending: var(--pending);
+  --font-type: var(--type);
+  --font-serif: var(--serif);
+  --font-hand: var(--hand);
+}
+
+/* --- desk surface --- */
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  line-height: 1.6;
+  background-color: var(--desk);
+  background-image: radial-gradient(var(--desk-tex) 1px, transparent 1px);
+  background-size: 5px 5px;
+}
+* { box-sizing: border-box; }
+
+/* film grain over the whole desk */
+.grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: .5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme:dark) { .grain { mix-blend-mode: screen; opacity: .25; } }
+:root[data-theme="dark"] .grain { mix-blend-mode: screen; opacity: .25; }
+
+/* --- a sheet of paper --- */
+.sheet {
+  background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow);
+  position: relative; border-radius: 2px;
+}
+.sheet::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 2px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: .7;
+}
+.tilt-l { transform: rotate(-.5deg); } .tilt-r { transform: rotate(.5deg); }
+
+/* --- type roles --- */
+.font-type { font-family: var(--type); }
+.font-hand { font-family: var(--hand); }
+h1, h2, h3, .display { font-family: var(--type); font-weight: 700; letter-spacing: -.01em; line-height: 1.15; margin: 0; }
+.eyebrow { font-family: var(--type); font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--red); font-weight: 700; }
+.stamp {
+  display: inline-block; font-family: var(--type); font-weight: 700; letter-spacing: .22em;
+  color: var(--red); border: 3px double var(--red); padding: .25rem .7rem; border-radius: 4px;
+  transform: rotate(-8deg); opacity: .82; text-transform: uppercase; font-size: .85rem;
+}
+.sticky-note {
+  background: var(--sticky); font-family: var(--hand); color: #2e2909;
+  padding: 1rem 1.1rem .9rem; box-shadow: 2px 4px 8px rgba(0,0,0,.2); line-height: 1.35;
+}
+
+/* --- the PENCIL vs PEN metaphor: AI draft is grey handwriting --- */
+.pencil { font-family: var(--hand); color: var(--pencil); }
+.pen { font-family: var(--serif); color: var(--ink); }
+
+/* --- scanning sweep (vision "analysing") --- */
+.scan::after {
+  content: ""; position: absolute; left: -30%; top: 0; bottom: 0; width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(177,47,38,.18), transparent);
+  animation: sweep 1.9s ease-in-out .3s infinite;
+}
+@keyframes sweep { 0% { left: -30%; } 55%, 100% { left: 110%; } }
+
+/* --- buttons / inputs in paper style --- */
+.btn-paper {
+  font-family: var(--type); background: var(--paper); color: var(--ink); border: 1px solid var(--line);
+  padding: .5rem .9rem; border-radius: 2px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  transition: transform .12s ease, color .12s ease;
+}
+.btn-paper:hover { color: var(--red); transform: translateY(-1px); }
+.btn-paper:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.btn-red { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-red:hover { color: #fff; filter: brightness(1.06); }
+.input-paper {
+  font-family: var(--type); background: var(--paper2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 2px; padding: .55rem .7rem; width: 100%;
+}
+.input-paper:focus { outline: 2px solid var(--red); outline-offset: 1px; }
+
+/* --- keyboard operability (WCAG 2.4.7): a visible focus ring on EVERY interactive control,
+   incl. the many hand-styled <button>/<div> that set border:none. Keyboard-first tool. --- */
+:where(a, button, [role="button"], [role="tab"], [tabindex], input, select, textarea):focus-visible {
+  outline: 2px solid var(--red); outline-offset: 2px; border-radius: 2px;
+}
+/* --- minimum hit area (WCAG 2.5.8, 24px) for the small paper controls used at speed --- */
+.btn-paper { min-height: 32px; }
+button { min-height: 24px; }
+
+/* reduced motion: kill decorative animation, keep meaning */
+@media (prefers-reduced-motion: reduce) {
+  .scan::after { display: none; }
+  * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+  .tilt-l, .tilt-r { transform: none; }
+}

@@ -1,0 +1,25 @@
+# Caddy — reverse proxy + automatic HTTPS (Let's Encrypt) for the Дарлинг admin panel.
+# TLS is provisioned automatically once panel.darlinghome.bg resolves to this host and ports
+# 80/443 are reachable. Caddy sets X-Forwarded-For to the real client IP, which the backend
+# trusts via TRUST_PROXY=1 (so the auth rate-limiter keys on the true client).
+
+{
+	email anthropic@vkriss.com
+}
+
+panel.darlinghome.bg {
+	encode gzip
+
+	# API + webhook receivers → backend container (compose service name "panel")
+	@backend path /api/* /webhooks/*
+	handle @backend {
+		reverse_proxy panel:8770
+	}
+
+	# Single-page app: serve built static assets, fall back to index.html for client routes
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

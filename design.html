@@ -1,0 +1,357 @@
+<style>
+  :root{
+    /* light = a bond-paper sheet on a desk */
+    --desk:#3b342a; --desk-tex:rgba(0,0,0,.18);
+    --paper:#f4efe1; --paper2:#efe7d4; --manila:#e7d9b6;
+    --ink:#211d16; --pencil:#8b8372; --pencil2:#a49a86;
+    --red:#b12f26; --red-ink:#a52a22;
+    --sticky:#f6e884; --sticky-edge:#e6d55f;
+    --tape:rgba(226,214,180,.55); --clip:#8f959b;
+    --line:#d9d0bb; --rule:#c9d9e6;
+    --shadow:0 1px 1px rgba(0,0,0,.12),0 10px 24px rgba(30,22,10,.22);
+    --type:"Courier New",Courier,monospace;
+    --serif:Georgia,"Times New Roman",serif;
+    --hand:"Segoe Print","Bradley Hand","Comic Sans MS",cursive;
+    --maxw:70rem;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --desk:#0c0b09; --desk-tex:rgba(0,0,0,.4);
+      --paper:#2b2b2b; --paper2:#313131; --manila:#3a3730;
+      --ink:#ece7db; --pencil:#9a9384; --pencil2:#847d6f;
+      --red:#e0655c; --red-ink:#e26b62;
+      --sticky:#b6a850; --sticky-edge:#9c8f3f;
+      --tape:rgba(120,116,100,.32); --clip:#6d7278;
+      --line:#454239; --rule:#3d4650;
+      --shadow:0 1px 1px rgba(0,0,0,.4),0 12px 30px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="light"]{--desk:#3b342a;--paper:#f4efe1;--paper2:#efe7d4;--manila:#e7d9b6;
+    --ink:#211d16;--pencil:#8b8372;--pencil2:#a49a86;--red:#b12f26;--red-ink:#a52a22;
+    --sticky:#f6e884;--sticky-edge:#e6d55f;--tape:rgba(226,214,180,.55);--clip:#8f959b;
+    --line:#d9d0bb;--rule:#c9d9e6;--desk-tex:rgba(0,0,0,.18);
+    --shadow:0 1px 1px rgba(0,0,0,.12),0 10px 24px rgba(30,22,10,.22);}
+  :root[data-theme="dark"]{--desk:#0c0b09;--paper:#2b2b2b;--paper2:#313131;--manila:#3a3730;
+    --ink:#ece7db;--pencil:#9a9384;--pencil2:#847d6f;--red:#e0655c;--red-ink:#e26b62;
+    --sticky:#b6a850;--sticky-edge:#9c8f3f;--tape:rgba(120,116,100,.32);--clip:#6d7278;
+    --line:#454239;--rule:#3d4650;--desk-tex:rgba(0,0,0,.4);
+    --shadow:0 1px 1px rgba(0,0,0,.4),0 12px 30px rgba(0,0,0,.5);}
+
+  *{box-sizing:border-box}
+  /* desk surface */
+  body{margin:0;color:var(--ink);font-family:var(--serif);line-height:1.6;
+    background-color:var(--desk);
+    background-image:radial-gradient(var(--desk-tex) 1px,transparent 1px);
+    background-size:5px 5px;}
+  .grain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.5;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");}
+  @media (prefers-color-scheme:dark){.grain{mix-blend-mode:screen;opacity:.25}}
+  :root[data-theme="dark"] .grain{mix-blend-mode:screen;opacity:.25}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 1.4rem;position:relative;z-index:2;}
+
+  /* a sheet of paper */
+  .sheet{background:var(--paper);border:1px solid var(--line);box-shadow:var(--shadow);
+    padding:2rem 2.2rem;margin:1.5rem 0;position:relative;border-radius:2px;}
+  .sheet::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:2px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.03'/%3E%3C/svg%3E");opacity:.7;}
+  .sheet.tilt-l{transform:rotate(-.5deg)} .sheet.tilt-r{transform:rotate(.5deg)}
+
+  h1,h2,h3{font-family:var(--type);font-weight:700;letter-spacing:-.01em;line-height:1.15;text-wrap:balance;margin:0;}
+  .eyebrow{font-family:var(--type);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--red);font-weight:700;}
+  p{margin:.7rem 0;} a{color:var(--red-ink);}
+  .muted{color:var(--pencil);}
+  .mono{font-family:var(--type);}
+  .prose{max-width:40rem;}
+
+  /* paperclip */
+  .clip{position:absolute;top:-14px;left:34px;width:26px;height:60px;z-index:3;}
+  .clip.right{left:auto;right:40px;}
+  /* red rubber stamp */
+  .stamp{display:inline-block;font-family:var(--type);font-weight:700;letter-spacing:.22em;
+    color:var(--red);border:3px double var(--red);padding:.25rem .7rem;border-radius:4px;
+    transform:rotate(-8deg);opacity:.82;text-transform:uppercase;font-size:.85rem;}
+  /* tape */
+  .tape{position:absolute;width:88px;height:26px;background:var(--tape);top:-11px;left:50%;
+    transform:translateX(-50%) rotate(-2deg);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .tape.tl{left:26px;transform:rotate(-24deg)} .tape.tr{left:auto;right:26px;transform:rotate(22deg)}
+  /* staple */
+  .staple{display:inline-block;width:16px;height:7px;border:2px solid var(--clip);border-bottom:none;vertical-align:middle;}
+
+  /* sticky note */
+  .sticky{background:var(--sticky);font-family:var(--hand);color:#2e2909;padding:1rem 1.1rem .9rem;
+    box-shadow:2px 4px 8px rgba(0,0,0,.2);width:15rem;line-height:1.35;position:relative;font-size:1rem;}
+  .sticky::after{content:"";position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(-3deg);
+    width:70px;height:20px;background:var(--tape);}
+
+  /* header bar */
+  header.bar{position:sticky;top:0;z-index:20;background:var(--desk);
+    border-bottom:1px solid rgba(0,0,0,.3);}
+  .bar .wrap{display:flex;align-items:center;justify-content:space-between;height:3rem;color:var(--paper);}
+  .bar .name{font-family:var(--type);font-weight:700;letter-spacing:.02em;display:flex;gap:.5rem;align-items:center;}
+  .bar .name .pin{width:.6rem;height:.6rem;background:var(--red);border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.2)}
+  .ctrls{display:flex;gap:.5rem}
+  .btn{font-family:var(--type);font-size:.7rem;background:var(--paper);color:var(--ink);border:none;
+    padding:.32rem .6rem;border-radius:2px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.3);}
+  .btn:hover{color:var(--red)}
+
+  /* hero */
+  .hero{padding:2.6rem 2.2rem;}
+  .hero .memo{font-family:var(--type);font-size:.74rem;color:var(--pencil);border-bottom:1px solid var(--line);
+    padding-bottom:.6rem;margin-bottom:1.2rem;display:grid;grid-template-columns:auto 1fr;gap:.2rem 1rem;}
+  .hero .memo b{color:var(--ink)}
+  .hero h1{font-size:clamp(2rem,5.4vw,3.5rem);margin:.2rem 0;}
+  .hero .red{color:var(--red)}
+  .lede{font-family:var(--serif);font-size:1.18rem;max-width:33rem;margin-top:.6rem;}
+
+  /* sections */
+  .sechead{display:flex;align-items:baseline;gap:.8rem;margin-bottom:.4rem;}
+  .sechead .no{font-family:var(--type);color:var(--red);font-weight:700;}
+  h2{font-size:1.5rem;} h3{font-size:1.02rem;}
+
+  /* intake flow — index cards clipped in a row */
+  .flowwrap{overflow-x:auto;padding:.4rem .2rem 1rem;}
+  .flow{display:grid;grid-template-columns:repeat(5,minmax(9.8rem,1fr));gap:1.1rem;min-width:54rem;}
+  .fcard{background:var(--paper2);border:1px solid var(--line);border-radius:3px;padding:.9rem .8rem 1rem;
+    position:relative;box-shadow:2px 3px 7px rgba(0,0,0,.14);opacity:0;transform:translateY(10px);
+    animation:drop .5s ease forwards;}
+  .fcard:nth-child(1){animation-delay:.1s}.fcard:nth-child(2){animation-delay:.65s}
+  .fcard:nth-child(3){animation-delay:1.2s}.fcard:nth-child(4){animation-delay:1.75s}
+  .fcard:nth-child(5){animation-delay:2.3s}
+  .fcard .fs{font-family:var(--type);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--red);}
+  .fcard .fh{font-family:var(--type);font-weight:700;margin:.25rem 0;font-size:.95rem;}
+  .fcard .fd{font-family:var(--serif);font-size:.8rem;line-height:1.35;}
+  .fcard .miniclip{position:absolute;top:-11px;right:14px;width:18px;height:42px;}
+  /* pencil draft = AI, overwriteable */
+  .fcard.pencil{background:var(--paper);}
+  .fcard.pencil .fh, .fcard.pencil .fd{font-family:var(--hand);color:var(--pencil);}
+  .fcard.pencil .note{font-family:var(--hand);color:var(--pencil2);font-size:.72rem;display:block;margin-top:.4rem;}
+  .fcard.scan::after{content:"";position:absolute;left:-30%;top:0;bottom:0;width:30%;
+    background:linear-gradient(90deg,transparent,rgba(177,47,38,.18),transparent);animation:sweep 1.9s ease-in-out .6s infinite;}
+  @keyframes drop{to{opacity:1;transform:none}}
+  @keyframes sweep{0%{left:-30%}55%,100%{left:110%}}
+  @media (prefers-reduced-motion:reduce){.fcard{animation:none;opacity:1;transform:none}.fcard.scan::after{display:none}}
+  .flowcap{font-family:var(--serif);font-size:.84rem;color:var(--pencil);}
+  .flowcap b{color:var(--ink)}
+  .legend{font-family:var(--hand);color:var(--pencil);font-size:.95rem;margin-top:.3rem;}
+
+  /* two folders */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;}
+  .folder{background:var(--manila);border:1px solid var(--line);border-radius:3px 8px 3px 3px;padding:1.1rem 1.2rem;
+    box-shadow:var(--shadow);position:relative;}
+  .folder .tab{position:absolute;top:-.9rem;left:1rem;background:var(--manila);border:1px solid var(--line);
+    border-bottom:none;border-radius:6px 6px 0 0;padding:.1rem .8rem;font-family:var(--type);font-size:.66rem;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--ink);}
+  .folder h3{margin:.4rem 0 .2rem}
+
+  /* stack = a filed memo with ruled lines */
+  .stack{display:grid;gap:.55rem;}
+  .layer{border:1px solid var(--line);background:var(--paper2);border-radius:2px;padding:.7rem .9rem;
+    display:flex;gap:.9rem;align-items:baseline;flex-wrap:wrap;}
+  .layer .lk{font-family:var(--type);font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--red);width:6rem;flex:none;}
+  .layer .lv{font-family:var(--type);font-weight:700;} .layer .lx{color:var(--pencil);font-size:.85rem;font-family:var(--serif);}
+  .layer.core{background:var(--manila);border-color:var(--clip);}
+  .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.2rem;}
+  .ch{font-family:var(--type);font-size:.7rem;background:var(--paper);border:1px solid var(--line);border-radius:2px;padding:.1rem .5rem;}
+
+  /* module cards on cork */
+  .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1.1rem;}
+  .mod{background:var(--paper2);border:1px solid var(--line);border-radius:2px;padding:1rem 1.05rem 1.1rem;
+    box-shadow:2px 3px 7px rgba(0,0,0,.13);position:relative;transition:transform .14s ease;}
+  .mod:hover{transform:translateY(-2px) rotate(-.3deg);}
+  .mod .pin2{position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;
+    background:var(--red);box-shadow:0 2px 3px rgba(0,0,0,.35),inset 0 -2px 2px rgba(0,0,0,.25);}
+  .mod h3{font-size:.98rem;margin:.2rem 0 .3rem} .mod p{font-family:var(--serif);font-size:.83rem;color:var(--pencil);margin:.2rem 0 0}
+  .mod .when{font-family:var(--type);font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:var(--red);margin-top:.6rem}
+
+  /* roadmap = stapled pages */
+  .road{display:grid;gap:0}
+  .phase{display:grid;grid-template-columns:3rem 1fr;gap:1rem;padding:.9rem 0;border-top:1px dashed var(--line);}
+  .phase:first-child{border-top:none}
+  .phase .pn{font-family:var(--type);font-size:1.4rem;font-weight:700;color:var(--red);}
+  .phase h3{font-size:1rem;margin:0 0 .15rem} .phase p{font-family:var(--serif);font-size:.88rem;margin:.1rem 0;color:var(--pencil)}
+
+  ul.checks{list-style:none;padding:0;margin:.5rem 0;display:grid;gap:.55rem;font-family:var(--serif);}
+  ul.checks li{padding-left:1.7rem;position:relative;}
+  ul.checks li::before{content:"✓";position:absolute;left:0;top:0;font-family:var(--type);color:var(--red);font-weight:700;}
+  b{color:var(--ink)}
+  footer{color:var(--paper);opacity:.75;font-family:var(--type);font-size:.72rem;padding:1.5rem 1.4rem 3rem;max-width:var(--maxw);margin:0 auto;position:relative;z-index:2;}
+  @media(max-width:640px){.two{grid-template-columns:1fr}.sticky{width:auto}}
+</style>
+
+<div class="grain"></div>
+
+<header class="bar"><div class="wrap">
+  <div class="name"><span class="pin"></span> ДАРЛИНГ · вътрешна докладна</div>
+  <div class="ctrls">
+    <button class="btn" id="snd" title="звук на хартия">🔇 звук</button>
+    <button class="btn" id="tg">◐ бюро</button>
+  </div>
+</div></header>
+
+<div class="wrap">
+
+  <!-- HERO SHEET -->
+  <div class="sheet hero tilt-l">
+    <svg class="clip" viewBox="0 0 26 60" fill="none"><path d="M8 54V14a6 6 0 0112 0v34a10 10 0 01-20 0V18" stroke="var(--clip)" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <div class="memo">
+      <span>ДО:</span><span><b>Дарлинг 7 ООД</b></span>
+      <span>ОТ:</span><span><b>Claude</b> · дизайн и архитектура</span>
+      <span>ОТНОСНО:</span><span><b>Административен панел</b> — ежедневният инструмент на бизнеса</span>
+      <span>СТАТУС:</span><span><span class="stamp">чернова</span></span>
+    </div>
+    <div class="eyebrow">Спецификация · v2 · хартиено бюро</div>
+    <h1>Едно бюро за<br><span class="red">целия бизнес</span>.</h1>
+    <p class="lede">Инструментът, с който магазинът работи всеки ден — приемане на продукти, обогатяване и
+      одобрение, изпълнение на поръчки, следене на числата, поръчки към доставчици — правен и управляван
+      заедно с Claude.</p>
+  </div>
+
+  <!-- SIGNATURE -->
+  <div class="sheet tilt-r">
+    <svg class="clip right" viewBox="0 0 26 60" fill="none"><path d="M8 54V14a6 6 0 0112 0v34a10 10 0 01-20 0V18" stroke="var(--clip)" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <div class="eyebrow">Усещането, което определя всичко</div>
+    <h2>Добавянето на продукт трябва да изглежда като мислене на хартия.</h2>
+    <p class="muted prose" style="font-family:var(--serif)">Приемният поток е подписът на панела. Всяка стъпка
+      се анимира докато се случва — и се вижда докъде стига автоматиката и откъде поема човекът.
+      <b>Изкуственият интелект пише с молив</b> (сиво, чернова); <b>човекът — с химикал</b>.</p>
+
+    <div class="flowwrap"><div class="flow">
+      <div class="fcard"><svg class="miniclip" viewBox="0 0 18 42" fill="none"><path d="M6 38V10a4 4 0 018 0v24a7 7 0 01-14 0V13" stroke="var(--clip)" stroke-width="2"/></svg>
+        <div class="fs">1 · вход</div><div class="fh">Снимка + каса</div>
+        <div class="fd">Пуснато изображение и складов ред.</div></div>
+      <div class="fcard scan"><div class="fs">2 · анализ</div><div class="fh">Vision модел</div>
+        <div class="fd">Разчита форма, материал, цвят от снимката.</div></div>
+      <div class="fcard pencil"><div class="fs">3 · авто</div><div class="fh">Категория</div>
+        <div class="fd">Появява се сама.</div><span class="note">✎ с молив — презапиши с химикал</span></div>
+      <div class="fcard"><div class="fs">4 · следствие</div><div class="fh">Атрибути</div>
+        <div class="fd">Категорията отваря точния списък и го попълва.</div></div>
+      <div class="fcard"><div class="fs">5 · текст</div><div class="fh">Описание</div>
+        <div class="fd">Атрибутите изграждат името и SEO текста.</div></div>
+    </div></div>
+    <p class="flowcap">Движението тук не е украса — то <b>показва причинност</b>: категория → атрибути →
+      описание, всяко видимо захранва следващото. „Молив“ вместо готова истина кани към поправка,
+      вместо да иска сляпо доверие.</p>
+  </div>
+
+  <!-- 01 two systems -->
+  <div class="sheet">
+    <div class="sechead"><span class="no">01</span><h2>Две системи, ясно разделени</h2></div>
+    <div class="two">
+      <div class="folder"><span class="tab">временно</span><h3>Сайтът за преглед</h3>
+        <p class="muted" style="font-family:var(--serif)">Кокпит за еднократната задача — обогатяване на ~14 000
+          продукта. За скорост, не за красота. Щом каталогът е готов, се изтрива.</p></div>
+      <div class="folder"><span class="tab">постоянно</span><h3>Административният панел</h3>
+        <p class="muted" style="font-family:var(--serif)">Операционната система на бизнеса: за екип, ежедневна,
+          правена за години напред. Този документ е за нея.</p></div>
+    </div>
+    <div class="sticky" style="transform:rotate(2deg);margin:1.4rem 0 .2rem">Споделят само една обща
+      „сърцевина“ (база, Barsy, Shopify, куриери, анализи, обогатяване). Никакъв общ код иначе — сайтът за
+      преглед се трие без последствия.</div>
+  </div>
+
+  <!-- 02 architecture -->
+  <div class="sheet tilt-l">
+    <span class="tape tl"></span>
+    <div class="sechead"><span class="no">02</span><h2>Архитектура и стек</h2></div>
+    <p class="prose" style="font-family:var(--serif)"><b>Python мисли, браузърът показва.</b> Цялата налична
+      логика остава на Python и се отваря като API; отделен интерфейс я ползва. Python не е „слаб за уеб“ —
+      силен е за задната част и просто не работи в браузъра, затова предната част е JavaScript при всички случаи.</p>
+    <div class="stack">
+      <div class="layer core"><span class="lk">Сърцевина</span><span class="lv">Обща бизнес-библиотека</span>
+        <span class="lx">— скъпоценностите, ползвани от двата апликации</span>
+        <div class="chips"><span class="ch">db.py</span><span class="ch">barsy_api</span><span class="ch">shopify_api</span><span class="ch">courier</span><span class="ch">analytics</span><span class="ch">enrichment</span></div></div>
+      <div class="layer"><span class="lk">Заден край</span><span class="lv">FastAPI (Python)</span><span class="lx">— маршрути, валидация, авто-документация; обвива сърцевината в API</span></div>
+      <div class="layer"><span class="lk">Достъп</span><span class="lv">FastAPI-Users + роли</span><span class="lx">— вход за служители, права, одит. „Батериите“ на Django като библиотеки — без пренаписване на базата</span></div>
+      <div class="layer"><span class="lk">Преден край</span><span class="lv">React + TypeScript + Tailwind</span><span class="lx">— истинска рамка, защото анимациите го изискват</span>
+        <div class="chips"><span class="ch">Framer Motion</span><span class="ch">shadcn/ui</span><span class="ch">Chart.js</span><span class="ch">Vite</span></div></div>
+      <div class="layer"><span class="lk">Данни</span><span class="lv">SQLite → Postgres</span><span class="lx">— започваме с днешния SQLite; мигрираме при много едновременни служители</span></div>
+    </div>
+    <p class="flowcap" style="margin-top:.9rem"><b>Защо React, а не HTMX</b> (първата ми мисъл, вече поправена): точно
+      тези смислени анимации — данни, видимо текащи категория → атрибути → описание — са за Framer Motion;
+      HTMX би се борил с тях. За постоянен инструмент полировката си заслужава.</p>
+  </div>
+
+  <!-- 03 modules -->
+  <div class="sheet">
+    <div class="sechead"><span class="no">03</span><h2>Какво съдържа</h2></div>
+    <p class="muted prose" style="font-family:var(--serif)">Всеки е отделен модул, за да влиза ново без да
+      бута останалото. Менюто е по <b>работа</b>, не по таблица.</p>
+    <div class="mods">
+      <div class="mod"><span class="pin2"></span><h3>Приемане на продукти</h3><p>Снимки/редове → авто-категория и обогатяване → фокусирано одобрение. Подписният поток горе.</p><div class="when">от старта</div></div>
+      <div class="mod"><span class="pin2"></span><h3>Изпълнение на поръчки</h3><p>Поръчки от Shopify → етикет с един клик (Спиди/Еконт/BoxNow/Sameday) с наложен платеж → проследяване.</p><div class="when">от старта</div></div>
+      <div class="mod"><span class="pin2"></span><h3>Анализи</h3><p>Топ продукти, приход, разпределение на бюджета, тенденции и отстъпки от доставчици — графики в панела.</p><div class="when">от старта</div></div>
+      <div class="mod"><span class="pin2"></span><h3>Поръчки към доставчици</h3><p>Предложения за поръчка от наличност + скорост на продажби + ценови тренд; генериране на заявки.</p><div class="when">фаза 2</div></div>
+      <div class="mod"><span class="pin2"></span><h3>Наличности</h3><p>Живи количества, синхрон с Barsy, аларми при нисък запас, резервации при поръчка.</p><div class="when">фаза 2</div></div>
+      <div class="mod"><span class="pin2"></span><h3>Асистент</h3><p>Поле за команди: служителят пита на български — „защо спря поръчка #1042?“ — и Claude отговаря, прави справка или действа.</p><div class="when">разликата</div></div>
+    </div>
+  </div>
+
+  <!-- 04 data + 05 UX side by side feel -->
+  <div class="sheet tilt-r">
+    <span class="tape tr"></span>
+    <div class="sechead"><span class="no">04</span><h2>Модел на данните</h2></div>
+    <p class="prose" style="font-family:var(--serif)">Една база, малка звездна схема — за да може всеки инструмент
+      (включително асистентът) да пита просто. Част вече съществува от анализите:</p>
+    <div class="chips" style="margin:.5rem 0 1rem">
+      <span class="ch">dim_product</span><span class="ch">dim_supplier</span><span class="ch">price_history</span><span class="ch">fact_sales ←Shopify</span><span class="ch">fact_purchases ←Barsy</span><span class="ch">fulfillment_state</span><span class="ch">users·роли·одит</span></div>
+    <div class="sechead" style="margin-top:1.4rem"><span class="no">05</span><h2>Да е наистина лесен</h2></div>
+    <ul class="checks">
+      <li><b>По работа, според ролята.</b> Опаковчикът влиза право в опашката за пратки; собственикът вижда всичко.</li>
+      <li><b>Движение със смисъл.</b> Анимацията показва състояние и причинност — „анализира“, „чернова“, „презаписваемо“ — никога само за ефект.</li>
+      <li><b>Прощаващ.</b> Отмяна навсякъде; изкуственият интелект пише с молив и винаги се поправя.</li>
+      <li><b>Малко кликове.</b> Клавишни бързи команди и групови действия за всичко повтарящо се.</li>
+      <li><b>Самоучещ.</b> Вграденият асистент — нов служител пита панела как се прави нещо.</li>
+    </ul>
+  </div>
+
+  <!-- 06 roadmap -->
+  <div class="sheet">
+    <span class="staple" style="margin-left:calc(50% - 8px)"></span>
+    <div class="sechead"><span class="no">06</span><h2>Пътят до реалност</h2></div>
+    <div class="road">
+      <div class="phase"><div class="pn">0</div><div><h3>Извади сърцевината</h3><p>Общата логика (база, Barsy, Shopify, куриери, анализи, обогатяване) в чист пакет. Нула смущение за работещото днес. <b>← започваме сега</b></p></div></div>
+      <div class="phase"><div class="pn">1</div><div><h3>Скеле на панела</h3><p>FastAPI + React/Vite + достъп + меню-рамка + таблото с анализи. Скелетът, на който всичко виси.</p></div></div>
+      <div class="phase"><div class="pn">2</div><div><h3>Ежедневните модули</h3><p>Приемане (с подписния поток), пратки, поръчки към доставчици, наличности — всеки щом стане годен.</p></div></div>
+      <div class="phase"><div class="pn">3</div><div><h3>Автоматизация и асистент</h3><p>Полето за команди, алармите и автоматиките, с които Claude управлява панела заедно с екипа.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 07 run well -->
+  <div class="sheet tilt-l">
+    <svg class="clip" viewBox="0 0 26 60" fill="none"><path d="M8 54V14a6 6 0 0112 0v34a10 10 0 01-20 0V18" stroke="var(--clip)" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <div class="sechead"><span class="no">07</span><h2>Да работи като истинска система</h2></div>
+    <ul class="checks">
+      <li><b>Извън лаптопа.</b> Ежедневен инструмент не може да живее на машина, която хибернира — сложи го на малко винаги-включено устройство (мини-компютър в магазина или €5–10/мес. сървър).</li>
+      <li><b>Служители, роли, одит.</b> Кой какво е направил. Нощни резервни копия.</li>
+      <li><b>Наблюдение и авто-рестарт.</b> Услуга под надзор, не ръчно пуснат скрипт.</li>
+    </ul>
+    <div class="sticky" style="transform:rotate(-2.5deg);margin-top:1.3rem;background:var(--sticky)">
+      Как го правим заедно: панелът е с ясни шевове и компонентна библиотека, а асистентът е шевът между
+      „какво иска екипът“ и „нова страница, която се появява“. Вие насочвате — Claude чертае, свързва, укрепва.</div>
+  </div>
+
+</div>
+<footer>Дарлинг · операционно бюро — спецификация. Живият документ; палитрата, шрифтовете и компонентите тук
+  СА дизайн-системата на приложението, не само на тази страница.</footer>
+
+<script>
+  const root=document.documentElement;
+  const tg=document.getElementById('tg'), snd=document.getElementById('snd');
+  function cur(){const t=root.getAttribute('data-theme');if(t)return t;
+    return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+  let soundOn=false, actx=null;
+  function paper(){ // synthesized paper-rustle: short filtered-noise burst
+    if(!soundOn) return;
+    try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      const dur=0.32, n=actx.sampleRate*dur, buf=actx.createBuffer(1,n,actx.sampleRate), d=buf.getChannelData(0);
+      for(let i=0;i<n;i++){const e=Math.pow(1-i/n,2.2); d[i]=(Math.random()*2-1)*e;}
+      const s=actx.createBufferSource();s.buffer=buf;
+      const bp=actx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2600;bp.Q.value=.7;
+      const g=actx.createGain();g.gain.value=.16;
+      s.connect(bp);bp.connect(g);g.connect(actx.destination);s.start();
+    }catch(e){}
+  }
+  tg.addEventListener('click',()=>{root.setAttribute('data-theme',cur()==='dark'?'light':'dark');paper();});
+  snd.addEventListener('click',()=>{soundOn=!soundOn;snd.textContent=(soundOn?'🔊':'🔇')+' звук';if(soundOn)paper();});
+  document.querySelectorAll('.sheet').forEach(s=>s.addEventListener('mouseenter',()=>{ /* subtle */ },{passive:true}));
+</script>

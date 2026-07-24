@@ -1,0 +1,28 @@
+# --- secrets (NEVER commit) ---
+.env
+*.env
+!.env.example
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- node / frontend build ---
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# --- databases / data (state, not source) ---
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# --- logs / os cruft ---
+*.log
+.DS_Store
+Thumbs.db
+
+# --- caddy runtime volumes are docker-managed, not in the tree ---

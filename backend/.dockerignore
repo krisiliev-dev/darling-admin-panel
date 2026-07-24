@@ -1,0 +1,4 @@
+# The image needs ONLY requirements.txt (code is bind-mounted at runtime). Keep the build
+# context tiny + the layer cache stable by excluding everything else.
+*
+!requirements.txt

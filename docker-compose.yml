@@ -1,0 +1,41 @@
+# Дарлинг admin panel — production stack.
+#   panel  : FastAPI backend (uvicorn). Code + SQLite DBs are bind-mounted from the host tree,
+#            so agents iterate without image rebuilds and data persists across restarts.
+#   caddy  : reverse proxy + automatic HTTPS; serves the built SPA and proxies /api + /webhooks.
+#
+# Bring up:  docker compose up -d --build      Logs:  docker compose logs -f panel
+# The whole product-review/ tree must be present (panel imports the sibling agent-pipeline/).
+
+services:
+  panel:
+    build: ./backend                       # image = pinned Python deps only (see backend/Dockerfile)
+    container_name: darling-panel
+    working_dir: /app/admin-panel/backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8770 --no-proxy-headers
+    volumes:
+      - ..:/app                            # product-review/ tree: code + admin.db + pipeline.db (persist on host)
+      - /home/darling/.hermes/.env:/root/.hermes/.env:ro   # shared secrets (read by panel AND agent-pipeline)
+    environment:
+      - TRUST_PROXY=1                       # behind Caddy; trust the real client IP in X-Forwarded-For
+    expose:
+      - "8770"                             # reachable only on the compose network, never published to the host
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: darling-caddy
+    depends_on:
+      - panel
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv:ro            # built SPA (run `npm --prefix frontend run build` on the host)
+      - caddy_data:/data                    # persisted TLS certificates — do NOT lose this volume
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

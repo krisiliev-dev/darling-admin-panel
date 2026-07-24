@@ -1,0 +1,158 @@
+# -*- coding: utf-8 -*-
+"""Auth + audit tables (admin.db). Roles: owner / staff / packer.
+`is_superuser` mirrors role=="owner" and gates FastAPI-Users' admin routes."""
+import datetime
+import uuid
+
+from fastapi_users.db import SQLAlchemyBaseUserTableUUID
+from sqlalchemy import String, DateTime, Text, Index, UniqueConstraint, func, text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from .db import Base
+
+# task-oriented roles: owner = local break-glass superuser; manager = Barsy Мениджър
+# (full access); staff/packer = limited. Full access is signalled by is_superuser.
+ROLES = ("owner", "manager", "staff", "packer")
+
+
+class User(SQLAlchemyBaseUserTableUUID, Base):
+    __tablename__ = "users"
+    # Partial unique index: AT MOST ONE owner ever — DB-enforced, closing the
+    # first-run setup race (two concurrent /setup calls with different emails).
+    __table_args__ = (
+        Index("uq_single_owner", "role", unique=True,
+              sqlite_where=text("role = 'owner'")),
+    )
+    # SQLAlchemyBaseUserTableUUID gives: id, email, hashed_password,
+    # is_active, is_superuser, is_verified
+    full_name: Mapped[str] = mapped_column(String(120), default="")
+    role: Mapped[str] = mapped_column(String(16), default="staff", index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+
+class IntakeDraft(Base):
+    """An approved product draft from the intake flow. Panel-owned (admin.db) — a safe
+    staging record between human approval and creation in Barsy. Price is staff-entered
+    (never AI — price policy). `status`: approved → pushed (to Barsy)."""
+    __tablename__ = "intake_drafts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+    # operational fields (human) — the AI never sets these
+    code: Mapped[str] = mapped_column(String(64), default="", index=True)
+    barcode: Mapped[str] = mapped_column(String(64), default="")
+    price: Mapped[str] = mapped_column(String(32), default="")   # euros, as string
+    unit: Mapped[str] = mapped_column(String(16), default="бр")
+    # enriched fields (AI draft, human-approved)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    category: Mapped[str] = mapped_column(String(255), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    attributes_json: Mapped[str] = mapped_column(Text, default="[]")
+    model: Mapped[str] = mapped_column(String(64), default="")
+    # lifecycle
+    status: Mapped[str] = mapped_column(String(16), default="approved", index=True)
+    barsy_article_id: Mapped[int | None] = mapped_column(nullable=True)
+    approved_by: Mapped[str] = mapped_column(String(255), default="")
+    pushed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+
+# NOTE: supplier orders (заявки) live in BARSY as draft storeloads (складови зареждания),
+# not in a local table — Barsy is the system of record. See routers/purchasing.py.
+
+
+class CodSettlement(Base):
+    """A recorded courier COD payout line (наложен платеж). Panel-owned (admin.db).
+    Couriers pay out twice-weekly against a deduction file; each order the courier collected
+    for gets a settlement row so we can flag discrepancies (collected != expected)."""
+    __tablename__ = "cod_settlement"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # one settlement per order — DB-enforced backstop against double-settle (HIGH-1)
+    order_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    order_name: Mapped[str] = mapped_column(String(64), default="")
+    courier: Mapped[str] = mapped_column(String(16), default="")
+    # waybill/tracking number — the JOIN KEY for future auto-reconciliation against the courier
+    # payout API (Speedy /payments, Econt CD settlement). Stored now so retrofitting isn't needed.
+    waybill: Mapped[str] = mapped_column(String(64), default="", index=True)
+    expected: Mapped[float] = mapped_column(default=0.0)     # COD we set at label time (€)
+    collected: Mapped[float] = mapped_column(default=0.0)    # what the courier paid out (€)
+    payout_ref: Mapped[str] = mapped_column(String(128), default="")  # matches SettleRequest.reference
+    payout_date: Mapped[str] = mapped_column(String(32), default="")
+    settled_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    settled_by: Mapped[str] = mapped_column(String(255), default="")
+
+
+class PricingRule(Base):
+    """Cost-plus-markup repricing (owner 2026-07-21). Retail should track supplier COST: buy at
+    €1.00 + 50% markup → sell €1.50; when the supplier cost rises to €1.50 the shelf price should
+    become €2.25. Barsy holds cost (delivery_price) + retail (actual_price); this panel-owned table
+    holds the intended markup per article + the cost we last priced from, so we can detect when a
+    cost change means the price needs the owner's approval to move. Panel proposes; owner applies."""
+    __tablename__ = "pricing_rule"
+
+    article_id: Mapped[int] = mapped_column(primary_key=True)  # Barsy article_id
+    markup_pct: Mapped[float] = mapped_column(default=0.0)     # 0.5 = +50% over cost
+    last_cost: Mapped[float | None] = mapped_column(default=None)  # cost when last (re)priced
+    updated_by: Mapped[str] = mapped_column(String(255), default="")
+    updated_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PricingGroupRule(Base):
+    """Markup rules by GROUP, not just per-article (owner 2026-07-21). Markup is usually per-SUPPLIER
+    (Mira-N 50%, Vertex 60%, Plam Plast 20%), sometimes per category/type. Resolution order when
+    pricing an article: its own PricingRule (product override) → this group rule (supplier, then
+    category) → none. Managers set these on the bulk repricing page."""
+    __tablename__ = "pricing_group_rule"
+    __table_args__ = (UniqueConstraint("scope", "key", name="uq_pricing_group"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scope: Mapped[str] = mapped_column(String(16))    # 'supplier' | 'category'
+    key: Mapped[str] = mapped_column(String(255))     # supplier name / category name
+    markup_pct: Mapped[float] = mapped_column(default=0.0)
+    updated_by: Mapped[str] = mapped_column(String(255), default="")
+    updated_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class OrderOutcome(Base):
+    """COD-refuser defense (owner 2026-07-21). Neither Speedy nor Econt exposes recipient reputation,
+    so we build our own: one row per finished delivery attempt, keyed on the normalized phone (+ a
+    normalized address), recording delivered vs refused. Repeat refusers then surface a risk flag on
+    the next order. Internal-only (never a shared/cross-merchant list) — GDPR lawful basis = fraud
+    prevention. A flag is for human review, never an automatic reject."""
+    __tablename__ = "order_outcome"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    phone_norm: Mapped[str] = mapped_column(String(20), index=True)   # 359-canonical
+    address_norm: Mapped[str] = mapped_column(String(255), default="")
+    order_id: Mapped[str] = mapped_column(String(64), default="")
+    order_name: Mapped[str] = mapped_column(String(64), default="")
+    outcome: Mapped[str] = mapped_column(String(16))                  # 'delivered' | 'refused'
+    cod_amount: Mapped[float] = mapped_column(default=0.0)
+    # nekorekten report id IF we reported this refusal to them — an opaque id (not personal data),
+    # kept so the report can be retracted (DELETE) if it was a mistake.
+    nekorekten_report_id: Mapped[str] = mapped_column(String(64), default="")
+    recorded_by: Mapped[str] = mapped_column(String(255), default="")
+    recorded_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+
+class AuditLog(Base):
+    """Who did what. Appended on side-effectful actions (login, user create, later:
+    labels printed, POs generated, stock edits). A packer is not the owner — this is
+    the trail that keeps them honest."""
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    actor_email: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(64), index=True)
+    target: Mapped[str] = mapped_column(String(255), default="")
+    detail: Mapped[str] = mapped_column(Text, default="")
