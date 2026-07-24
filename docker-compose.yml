@@ -17,6 +17,9 @@ services:
       - /home/darling/.hermes/.env:/root/.hermes/.env:ro   # shared secrets (read by panel AND agent-pipeline)
     environment:
       - TRUST_PROXY=1                       # behind Caddy; trust the real client IP in X-Forwarded-For
+    dns:                                    # host's systemd-resolved stub (127.0.0.53) doesn't work in
+      - 1.1.1.1                             # containers → give real resolvers so Barsy/Shopify/courier
+      - 8.8.8.8                             # API hostnames resolve
     expose:
       - "8770"                             # reachable only on the compose network, never published to the host
     restart: unless-stopped
@@ -26,6 +29,9 @@ services:
     container_name: darling-caddy
     depends_on:
       - panel
+    dns:                                    # real resolvers so ACME (Let's Encrypt) hostnames resolve
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - "80:80"
       - "443:443"
