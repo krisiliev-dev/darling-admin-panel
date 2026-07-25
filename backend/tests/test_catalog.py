@@ -44,6 +44,13 @@ async def test_catalog_folds_stock_and_low_filter(staff_client, barsy_recorder):
     assert [i["article_id"] for i in low] == [1]
 
 
+async def test_product_image_404_when_no_image(staff_client, barsy_recorder):
+    # no files for the article → 404 → frontend shows a placeholder (unique id avoids lru cache clash)
+    barsy_recorder.set_return("Files_getlist", [])
+    r = await staff_client.get("/api/catalog/image/99913?size=thumb")
+    assert r.status_code == 404
+
+
 async def test_list_articles_readable_by_packer(packer_client, barsy_recorder):
     # browse is gated by current_active_user only — even the lowest role may read
     barsy_recorder.set_return("Articles_getlist", [])

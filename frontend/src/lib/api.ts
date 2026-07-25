@@ -452,6 +452,7 @@ export interface CatalogItem {
   stock?: number | null
   min_stock?: number | null
   low?: boolean
+  has_image?: boolean
 }
 
 export interface ArticleDetail {

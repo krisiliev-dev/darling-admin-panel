@@ -49,11 +49,12 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
               {pg.slice.map((it) => (
                 <button key={it.article_id} onClick={() => setSelected(it.article_id)}
                   style={{
-                    display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', textAlign: 'left', alignItems: 'baseline',
+                    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '.6rem', textAlign: 'left', alignItems: 'center',
                     border: 'none', borderLeft: `3px solid ${selected === it.article_id ? 'var(--red)' : it.low ? 'var(--blocked)' : 'transparent'}`,
                     background: selected === it.article_id ? 'var(--paper2)' : 'transparent', cursor: 'pointer',
                     padding: '.35rem .5rem', fontSize: '.82rem', borderBottom: '1px dashed var(--line)',
                   }}>
+                  <Thumb articleId={it.article_id} hasImage={it.has_image} />
                   <span>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></span>
                   <span className="font-type" style={{ fontSize: '.76rem', color: it.low ? 'var(--blocked)' : 'var(--pencil)', whiteSpace: 'nowrap' }}
                     title="наличност">{it.stock != null ? `${it.stock} бр${it.low ? ' ⚠' : ''}` : '—'}</span>
@@ -108,8 +109,11 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
       </div>
       {!detail ? <Loading /> : (
         <div style={{ display: 'grid', gap: '.5rem' }}>
-          <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
-            код {detail.code} · {detail.price != null ? `${detail.price} € (от Microinvest — не се редактира)` : 'без цена'}{detail.category ? ` · ${detail.category}` : ''}
+          <div style={{ display: 'flex', gap: '.7rem', alignItems: 'flex-start' }}>
+            <Thumb articleId={articleId} size={72} />
+            <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
+              код {detail.code} · {detail.price != null ? `${detail.price} € (от Microinvest — не се редактира)` : 'без цена'}{detail.category ? ` · ${detail.category}` : ''}
+            </div>
           </div>
           <Field label="Име"><input className="input-paper" value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="Баркод"><input className="input-paper" value={barcode} onChange={(e) => setBarcode(e.target.value)} /></Field>
@@ -124,6 +128,15 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
       )}
     </Sheet>
   )
+}
+
+// a small product thumbnail via the auth-proxy; falls back to a paper placeholder on 404/no-image
+function Thumb({ articleId, hasImage, size = 34 }: { articleId: number; hasImage?: boolean; size?: number }) {
+  const [failed, setFailed] = useState(false)
+  const box: React.CSSProperties = { width: size, height: size, borderRadius: 3, border: '1px solid var(--line)', flexShrink: 0, objectFit: 'cover' }
+  if (hasImage === false || failed)
+    return <span aria-hidden style={{ ...box, background: 'var(--manila)', display: 'inline-grid', placeItems: 'center', color: 'var(--pencil)', fontSize: size * 0.4 }}>▦</span>
+  return <img src={`/api/catalog/image/${articleId}?size=thumb`} alt="" loading="lazy" style={box} onError={() => setFailed(true)} />
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
