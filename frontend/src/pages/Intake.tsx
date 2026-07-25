@@ -5,7 +5,7 @@ import type { IntakeDraft } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useHotkey } from '../lib/useHotkey'
 import { Sheet, Stamp } from '../components/Paper'
-import { PageHeader } from '../components/PageHeader'
+import { PageHeader, Loading } from '../components/PageHeader'
 
 // Приемане — THE signature flow. A bare stock name becomes a draft: category → attributes
 // → description, each step revealed in sequence. The AI writes in PENCIL (grey, editable);
@@ -15,140 +15,139 @@ type Phase = 'idle' | 'analysing' | 'draft' | 'approved'
 
 const UNITS = ['бр', 'л', 'кг', 'м', 'м2', 'компл']
 
+// Нов продукт — the MAIN view is the list of products that arrived on deliveries and still need
+// their info (barcode/images/enrichment). Click one → a second screen to add its info. A "+ Добави
+// продукт" button opens a standalone create flow (a product not tied to any delivery).
 export function Intake() {
+  const [categories, setCategories] = useState<string[]>([])
+  const [mode, setMode] = useState<'list' | 'add'>('list')
+  const [editDraft, setEditDraft] = useState<IntakeDraft | null>(null)
+  const [refresh, setRefresh] = useState(0)
+  const bump = () => setRefresh((n) => n + 1)
+
+  useEffect(() => {
+    api.get<{ categories: string[] }>('/api/intake/categories').then((d) => setCategories(d.categories)).catch(() => {})
+  }, [])
+
+  if (editDraft) return <ProductEditorScreen draft={editDraft} categories={categories}
+    onBack={() => setEditDraft(null)} onDone={() => { setEditDraft(null); bump() }} />
+  if (mode === 'add') return <NewProductScreen categories={categories}
+    onBack={() => setMode('list')} onDone={() => { setMode('list'); bump() }} />
+  return <WaitingList key={refresh} categories={categories} onEdit={setEditDraft} onAdd={() => setMode('add')} refreshKey={refresh} />
+}
+
+// MAIN VIEW: delivery-sourced products waiting to be completed + a manual add-product entry.
+function WaitingList({ onEdit, onAdd, refreshKey }: {
+  categories: string[]; onEdit: (d: IntakeDraft) => void; onAdd: () => void; refreshKey: number
+}) {
+  const [items, setItems] = useState<IntakeDraft[] | null>(null)
+  useEffect(() => {
+    api.get<{ drafts: IntakeDraft[] }>('/api/intake/from-delivery').then((d) => setItems(d.drafts)).catch(() => setItems([]))
+  }, [])
+  return (
+    <div style={{ display: 'grid', gap: '1.1rem' }}>
+      <PageHeader title="Нов продукт" subtitle="продукти от доставки, чакащи да бъдат добавени" right={
+        <button className="btn-paper btn-red" onClick={onAdd}>+ Добави продукт</button>
+      } />
+      <Sheet clip="left">
+        <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Чакащи от доставки{items ? ` (${items.length})` : ''}</h3>
+        {!items ? <Loading /> : items.length === 0 ? (
+          <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '1rem', padding: '1.4rem 0', textAlign: 'center' }}>
+            Няма непознати продукти от доставки, които те чакат.<br />
+            Натисни „+ Добави продукт“, за да създадеш нов продукт ръчно.
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gap: '.5rem' }}>
+            {items.map((d) => (
+              <button key={d.id} onClick={() => onEdit(d)} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.7rem', textAlign: 'left',
+                border: '1px solid var(--line)', borderRadius: 2, padding: '.55rem .7rem', background: 'var(--paper2)', cursor: 'pointer',
+              }}>
+                <span><span className="font-type" style={{ fontWeight: 700 }}>{d.name || '(без име)'}</span>
+                  <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}> · код {d.code || '—'}{d.barcode ? ` · ${d.barcode}` : ''}</span></span>
+                <span style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.78rem', whiteSpace: 'nowrap' }}>добави информация →</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Sheet>
+      <ApprovedDrafts refreshKey={refreshKey} />
+    </div>
+  )
+}
+
+// SECOND SCREEN for a delivery product: barcode + images + AI enrich + save.
+function ProductEditorScreen({ draft, categories, onBack, onDone }: {
+  draft: IntakeDraft; categories: string[]; onBack: () => void; onDone: () => void
+}) {
+  return (
+    <div style={{ display: 'grid', gap: '1.1rem' }}>
+      <button className="btn-paper" onClick={onBack} style={{ justifySelf: 'start' }}>← Назад към списъка</button>
+      <PageHeader title="Довърши продукта" subtitle="баркод + снимки + информация → готов продукт" />
+      <DeliveryProductEditor draft={draft} categories={categories} onDone={onDone} onCancel={onBack} />
+    </div>
+  )
+}
+
+// ADD PRODUCT (standalone, not tied to a delivery): the signature name → AI draft → approve flow.
+function NewProductScreen({ categories, onBack, onDone }: {
+  categories: string[]; onBack: () => void; onDone: () => void
+}) {
   const [name, setName] = useState('')
   const [hint, setHint] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
   const [draft, setDraft] = useState<IntakeDraft | null>(null)
   const [error, setError] = useState('')
-  const [categories, setCategories] = useState<string[]>([])
   const [penned, setPenned] = useState<Record<string, boolean>>({})
-  // operational fields (human-entered — never AI; price = Microinvest, per policy)
   const [op, setOp] = useState({ code: '', barcode: '', price: '', unit: 'бр' })
   const [saving, setSaving] = useState(false)
-  const [refreshDrafts, setRefreshDrafts] = useState(0)
-
-  useEffect(() => {
-    api.get<{ categories: string[] }>('/api/intake/categories')
-      .then((d) => setCategories(d.categories)).catch(() => {})
-  }, [])
 
   const process = async () => {
     if (!name.trim()) return
-    setPhase('analysing'); setError(''); setDraft(null); setPenned({})
-    setOp({ code: '', barcode: '', price: '', unit: 'бр' })
-    try {
-      const d = await api.post<IntakeDraft>('/api/intake/enrich', { name, hint })
-      setDraft(d); setPhase('draft')
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Обработката се провали.')
-      setPhase('idle')
-    }
+    setPhase('analysing'); setError(''); setDraft(null); setPenned({}); setOp({ code: '', barcode: '', price: '', unit: 'бр' })
+    try { const d = await api.post<IntakeDraft>('/api/intake/enrich', { name, hint }); setDraft(d); setPhase('draft') }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'Обработката се провали.'); setPhase('idle') }
   }
-
   const approve = async () => {
     if (!draft) return
-    // data-quality check at the point of adding one product (a second net over the manual audit)
     try {
       const chk = await api.post<{ ok: boolean; issues: string[] }>('/api/quality/check', {
-        name: draft.name, barcode: op.barcode, price: parseFloat(op.price) || 0,
-        category: draft.category, description: draft.description,
-      })
+        name: draft.name, barcode: op.barcode, price: parseFloat(op.price) || 0, category: draft.category, description: draft.description })
       if (!chk.ok && !window.confirm(`Забележки по данните:\n• ${chk.issues.join('\n• ')}\n\nДа продължа ли с одобрението?`)) return
-    } catch { /* quality check is advisory — never block approval on its failure */ }
+    } catch { /* advisory */ }
     setSaving(true); setError('')
     try {
-      await api.post('/api/intake/approve', {
-        code: op.code, barcode: op.barcode, price: op.price, unit: op.unit,
-        name: draft.name, category: draft.category, description: draft.description,
-        attributes: draft.attributes, model: draft.model,
-      })
-      setPhase('approved')
-      setRefreshDrafts((n) => n + 1)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Записът се провали.')
-    } finally { setSaving(false) }
+      await api.post('/api/intake/approve', { code: op.code, barcode: op.barcode, price: op.price, unit: op.unit,
+        name: draft.name, category: draft.category, description: draft.description, attributes: draft.attributes, model: draft.model })
+      setPhase('approved'); onDone()
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setSaving(false) }
   }
-
   const pen = (field: string) => setPenned((p) => ({ ...p, [field]: true }))
-
-  // Cmd/Ctrl+Enter approves the current draft — the repetitive intake action, keyboard-reachable
-  useHotkey((e) => (e.metaKey || e.ctrlKey) && e.key === 'Enter',
-    () => { if (phase === 'draft' && !saving) void approve() }, [phase, saving, draft, op])
+  useHotkey((e) => (e.metaKey || e.ctrlKey) && e.key === 'Enter', () => { if (phase === 'draft' && !saving) void approve() }, [phase, saving, draft, op])
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Нов продукт" subtitle="име (или снимка) → AI чернова → готов продукт в Barsy" />
-
+      <button className="btn-paper" onClick={onBack} style={{ justifySelf: 'start' }}>← Назад към списъка</button>
+      <PageHeader title="Нов продукт (ръчно)" subtitle="име → AI чернова → готов продукт в Barsy" />
       <Sheet clip="left" tilt="l">
         <div className="eyebrow">Нов продукт</div>
         <div style={{ display: 'grid', gap: '.6rem', maxWidth: '38rem', marginTop: '.5rem' }}>
-          <input className="input-paper" placeholder="Име от касата — напр. „Керамична купа за салата 25 см синя“"
-            value={name} onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void process() }} />
-          <input className="input-paper" placeholder="Подсказка (по избор) — материал, употреба…"
-            value={hint} onChange={(e) => setHint(e.target.value)} />
-          <div>
-            <button className="btn-paper btn-red" onClick={() => void process()}
-              disabled={phase === 'analysing' || !name.trim()}>
-              {phase === 'analysing' ? 'обработва…' : 'Обработи'}
-            </button>
-          </div>
+          <input className="input-paper" placeholder="Име — напр. „Керамична купа за салата 25 см синя“" value={name}
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void process() }} />
+          <input className="input-paper" placeholder="Подсказка (по избор) — материал, употреба…" value={hint} onChange={(e) => setHint(e.target.value)} />
+          <div><button className="btn-paper btn-red" onClick={() => void process()} disabled={phase === 'analysing' || !name.trim()}>{phase === 'analysing' ? 'обработва…' : 'Обработи'}</button></div>
           {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.82rem' }}>{error}</div>}
         </div>
-        <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '.9rem', marginTop: '.6rem' }}>
-          ✎ изкуственият интелект пише с молив — сиво и презаписваемо. Ти потвърждаваш с химикал.
-        </p>
+        <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '.9rem', marginTop: '.6rem' }}>✎ AI пише с молив — сиво и презаписваемо. Ти потвърждаваш с химикал.</p>
       </Sheet>
-
       <AnimatePresence mode="sync">
         {phase !== 'idle' && (
           <motion.div key="flow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <FlowCards phase={phase} name={name} draft={draft} categories={categories}
-              penned={penned} pen={pen} setDraft={setDraft}
-              op={op} setOp={setOp} units={UNITS} saving={saving} onApprove={approve} />
+            <FlowCards phase={phase} name={name} draft={draft} categories={categories} penned={penned} pen={pen} setDraft={setDraft} op={op} setOp={setOp} units={UNITS} saving={saving} onApprove={approve} />
           </motion.div>
         )}
       </AnimatePresence>
-
-      <DeliveryProducts categories={categories} onApproved={() => setRefreshDrafts((n) => n + 1)} />
-      <ApprovedDrafts refreshKey={refreshDrafts} />
     </div>
-  )
-}
-
-// --------------------------------------------------- new products arrived on a delivery ---
-// These drafts were staged by the Доставки flow (status 'new_from_delivery'). Enriching + approving
-// one updates it IN PLACE (keeps its delivery_line_id), so a later push to Barsy writes the new
-// article_id back onto the delivery line — clearing that delivery's finalise gate.
-function DeliveryProducts({ categories, onApproved }: { categories: string[]; onApproved: () => void }) {
-  const [items, setItems] = useState<IntakeDraft[] | null>(null)
-  const [openId, setOpenId] = useState<number | null>(null)
-  const load = () => api.get<{ drafts: IntakeDraft[] }>('/api/intake/from-delivery')
-    .then((d) => setItems(d.drafts)).catch(() => setItems([]))
-  useEffect(() => { void load() }, [])
-
-  if (!items || items.length === 0) return null
-  return (
-    <Sheet>
-      <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Нови продукти от доставки ({items.length})</h3>
-      <p className="font-type" style={{ fontSize: '.76rem', color: 'var(--pencil)', marginBottom: '.6rem' }}>
-        Довърши тези, за да може доставката им да се финализира.
-      </p>
-      <div style={{ display: 'grid', gap: '.5rem' }}>
-        {items.map((d) => openId === d.id
-          ? <DeliveryProductEditor key={d.id} draft={d} categories={categories}
-              onDone={() => { setOpenId(null); void load(); onApproved() }} onCancel={() => setOpenId(null)} />
-          : (
-            <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.7rem',
-              border: '1px solid var(--line)', borderRadius: 2, padding: '.5rem .7rem', background: 'var(--paper2)' }}>
-              <span><span className="font-type" style={{ fontWeight: 700 }}>{d.name}</span>
-                <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}> · код {d.code || '—'}{d.barcode ? ` · ${d.barcode}` : ''}</span></span>
-              <button className="btn-paper" onClick={() => setOpenId(d.id ?? null)}>Обогати и завърши →</button>
-            </div>
-          ))}
-      </div>
-    </Sheet>
   )
 }
 
@@ -158,6 +157,14 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
   const [d, setD] = useState<IntakeDraft>(draft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [images, setImages] = useState<{ name: string; url: string }[]>([])
+  const urlsRef = useRef<string[]>([])
+  useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL) }, [])   // free blob URLs on unmount
+  const addImages = (files: FileList | null) => {
+    if (!files?.length) return
+    const imgs = Array.from(files).map((f) => { const url = URL.createObjectURL(f); urlsRef.current.push(url); return { name: f.name, url } })
+    setImages((prev) => [...prev, ...imgs])
+  }
 
   const enrich = async () => {
     setBusy(true); setError('')
@@ -185,6 +192,15 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
         <Field label="Баркод"><input className="input-paper" value={d.barcode || ''} onChange={(e) => setD({ ...d, barcode: e.target.value })} /></Field>
         <Field label="Цена (€)"><input className="input-paper" value={d.price || ''} onChange={(e) => setD({ ...d, price: e.target.value })} /></Field>
         <button className="btn-paper" onClick={() => void enrich()} disabled={busy} style={{ alignSelf: 'end' }}>{busy ? '…' : '✨ Обогати'}</button>
+      </div>
+      <div>
+        <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Снимки</span>
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '.3rem' }}>
+          {images.map((im, i) => <img key={i} src={im.url} alt={im.name} style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />)}
+          <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
+            + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => addImages(e.target.files)} />
+          </label>
+        </div>
       </div>
       <Field label="Име"><input className="input-paper" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></Field>
       <Field label="Категория">
