@@ -72,9 +72,12 @@ print("wrote", DST, os.path.getsize(DST), "bytes")
 # server-side so we never ship 12k rows to the browser at once ---
 PRODUCTS_DST = DST.replace("seed_analytics.json", "seed_products.json")
 products = [{
+    "code": str(p[i["code"]]) if i.get("code") is not None and p[i["code"]] is not None else "",
     "name": p[i["name"]], "supplier": p[i["sup"]] or "",
     "units": p[i["units"]], "rev": num(p[i["rev"]]), "marg": p[i["marg"]],
     "stock": p[i["stock"]], "stockval": num(p[i["stockval"]]),
+    "price": num(p[i["price"]]) if i.get("price") is not None else None,
+    "cost": num(p[i["cost"]]) if i.get("cost") is not None else None,
     "last": p[i["last"]], "cover": p[i["cover"]],
     "dead": bool(int(p[i["flag"]]) & 2), "discontinued": bool(int(p[i["flag"]]) & 1),
 } for p in d["P"]]

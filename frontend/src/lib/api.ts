@@ -266,9 +266,9 @@ export interface HomeResponse {
 }
 
 export interface ProductRow {
-  name: string; supplier: string; units: number; rev: number; marg: number
-  stock: number; stockval: number; last: string; cover: number
-  dead: boolean; discontinued: boolean
+  code: string; name: string; supplier: string; units: number; rev: number; marg: number
+  stock: number; stockval: number; price: number | null; cost: number | null
+  last: string; cover: number; dead: boolean; discontinued: boolean
 }
 export interface ProductsResponse {
   available: boolean; total: number; page: number; per_page: number

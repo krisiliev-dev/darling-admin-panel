@@ -169,12 +169,12 @@ async def test_diagnosis_requires_auth(client):
 # ---- product explorer (filter/sort/paginate, server-side) ----
 
 _PROD = [
-    {"name": "Чаша", "supplier": "Алфа", "units": 100, "rev": 500, "marg": 40, "stock": 5,
-     "stockval": 25, "last": "2026-01", "cover": 10, "dead": False, "discontinued": False},
-    {"name": "Ваза", "supplier": "Бета", "units": 0, "rev": 0, "marg": 0, "stock": 8,
-     "stockval": 80, "last": "2023-01", "cover": -1, "dead": True, "discontinued": False},
-    {"name": "Чиния", "supplier": "Алфа", "units": 50, "rev": 200, "marg": 30, "stock": 2,
-     "stockval": 10, "last": "2025-06", "cover": 5, "dead": False, "discontinued": True},
+    {"code": "К-001", "name": "Чаша", "supplier": "Алфа", "units": 100, "rev": 500, "marg": 40,
+     "stock": 5, "stockval": 25, "price": 12.5, "last": "2026-01", "cover": 10, "dead": False, "discontinued": False},
+    {"code": "К-002", "name": "Ваза", "supplier": "Бета", "units": 0, "rev": 0, "marg": 0,
+     "stock": 8, "stockval": 80, "price": 20.0, "last": "2023-01", "cover": -1, "dead": True, "discontinued": False},
+    {"code": "К-003", "name": "Чиния", "supplier": "Алфа", "units": 50, "rev": 200, "marg": 30,
+     "stock": 2, "stockval": 10, "price": 8.0, "last": "2025-06", "cover": 5, "dead": False, "discontinued": True},
 ]
 
 
@@ -201,6 +201,12 @@ async def test_products_supplier_and_search(owner_client, monkeypatch):
     assert {p["name"] for p in r.json()["products"]} == {"Чаша", "Чиния"}
     r2 = await owner_client.get("/api/inventory-health/products?q=чаш")
     assert [p["name"] for p in r2.json()["products"]] == ["Чаша"]
+
+
+async def test_products_search_by_code(owner_client, monkeypatch):
+    _seed_products(monkeypatch)   # search matches name OR code
+    r = await owner_client.get("/api/inventory-health/products?q=К-002")
+    assert [p["name"] for p in r.json()["products"]] == ["Ваза"]
 
 
 async def test_products_sort_and_paginate(owner_client, monkeypatch):

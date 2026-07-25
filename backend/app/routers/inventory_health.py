@@ -38,8 +38,9 @@ def _seed():
 
 
 _PRODUCTS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "seed_products.json")
-_SORT_FIELDS = {"name", "supplier", "units", "rev", "marg", "stock", "stockval", "last", "cover"}
-_TEXT_FIELDS = {"name", "supplier", "last"}
+_SORT_FIELDS = {"code", "name", "supplier", "units", "rev", "marg", "stock", "stockval",
+                "price", "last", "cover"}
+_TEXT_FIELDS = {"code", "name", "supplier", "last"}
 
 
 @lru_cache(maxsize=1)
@@ -244,7 +245,7 @@ def products(
             return False
         if status == "discontinued" and not p.get("discontinued"):
             return False
-        if ql and ql not in (p.get("name") or "").lower():
+        if ql and ql not in (p.get("name") or "").lower() and ql not in (p.get("code") or "").lower():
             return False
         return True
 

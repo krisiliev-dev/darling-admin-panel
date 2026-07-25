@@ -1,27 +1,33 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApi } from '../lib/useApi'
 import type { ProductsResponse } from '../lib/api'
 import { Loading } from './PageHeader'
 
 const eur = (n: number) => n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const COLS: { key: string; label: string; num?: boolean }[] = [
-  { key: 'name', label: 'Артикул' }, { key: 'supplier', label: 'Доставчик' },
+  { key: 'name', label: 'Артикул' }, { key: 'code', label: 'Код' },
+  { key: 'supplier', label: 'Доставчик' },
   { key: 'units', label: 'Продадени', num: true }, { key: 'rev', label: 'Приход', num: true },
   { key: 'marg', label: 'Марж %', num: true }, { key: 'stock', label: 'Налич.', num: true },
-  { key: 'stockval', label: 'Стойност', num: true }, { key: 'cover', label: 'Дни', num: true },
-  { key: 'last', label: 'Посл. прод.' },
+  { key: 'price', label: 'Цена', num: true }, { key: 'stockval', label: 'Стойност', num: true },
+  { key: 'cover', label: 'Дни', num: true }, { key: 'last', label: 'Посл. прод.' },
 ]
 const STATUSES: [string, string][] = [['all', 'всички'], ['dead', 'застояли'], ['active', 'активни'], ['discontinued', 'спрени']]
 const PER = 50
 
 // Interactive explorer over the (historical) product catalogue — server-side filter (supplier /
 // status / name), column sort, and pagination. Mirrors the reviewer /analytics product table.
-export function ProductExplorer({ suppliers }: { suppliers: string[] }) {
+export function ProductExplorer({ suppliers, focusSupplier }: { suppliers: string[]; focusSupplier?: string }) {
   const [supplier, setSupplier] = useState('')
   const [status, setStatus] = useState('all')
   const [q, setQ] = useState(''); const [submitted, setSubmitted] = useState('')
   const [sort, setSort] = useState('stockval'); const [order, setOrder] = useState('desc')
   const [page, setPage] = useState(1)
+
+  // drill-down from the suppliers table: when the parent sets a supplier, adopt it as the filter
+  useEffect(() => {
+    if (focusSupplier) { setSupplier(focusSupplier); setPage(1) }
+  }, [focusSupplier])
 
   const path = `/api/inventory-health/products?supplier=${encodeURIComponent(supplier)}&status=${status}`
     + `&q=${encodeURIComponent(submitted)}&sort=${sort}&order=${order}&page=${page}&per_page=${PER}`
@@ -41,7 +47,7 @@ export function ProductExplorer({ suppliers }: { suppliers: string[] }) {
   return (
     <div style={{ display: 'grid', gap: '.6rem' }}>
       {/* filters */}
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="no-print" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <select className="input-paper" aria-label="доставчик" value={supplier} onChange={(e) => onFilter(setSupplier)(e.target.value)} style={{ maxWidth: '14rem' }}>
           <option value="">— всички доставчици —</option>
           {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -49,9 +55,10 @@ export function ProductExplorer({ suppliers }: { suppliers: string[] }) {
         <select className="input-paper" aria-label="статус" value={status} onChange={(e) => onFilter(setStatus)(e.target.value)}>
           {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        <input className="input-paper" style={{ width: '12rem' }} placeholder="търси по име…" value={q}
+        <input className="input-paper" style={{ width: '12rem' }} placeholder="търси по име или код…" value={q}
           onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setSubmitted(q); setPage(1) } }} aria-label="търсене" />
         <button className="btn-paper" onClick={() => { setSubmitted(q); setPage(1) }}>Търси</button>
+        <button className="btn-paper" onClick={() => window.print()} title="печат на текущата страница">🖨 Печат</button>
         <span style={{ marginLeft: 'auto', fontSize: '.76rem', color: 'var(--pencil)' }}>{total.toLocaleString('bg-BG')} артикула</span>
       </div>
 
@@ -75,11 +82,13 @@ export function ProductExplorer({ suppliers }: { suppliers: string[] }) {
                     {p.discontinued && <span title="спрян" style={{ color: 'var(--pencil)' }}>✕ </span>}
                     {p.name}
                   </td>
+                  <td style={{ padding: '.25rem .35rem', color: 'var(--pencil)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{p.code || '—'}</td>
                   <td style={{ padding: '.25rem .35rem', color: 'var(--pencil)', maxWidth: '10rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.supplier}>{p.supplier}</td>
                   <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.units}</td>
                   <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{eur(p.rev)}</td>
                   <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.marg}%</td>
                   <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.stock}</td>
+                  <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.price != null ? eur(p.price) : '—'}</td>
                   <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: p.dead ? 'var(--blocked)' : undefined }}>{eur(p.stockval)}</td>
                   <td style={{ padding: '.25rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.cover < 0 ? '—' : p.cover}</td>
                   <td style={{ padding: '.25rem .35rem', color: 'var(--pencil)' }}>{p.last || '—'}</td>

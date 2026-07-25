@@ -8,8 +8,8 @@ vi.mock('../lib/useApi', () => ({
     data: {
       available: true, total: 2, page: 1, per_page: 50, sort: 'stockval', order: 'desc',
       products: [
-        { name: 'Чаша', supplier: 'Алфа', units: 100, rev: 500, marg: 40, stock: 5, stockval: 25, last: '2026-01', cover: 10, dead: false, discontinued: false },
-        { name: 'Ваза', supplier: 'Бета', units: 0, rev: 0, marg: 0, stock: 8, stockval: 80, last: '2023-01', cover: -1, dead: true, discontinued: false },
+        { code: 'К-001', name: 'Чаша', supplier: 'Алфа', units: 100, rev: 500, marg: 40, stock: 5, stockval: 25, price: 12.5, cost: 5, last: '2026-01', cover: 10, dead: false, discontinued: false },
+        { code: 'К-002', name: 'Ваза', supplier: 'Бета', units: 0, rev: 0, marg: 0, stock: 8, stockval: 80, price: 20, cost: 10, last: '2023-01', cover: -1, dead: true, discontinued: false },
       ],
     },
     loading: false,
@@ -23,6 +23,9 @@ describe('ProductExplorer', () => {
     render(<ProductExplorer suppliers={['Алфа', 'Бета']} />)
     expect(screen.getByText('Чаша')).toBeInTheDocument()
     expect(screen.getByText('Ваза')).toBeInTheDocument()
+    expect(screen.getByText('К-001')).toBeInTheDocument()            // product code column
+    expect(screen.getByText(/Код/)).toBeInTheDocument()              // Код header
+    expect(screen.getByText('🖨 Печат')).toBeInTheDocument()          // print button
     expect(screen.getByText(/2 артикула/)).toBeInTheDocument()
     // supplier <select> is populated from the prop
     expect(screen.getByRole('option', { name: 'Алфа' })).toBeInTheDocument()

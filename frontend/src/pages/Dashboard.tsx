@@ -396,6 +396,14 @@ function HistoricalDiagnosis() {
   const months = Object.keys(data.ts || {}).sort()
   const ts = data.ts || {}
   const abc = data.abc || {}
+  const [supSort, setSupSort] = useState<'name' | 'rev' | 'deadval'>('rev')
+  const [focusSupplier, setFocusSupplier] = useState('')
+  const sortedSuppliers = [...(data.suppliers || [])].sort((a, b) =>
+    supSort === 'name' ? a.name.localeCompare(b.name) : (Number(b[supSort] || 0) - Number(a[supSort] || 0)))
+  const pickSupplier = (name: string) => {
+    setFocusSupplier(name)
+    document.getElementById('prod-explorer')?.scrollIntoView({ behavior: 'smooth' })
+  }
   const axis = {
     plugins: { legend: { display: true, labels: { color: cssVar('--ink'), font: { size: 11 } } } },
     scales: { x: { ticks: { color: cssVar('--pencil'), maxTicksLimit: 10 }, grid: { display: false } },
@@ -472,14 +480,17 @@ function HistoricalDiagnosis() {
         <Sheet>
           <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Доставчици (топ по приход)</h3>
           <div style={{ display: 'grid', gap: '.25rem', fontSize: '.78rem', maxHeight: '18rem', overflowY: 'auto' }}>
-            <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', color: 'var(--pencil)', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>
-              <span>доставчик</span><span>приход</span><span>мъртва €</span>
+            <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', color: 'var(--red)', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em', cursor: 'pointer' }}>
+              <span onClick={() => setSupSort('name')}>доставчик{supSort === 'name' ? ' ▲' : ''}</span>
+              <span onClick={() => setSupSort('rev')} style={{ textAlign: 'right' }}>приход{supSort === 'rev' ? ' ▼' : ''}</span>
+              <span onClick={() => setSupSort('deadval')} style={{ textAlign: 'right' }}>мъртва €{supSort === 'deadval' ? ' ▼' : ''}</span>
             </div>
-            {(data.suppliers || []).map((s) => (
-              <div key={s.name} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', borderBottom: '1px dashed var(--line)', paddingBottom: '.2rem', alignItems: 'baseline' }}>
+            {sortedSuppliers.map((s) => (
+              <div key={s.name} onClick={() => pickSupplier(s.name)} title={`${s.name} — покажи продуктите`}
+                style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', borderBottom: '1px dashed var(--line)', paddingBottom: '.2rem', alignItems: 'baseline', cursor: 'pointer' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.name}>{s.name}</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{eur(s.rev)}</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums', color: s.deadval > 0 ? 'var(--red)' : 'var(--pencil)' }}>{eur(s.deadval)}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{eur(s.rev)}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: s.deadval > 0 ? 'var(--red)' : 'var(--pencil)' }}>{eur(s.deadval)}</span>
               </div>
             ))}
           </div>
@@ -510,8 +521,10 @@ function HistoricalDiagnosis() {
       </Sheet>
 
       <Sheet>
-        <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Продукти — търсене и филтри</h3>
-        <ProductExplorer suppliers={(data.suppliers || []).map((s) => s.name)} />
+        <div id="prod-explorer">
+          <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Продукти — търсене и филтри</h3>
+          <ProductExplorer suppliers={(data.suppliers || []).map((s) => s.name)} focusSupplier={focusSupplier} />
+        </div>
       </Sheet>
     </div>
   )

@@ -131,6 +131,15 @@ h1, h2, h3, .display { font-family: var(--type); font-weight: 700; letter-spacin
   padding: 1rem 1.1rem .9rem; box-shadow: 2px 4px 8px rgba(0,0,0,.2); line-height: 1.5;
 }
 
+/* --- print: drop the shell chrome + interactive controls, keep the content (e.g. product table) --- */
+@media print {
+  header, nav, .no-print, button, input, select { display: none !important; }
+  body, .wrap { background: #fff !important; }
+  table { font-size: 10.5px; width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  .sticky-note { box-shadow: none; border: 1px solid #ccc; }
+}
+
 /* --- the PENCIL vs PEN metaphor: AI draft is grey handwriting --- */
 .pencil { font-family: var(--hand); color: var(--pencil); }
 .pen { font-family: var(--serif); color: var(--ink); }
