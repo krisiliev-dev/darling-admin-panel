@@ -126,6 +126,24 @@ async def staff_client(owner_client):
 
 
 @pytest_asyncio.fixture
+async def manager_client(monkeypatch):
+    """A logged-in Barsy MANAGER (role_id 1 → panel manager/superuser). Managers come from
+    Barsy-login (not local /setup), so we mock barsy_auth.verify to mint one."""
+    import app.routers.auth_extra as _ax
+    monkeypatch.setattr(_ax.barsy_auth, "verify", lambda u, p: {
+        "user_id": 100, "user_name": "mgr", "role_id": 1, "role_name": "Мениджър",
+        "fname": "Мария", "lname": "Мениджър", "email": "mgr@x.bg"})
+    transport = ASGITransport(app=app)
+    c = httpx.AsyncClient(transport=transport, base_url="http://test")
+    r = await c.post("/api/auth/barsy-login", json={"username": "mgr", "password": "x"})
+    assert r.status_code in (200, 204), r.text
+    try:
+        yield c
+    finally:
+        await c.aclose()
+
+
+@pytest_asyncio.fixture
 async def make_draft():
     """Factory: insert an IntakeDraft directly (bypassing the API) and return its id."""
     async def _make(**kw) -> int:

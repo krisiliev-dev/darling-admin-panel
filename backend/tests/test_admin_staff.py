@@ -43,6 +43,29 @@ async def test_create_staff_requires_auth(client, barsy_recorder):
     assert barsy_recorder.calls == []
 
 
+# --- manager privilege guard: a manager may create only NON-privileged roles ----------
+async def test_manager_cannot_create_privileged_role(manager_client, barsy_recorder):
+    # a manager creating a Мениджър (role_id 1 → panel superuser) is refused before any ERP write
+    r = await manager_client.post("/api/admin/staff", json={**_NEW_STAFF, "role_id": 1})
+    assert r.status_code == 403, r.text
+    assert barsy_recorder.calls == []
+
+
+async def test_manager_can_create_nonprivileged_role(manager_client, barsy_recorder):
+    barsy_recorder.set_return("Users_create", 9001)
+    r = await manager_client.post("/api/admin/staff", json={**_NEW_STAFF, "role_id": 4})
+    assert r.status_code == 201, r.text
+    assert barsy_recorder.body_for("Users_create")["user"]["role_id"] == 4
+
+
+async def test_owner_can_create_privileged_role(owner_client, barsy_recorder):
+    # the owner bypasses the guard — may create any role, incl. a manager-level one
+    barsy_recorder.set_return("Users_create", 9002)
+    r = await owner_client.post("/api/admin/staff", json={**_NEW_STAFF, "role_id": 1})
+    assert r.status_code == 201, r.text
+    assert barsy_recorder.body_for("Users_create")["user"]["role_id"] == 1
+
+
 # --- GET /api/admin/staff → Users_getlist mapping ----------------------------------
 async def test_get_staff_maps_barsy_rows(owner_client, barsy_recorder):
     barsy_recorder.set_return("Users_getlist", [
@@ -79,7 +102,8 @@ async def test_roles_maps_barsy_rows(owner_client, barsy_recorder):
     r = await owner_client.get("/api/admin/roles")
     assert r.status_code == 200, r.text
     roles = r.json()["roles"]
-    assert roles == [{"role_id": 1, "role_name": "Мениджър", "weight": 1}]
+    # Мениджър is a privileged (panel-superuser) role → flagged so the UI hides it from managers
+    assert roles == [{"role_id": 1, "role_name": "Мениджър", "weight": 1, "privileged": True}]
 
 
 async def test_roles_is_owner_only(staff_client, barsy_recorder):

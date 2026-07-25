@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
+from ..barsy_auth import map_role
 from ..core import barsy
 from ..db import get_async_session
 from ..models import AuditLog, User
@@ -45,7 +46,14 @@ async def create_staff(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Create a staff account IN BARSY (Users_create). Barsy generates + emails the password
-    (reset_password) — the panel never sets or sees it. Role must be an existing Barsy role."""
+    (reset_password) — the panel never sets or sees it. Role must be an existing Barsy role.
+    PRIVILEGE GUARD: a manager may create only non-privileged roles (Служител/Оператор); creating a
+    manager-level role (Мениджър/Управител, i.e. another panel superuser) is OWNER-only."""
+    _, privileged = map_role({"role_id": req.role_id})
+    if privileged and actor.role != "owner":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Само собственик може да създава мениджърски роли. Избери Служител или Оператор.")
     body = {"user": {
         "user_name": req.username.strip(), "fname": req.first_name.strip(),
         "lname": req.last_name.strip(), "email": str(req.email),
@@ -61,12 +69,14 @@ async def create_staff(
 
 @router.get("/roles")
 def roles(user: User = Depends(current_owner)):
-    """Barsy roles (read-only — role definitions are managed in Barsy)."""
+    """Barsy roles (read-only — role definitions are managed in Barsy). `privileged` flags the
+    manager-level roles that only the owner may assign (the UI hides those for managers)."""
     with upstream("Barsy роли"):
         rows = barsy.call("Roles_getlist", {})
     return {"roles": [{"role_id": r.get("role_id"), "role_name": r.get("role_name", ""),
-                       "weight": r.get("role_weight")} for r in (rows or [])
-                      if not r.get("delete_flag")]}
+                       "weight": r.get("role_weight"),
+                       "privileged": map_role({"role_id": r.get("role_id")})[1]}
+                      for r in (rows or []) if not r.get("delete_flag")]}
 
 
 @router.get("/audit")

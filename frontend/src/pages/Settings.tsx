@@ -2,16 +2,20 @@ import { useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { AssistantBackend, AuditEntry, CourierReadiness, StaffMember } from '../lib/api'
 import { useApi } from '../lib/useApi'
+import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { CourierBadge } from '../components/CourierBadge'
 
-interface BarsyRole { role_id: number; role_name: string; weight: number | null }
+interface BarsyRole { role_id: number; role_name: string; weight: number | null; privileged?: boolean }
 
 // Настройки — staff (from Barsy), the panel audit trail, and system status. Owner/manager only.
 export function Settings() {
+  const { me } = useAuth()
   const { data: staff, reload: reloadStaff } = useApi<{ staff: StaffMember[] }>('/api/admin/staff')
   const { data: roles } = useApi<{ roles: BarsyRole[] }>('/api/admin/roles')
+  // managers may create only non-privileged roles; the owner sees all (backend enforces too)
+  const selectableRoles = (roles?.roles || []).filter((r) => me?.role === 'owner' || !r.privileged)
   const { data: couriers } = useApi<{ couriers: CourierReadiness[] }>('/api/orders/couriers')
   const { data: backends } = useApi<{ backends: AssistantBackend[] }>('/api/assistant/backends')
 
@@ -36,7 +40,7 @@ export function Settings() {
             </p>
           </div>
         )}
-        <NewStaffForm roles={roles?.roles || []} onCreated={reloadStaff} />
+        <NewStaffForm roles={selectableRoles} onCreated={reloadStaff} />
       </Sheet>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' }}>
