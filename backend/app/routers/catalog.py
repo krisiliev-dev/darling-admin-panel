@@ -110,14 +110,38 @@ def _numf(v):
         return None
 
 
+def _parse_attributes(a: dict) -> list[dict]:
+    """Barsy article_details = {idx: {key, value, key_id, value_id}} → a flat attribute list."""
+    det = a.get("article_details")
+    if not isinstance(det, dict):
+        return []
+    out = []
+    for v in det.values():
+        if isinstance(v, dict) and v.get("key"):
+            out.append({"key": str(v.get("key")), "value": str(v.get("value") or ""),
+                        "key_id": v.get("key_id"), "value_id": v.get("value_id")})
+    return out
+
+
 def _sync_fetch() -> list[dict]:
-    """Blocking: pull ALL articles (+ picture_url) + stock from Barsy, enrich supplier from the local
-    supplier-code map (Barsy per-article supplier is tier-blocked). Attributes: bulk shape TBD → []."""
+    """Blocking: pull ALL articles + their attributes/stock/picture from Barsy in ONE bulk call
+    (extra_properties), enriching supplier from the local code map as a fallback. Paginated to keep
+    each page light on the low-tier server."""
     from .zayavki import _supplier_catalog
-    rows = barsy.call("Articles_getlist",
-                      {"filters": {}, "length": 20000, "extra_properties": {"picture_url": 1}}) or []
+    by_code = _supplier_catalog()["by_code"]
+    extra = {"article_details": 1, "picture_url": 1, "has_attributes": 1}
+    rows: list = []
+    page = 1
+    while page <= 40:                                    # hard bound (~40k) — safety, not expected
+        batch = barsy.call("Articles_getlist",
+                           {"filters": {}, "length": 1000, "page_num": page, "extra_properties": extra}) or []
+        if not isinstance(batch, list) or not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < 1000:
+            break
+        page += 1
     stock = _stock_map()
-    by_code = _supplier_catalog()["by_code"]        # our code -> {supplier: {...}}
     out = []
     for a in rows:
         aid = a.get("article_id")
@@ -133,7 +157,8 @@ def _sync_fetch() -> list[dict]:
             "category": a.get("category_name") or a.get("category") or "",
             "supplier": sups[0] if sups else "",
             "price": _numf(a.get("actual_price")), "stock": st.get("amount"), "min_stock": st.get("min"),
-            "low": bool(st.get("low")), "has_image": bool(a.get("picture_url")), "attributes": [],
+            "low": bool(st.get("low")), "has_image": bool(a.get("picture_url")),
+            "attributes": _parse_attributes(a),
         })
     return out
 
@@ -154,6 +179,7 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
         p.has_image = d["has_image"]
         p.attributes_json = _json.dumps(d["attributes"], ensure_ascii=False)
         p.search_lc = f"{d['name']} {d['code']} {d['barcode']}".lower()   # Cyrillic-safe search key
+        p.attr_lc = "|".join(f"{x['key']}={x['value']}" for x in d["attributes"]).lower()
         p.updated_at = now
         session.add(p)
     await session.commit()
@@ -175,11 +201,13 @@ async def search_cache(
     user: User = Depends(current_active_user),
     q: str = Query(""), supplier: str = Query(""), category: str = Query(""),
     price_min: float | None = Query(None), price_max: float | None = Query(None),
-    low_only: bool = Query(False), sort: str = Query("name"), order: str = Query("asc"),
+    low_only: bool = Query(False), attr: list[str] = Query([]),
+    sort: str = Query("name"), order: str = Query("asc"),
     page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """INSTANT filtered search over the local cache (no Barsy round-trip)."""
+    """INSTANT filtered search over the local cache (no Barsy round-trip). `attr` repeats as
+    "Ключ=Стойност" (e.g. attr=Цвят=Червен&attr=Материал=Стъкло) — combined with AND."""
     stmt = select(ProductCache)
     if q.strip():
         stmt = stmt.where(ProductCache.search_lc.like(f"%{q.strip().lower()}%"))  # Cyrillic-safe
@@ -193,6 +221,9 @@ async def search_cache(
         stmt = stmt.where(cast(ProductCache.price, Float) <= price_max)
     if low_only:
         stmt = stmt.where(ProductCache.low.is_(True))
+    for a in attr:                                   # each "key=value" narrows further (AND)
+        if a.strip():
+            stmt = stmt.where(ProductCache.attr_lc.like(f"%{a.strip().lower()}%"))
     from sqlalchemy import func as _func
     total = (await session.execute(select(_func.count()).select_from(stmt.subquery()))).scalar() or 0
     col = {"name": ProductCache.name, "code": ProductCache.code, "price": ProductCache.price,
@@ -215,7 +246,14 @@ async def facets(user: User = Depends(current_active_user),
         select(ProductCache.supplier).distinct())).all() if s]
     cats = [c for (c,) in (await session.execute(
         select(ProductCache.category).distinct())).all() if c]
-    return {"suppliers": sorted(sups), "categories": sorted(cats)}
+    # attribute key → sorted distinct values, for the attribute-filter dropdowns
+    attrs: dict[str, set] = {}
+    for (aj,) in (await session.execute(select(ProductCache.attributes_json))).all():
+        for x in _json.loads(aj or "[]"):
+            if x.get("key") and x.get("value"):
+                attrs.setdefault(x["key"], set()).add(x["value"])
+    return {"suppliers": sorted(sups), "categories": sorted(cats),
+            "attributes": {k: sorted(v) for k, v in sorted(attrs.items())}}
 
 
 @router.get("")

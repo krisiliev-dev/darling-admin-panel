@@ -48,6 +48,23 @@ async def test_sync_then_search_filters(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_attribute_filter_and_facets(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Ваза червена", "actual_price": "9",
+         "article_details": {"1": {"key": "Цвят", "value": "Червен", "key_id": 1, "value_id": 5}}},
+        {"article_id": 2, "code": "B", "article_name": "Ваза синя", "actual_price": "9",
+         "article_details": {"1": {"key": "Цвят", "value": "Син", "key_id": 1, "value_id": 6}}},
+    ])
+    # attribute filter: only the red one
+    red = (await owner_client.get("/api/catalog/search?attr=Цвят=Червен")).json()
+    assert [i["article_id"] for i in red["items"]] == [1]
+    assert red["items"][0]["attributes"][0] == {"key": "Цвят", "value": "Червен", "key_id": 1, "value_id": 5}
+    # facets expose the attribute values for the dropdowns
+    f = (await owner_client.get("/api/catalog/facets")).json()
+    assert set(f["attributes"]["Цвят"]) == {"Червен", "Син"}
+
+
+@pytest.mark.asyncio
 async def test_facets_from_cache(owner_client, barsy_recorder):
     await _sync(owner_client, barsy_recorder, [
         {"article_id": 1, "code": EXIST_CODE, "article_name": "Тиган", "actual_price": "19.90"},

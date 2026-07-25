@@ -123,11 +123,13 @@ class ProductCache(Base):
     stock: Mapped[float | None] = mapped_column(default=None)
     min_stock: Mapped[float | None] = mapped_column(default=None)
     low: Mapped[bool] = mapped_column(default=False)
-    attributes_json: Mapped[str] = mapped_column(Text, default="[]")   # [{key,value}, ...]
+    attributes_json: Mapped[str] = mapped_column(Text, default="[]")   # [{key,value,key_id,value_id}]
     has_image: Mapped[bool] = mapped_column(default=False)
     # name+code+barcode, Python-lowercased — SQLite LIKE doesn't case-fold Cyrillic, so we search
     # this precomputed field with a lowercased query.
     search_lc: Mapped[str] = mapped_column(String(400), default="", index=True)
+    # "key=value|key=value" lowercased — for attribute filtering (Цвят=Червен) via LIKE
+    attr_lc: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
 
