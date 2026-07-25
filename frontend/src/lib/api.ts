@@ -213,12 +213,13 @@ export interface DeliveryCommitResponse {
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {
   code: string; name: string; supplier: string; suppliers: string[]
-  units: number; rev: number; marg: number; stock: number; suggested_qty: number
+  units: number; rev: number; marg: number; stock: number; dead?: boolean; suggested_qty: number
 }
 export interface ZayavkaCard { key: string; title: string; subtitle: string; products: ZayavkaProduct[] }
 export interface ZayavkaSupplier {
   supplier: string; catalog_count: number; open_id: number | null
   items: number; total: number; last_sent: string | null
+  email: string; min_order: number; lead_days: number; below_min: boolean
 }
 export interface ZayavkaLineRow {
   id: number; code: string; supplier_code: string; name: string
@@ -230,7 +231,7 @@ export interface ZayavkaDetailResp {
   items: number; total: number; lines: ZayavkaLineRow[]
 }
 export interface SupplierCatalogItem {
-  code: string; supplier_code: string; name: string; delivery_price: number; units: number
+  code: string; supplier_code: string; name: string; delivery_price: number; units: number; dead?: boolean
 }
 
 // --- Доставки (receiving) ---

@@ -90,6 +90,36 @@ async def test_export_csv_and_xlsx(owner_client):
 
 
 @pytest.mark.asyncio
+async def test_supplier_prefs_persist_and_flag_below_min(owner_client):
+    # set a minimum-order + email for the supplier
+    r = await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}",
+                                 json={"email": "anis@x.bg", "min_order": 500, "lead_days": 7})
+    assert r.status_code == 200, r.text
+    # a small заявка (below 500 €) → the supplier row flags below_min + carries the pref
+    await owner_client.post("/api/zayavki/add", json={"code": CODE, "supplier": SUP, "qty": 1})
+    row = next(s for s in (await owner_client.get("/api/zayavki/suppliers")).json()["suppliers"]
+               if s["supplier"] == SUP)
+    assert row["email"] == "anis@x.bg" and row["min_order"] == 500 and row["lead_days"] == 7
+    assert row["below_min"] is True
+
+
+@pytest.mark.asyncio
+async def test_no_supplier_nudge(owner_client):
+    r = await owner_client.get("/api/zayavki/no-supplier")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "count" in body and isinstance(body["products"], list)
+
+
+@pytest.mark.asyncio
+async def test_catalog_flags_dead_stock(owner_client):
+    r = await owner_client.get(f"/api/zayavki/supplier/{SUP}/catalog", params={"q": ""})
+    assert r.status_code == 200
+    if r.json()["products"]:
+        assert "dead" in r.json()["products"][0]   # don't-reorder guard field present
+
+
+@pytest.mark.asyncio
 async def test_send_email_refuses_when_not_configured(owner_client, monkeypatch):
     import app.mailer as mailer
     monkeypatch.setattr(mailer, "get_settings",

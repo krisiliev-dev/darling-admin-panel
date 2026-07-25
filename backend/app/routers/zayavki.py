@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..audit import log_action
 from ..db import get_async_session
-from ..models import User, Zayavka, ZayavkaLine
+from ..models import SupplierPref, User, Zayavka, ZayavkaLine
 from ..users import current_active_user
 from .inventory_health import _products
 from .intake_delivery import _norm
@@ -92,8 +92,21 @@ def _card_product(p: dict) -> dict:
         "code": code, "name": p.get("name", ""),
         "supplier": (p.get("supplier") or (sups[0] if sups else "")),
         "suppliers": sups, "units": p.get("units", 0), "rev": p.get("rev", 0.0),
-        "marg": p.get("marg", 0.0), "stock": p.get("stock", 0), "suggested_qty": _suggested_qty(p.get("units")),
+        "marg": p.get("marg", 0.0), "stock": p.get("stock", 0), "dead": bool(p.get("dead")),
+        "suggested_qty": _suggested_qty(p.get("units")),
     }
+
+
+@router.get("/no-supplier")
+def no_supplier(user: User = Depends(current_active_user), limit: int = Query(50, ge=1, le=500)):
+    """Products with NO supplier in the mapping — they can't be ordered until one is assigned.
+    A data-quality nudge (surfaced as a count on the page)."""
+    by_code = _supplier_catalog()["by_code"]
+    orphans = [p for p in _products()
+               if not p.get("discontinued") and str(p.get("code") or "") not in by_code]
+    return {"count": len(orphans),
+            "products": [{"code": str(p.get("code")), "name": p.get("name", ""),
+                          "units": p.get("units", 0)} for p in orphans[:limit]]}
 
 
 @router.get("/insights")
@@ -144,17 +157,21 @@ async def _open_draft(session: AsyncSession, supplier: str) -> Zayavka | None:
 
 
 # ------------------------------------------------------------------ suppliers list ---
+async def _prefs_map(session: AsyncSession) -> dict:
+    return {p.supplier: p for p in (await session.execute(select(SupplierPref))).scalars().all()}
+
+
 @router.get("/suppliers")
 async def suppliers(user: User = Depends(current_active_user),
                     session: AsyncSession = Depends(get_async_session)):
-    """Every supplier we can order from (from the catalogue) + its open заявка stats."""
+    """Every supplier we can order from (from the catalogue) + its open заявка stats + prefs."""
     cat = _supplier_catalog()["by_supplier"]
     drafts = {z.supplier: z for z in (await session.execute(
         select(Zayavka).where(Zayavka.status == "draft"))).scalars().all()}
-    # last sent per supplier
     sent = dict((s, t) for s, t in (await session.execute(
         select(Zayavka.supplier, func.max(Zayavka.sent_at)).where(Zayavka.status == "sent")
         .group_by(Zayavka.supplier))).all())
+    prefs = await _prefs_map(session)
     out = []
     for sup, prods in cat.items():
         z = drafts.get(sup)
@@ -163,11 +180,44 @@ async def suppliers(user: User = Depends(current_active_user),
             lines = await _lines(session, z.id)
             items = len(lines)
             total = round(sum(ln.qty * ln.delivery_price for ln in lines), 2)
+        pref = prefs.get(sup)
+        min_order = pref.min_order if pref else 0.0
         out.append({"supplier": sup, "catalog_count": len(prods),
                     "open_id": z.id if z else None, "items": items, "total": total,
-                    "last_sent": sent.get(sup).isoformat() if sent.get(sup) else None})
+                    "last_sent": sent.get(sup).isoformat() if sent.get(sup) else None,
+                    "email": pref.email if pref else "", "min_order": min_order,
+                    "lead_days": pref.lead_days if pref else 0,
+                    "below_min": bool(min_order and total and total < min_order)})
     out.sort(key=lambda s: (-s["items"], -s["catalog_count"]))
     return {"suppliers": out}
+
+
+class PrefPatch(BaseModel):
+    email: str | None = None
+    min_order: float | None = None
+    lead_days: int | None = None
+    notes: str | None = None
+
+
+@router.patch("/supplier-prefs/{supplier}")
+async def set_pref(supplier: str, req: PrefPatch, actor: User = Depends(current_active_user),
+                   session: AsyncSession = Depends(get_async_session)):
+    """Persist a supplier's email / minimum-order / lead time (survives across заявки)."""
+    p = await session.get(SupplierPref, supplier)
+    if not p:
+        p = SupplierPref(supplier=supplier)
+        session.add(p)
+    if req.email is not None:
+        p.email = req.email.strip()
+    if req.min_order is not None:
+        p.min_order = max(0.0, req.min_order)
+    if req.lead_days is not None:
+        p.lead_days = max(0, req.lead_days)
+    if req.notes is not None:
+        p.notes = req.notes
+    await session.commit()
+    return {"supplier": supplier, "email": p.email, "min_order": p.min_order,
+            "lead_days": p.lead_days, "notes": p.notes}
 
 
 @router.get("/supplier/{supplier}/catalog")
@@ -183,7 +233,8 @@ async def supplier_catalog(supplier: str, q: str = Query(""), limit: int = Query
     for r in rows[:limit]:
         s = sales.get(r["code"], {})
         out.append({"code": r["code"], "supplier_code": r["ref"], "name": s.get("name") or r["name"],
-                    "delivery_price": r["dprice"], "units": s.get("units", 0)})
+                    "delivery_price": r["dprice"], "units": s.get("units", 0),
+                    "dead": bool(s.get("dead"))})   # застояла стока — "не поръчвай" guard
     return {"products": out, "total": len(rows)}
 
 

@@ -22,9 +22,43 @@ export function Zayavki() {
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
       <PageHeader title="Заявки" subtitle="поръчки към доставчици" />
+      <NoSupplierNudge />
       <InsightCards onAdded={bump} />
       <SupplierList key={refresh} onOpen={setOpenSupplier} />
+      <SentHistory key={`h${refresh}`} />
     </div>
+  )
+}
+
+// products with no supplier mapping can't be ordered — surface the count as a data nudge
+function NoSupplierNudge() {
+  const [n, setN] = useState<number | null>(null)
+  useEffect(() => { api.get<{ count: number }>('/api/zayavki/no-supplier').then((d) => setN(d.count)).catch(() => setN(0)) }, [])
+  if (!n) return null
+  return (
+    <div className="font-type" style={{ background: 'var(--sticky)', color: '#2b2607', padding: '.5rem .8rem', borderRadius: 3, fontSize: '.8rem' }}>
+      ⚠ {n} продукта нямат свързан доставчик — не могат да се поръчват, докато не им зададеш доставчик.
+    </div>
+  )
+}
+
+// past sent заявки
+function SentHistory() {
+  const [rows, setRows] = useState<{ id: number; supplier: string; status: string; items: number; total: number; sent_at: string | null }[] | null>(null)
+  useEffect(() => { api.get<{ zayavki: typeof rows }>('/api/zayavki').then((d) => setRows((d.zayavki || []).filter((z) => z.status === 'sent'))).catch(() => setRows([])) }, [])
+  if (!rows || rows.length === 0) return null
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.4rem' }}>Изпратени заявки</h3>
+      <div style={{ display: 'grid', gap: '.3rem' }}>
+        {rows.map((z) => (
+          <div key={z.id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0' }}>
+            <span style={{ fontWeight: 700 }}>{z.supplier}</span>
+            <span style={{ color: 'var(--pencil)' }}>{z.items} арт. · {eur(z.total)} · {z.sent_at ? z.sent_at.slice(0, 10) : ''}</span>
+          </div>
+        ))}
+      </div>
+    </Sheet>
   )
 }
 
@@ -106,7 +140,9 @@ function CardProductRow({ p, onAdd }: { p: ZayavkaProduct; onAdd: (p: ZayavkaPro
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', borderBottom: '1px dashed var(--line)', padding: '.25rem 0' }}>
       <div style={{ minWidth: 0 }}>
-        <div className="font-type" style={{ fontSize: '.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.name}>{p.name}</div>
+        <div className="font-type" style={{ fontSize: '.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.name}>
+          {p.dead && <span title="застояла стока — внимавай да не презаредиш" style={{ color: 'var(--blocked)' }}>⚠ </span>}{p.name}
+        </div>
         <div style={{ fontSize: '.68rem', color: 'var(--pencil)' }}>код {p.code} · {p.units} прод. · нал. {p.stock}</div>
       </div>
       <button className="btn-paper" title={`добави ${p.suggested_qty} бр`} onClick={() => onAdd(p, p.suggested_qty)}
@@ -128,6 +164,7 @@ function SupplierList({ onOpen }: { onOpen: (s: string) => void }) {
           <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
             <th style={{ padding: '.3rem' }}>Доставчик</th><th style={{ padding: '.3rem', textAlign: 'right' }}>Каталог</th>
             <th style={{ padding: '.3rem', textAlign: 'right' }}>В заявка</th><th style={{ padding: '.3rem', textAlign: 'right' }}>Сума</th>
+            <th style={{ padding: '.3rem', textAlign: 'right' }}>Мин. поръчка</th>
             <th style={{ padding: '.3rem' }}>Изпратена</th><th></th>
           </tr></thead>
           <tbody>
@@ -136,7 +173,10 @@ function SupplierList({ onOpen }: { onOpen: (s: string) => void }) {
                 <td style={{ padding: '.3rem', fontWeight: 700 }}>{s.supplier || '—'}</td>
                 <td style={{ padding: '.3rem', textAlign: 'right', color: 'var(--pencil)' }}>{s.catalog_count}</td>
                 <td style={{ padding: '.3rem', textAlign: 'right', color: s.items ? 'var(--ink)' : 'var(--pencil)', fontWeight: s.items ? 700 : 400 }}>{s.items || '—'}</td>
-                <td style={{ padding: '.3rem', textAlign: 'right' }}>{s.total ? eur(s.total) : '—'}</td>
+                <td style={{ padding: '.3rem', textAlign: 'right', color: s.below_min ? 'var(--blocked)' : undefined }}>
+                  {s.total ? eur(s.total) : '—'}{s.below_min && <span title="под минималната поръчка"> ▾</span>}
+                </td>
+                <td style={{ padding: '.3rem', textAlign: 'right', color: 'var(--pencil)' }}>{s.min_order ? eur(s.min_order) : '—'}</td>
                 <td style={{ padding: '.3rem', color: 'var(--pencil)', fontSize: '.74rem' }}>{s.last_sent ? s.last_sent.slice(0, 10) : '—'}</td>
                 <td style={{ padding: '.3rem', color: 'var(--red)' }}>отвори →</td>
               </tr>
@@ -151,6 +191,7 @@ function SupplierList({ onOpen }: { onOpen: (s: string) => void }) {
 // ------------------------------------------------------------------ supplier заявка detail ---
 function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => void }) {
   const [z, setZ] = useState<ZayavkaDetailResp | null>(null)
+  const [pref, setPref] = useState<ZayavkaSupplier | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const { add, dialog } = useFastAdd(() => void load())
@@ -158,11 +199,12 @@ function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => v
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // find this supplier's open заявка id, then load it (or show an empty cart)
+      // find this supplier's open заявка id + its persisted prefs, then load it (or an empty cart)
       const list = await api.get<{ suppliers: ZayavkaSupplier[] }>('/api/zayavki/suppliers')
-      const row = list.suppliers.find((s) => s.supplier === supplier)
+      const row = list.suppliers.find((s) => s.supplier === supplier) || null
+      setPref(row)
       if (row?.open_id) setZ(await api.get<ZayavkaDetailResp>(`/api/zayavki/zayavka/${row.open_id}`))
-      else setZ({ id: 0, supplier, supplier_id: null, supplier_email: '', status: 'draft', notes: '', created_by: '', sent_at: null, sent_via: '', items: 0, total: 0, lines: [] })
+      else setZ({ id: 0, supplier, supplier_id: null, supplier_email: row?.email || '', status: 'draft', notes: '', created_by: '', sent_at: null, sent_via: '', items: 0, total: 0, lines: [] })
     } catch { setError('Грешка при зареждане.') } finally { setLoading(false) }
   }, [supplier])
   useEffect(() => { void load() }, [load])
@@ -221,7 +263,7 @@ function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => v
         )}
       </Sheet>
 
-      {z.id > 0 && z.lines.length > 0 && <SendPanel z={z} onSent={() => void load()} />}
+      {z.id > 0 && z.lines.length > 0 && <SendPanel z={z} pref={pref} onSent={() => void load()} />}
       {dialog}
     </div>
   )
@@ -246,7 +288,8 @@ function SupplierSearch({ supplier, onAdd }: { supplier: string; onAdd: (p: Supp
           {items.length === 0 && <span className="font-type" style={{ fontSize: '.78rem', color: 'var(--pencil)' }}>няма съвпадения</span>}
           {items.map((p) => (
             <div key={p.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0' }}>
-              <span className="font-type" style={{ fontSize: '.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.name}>{p.name} <span style={{ color: 'var(--pencil)' }}>· {p.code}</span></span>
+              <span className="font-type" style={{ fontSize: '.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.name}>
+                {p.dead && <span title="застояла стока" style={{ color: 'var(--blocked)' }}>⚠ </span>}{p.name} <span style={{ color: 'var(--pencil)' }}>· {p.code} · {eur(p.delivery_price)}</span></span>
               <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => onAdd(p)}>+ добави</button>
             </div>
           ))}
@@ -256,13 +299,19 @@ function SupplierSearch({ supplier, onAdd }: { supplier: string; onAdd: (p: Supp
   )
 }
 
-function SendPanel({ z, onSent }: { z: ZayavkaDetailResp; onSent: () => void }) {
-  const [email, setEmail] = useState(z.supplier_email)
+function SendPanel({ z, pref, onSent }: { z: ZayavkaDetailResp; pref: ZayavkaSupplier | null; onSent: () => void }) {
+  const [email, setEmail] = useState(z.supplier_email || pref?.email || '')
+  const [minOrder, setMinOrder] = useState(pref?.min_order || 0)
   const [notes, setNotes] = useState(z.notes)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const belowMin = minOrder > 0 && z.total < minOrder
 
-  const saveNotes = () => api.patch(`/api/zayavki/zayavka/${z.id}`, { notes, supplier_email: email }).catch(() => {})
+  // persist notes on the заявка, and email + min-order on the supplier (so they survive next time)
+  const saveNotes = () => Promise.all([
+    api.patch(`/api/zayavki/zayavka/${z.id}`, { notes, supplier_email: email }).catch(() => {}),
+    api.patch(`/api/zayavki/supplier-prefs/${encodeURIComponent(z.supplier)}`, { email, min_order: minOrder }).catch(() => {}),
+  ])
   const sendEmail = async () => {
     if (!email.trim()) { setMsg('Въведи имейл на доставчика.'); return }
     if (!window.confirm(`Изпращане на заявката към ${email}?`)) return
@@ -281,12 +330,18 @@ function SendPanel({ z, onSent }: { z: ZayavkaDetailResp; onSent: () => void }) 
         <label className="font-type" style={{ fontSize: '.68rem', color: 'var(--red)', textTransform: 'uppercase' }}>Бележка към доставчика (по избор)</label>
         <textarea className="input-paper" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} />
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="input-paper" style={{ maxWidth: '18rem' }} type="email" placeholder="имейл на доставчика" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={saveNotes} />
+          <input className="input-paper" style={{ maxWidth: '16rem' }} type="email" placeholder="имейл на доставчика" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={saveNotes} />
+          <label className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+            мин. поръчка €<input className="input-paper" style={{ width: '5rem' }} inputMode="decimal" value={minOrder || ''} onChange={(e) => setMinOrder(Number(e.target.value) || 0)} onBlur={saveNotes} />
+          </label>
           <button className="btn-paper btn-red" onClick={() => void sendEmail()} disabled={busy}>{busy ? 'изпраща…' : '✉ Изпрати по имейл'}</button>
           <a className="btn-paper" href={exportUrl('xlsx')} download>⤓ Excel</a>
           <a className="btn-paper" href={exportUrl('csv')} download>⤓ CSV</a>
           <button className="btn-paper" onClick={() => window.print()}>🖨 PDF / печат</button>
         </div>
+        {belowMin
+          ? <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--blocked)' }}>▾ Под минималната поръчка — липсват още {eur(minOrder - z.total)}.</div>
+          : minOrder > 0 && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--ready)' }}>✓ Над минималната поръчка.</div>}
         {msg && <div className="font-type" style={{ fontSize: '.82rem', color: msg.includes('✓') ? 'var(--ready)' : 'var(--red)' }}>{msg}</div>}
       </div>
     </Sheet>

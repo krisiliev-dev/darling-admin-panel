@@ -106,6 +106,18 @@ class Zayavka(Base):
     sent_via: Mapped[str] = mapped_column(String(32), default="")   # email | export
 
 
+class SupplierPref(Base):
+    """Persistent per-supplier settings for заявки — so email + minimum-order + lead time survive
+    across orders (a supplier, not a single заявка, owns these)."""
+    __tablename__ = "supplier_prefs"
+
+    supplier: Mapped[str] = mapped_column(String(255), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), default="")
+    min_order: Mapped[float] = mapped_column(default=0.0)   # € below which a заявка isn't worth sending
+    lead_days: Mapped[int] = mapped_column(default=0)       # typical days from order to delivery
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+
 class ZayavkaLine(Base):
     __tablename__ = "zayavka_lines"
 
