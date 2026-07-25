@@ -60,6 +60,17 @@ class Settings(BaseSettings):
     # Barsy depot the delivery loads into. 1 = 'Основен', can_load=1 (verified live).
     barsy_depot_id: int = 1
 
+    # --- Заявки email sending (Gmail SMTP) ---------------------------------------------
+    # The panel sends a заявка to a supplier via the business Gmail. Set GMAIL_USER +
+    # GMAIL_APP_PASSWORD (a Google App Password, NOT the account password) in ~/.hermes/.env.
+    # Empty => /send-email refuses (not configured); export to CSV/Excel still works.
+    gmail_user: str = ""
+    gmail_app_password: str = ""
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    # display name + reply-to on the outbound заявка mail (defaults to gmail_user)
+    order_from_name: str = "Дарлинг 7"
+
     # nekorekten.com risky-customer lookup (COD refuser defense). Server-side API key (keep it in
     # env, never the browser); the whitelisted IP on nekorekten's side must be THIS server's egress
     # IP. Empty => the panel falls back to a manual deep-link lookup only, no API calls.

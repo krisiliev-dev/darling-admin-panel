@@ -6,32 +6,20 @@ import type { DeliveryDetailResp, DeliveryLineRow, DeliveryListItem } from '../l
 import { useAuth } from '../lib/auth'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { Sheet } from '../components/Paper'
-import { Purchasing } from './Purchasing'
 
-// Доставки — receiving deliveries (primary) + the ordering tool (Заявки) as a secondary tab.
-// Receiving: list past deliveries → process a new one (supplier + warehouse + Excel/CSV or a photo)
-// → the sheet is split into already-in-catalog vs NEW → staff scan-confirm quantities with a handheld
-// barcode scanner (green = matches, red = mismatch) → new products get added on Приемане → FINALISE
-// sends the whole thing to Barsy as ONE delivery.
+// Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
+// Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
+// quantities with a handheld barcode scanner (green = matches, red = mismatch) → new products get
+// added on Приемане → FINALISE sends the whole thing to Barsy as ONE delivery. (Ordering suppliers
+// lives on its own Заявки page.)
 
 const WAREHOUSES = [{ id: 1, name: 'Основен склад' }]   // one for now; the model supports more
 
 export function Deliveries() {
-  const [tab, setTab] = useState<'receive' | 'order'>('receive')
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      <PageHeader title="Доставки" subtitle="приемане на стока" right={
-        <div style={{ display: 'flex', gap: '.3rem' }}>
-          {([['receive', 'Приемане'], ['order', 'Заявки']] as ['receive' | 'order', string][]).map(([k, l]) => (
-            <button key={k} className="font-type" onClick={() => setTab(k)} style={{
-              padding: '.3rem .7rem', fontSize: '.72rem', cursor: 'pointer', borderRadius: 2,
-              border: '1px solid var(--line)', background: tab === k ? 'var(--red)' : 'var(--paper2)',
-              color: tab === k ? '#fff' : 'var(--pencil)',
-            }}>{l}</button>
-          ))}
-        </div>
-      } />
-      {tab === 'order' ? <Purchasing embedded /> : <Receiving />}
+      <PageHeader title="Доставки" subtitle="приемане на стока" />
+      <Receiving />
     </div>
   )
 }

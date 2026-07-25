@@ -1,0 +1,434 @@
+# -*- coding: utf-8 -*-
+"""Заявки — per-supplier purchase requests (outbound orders to suppliers). Its own page.
+
+Top of the page = insight cards (highest-ordered / highest-earning / needs-reordering products) that
+fast-add into a supplier's заявка. Below = a list of suppliers each with an open заявка (item count +
+total); opening one shows its lines (qty ±, remove) and a search over that supplier's catalogue.
+Send by email (Gmail SMTP) or export to CSV/Excel. Panel-owned staging — Barsy records STOCK only
+at receiving (Доставки), so a заявка here is a purchasing document, not a Barsy write.
+
+Data foundation: supplier_codes.jsonl (product → supplier(s) with their code + delivery price) and
+the historical sales seed (units/revenue/margin) for the insight cards.
+"""
+import csv
+import io
+import json
+import os
+from functools import lru_cache
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..audit import log_action
+from ..db import get_async_session
+from ..models import User, Zayavka, ZayavkaLine
+from ..users import current_active_user
+from .inventory_health import _products
+from .intake_delivery import _norm
+
+router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
+
+_SUPPLIER_CODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                    "data", "supplier_codes.jsonl")
+_PERIOD_MONTHS = 54   # the historical seed spans ~2021-11 → 2026-07
+
+
+# ------------------------------------------------------------------ supplier catalogue ---
+@lru_cache(maxsize=1)
+def _supplier_catalog() -> dict:
+    """Load supplier_codes.jsonl into:
+      by_supplier[supplier] -> [ {code, ref, name, dprice} ... ]   (that supplier's catalogue)
+      by_code[code]         -> { supplier -> {ref, name, dprice} } (who supplies a product + at what)
+    """
+    by_supplier: dict[str, list] = {}
+    by_code: dict[str, dict] = {}
+    try:
+        with open(_SUPPLIER_CODES_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                sup = (r.get("supplier") or "").strip()
+                code = str(r.get("code") or "").strip()
+                if not sup or not code:
+                    continue
+                row = {"code": code, "ref": str(r.get("ref") or ""),
+                       "name": r.get("rname") or "", "dprice": r.get("dprice") or 0.0}
+                by_supplier.setdefault(sup, []).append(row)
+                by_code.setdefault(code, {})[sup] = row
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {"by_supplier": by_supplier, "by_code": by_code}
+
+
+def _suppliers_for(code: str) -> dict:
+    return _supplier_catalog()["by_code"].get(str(code), {})
+
+
+@lru_cache(maxsize=1)
+def _sales_by_code() -> dict:
+    """{code -> seed sales row} for enriching cards / suggested qty."""
+    return {str(p.get("code")): p for p in _products() if p.get("code")}
+
+
+def _suggested_qty(units) -> int:
+    """A gentle reorder hint from lifetime units over the seed's ~54-month span (≈2 months' cover)."""
+    try:
+        monthly = float(units or 0) / _PERIOD_MONTHS
+    except (TypeError, ValueError):
+        monthly = 0
+    return max(1, round(monthly * 2))
+
+
+# ------------------------------------------------------------------ insight cards ---
+def _card_product(p: dict) -> dict:
+    code = str(p.get("code") or "")
+    sups = list(_suppliers_for(code).keys())
+    return {
+        "code": code, "name": p.get("name", ""),
+        "supplier": (p.get("supplier") or (sups[0] if sups else "")),
+        "suppliers": sups, "units": p.get("units", 0), "rev": p.get("rev", 0.0),
+        "marg": p.get("marg", 0.0), "stock": p.get("stock", 0), "suggested_qty": _suggested_qty(p.get("units")),
+    }
+
+
+@router.get("/insights")
+def insights(user: User = Depends(current_active_user), limit: int = Query(8, ge=1, le=30)):
+    """Cards of products worth ordering — each expandable to a list with fast-add."""
+    prods = [p for p in _products() if not p.get("discontinued")]
+    live = [p for p in prods if not p.get("dead")]
+    top_ordered = sorted(live, key=lambda p: p.get("units") or 0, reverse=True)[:limit]
+    top_earners = sorted(live, key=lambda p: p.get("rev") or 0.0, reverse=True)[:limit]
+    # low stock among still-selling products = the actionable "reorder" card
+    low_stock = sorted([p for p in live if (p.get("stock") or 0) <= 3 and (p.get("units") or 0) > 0],
+                       key=lambda p: p.get("units") or 0, reverse=True)[:limit]
+    return {"cards": [
+        {"key": "reorder", "title": "Да се поръча (ниска наличност)",
+         "subtitle": "продаваеми, но с малко на склад", "products": [_card_product(p) for p in low_stock]},
+        {"key": "top_ordered", "title": "Най-поръчвани",
+         "subtitle": "най-много продадени бройки", "products": [_card_product(p) for p in top_ordered]},
+        {"key": "top_earners", "title": "Най-печеливши",
+         "subtitle": "най-голям оборот", "products": [_card_product(p) for p in top_earners]},
+    ]}
+
+
+# ------------------------------------------------------------------ helpers ---
+def _line_out(ln: ZayavkaLine) -> dict:
+    return {"id": ln.id, "code": ln.code, "supplier_code": ln.supplier_code, "name": ln.name,
+            "qty": ln.qty, "delivery_price": ln.delivery_price, "barcode": ln.barcode,
+            "line_total": round(ln.qty * ln.delivery_price, 2)}
+
+
+async def _lines(session: AsyncSession, zid: int) -> list[ZayavkaLine]:
+    return list((await session.execute(
+        select(ZayavkaLine).where(ZayavkaLine.zayavka_id == zid).order_by(ZayavkaLine.id))).scalars().all())
+
+
+async def _detail(session: AsyncSession, z: Zayavka) -> dict:
+    lines = await _lines(session, z.id)
+    total = round(sum(ln.qty * ln.delivery_price for ln in lines), 2)
+    return {"id": z.id, "supplier": z.supplier, "supplier_id": z.supplier_id,
+            "supplier_email": z.supplier_email, "status": z.status, "notes": z.notes,
+            "created_by": z.created_by, "sent_at": z.sent_at.isoformat() if z.sent_at else None,
+            "sent_via": z.sent_via, "items": len(lines), "total": total,
+            "lines": [_line_out(ln) for ln in lines]}
+
+
+async def _open_draft(session: AsyncSession, supplier: str) -> Zayavka | None:
+    return (await session.execute(
+        select(Zayavka).where(Zayavka.supplier == supplier, Zayavka.status == "draft"))).scalars().first()
+
+
+# ------------------------------------------------------------------ suppliers list ---
+@router.get("/suppliers")
+async def suppliers(user: User = Depends(current_active_user),
+                    session: AsyncSession = Depends(get_async_session)):
+    """Every supplier we can order from (from the catalogue) + its open заявка stats."""
+    cat = _supplier_catalog()["by_supplier"]
+    drafts = {z.supplier: z for z in (await session.execute(
+        select(Zayavka).where(Zayavka.status == "draft"))).scalars().all()}
+    # last sent per supplier
+    sent = dict((s, t) for s, t in (await session.execute(
+        select(Zayavka.supplier, func.max(Zayavka.sent_at)).where(Zayavka.status == "sent")
+        .group_by(Zayavka.supplier))).all())
+    out = []
+    for sup, prods in cat.items():
+        z = drafts.get(sup)
+        items, total = 0, 0.0
+        if z:
+            lines = await _lines(session, z.id)
+            items = len(lines)
+            total = round(sum(ln.qty * ln.delivery_price for ln in lines), 2)
+        out.append({"supplier": sup, "catalog_count": len(prods),
+                    "open_id": z.id if z else None, "items": items, "total": total,
+                    "last_sent": sent.get(sup).isoformat() if sent.get(sup) else None})
+    out.sort(key=lambda s: (-s["items"], -s["catalog_count"]))
+    return {"suppliers": out}
+
+
+@router.get("/supplier/{supplier}/catalog")
+async def supplier_catalog(supplier: str, q: str = Query(""), limit: int = Query(50, ge=1, le=200),
+                           user: User = Depends(current_active_user)):
+    """Products this supplier offers (their catalogue), searchable by name or code — for adding."""
+    rows = _supplier_catalog()["by_supplier"].get(supplier, [])
+    nq = _norm(q)
+    if nq:
+        rows = [r for r in rows if nq in _norm(r["name"]) or nq in _norm(r["code"]) or nq in _norm(r["ref"])]
+    sales = _sales_by_code()
+    out = []
+    for r in rows[:limit]:
+        s = sales.get(r["code"], {})
+        out.append({"code": r["code"], "supplier_code": r["ref"], "name": s.get("name") or r["name"],
+                    "delivery_price": r["dprice"], "units": s.get("units", 0)})
+    return {"products": out, "total": len(rows)}
+
+
+# ------------------------------------------------------------------ add / edit / remove ---
+class AddRequest(BaseModel):
+    code: str
+    supplier: str = ""          # if empty and the product has >1 supplier → 409 with choices
+    qty: float = 1.0
+    name: str = ""
+
+
+@router.post("/add")
+async def add_to_zayavka(req: AddRequest, actor: User = Depends(current_active_user),
+                         session: AsyncSession = Depends(get_async_session)):
+    """Add a product to a supplier's open заявка. Resolves the supplier (prompts if ambiguous),
+    creates the draft if needed, and bumps qty if the product is already in the cart."""
+    code = req.code.strip()
+    if not code:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Липсва код.")
+    supmap = _suppliers_for(code)
+    supplier = req.supplier.strip()
+    if not supplier:
+        if len(supmap) == 1:
+            supplier = next(iter(supmap))
+        elif len(supmap) > 1:
+            raise HTTPException(status.HTTP_409_CONFLICT,
+                                detail={"need_supplier": True, "choices": list(supmap.keys()), "code": code})
+        else:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                "Този продукт няма свързан доставчик — задай доставчик.")
+    info = supmap.get(supplier, {})
+    z = await _open_draft(session, supplier)
+    if not z:
+        z = Zayavka(supplier=supplier, status="draft", created_by=actor.email)
+        session.add(z)
+        await session.flush()
+    existing = next((ln for ln in await _lines(session, z.id) if ln.code == code), None)
+    if existing:
+        existing.qty += req.qty
+    else:
+        sales = _sales_by_code().get(code, {})
+        session.add(ZayavkaLine(
+            zayavka_id=z.id, code=code, supplier_code=info.get("ref", ""),
+            name=req.name.strip() or sales.get("name") or info.get("name", ""),
+            qty=req.qty, delivery_price=float(info.get("dprice") or 0.0)))
+    await session.commit()
+    await session.refresh(z)
+    await log_action(session, actor, "zayavka.add", target=supplier, detail=f"code={code}")
+    return await _detail(session, z)
+
+
+class QtyPatch(BaseModel):
+    qty: float
+
+
+@router.patch("/lines/{line_id}")
+async def edit_line(line_id: int, req: QtyPatch, actor: User = Depends(current_active_user),
+                    session: AsyncSession = Depends(get_async_session)):
+    ln = await session.get(ZayavkaLine, line_id)
+    if not ln:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    zid = ln.zayavka_id
+    if req.qty <= 0:
+        await session.delete(ln)          # qty to zero removes the line
+    else:
+        ln.qty = req.qty
+    await session.commit()
+    z = await session.get(Zayavka, zid)
+    return await _detail(session, z)
+
+
+@router.delete("/lines/{line_id}")
+async def remove_line(line_id: int, actor: User = Depends(current_active_user),
+                      session: AsyncSession = Depends(get_async_session)):
+    ln = await session.get(ZayavkaLine, line_id)
+    if not ln:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    zid = ln.zayavka_id
+    await session.delete(ln)
+    await session.commit()
+    z = await session.get(Zayavka, zid)
+    return await _detail(session, z)
+
+
+# ------------------------------------------------------------------ zayavka detail / meta / list ---
+@router.get("/zayavka/{zid}")
+async def get_zayavka(zid: int, user: User = Depends(current_active_user),
+                      session: AsyncSession = Depends(get_async_session)):
+    z = await session.get(Zayavka, zid)
+    if not z:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
+    return await _detail(session, z)
+
+
+class MetaPatch(BaseModel):
+    notes: str | None = None
+    supplier_email: str | None = None
+    status: str | None = None
+
+
+@router.patch("/zayavka/{zid}")
+async def patch_zayavka(zid: int, req: MetaPatch, actor: User = Depends(current_active_user),
+                        session: AsyncSession = Depends(get_async_session)):
+    z = await session.get(Zayavka, zid)
+    if not z:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
+    if req.notes is not None:
+        z.notes = req.notes
+    if req.supplier_email is not None:
+        z.supplier_email = req.supplier_email.strip()
+    if req.status in ("draft", "sent", "received", "cancelled"):
+        z.status = req.status
+    await session.commit()
+    return await _detail(session, z)
+
+
+# ------------------------------------------------------------------ export (CSV / XLSX) ---
+_EXPORT_HEADERS = ["Код (наш)", "Код (доставчик)", "Артикул", "Количество", "Ед. цена (€)", "Сума (€)"]
+
+
+def _export_rows(z: Zayavka, lines: list[ZayavkaLine]) -> list[list]:
+    rows = [[ln.code, ln.supplier_code, ln.name, ln.qty, round(ln.delivery_price, 2),
+             round(ln.qty * ln.delivery_price, 2)] for ln in lines]
+    return rows
+
+
+def _build_csv(z: Zayavka, lines: list[ZayavkaLine]) -> bytes:
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow([f"Заявка към {z.supplier}"])
+    if z.notes:
+        w.writerow([z.notes])
+    w.writerow(_EXPORT_HEADERS)
+    for r in _export_rows(z, lines):
+        w.writerow(r)
+    total = round(sum(ln.qty * ln.delivery_price for ln in lines), 2)
+    w.writerow(["", "", "", "", "Общо:", total])
+    return ("﻿" + buf.getvalue()).encode("utf-8")   # BOM so Excel opens Cyrillic correctly
+
+
+def _build_xlsx(z: Zayavka, lines: list[ZayavkaLine]) -> bytes:
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Заявка"
+    ws.append([f"Заявка към {z.supplier}"])
+    if z.notes:
+        ws.append([z.notes])
+    ws.append(_EXPORT_HEADERS)
+    for r in _export_rows(z, lines):
+        ws.append(r)
+    ws.append(["", "", "", "", "Общо:", round(sum(ln.qty * ln.delivery_price for ln in lines), 2)])
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+_EXPORTERS = {
+    "csv": (_build_csv, "text/csv", "csv"),
+    "xlsx": (_build_xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
+}
+
+
+@router.get("/zayavka/{zid}/export")
+async def export_zayavka(zid: int, fmt: str = Query("xlsx"),
+                         user: User = Depends(current_active_user),
+                         session: AsyncSession = Depends(get_async_session)):
+    z = await session.get(Zayavka, zid)
+    if not z:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
+    if fmt not in _EXPORTERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Форматът трябва да е csv или xlsx.")
+    build, ctype, ext = _EXPORTERS[fmt]
+    data = build(z, await _lines(session, zid))
+    fname = f"zayavka-{zid}.{ext}"   # ASCII only — HTTP headers can't carry Cyrillic
+    return StreamingResponse(io.BytesIO(data), media_type=ctype,
+                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+# ------------------------------------------------------------------ send by email (Gmail SMTP) ---
+class SendRequest(BaseModel):
+    to: str = ""              # supplier email (defaults to the saved one)
+    subject: str = ""
+    body: str = ""
+    confirm: bool = False
+
+
+@router.post("/zayavka/{zid}/send-email")
+async def send_email(zid: int, req: SendRequest, actor: User = Depends(current_active_user),
+                     session: AsyncSession = Depends(get_async_session)):
+    """Email the заявка (with the Excel attached) to the supplier via Gmail SMTP. Sending is a real
+    outbound action → needs confirm=true, and refuses if Gmail isn't configured."""
+    from ..config import get_settings
+    from ..mailer import send_mail, mail_configured
+    z = await session.get(Zayavka, zid)
+    if not z:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
+    to = (req.to or z.supplier_email).strip()
+    if not to:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма имейл на доставчика.")
+    if not mail_configured():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "Изпращането по имейл не е настроено (липсва Gmail App Password). "
+                            "Използвай експорт засега.")
+    if not req.confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Изпращането е реално действие — потвърди с confirm=true.")
+    lines = await _lines(session, zid)
+    if not lines:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Заявката е празна.")
+    subject = req.subject.strip() or f"Заявка от Дарлинг 7 — {z.supplier}"
+    total = round(sum(ln.qty * ln.delivery_price for ln in lines), 2)
+    body = req.body.strip() or (
+        f"Здравейте,\n\nМоля, потвърдете наличност и срок за следната заявка ({len(lines)} артикула, "
+        f"общо {total:.2f} €). Подробностите са в прикачения файл.\n\n"
+        + (z.notes + "\n\n" if z.notes else "") + "Поздрави,\nДарлинг 7 ООД")
+    xlsx = _build_xlsx(z, lines)
+    try:
+        await send_mail(to=to, subject=subject, body=body,
+                        attachment=(f"zayavka-{zid}.xlsx", xlsx,
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                        reply_to=get_settings().gmail_user)
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Изпращането се провали: {str(e)[:160]}")
+    import datetime as _dt
+    z.status = "sent"
+    z.sent_at = _dt.datetime.now(_dt.timezone.utc)
+    z.sent_via = "email"
+    if req.to and not z.supplier_email:
+        z.supplier_email = to
+    await session.commit()
+    await log_action(session, actor, "zayavka.send_email", target=z.supplier, detail=f"to={to} items={len(lines)}")
+    return {"ok": True, "sent_to": to, "items": len(lines), "total": total}
+
+
+@router.get("")
+async def list_zayavki(user: User = Depends(current_active_user),
+                       session: AsyncSession = Depends(get_async_session)):
+    rows = (await session.execute(
+        select(Zayavka).order_by(Zayavka.created_at.desc()).limit(200))).scalars().all()
+    out = []
+    for z in rows:
+        lines = await _lines(session, z.id)
+        out.append({"id": z.id, "supplier": z.supplier, "status": z.status, "items": len(lines),
+                    "total": round(sum(ln.qty * ln.delivery_price for ln in lines), 2),
+                    "created_at": z.created_at.isoformat() if z.created_at else None,
+                    "sent_at": z.sent_at.isoformat() if z.sent_at else None})
+    return {"zayavki": out}

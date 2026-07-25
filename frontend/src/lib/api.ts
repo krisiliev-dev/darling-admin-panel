@@ -49,6 +49,9 @@ export const api = {
     request<T>(p, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(p: string, body?: unknown) =>
     request<T>(p, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(p: string, body?: unknown) =>
+    request<T>(p, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  del: <T>(p: string) => request<T>(p, { method: 'DELETE' }),
   upload: <T>(p: string, form: FormData) => request<T>(p, { method: 'POST', body: form }),
   // FastAPI-Users login expects form-encoded username/password
   loginForm: async (email: string, password: string) => {
@@ -205,6 +208,29 @@ export interface DeliveryCommitResponse {
   storeload_payload: unknown
   storeload_id: number | null
   warnings: string[]
+}
+
+// --- Заявки (purchase requests) ---
+export interface ZayavkaProduct {
+  code: string; name: string; supplier: string; suppliers: string[]
+  units: number; rev: number; marg: number; stock: number; suggested_qty: number
+}
+export interface ZayavkaCard { key: string; title: string; subtitle: string; products: ZayavkaProduct[] }
+export interface ZayavkaSupplier {
+  supplier: string; catalog_count: number; open_id: number | null
+  items: number; total: number; last_sent: string | null
+}
+export interface ZayavkaLineRow {
+  id: number; code: string; supplier_code: string; name: string
+  qty: number; delivery_price: number; barcode: string; line_total: number
+}
+export interface ZayavkaDetailResp {
+  id: number; supplier: string; supplier_id: number | null; supplier_email: string
+  status: string; notes: string; created_by: string; sent_at: string | null; sent_via: string
+  items: number; total: number; lines: ZayavkaLineRow[]
+}
+export interface SupplierCatalogItem {
+  code: string; supplier_code: string; name: string; delivery_price: number; units: number
 }
 
 // --- Доставки (receiving) ---

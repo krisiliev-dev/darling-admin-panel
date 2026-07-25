@@ -50,10 +50,4 @@ describe('Deliveries — receiving', () => {
     expect(screen.getByText(/Нямам файл, само хартия/)).toBeInTheDocument()
   })
 
-  it('switches to the Заявки (ordering) tab', async () => {
-    renderPage()
-    fireEvent.click(screen.getByText('Заявки'))
-    // the receiving "process new" button is gone once we leave the receiving tab
-    await waitFor(() => expect(screen.queryByText('+ Обработи нова доставка')).not.toBeInTheDocument())
-  })
 })

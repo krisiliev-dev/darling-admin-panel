@@ -13,6 +13,7 @@ import { Inventory } from './pages/Inventory'
 import { Catalog } from './pages/Catalog'
 import { Pricing } from './pages/Pricing'
 import { Deliveries } from './pages/Deliveries'
+import { Zayavki } from './pages/Zayavki'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
 
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="catalog" element={<Catalog />} />
         <Route path="pricing" element={<Pricing />} />
         <Route path="purchasing" element={<Deliveries />} />
+        <Route path="zayavki" element={<Zayavki />} />
         <Route path="assistant" element={<Assistant />} />
         <Route path="settings" element={me.is_superuser ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

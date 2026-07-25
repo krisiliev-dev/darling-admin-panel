@@ -86,6 +86,39 @@ class DeliveryBatch(Base):
         DateTime(timezone=True), nullable=True)
 
 
+class Zayavka(Base):
+    """A per-supplier purchase request (заявка) — a panel-owned outbound order document. One open
+    'draft' per supplier accumulates products; sending it (email/export) archives it as 'sent'.
+    Barsy stays system-of-record for STOCK — the storeload happens later, at receiving (Доставки)."""
+    __tablename__ = "zayavki"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+    supplier: Mapped[str] = mapped_column(String(255), default="", index=True)
+    supplier_id: Mapped[int | None] = mapped_column(nullable=True)
+    supplier_email: Mapped[str] = mapped_column(String(255), default="")
+    # draft (open cart) → sent → received (goods came in via Доставки) / cancelled
+    status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    sent_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_via: Mapped[str] = mapped_column(String(32), default="")   # email | export
+
+
+class ZayavkaLine(Base):
+    __tablename__ = "zayavka_lines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    zayavka_id: Mapped[int] = mapped_column(index=True)
+    code: Mapped[str] = mapped_column(String(64), default="")          # OUR product code
+    supplier_code: Mapped[str] = mapped_column(String(64), default="")  # the supplier's own code
+    name: Mapped[str] = mapped_column(String(255), default="")
+    qty: Mapped[float] = mapped_column(default=1.0)
+    delivery_price: Mapped[float] = mapped_column(default=0.0)         # per-unit cost (from mapping)
+    barcode: Mapped[str] = mapped_column(String(64), default="")
+
+
 class DeliveryLine(Base):
     """One product row within a delivery. `scanned_qty` accrues from the handheld barcode scanner;
     the line goes green when it equals the claimed `qty`, red on a mismatch."""
