@@ -103,9 +103,21 @@ def _tax_categories() -> list:
 
 
 @lru_cache(maxsize=1)
-def _tax_schemas() -> dict:
-    """{category_id -> [{name(BG), handle, values:[BG], free}]} — the v3 per-leaf attribute schema."""
+def _tax_schemas_raw() -> dict:
+    """The v3 per-leaf attribute schema, value-lists interned into a shared pool to keep the file
+    small: {"pool": [[values...]], "leaves": {id: [[name, handle, pool_idx, free]]}}."""
     return _load_tax("schemas.json") or {}
+
+
+def _leaf_schema(cid: str) -> list:
+    """Expand ONE category's schema → [{name(BG), handle, values:[BG], free}] (lazy, low-memory)."""
+    raw = _tax_schemas_raw()
+    pool = raw.get("pool") or []
+    out = []
+    for r in (raw.get("leaves") or {}).get(cid) or []:      # r = [name, handle, pool_idx, free]
+        vals = pool[r[2]] if isinstance(r[2], int) and 0 <= r[2] < len(pool) else []
+        out.append({"name": r[0], "handle": r[1], "values": vals, "free": r[3]})
+    return out
 
 
 @router.get("/shopify-categories")
@@ -137,11 +149,10 @@ def shopify_category_attributes(cid: str, user=Depends(current_active_user)):
     """The attribute SCHEMA for a category: each attribute is either a picklist (free=false → dropdown
     of allowed BG values) or free text (free=true → e.g. dimensions). Drives the dynamic attribute
     fields in the product editor."""
-    schemas = _tax_schemas()
-    if not schemas:
+    if not _tax_schemas_raw():
         return {"attributes": [], "available": False}
     out = []
-    for g in schemas.get(cid, []):
+    for g in _leaf_schema(cid):
         out.append({"handle": g["handle"], "name": g["name"],
                     "role": _role_for_handle(g["handle"], g["name"]), "free": g["free"],
                     "values": [{"h": v, "name": v} for v in g["values"]]})
@@ -178,7 +189,7 @@ def compose_name(req: ComposeNameRequest, user=Depends(current_active_user)):
     if not cat:
         return {"name": "", "available": bool(cats)}
     canonical: dict[str, str] = {}
-    for g in _tax_schemas().get(req.category_id, []):
+    for g in _leaf_schema(req.category_id):
         role = _role_for_handle(g["handle"], g["name"])
         if not role:
             continue

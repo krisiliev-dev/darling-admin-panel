@@ -16,14 +16,16 @@ import json, os, re, sys
 
 SRC = sys.argv[1]   # pipeline-v3
 OUT = sys.argv[2]   # backend/app/data/shopify_taxonomy
-# Darling is a HOME & GARDEN shop; pipeline-v3/leaf_forms.json (the name composer) covers HG 100%.
-# Restrict the bundle to the "hg" vertical → full composer coverage + a fraction of the size.
-VERTICAL = os.environ.get("TAXONOMY_VERTICAL", "hg")
+# The FULL taxonomy is bundled (some products fall outside Home & Garden). Optionally restrict to one
+# vertical via TAXONOMY_VERTICAL (e.g. "hg"); empty/unset = keep everything. NB: pipeline-v3/
+# leaf_forms.json (singular+gender for the name composer) covers Home & Garden fully; leaves in other
+# verticals fall back to the leaf label (no gender agreement) until leaf_forms is extended.
+VERTICAL = os.environ.get("TAXONOMY_VERTICAL", "").strip()
 os.makedirs(OUT, exist_ok=True)
 
 
 def _keep(cid):
-    return cid == VERTICAL or cid.startswith(VERTICAL + "-")
+    return (not VERTICAL) or cid == VERTICAL or cid.startswith(VERTICAL + "-")
 
 
 def short(gid):
@@ -47,7 +49,22 @@ def bg_breadcrumb(cid):
 cats = [{"id": short(c["gid"]), "en": c.get("full") or "", "bg": bg_breadcrumb(short(c["gid"])),
          "leaf": bool(c.get("leaf"))} for c in slim if _keep(short(c["gid"]))]
 
-schemas = {}
+# value-lists repeat massively across leaves (the same Color/Material list on thousands of leaves) —
+# intern them into a shared pool so schemas.json stays small. Format:
+#   {"pool": [[values...], ...], "leaves": {id: [[name, handle, pool_idx, free], ...]}}
+pool_idx: dict = {}
+pool_list: list = []
+
+
+def _ref(vals):
+    key = tuple(vals)
+    if key not in pool_idx:
+        pool_idx[key] = len(pool_list)
+        pool_list.append(vals)
+    return pool_idx[key]
+
+
+leaves = {}
 with open(os.path.join(SRC, "leaf_schemas.jsonl"), encoding="utf-8") as f:
     for line in f:
         line = line.strip()
@@ -63,18 +80,18 @@ with open(os.path.join(SRC, "leaf_schemas.jsonl"), encoding="utf-8") as f:
         out = []
         for g in row.get("schema", []):
             vals = [str(v) for v in (g.get("стойности") or []) if str(v).strip()]
-            out.append({"name": g.get("група") or "", "handle": g.get("shopify_attr") or "",
-                        "values": vals, "free": len(vals) == 0})
+            out.append([g.get("група") or "", g.get("shopify_attr") or "", _ref(vals), len(vals) == 0])
         if cid and out:
-            schemas[cid] = out
+            leaves[cid] = out
 
 json.dump(cats, open(os.path.join(OUT, "categories.json"), "w", encoding="utf-8"), ensure_ascii=False)
-json.dump(schemas, open(os.path.join(OUT, "schemas.json"), "w", encoding="utf-8"), ensure_ascii=False)
+json.dump({"pool": pool_list, "leaves": leaves},
+          open(os.path.join(OUT, "schemas.json"), "w", encoding="utf-8"), ensure_ascii=False)
 # remove the old agent-pipeline-sourced files if present (superseded)
 for old in ("cat_attrs.json", "attributes.json"):
     p = os.path.join(OUT, old)
     if os.path.exists(p):
         os.remove(p)
-print(f"categories={len(cats)} schemas={len(schemas)}")
+print(f"categories={len(cats)} leaves={len(leaves)} value_lists={len(pool_list)}")
 for fn in ("categories.json", "schemas.json"):
     print(fn, os.path.getsize(os.path.join(OUT, fn)) // 1024, "KB")

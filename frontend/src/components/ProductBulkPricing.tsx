@@ -168,10 +168,15 @@ function PromoList() {
     if (!window.confirm('Премахване на тази промоция?')) return
     try { await api.post(`/api/catalog/promos/${id}/delete`, {}); await load() } catch { /* ignore */ }
   }
-  if (!promos || promos.length === 0) return null
+  if (!promos) return null
   return (
     <Sheet>
       <h3 style={{ fontSize: '.95rem', marginBottom: '.4rem' }}>Активни промоции ({promos.length})</h3>
+      {promos.length === 0 && (
+        <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.8rem' }}>
+          Няма активни промоции. Избери продукти по-горе и създай промоция.
+        </p>
+      )}
       <div style={{ display: 'grid', gap: '.3rem' }}>
         {promos.map((p) => (
           <div key={p.id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.8rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0' }}>
