@@ -17,12 +17,14 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Optional OCR stack for the delivery photo→table path (kept out of the base test deps). System
 # libs: libgl1/libglib2.0-0 (OpenCV runtime), libzbar0 (barcode decode). Its own layer so a change
-# here doesn't bust the base deps cache. If this layer is removed, the /ocr endpoint 503s cleanly.
+# here doesn't bust the base deps cache. BEST-EFFORT: if these fail to resolve/install, the build
+# still succeeds and the /ocr endpoint 503s cleanly — the core Excel/CSV delivery flow needs none of
+# this, so an OCR dep hiccup must never block the whole panel deploy.
 COPY requirements-ocr.txt .
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN (apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 libzbar0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install -r requirements-ocr.txt
+     && rm -rf /var/lib/apt/lists/*) || echo "WARN: OCR system libs skipped"
+RUN pip install -r requirements-ocr.txt || echo "WARN: OCR python deps skipped; /ocr will 503"
 
 # The code + pipeline.db + admin.db arrive via the bind mount at runtime; this WORKDIR is overlaid.
 EXPOSE 8770

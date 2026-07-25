@@ -7,4 +7,4 @@
 img2table==2.0.0
 rapidocr-onnxruntime==1.4.4
 pyzbar==0.1.9
-Pillow==11.4.0
+Pillow==11.3.0
