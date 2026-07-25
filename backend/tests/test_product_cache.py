@@ -125,6 +125,18 @@ async def test_promo_creates_pricelist_and_attaches(owner_client, barsy_recorder
 
 
 @pytest.mark.asyncio
+async def test_list_and_delete_promos(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Pricelists_index", {"rows": [
+        {"pricelist_id": 42, "pricelist_name": "Коледа", "periods_date": "15.12-31.12"}]})
+    barsy_recorder.set_return("Pricelists_delete", 1)
+    lst = (await owner_client.get("/api/catalog/promos")).json()["promos"]
+    assert lst == [{"id": 42, "name": "Коледа", "period": "15.12-31.12", "active": True}]
+    d = await owner_client.post("/api/catalog/promos/42/delete", json={})
+    assert d.status_code == 200 and d.json()["ok"] is True
+    assert "Pricelists_delete" in barsy_recorder.operations
+
+
+@pytest.mark.asyncio
 async def test_promo_requires_owner(staff_client):
     r = await staff_client.post("/api/catalog/promo", json={
         "article_ids": [1], "name": "x", "mode": "discount_pct", "value": 10,

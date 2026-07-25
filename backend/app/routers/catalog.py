@@ -423,6 +423,34 @@ async def refresh_cache_for_code(code: str) -> bool:
     return True
 
 
+@router.get("/promos")
+async def list_promos(actor: User = Depends(current_owner)):
+    """Active Barsy price rules (Pricelists) — so staff can see + archive running promotions."""
+    idx = await run_in_threadpool(barsy.call, "Pricelists_index", {"action_type": "values"}) or {}
+    rows = idx.get("rows", idx) if isinstance(idx, dict) else idx
+    out = []
+    for r in (rows or []):
+        pid = r.get("pricelist_id")
+        if pid is None:
+            continue
+        out.append({"id": pid, "name": r.get("pricelist_name") or "",
+                    "period": r.get("periods_date") or r.get("period") or "",
+                    "active": not r.get("delete_flag")})
+    return {"promos": out}
+
+
+@router.post("/promos/{pid}/delete")
+async def delete_promo(pid: int, actor: User = Depends(current_owner),
+                       session: AsyncSession = Depends(get_async_session)):
+    """Remove a promo rule (Pricelists_delete). Base prices are untouched (promos never wrote them)."""
+    try:
+        await run_in_threadpool(barsy.call, "Pricelists_delete", {"id": pid})
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy: {str(e)[:160]}")
+    await log_action(session, actor, "catalog.promo_delete", target=str(pid))
+    return {"ok": True}
+
+
 @router.get("/facets")
 async def facets(user: User = Depends(current_active_user),
                  session: AsyncSession = Depends(get_async_session)):

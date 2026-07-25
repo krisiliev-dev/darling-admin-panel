@@ -103,6 +103,7 @@ export function ProductBulkPricing() {
         </div>
       </Sheet>
 
+      <PromoList />
       {sel.size > 0 && <BulkBar selected={selItems} onDone={() => { setSel(new Set()); load() }} />}
 
       <Sheet>
@@ -155,6 +156,31 @@ function CacheSync({ onSynced }: { onSynced: () => void }) {
       </span>
       <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => void sync()} disabled={busy}>{busy ? 'синхр…' : '↻ Синхронизирай'}</button>
     </div>
+  )
+}
+
+// active Barsy price rules (promotions) — view + archive
+function PromoList() {
+  const [promos, setPromos] = useState<{ id: number; name: string; period: string; active: boolean }[] | null>(null)
+  const load = () => api.get<{ promos: typeof promos }>('/api/catalog/promos').then((d) => setPromos(d.promos || [])).catch(() => setPromos([]))
+  useEffect(() => { load() }, [])
+  const del = async (id: number) => {
+    if (!window.confirm('Премахване на тази промоция?')) return
+    try { await api.post(`/api/catalog/promos/${id}/delete`, {}); await load() } catch { /* ignore */ }
+  }
+  if (!promos || promos.length === 0) return null
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '.95rem', marginBottom: '.4rem' }}>Активни промоции ({promos.length})</h3>
+      <div style={{ display: 'grid', gap: '.3rem' }}>
+        {promos.map((p) => (
+          <div key={p.id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.8rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0' }}>
+            <span>🏷 <b>{p.name || `#${p.id}`}</b>{p.period ? <span style={{ color: 'var(--pencil)' }}> · {p.period}</span> : ''}</span>
+            <button className="btn-paper" style={{ fontSize: '.7rem', color: 'var(--red)' }} onClick={() => void del(p.id)}>премахни</button>
+          </div>
+        ))}
+      </div>
+    </Sheet>
   )
 }
 
