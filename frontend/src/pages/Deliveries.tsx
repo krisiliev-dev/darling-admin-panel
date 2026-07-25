@@ -241,18 +241,28 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
     } catch (e) { setScanMsg(e instanceof ApiError ? e.message : 'Скан грешка') }
   }, [id, load])
 
-  // always-listening scanner: HID scanners "type" the code fast + Enter. Buffer keystrokes globally,
-  // fire on Enter. Ignore while a real input/textarea is focused (so manual typing isn't hijacked).
+  // always-listening scanner: HID scanners "type" the whole code in a fast burst + Enter. Buffer
+  // keystrokes globally and fire on Enter. Guards: (a) ignore while a real input/textarea is focused
+  // (manual typing), (b) ignore keys held with Ctrl/Meta/Alt (shortcuts like Ctrl+C yield key "c"),
+  // (c) reset the buffer if >120 ms elapsed since the last char — that inter-keystroke gap is the
+  // standard scanner-vs-human discriminator, so idle human keypresses can't accumulate a fake code.
+  const lastKeyRef = useRef(0)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null
-      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
-      if (typing) return
-      if (e.key === 'Enter') { const code = bufferRef.current; bufferRef.current = ''; if (code) void doScan(code) }
-      else if (e.key.length === 1) bufferRef.current += e.key
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const now = e.timeStamp || 0
+      if (e.key === 'Enter') { const code = bufferRef.current; bufferRef.current = ''; if (code) void doScan(code); return }
+      if (e.key.length !== 1) return
+      if (now - lastKeyRef.current > 120) bufferRef.current = ''   // too slow → not a scan; restart
+      lastKeyRef.current = now
+      bufferRef.current += e.key
     }
+    const onBlur = () => { bufferRef.current = '' }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('blur', onBlur)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('blur', onBlur) }
   }, [doScan])
 
   const attach = async (lineId: number) => {

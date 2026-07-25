@@ -186,7 +186,7 @@ async def test_finalise_dry_run_after_products_added(owner_client, barsy_recorde
         if l["is_new"]:
             await _set_article_id(l["id"], 9001)
     barsy_recorder.set_return("Articles_getlist", [{"code": EXIST_CODE, "article_id": 555}])
-    r = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True})
+    r = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["dry_run"] is True
@@ -206,7 +206,7 @@ async def test_finalise_live_sends_one_storeload(owner_client, barsy_recorder, m
     barsy_recorder.set_return("Articles_getlist", [{"code": EXIST_CODE, "article_id": 555}])
     barsy_recorder.set_return("Suppliers_getlist", [{"supplier_id": 39, "supplier_name": SUP}])
     barsy_recorder.set_return("Storeloads_create", {"storeload_id": 700})
-    r = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True})
+    r = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
     assert r.status_code == 200, r.text
     assert r.json()["storeload_id"] == 700
     assert barsy_recorder.operations.count("Storeloads_create") == 1
@@ -214,6 +214,61 @@ async def test_finalise_live_sends_one_storeload(owner_client, barsy_recorder, m
     assert hdr["supplier_id"] == 39 and hdr["operation_type"] == 1
     # batch now finalised
     assert (await owner_client.get(f"/api/deliveries/{b['id']}")).json()["status"] == "finalised"
+
+
+@pytest.mark.asyncio
+async def test_finalise_scan_gate_blocks_unscanned(owner_client, barsy_recorder):
+    """Every line must be scan-confirmed (not just non-mismatch) before finalise; force overrides."""
+    b = await _create(owner_client)
+    for l in b["lines"]:                       # all lines have a Barsy article, but NONE scanned
+        await _set_article_id(l["id"], 9000 + l["id"])
+    r = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True})
+    assert r.status_code == 409
+    assert "не са потвърдени" in r.json()["detail"]
+    # force pushes it through with a warning
+    f = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
+    assert f.status_code == 200 and any("без пълно сканиране" in w for w in f.json()["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_finalise_blocks_zero_qty(owner_client):
+    b = await _create(owner_client)
+    line = next(l for l in b["lines"] if not l["is_new"])
+    await owner_client.patch(f"/api/deliveries/{b['id']}/lines/{line['id']}", json={"qty": 0})
+    for l in b["lines"]:
+        await _set_article_id(l["id"], 9000 + l["id"])
+    r = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
+    assert r.status_code == 409 and "количество" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_finalise_double_is_blocked(owner_client, barsy_recorder, monkeypatch):
+    """The atomic claim blocks a second (concurrent/double-click) finalise → no double storeload."""
+    monkeypatch.setattr(deliveries, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+    b = await _create(owner_client)
+    for l in b["lines"]:
+        await _set_article_id(l["id"], 9000 + l["id"])
+    barsy_recorder.set_return("Storeloads_create", {"storeload_id": 701})
+    first = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
+    assert first.status_code == 200
+    second = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
+    assert second.status_code == 409
+    assert barsy_recorder.operations.count("Storeloads_create") == 1   # only ONE stock-in
+
+
+@pytest.mark.asyncio
+async def test_edit_refused_after_finalised(owner_client, barsy_recorder, monkeypatch):
+    monkeypatch.setattr(deliveries, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+    b = await _create(owner_client)
+    for l in b["lines"]:
+        await _set_article_id(l["id"], 9000 + l["id"])
+    barsy_recorder.set_return("Storeloads_create", {"storeload_id": 702})
+    await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
+    line = b["lines"][0]
+    r = await owner_client.patch(f"/api/deliveries/{b['id']}/lines/{line['id']}", json={"qty": 99})
+    assert r.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -266,7 +321,7 @@ async def test_full_new_product_loop_clears_finalise_gate(owner_client, barsy_re
 
     # now the delivery gate clears (existing line resolves via catalog)
     barsy_recorder.set_return("Articles_getlist", [{"code": EXIST_CODE, "article_id": 555}])
-    fin = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True})
+    fin = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
     assert fin.status_code == 200, fin.text
     ids = {a["article_id"] for a in fin.json()["storeload_payload"]["articles"]}
     assert ids == {8080, 555}

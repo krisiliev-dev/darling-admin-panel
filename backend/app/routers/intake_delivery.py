@@ -88,6 +88,24 @@ _SUPPLIER_CODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                     "data", "supplier_codes.jsonl")
 
 
+def iter_jsonl(path: str):
+    """Yield parsed objects from a .jsonl file, SKIPPING blank/malformed lines individually. A single
+    bad line must not truncate the rest of the file (these maps have 20k+ rows)."""
+    try:
+        f = open(path, encoding="utf-8")
+    except OSError:
+        return
+    with f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
 @lru_cache(maxsize=1)
 def _supplier_index() -> dict:
     """Load the supplier-code mapping into fast lookup tables. Keys are normalised.
@@ -96,22 +114,14 @@ def _supplier_index() -> dict:
     by_ref: dict[str, dict] = {}         # their code alone        -> row   [medium]
     by_sup_name: dict[tuple, dict] = {}  # (supplier, their name)  -> row   [medium]
     by_name: dict[str, dict] = {}        # their name alone        -> row   [low]
-    try:
-        with open(_SUPPLIER_CODES_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                r = json.loads(line)
-                sup, ref, rname = _norm(r.get("supplier")), _norm(r.get("ref")), _norm(r.get("rname"))
-                if ref:
-                    by_sup_ref.setdefault((sup, ref), r)
-                    by_ref.setdefault(ref, r)
-                if rname:
-                    by_sup_name.setdefault((sup, rname), r)
-                    by_name.setdefault(rname, r)
-    except (OSError, json.JSONDecodeError):
-        pass
+    for r in iter_jsonl(_SUPPLIER_CODES_PATH):
+        sup, ref, rname = _norm(r.get("supplier")), _norm(r.get("ref")), _norm(r.get("rname"))
+        if ref:
+            by_sup_ref.setdefault((sup, ref), r)
+            by_ref.setdefault(ref, r)
+        if rname:
+            by_sup_name.setdefault((sup, rname), r)
+            by_name.setdefault(rname, r)
     return {"by_sup_ref": by_sup_ref, "by_ref": by_ref,
             "by_sup_name": by_sup_name, "by_name": by_name}
 
@@ -125,19 +135,11 @@ def _barcode_index() -> dict:
     delivery scanner resolve a scanned barcode to a product even when the sheet had no barcode."""
     ean_to_code: dict[str, str] = {}
     code_to_eans: dict[str, list] = {}
-    try:
-        with open(_BARCODES_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                r = json.loads(line)
-                code, ean = str(r.get("code", "")).strip(), str(r.get("ean", "")).strip()
-                if code and ean:
-                    ean_to_code.setdefault(ean, code)
-                    code_to_eans.setdefault(code, []).append(ean)
-    except (OSError, json.JSONDecodeError):
-        pass
+    for r in iter_jsonl(_BARCODES_PATH):
+        code, ean = str(r.get("code", "")).strip(), str(r.get("ean", "")).strip()
+        if code and ean:
+            ean_to_code.setdefault(ean, code)
+            code_to_eans.setdefault(code, []).append(ean)
     return {"ean_to_code": ean_to_code, "code_to_eans": code_to_eans}
 
 
@@ -224,6 +226,8 @@ async def parse_delivery(
     raw = await file.read()
     if not raw:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Файлът е празен.")
+    if len(raw) > 15 * 1024 * 1024:   # cap upload — guards memory / xlsx zip-bombs
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Файлът е твърде голям (макс. 15 MB).")
     try:
         rows = await run_in_threadpool(_read_rows, raw)
     except Exception as e:  # openpyxl raises many types on a bad file
@@ -453,7 +457,10 @@ async def commit_delivery(
         except Exception:
             warnings.append("Доставчикът не бе намерен в Barsy — доставката се записва без supplier_id.")
 
-    # create new articles, then one storeload.
+    # create new articles, then one storeload. NOTE: this legacy stateless path can't dedup a
+    # partial retry (nothing is persisted per-line). If a create fails mid-way, we surface exactly
+    # which articles already landed in Barsy so staff don't blind-retry into duplicates. The stateful
+    # Доставки flow (deliveries.py) is the preferred path — it persists article_id per line.
     created: list[int | None] = []
     for ln in req.lines:
         if not ln.is_new:
@@ -462,8 +469,11 @@ async def commit_delivery(
         try:
             out = await run_in_threadpool(barsy.call, "Articles_create", _new_article_body(ln))
         except Exception as e:
+            done = [str(c) for c in created if c]
+            hint = (f" Вече създадени в Barsy: {', '.join(done)} — провери преди повторение."
+                    if done else "")
             raise HTTPException(status.HTTP_502_BAD_GATEWAY,
-                                f"Barsy (създаване на „{ln.name}“): {str(e)[:160]}")
+                                f"Barsy (създаване на „{ln.name}“): {str(e)[:140]}.{hint}")
         created.append(_article_id(out))
 
     payload = _storeload_payload(req, created)

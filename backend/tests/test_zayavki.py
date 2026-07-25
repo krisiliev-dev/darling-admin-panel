@@ -90,6 +90,27 @@ async def test_export_csv_and_xlsx(owner_client):
 
 
 @pytest.mark.asyncio
+async def test_export_neutralises_formula_injection(owner_client):
+    # a product name starting with '=' must be written as text, not a live formula (the file is
+    # emailed to external suppliers)
+    await owner_client.post("/api/zayavki/add",
+                            json={"code": CODE, "supplier": SUP, "qty": 1, "name": "=HYPERLINK(0)"})
+    z = next(s for s in (await owner_client.get("/api/zayavki/suppliers")).json()["suppliers"] if s["supplier"] == SUP)
+    csv_r = await owner_client.get(f"/api/zayavki/zayavka/{z['open_id']}/export", params={"fmt": "csv"})
+    assert "'=HYPERLINK(0)" in csv_r.text and "\n=HYPERLINK" not in csv_r.text
+
+
+@pytest.mark.asyncio
+async def test_qty_delta_is_atomic(owner_client):
+    z = (await owner_client.post("/api/zayavki/add", json={"code": CODE, "supplier": SUP, "qty": 2})).json()
+    lid = z["lines"][0]["id"]
+    z2 = (await owner_client.patch(f"/api/zayavki/lines/{lid}", json={"delta": 1})).json()
+    assert z2["lines"][0]["qty"] == 3           # applied to stored qty, not a stale absolute
+    z3 = (await owner_client.patch(f"/api/zayavki/lines/{lid}", json={"delta": -3})).json()
+    assert z3["items"] == 0                      # dropped to zero → removed
+
+
+@pytest.mark.asyncio
 async def test_supplier_prefs_persist_and_flag_below_min(owner_client):
     # set a minimum-order + email for the supplier
     r = await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}",

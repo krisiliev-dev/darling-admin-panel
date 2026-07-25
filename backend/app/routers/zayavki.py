@@ -27,7 +27,7 @@ from ..db import get_async_session
 from ..models import SupplierPref, User, Zayavka, ZayavkaLine
 from ..users import current_active_user
 from .inventory_health import _products
-from .intake_delivery import _norm
+from .intake_delivery import _norm, iter_jsonl
 
 router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
 
@@ -45,23 +45,15 @@ def _supplier_catalog() -> dict:
     """
     by_supplier: dict[str, list] = {}
     by_code: dict[str, dict] = {}
-    try:
-        with open(_SUPPLIER_CODES_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                r = json.loads(line)
-                sup = (r.get("supplier") or "").strip()
-                code = str(r.get("code") or "").strip()
-                if not sup or not code:
-                    continue
-                row = {"code": code, "ref": str(r.get("ref") or ""),
-                       "name": r.get("rname") or "", "dprice": r.get("dprice") or 0.0}
-                by_supplier.setdefault(sup, []).append(row)
-                by_code.setdefault(code, {})[sup] = row
-    except (OSError, json.JSONDecodeError):
-        pass
+    for r in iter_jsonl(_SUPPLIER_CODES_PATH):   # per-line: one bad row can't truncate the rest
+        sup = (r.get("supplier") or "").strip()
+        code = str(r.get("code") or "").strip()
+        if not sup or not code:
+            continue
+        row = {"code": code, "ref": str(r.get("ref") or ""),
+               "name": r.get("rname") or "", "dprice": r.get("dprice") or 0.0}
+        by_supplier.setdefault(sup, []).append(row)
+        by_code.setdefault(code, {})[sup] = row
     return {"by_supplier": by_supplier, "by_code": by_code}
 
 
@@ -287,7 +279,8 @@ async def add_to_zayavka(req: AddRequest, actor: User = Depends(current_active_u
 
 
 class QtyPatch(BaseModel):
-    qty: float
+    qty: float | None = None       # absolute set
+    delta: float | None = None     # OR a relative step (+1 / -1) applied to the stored qty
 
 
 @router.patch("/lines/{line_id}")
@@ -297,10 +290,13 @@ async def edit_line(line_id: int, req: QtyPatch, actor: User = Depends(current_a
     if not ln:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
     zid = ln.zayavka_id
-    if req.qty <= 0:
-        await session.delete(ln)          # qty to zero removes the line
+    # a relative delta is applied to the CURRENT stored qty, so rapid +/- clicks can't lose an
+    # increment (the stepper sends ±1, not an absolute value read from possibly-stale UI state).
+    new_qty = ln.qty + req.delta if req.delta is not None else (req.qty if req.qty is not None else ln.qty)
+    if new_qty <= 0:
+        await session.delete(ln)          # to zero removes the line
     else:
-        ln.qty = req.qty
+        ln.qty = new_qty
     await session.commit()
     z = await session.get(Zayavka, zid)
     return await _detail(session, z)
@@ -355,10 +351,17 @@ async def patch_zayavka(zid: int, req: MetaPatch, actor: User = Depends(current_
 _EXPORT_HEADERS = ["Код (наш)", "Код (доставчик)", "Артикул", "Количество", "Ед. цена (€)", "Сума (€)"]
 
 
+def _safe_cell(v):
+    """Neutralise spreadsheet formula injection: a text cell starting with = + - @ (or a control
+    char) is prefixed with an apostrophe so Excel/LibreOffice treat it as text, not a formula. The
+    заявка file is emailed to external suppliers, so this matters even for internal data."""
+    s = str(v)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+
 def _export_rows(z: Zayavka, lines: list[ZayavkaLine]) -> list[list]:
-    rows = [[ln.code, ln.supplier_code, ln.name, ln.qty, round(ln.delivery_price, 2),
-             round(ln.qty * ln.delivery_price, 2)] for ln in lines]
-    return rows
+    return [[_safe_cell(ln.code), _safe_cell(ln.supplier_code), _safe_cell(ln.name),
+             ln.qty, round(ln.delivery_price, 2), round(ln.qty * ln.delivery_price, 2)] for ln in lines]
 
 
 def _build_csv(z: Zayavka, lines: list[ZayavkaLine]) -> bytes:
@@ -475,11 +478,15 @@ async def list_zayavki(user: User = Depends(current_active_user),
                        session: AsyncSession = Depends(get_async_session)):
     rows = (await session.execute(
         select(Zayavka).order_by(Zayavka.created_at.desc()).limit(200))).scalars().all()
+    # aggregate item count + total in ONE grouped query (not per-zayavka — see list_deliveries)
+    agg = {zid: (int(n or 0), round(float(tot or 0), 2)) for zid, n, tot in (await session.execute(
+        select(ZayavkaLine.zayavka_id, func.count(),
+               func.sum(ZayavkaLine.qty * ZayavkaLine.delivery_price))
+        .group_by(ZayavkaLine.zayavka_id))).all()}
     out = []
     for z in rows:
-        lines = await _lines(session, z.id)
-        out.append({"id": z.id, "supplier": z.supplier, "status": z.status, "items": len(lines),
-                    "total": round(sum(ln.qty * ln.delivery_price for ln in lines), 2),
-                    "created_at": z.created_at.isoformat() if z.created_at else None,
+        items, total = agg.get(z.id, (0, 0.0))
+        out.append({"id": z.id, "supplier": z.supplier, "status": z.status, "items": items,
+                    "total": total, "created_at": z.created_at.isoformat() if z.created_at else None,
                     "sent_at": z.sent_at.isoformat() if z.sent_at else None})
     return {"zayavki": out}

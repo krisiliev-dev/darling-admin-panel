@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
 import type {
@@ -57,6 +57,7 @@ export function IntakeDelivery({ categories }: { categories: string[] }) {
 
   const onFile = async (f: File | undefined) => {
     if (!f) return
+    revokeAll()   // dropping the old edits → free their image blob URLs
     setParsing(true); setError(''); setParsed(null); setResult(null); setEdits({})
     setFilename(f.name)
     try {
@@ -92,11 +93,19 @@ export function IntakeDelivery({ categories }: { categories: string[] }) {
     }
   }
 
+  // track every blob URL we create so we can revoke them (they leak memory until the page reloads)
+  const objectUrls = useRef<string[]>([])
   const addImages = (row: number, files: FileList | null) => {
     if (!files?.length) return
-    const imgs = Array.from(files).map((f) => ({ name: f.name, url: URL.createObjectURL(f) }))
+    const imgs = Array.from(files).map((f) => {
+      const url = URL.createObjectURL(f)
+      objectUrls.current.push(url)
+      return { name: f.name, url }
+    })
     patch(row, { images: [...(edits[row]?.images || []), ...imgs] })
   }
+  const revokeAll = () => { objectUrls.current.forEach(URL.revokeObjectURL); objectUrls.current = [] }
+  useEffect(() => revokeAll, [])   // revoke on unmount
 
   const commit = async () => {
     if (!parsed) return

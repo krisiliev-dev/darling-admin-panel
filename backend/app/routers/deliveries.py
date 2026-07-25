@@ -17,7 +17,7 @@ import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import Integer, delete, func, select
+from sqlalchemy import Integer, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -33,6 +33,17 @@ router = APIRouter(prefix="/api/deliveries", tags=["deliveries"])
 
 
 # ------------------------------------------------------------------ parsing (xlsx + csv) ---
+_MAX_UPLOAD_BYTES = 15 * 1024 * 1024   # cap uploads (sheet + photo) — guards memory / zip-bombs
+
+
+def _check_size(raw: bytes) -> None:
+    if not raw:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Файлът е празен.")
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            f"Файлът е твърде голям (макс. {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB).")
+
+
 def _rows_from_upload(filename: str, raw: bytes) -> list[list]:
     name = (filename or "").lower()
     if name.endswith((".xlsx", ".xlsm")):
@@ -137,11 +148,21 @@ def _recompute_status(b: DeliveryBatch, lines: list[DeliveryLine]) -> None:
     b.status = "awaiting_products" if any(ln.is_new and ln.article_id is None for ln in lines) else "ready"
 
 
-def _catalog_code_to_article_id() -> dict:
-    """{our code → Barsy article_id} from the live catalogue. Used at finalise to resolve existing
-    lines (kept off the upload path so uploads never hit Barsy)."""
-    rows = barsy.call("Articles_getlist", {"length": 100000}) or []
-    return {str(a.get("code")): a.get("article_id") for a in rows if a.get("code") and a.get("article_id")}
+def _catalog_ids_for_codes(codes: set) -> dict:
+    """{code → Barsy article_id} for JUST the codes we need, resolved with per-code filters.
+    Avoids pulling the whole catalogue (`length: 100000`) — that single huge call is the one most
+    likely to hit the low-tier Barsy read-timeout + its 4× retry, hanging finalise."""
+    out: dict = {}
+    for c in {str(x) for x in codes if x}:
+        try:
+            rows = barsy.call("Articles_getlist", {"filters": {"code": c}, "length": 5}) or []
+        except Exception:
+            continue
+        for a in rows:
+            if str(a.get("code")) == c and a.get("article_id"):
+                out[c] = a.get("article_id")
+                break
+    return out
 
 
 # ------------------------------------------------------------------ create (upload) ---
@@ -159,15 +180,14 @@ async def create_delivery(
     """Upload a supplier delivery sheet → parse + match → persist a draft batch with its lines.
     NEW lines each get a linked intake draft so they surface on the Приемане page for enrichment."""
     raw = await file.read()
-    if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Файлът е празен.")
+    _check_size(raw)
     try:
         rows = await run_in_threadpool(_rows_from_upload, file.filename or "", raw)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Не мога да прочета файла: {str(e)[:140]}")
-    parsed = _parse_rows(rows, supplier)
+    parsed = await run_in_threadpool(_parse_rows, rows, supplier)   # first call loads the 22k-row map
     if not parsed:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове за приемане.")
 
@@ -253,8 +273,7 @@ async def ocr_photo(
     Barcodes are decoded from the image (pyzbar), never OCR'd as digits. OCR deps are optional —
     if the server doesn't have them installed the endpoint reports 503 cleanly."""
     raw = await file.read()
-    if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Файлът е празен.")
+    _check_size(raw)
     try:
         rows, note = await run_in_threadpool(_ocr_extract, raw)
     except _OcrUnavailable as e:
@@ -372,6 +391,14 @@ def _set_line_status(ln: DeliveryLine) -> None:
         ln.status = "mismatch"       # over- or under-count
 
 
+async def _guard_not_finalised(session: AsyncSession, batch_id: int) -> None:
+    """Refuse mutations to a delivery that's already been sent to Barsy (local record must not drift
+    from what Barsy recorded)."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if b and b.status == "finalised":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана — не се променя.")
+
+
 @router.post("/{batch_id}/scan")
 async def scan(
     batch_id: int, req: ScanRequest,
@@ -423,6 +450,7 @@ async def attach_barcode(
     ln = await session.get(DeliveryLine, line_id)
     if not ln or ln.batch_id != batch_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    await _guard_not_finalised(session, batch_id)
     if not ln.is_new:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Само нов продукт може да получи баркод тук.")
     ln.barcode = (req.barcode or "").strip()
@@ -455,6 +483,7 @@ async def edit_line(
     ln = await session.get(DeliveryLine, line_id)
     if not ln or ln.batch_id != batch_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    await _guard_not_finalised(session, batch_id)
     for f in ("name", "qty", "price", "barcode", "supplier_code"):
         v = getattr(req, f)
         if v is not None:
@@ -511,17 +540,22 @@ async def finalise(
     lines = await _lines(session, batch_id)
     if not lines:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове.")
+    # every line must carry a real, positive quantity before it becomes a Barsy goods-in row
+    bad_qty = [ln for ln in lines if ln.qty <= 0]
+    if bad_qty:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"{len(bad_qty)} реда без валидно количество — поправи ги преди финализиране.")
     # gate 1: every NEW product must have been enriched + created in Barsy (article_id written back)
     new_missing = [ln for ln in lines if ln.is_new and ln.article_id is None]
     if new_missing:
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"Има {len(new_missing)} нови продукта, които не са добавени. "
                             "Отиди на Приемане, за да ги завършиш.")
-    # resolve existing lines' Barsy article_id from the catalogue (by our code)
+    # resolve existing lines' Barsy article_id from the catalogue (by our code) — only the codes we need
     to_resolve = [ln for ln in lines if ln.article_id is None]
     if to_resolve:
         try:
-            cmap = await run_in_threadpool(_catalog_code_to_article_id)
+            cmap = await run_in_threadpool(_catalog_ids_for_codes, {ln.match_code for ln in to_resolve})
         except Exception as e:
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy каталог: {str(e)[:160]}")
         for ln in to_resolve:
@@ -533,19 +567,27 @@ async def finalise(
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"{len(still_missing)} продукта не са намерени в Barsy (по код). "
                             "Провери кода или ги създай в Приемане.")
+    # scan gate: EVERY line must be scan-confirmed (scanned == claimed). Unscanned (pending) lines
+    # are just as unverified as mismatched ones — both block unless the owner explicitly forces.
+    unconfirmed = [ln for ln in lines if ln.status != "confirmed"]
     warnings: list[str] = []
-    mism = [ln for ln in lines if ln.status == "mismatch"]
-    if mism and not req.force:
+    if unconfirmed and not req.force:
+        pend = sum(1 for ln in unconfirmed if ln.status == "pending")
+        mis = len(unconfirmed) - pend
         raise HTTPException(status.HTTP_409_CONFLICT,
-                            f"{len(mism)} реда не съвпадат при сканиране. Провери или потвърди с force=true.")
-    if mism:
-        warnings.append(f"{len(mism)} реда финализирани въпреки разлика при сканиране.")
+                            f"{len(unconfirmed)} реда не са потвърдени при сканиране "
+                            f"({pend} непроверени, {mis} с разлика). Провери или потвърди с force=true.")
+    if unconfirmed:
+        warnings.append(f"{len(unconfirmed)} реда финализирани без пълно сканиране.")
 
     settings = get_settings()
+    # deterministic doc_num per batch → if the write is retried, Barsy rejects the duplicate doc_num
+    # instead of recording a second goods-in.
+    doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
     payload = {
         "store_load": {
             "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
-            "doc_num": D._doc_num(_FakeReq(b.reference)), "operation_type": 1, "doc_type_id": 1,
+            "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
         },
         "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),
                       "current_price": str(ln.price)} for ln in lines],
@@ -564,7 +606,22 @@ async def finalise(
                          detail=f"batch={b.id} lines={len(lines)}")
         return {"ok": True, "dry_run": True, "storeload_payload": payload, "warnings": warnings}
 
-    # LIVE: resolve supplier_id if we only have the name, then one storeload.
+    # LIVE. Atomic claim FIRST — flip to 'finalising' only if not already finalised/finalising.
+    # Blocks the double-finalise race (double-click / two tabs) BEFORE the real Barsy stock write,
+    # mirroring intake.push_to_barsy's approved→pushing claim.
+    claim = await session.execute(
+        update(DeliveryBatch).where(DeliveryBatch.id == batch_id,
+                                    DeliveryBatch.status.notin_(("finalised", "finalising")))
+        .values(status="finalising"))
+    await session.commit()
+    if claim.rowcount == 0:
+        await session.refresh(b)
+        if b.status == "finalised":
+            raise HTTPException(status.HTTP_409_CONFLICT,
+                                f"Вече е финализирана (storeload {b.storeload_id}).")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Финализирането вече тече.")
+
+    # resolve supplier_id if we only have the name, then one storeload
     if b.supplier_id is None and b.supplier.strip():
         try:
             sid = await run_in_threadpool(D._resolve_supplier_id, b.supplier.strip())
@@ -576,6 +633,8 @@ async def finalise(
     try:
         out = await run_in_threadpool(barsy.call, "Storeloads_create", payload)
     except Exception as e:
+        b.status = "ready"            # release the claim so it can be retried
+        await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (доставка): {str(e)[:180]}")
     b.storeload_id = D._article_id(out)
     b.status = "finalised"
@@ -585,9 +644,3 @@ async def finalise(
                      detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
     return {"ok": True, "dry_run": False, "storeload_id": b.storeload_id,
             "storeload_payload": payload, "warnings": warnings}
-
-
-class _FakeReq:
-    """Minimal shim so we can reuse intake_delivery._doc_num (it reads .reference)."""
-    def __init__(self, reference: str):
-        self.reference = reference

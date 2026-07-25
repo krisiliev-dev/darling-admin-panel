@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
 import type {
@@ -64,7 +64,8 @@ function SentHistory() {
 
 // ------------------------------------------------------------------ fast-add (+ supplier prompt) ---
 function useFastAdd(onAdded: () => void) {
-  const [choice, setChoice] = useState<{ code: string; name: string; choices: string[] } | null>(null)
+  // keep the requested qty in the choice so picking a supplier adds the SAME quantity (not 1)
+  const [choice, setChoice] = useState<{ code: string; name: string; qty: number; choices: string[] } | null>(null)
   const [msg, setMsg] = useState('')
 
   const add = useCallback(async (p: { code: string; name: string; suppliers: string[] }, qty: number, supplier?: string) => {
@@ -73,7 +74,7 @@ function useFastAdd(onAdded: () => void) {
       setMsg(`Добавено към ${z.supplier}: ${p.name}`)
       onAdded()
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) setChoice({ code: p.code, name: p.name, choices: p.suppliers })
+      if (e instanceof ApiError && e.status === 409) setChoice({ code: p.code, name: p.name, qty, choices: p.suppliers })
       else setMsg(e instanceof ApiError ? e.message : 'Грешка при добавяне.')
     }
   }, [onAdded])
@@ -81,12 +82,12 @@ function useFastAdd(onAdded: () => void) {
   const dialog = choice && (
     <Modal onClose={() => setChoice(null)} title="Към кой доставчик?">
       <p className="font-type" style={{ fontSize: '.82rem', color: 'var(--pencil)', marginBottom: '.5rem' }}>
-        „{choice.name}“ се предлага от няколко доставчика.
+        „{choice.name}“ се предлага от няколко доставчика (количество {choice.qty}).
       </p>
       <div style={{ display: 'grid', gap: '.35rem' }}>
         {choice.choices.map((s) => (
           <button key={s} className="btn-paper" style={{ textAlign: 'left' }}
-            onClick={() => { void add({ code: choice.code, name: choice.name, suppliers: choice.choices }, 1, s); setChoice(null) }}>{s}</button>
+            onClick={() => { void add({ code: choice.code, name: choice.name, suppliers: choice.choices }, choice.qty, s); setChoice(null) }}>{s}</button>
         ))}
       </div>
     </Modal>
@@ -209,9 +210,10 @@ function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => v
   }, [supplier])
   useEffect(() => { void load() }, [load])
 
-  const setQty = async (lineId: number, qty: number) => {
-    const nz = await api.patch<ZayavkaDetailResp>(`/api/zayavki/lines/${lineId}`, { qty })
-    setZ(nz)
+  // send a RELATIVE delta so rapid +/- clicks can't lose an increment (server applies it to the
+  // stored qty, not a possibly-stale absolute from the UI)
+  const stepQty = async (lineId: number, delta: number) => {
+    setZ(await api.patch<ZayavkaDetailResp>(`/api/zayavki/lines/${lineId}`, { delta }))
   }
   const remove = async (lineId: number) => { setZ(await api.del<ZayavkaDetailResp>(`/api/zayavki/lines/${lineId}`)) }
 
@@ -248,9 +250,9 @@ function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => v
                     <td style={{ padding: '.3rem' }}><ThumbName name={l.name} /></td>
                     <td style={{ padding: '.3rem', color: 'var(--pencil)' }}>{l.code}</td>
                     <td style={{ padding: '.3rem', textAlign: 'center', whiteSpace: 'nowrap' }} className="no-print">
-                      <button className="btn-paper" style={{ padding: '.1rem .4rem' }} onClick={() => void setQty(l.id, l.qty - 1)}>−</button>
+                      <button className="btn-paper" style={{ padding: '.1rem .4rem' }} onClick={() => void stepQty(l.id, -1)}>−</button>
                       <span style={{ margin: '0 .5rem', fontVariantNumeric: 'tabular-nums' }}>{l.qty}</span>
-                      <button className="btn-paper" style={{ padding: '.1rem .4rem' }} onClick={() => void setQty(l.id, l.qty + 1)}>+</button>
+                      <button className="btn-paper" style={{ padding: '.1rem .4rem' }} onClick={() => void stepQty(l.id, 1)}>+</button>
                     </td>
                     <td style={{ padding: '.3rem', textAlign: 'right' }}>{eur(l.delivery_price)}</td>
                     <td style={{ padding: '.3rem', textAlign: 'right', fontWeight: 700 }}>{eur(l.line_total)}</td>
@@ -273,12 +275,22 @@ function SupplierSearch({ supplier, onAdd }: { supplier: string; onAdd: (p: Supp
   const [q, setQ] = useState('')
   const [items, setItems] = useState<SupplierCatalogItem[]>([])
   const [open, setOpen] = useState(false)
-  const search = async (query: string) => {
+  const seqRef = useRef(0)        // request sequence — discard out-of-order (stale) responses
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const search = (query: string) => {
     setQ(query)
+    if (timerRef.current) clearTimeout(timerRef.current)
     if (query.trim().length < 2) { setItems([]); setOpen(false); return }
-    const r = await api.get<{ products: SupplierCatalogItem[] }>(`/api/zayavki/supplier/${encodeURIComponent(supplier)}/catalog?q=${encodeURIComponent(query)}&limit=20`)
-    setItems(r.products); setOpen(true)
+    const seq = ++seqRef.current
+    timerRef.current = setTimeout(async () => {   // debounce keystrokes
+      try {
+        const r = await api.get<{ products: SupplierCatalogItem[] }>(`/api/zayavki/supplier/${encodeURIComponent(supplier)}/catalog?q=${encodeURIComponent(query)}&limit=20`)
+        if (seq === seqRef.current) { setItems(r.products); setOpen(true) }   // only the latest wins
+      } catch { /* ignore */ }
+    }, 250)
   }
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
   return (
     <Sheet clip="left">
       <label className="font-type" style={{ fontSize: '.68rem', color: 'var(--red)', textTransform: 'uppercase' }}>Търси в каталога на {supplier}</label>

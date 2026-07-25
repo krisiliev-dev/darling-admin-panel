@@ -304,14 +304,18 @@ async def push_to_barsy(
     d.status = "pushed"
     d.barsy_article_id = new_id
     d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
-    # if this product arrived on a delivery, write the new article_id onto that line so the
-    # delivery's finalise gate (all lines have a Barsy article) can clear.
-    if d.delivery_line_id and new_id is not None:
+    # if this product arrived on a delivery, reconcile its line so the delivery's finalise gate can
+    # clear. Mark it existing + carry our code as match_code EVEN IF new_id couldn't be parsed —
+    # the article WAS created in Barsy, so finalise can resolve it by code instead of stranding the
+    # line as a forever-"new" product with no article_id.
+    if d.delivery_line_id:
         from ..models import DeliveryLine
         line = await session.get(DeliveryLine, d.delivery_line_id)
         if line and line.article_id is None:
-            line.article_id = new_id
             line.is_new = False
+            line.match_code = line.match_code or d.code
+            if new_id is not None:
+                line.article_id = new_id
     await session.commit()
     await log_action(session, actor, "intake.push_barsy", target=d.name,
                      detail=f"code={d.code} article_id={new_id}")
