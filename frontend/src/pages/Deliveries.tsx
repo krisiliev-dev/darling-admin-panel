@@ -307,7 +307,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
       {b.status !== 'finalised' && news.length > 0 && (
         <div className="font-type" style={{ background: 'var(--sticky)', color: '#2b2607', padding: '.7rem .9rem', borderRadius: 3, fontSize: '.84rem' }}>
           Има {news.filter((l) => l.article_id == null).length} нови продукта, които не са добавени.{' '}
-          <Link to="/intake" style={{ color: 'var(--red-ink)', fontWeight: 700 }}>Отиди на Приемане →</Link>
+          <Link to="/intake" style={{ color: 'var(--red-ink)', fontWeight: 700 }}>Отиди на Нов продукт →</Link>
         </div>
       )}
 
@@ -336,7 +336,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
               {b.mismatched > 0 && canFinalise && b.new_pending === 0 &&
                 <button className="btn-paper" onClick={() => void finalise(true)} disabled={finalising}>Финализирай въпреки разликите</button>}
               {!canFinalise && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)' }}>само собственик/мениджър финализира</span>}
-              {b.new_pending > 0 && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}>първо завърши новите продукти в Приемане</span>}
+              {b.new_pending > 0 && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}>първо завърши новите продукти в „Нов продукт“</span>}
             </>
           )}
         </div>

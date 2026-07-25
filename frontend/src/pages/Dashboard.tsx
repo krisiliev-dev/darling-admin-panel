@@ -384,7 +384,11 @@ function InventoryTab() {
 
 // ---- Историческа диагноза (стар ERP seed) — reference-only, EUR as-is, no conversion ----
 function HistoricalDiagnosis() {
+  // hooks MUST run before any early return (Rules of Hooks) — otherwise the hook count changes when
+  // data loads and React throws "Rendered more hooks than during the previous render".
   const { data, error } = useApi<DiagnosisResponse>('/api/inventory-health/diagnosis')
+  const [supSort, setSupSort] = useState<'name' | 'rev' | 'deadval'>('rev')
+  const [focusSupplier, setFocusSupplier] = useState('')
   if (error) return <Sheet><p style={{ color: 'var(--red)' }}>Грешка при зареждане: {error}</p></Sheet>
   if (!data) return <Sheet><Loading /></Sheet>
   if (!data.available || !data.kpi) return (
@@ -396,8 +400,6 @@ function HistoricalDiagnosis() {
   const months = Object.keys(data.ts || {}).sort()
   const ts = data.ts || {}
   const abc = data.abc || {}
-  const [supSort, setSupSort] = useState<'name' | 'rev' | 'deadval'>('rev')
-  const [focusSupplier, setFocusSupplier] = useState('')
   const sortedSuppliers = [...(data.suppliers || [])].sort((a, b) =>
     supSort === 'name' ? a.name.localeCompare(b.name) : (Number(b[supSort] || 0) - Number(a[supSort] || 0)))
   const pickSupplier = (name: string) => {

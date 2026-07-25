@@ -8,7 +8,7 @@ interface Command { label: string; hint: string; to: string }
 
 const COMMANDS: Command[] = [
   { label: 'Днес', hint: 'какво чака внимание', to: '/' },
-  { label: 'Приемане', hint: 'нов продукт + AI', to: '/intake' },
+  { label: 'Нов продукт', hint: 'нов продукт + AI', to: '/intake' },
   { label: 'Поръчки', hint: 'изпълнение + етикети', to: '/orders' },
   { label: 'Разчети', hint: 'наложен платеж', to: '/cod' },
   { label: 'Наличности', hint: 'запаси от Barsy', to: '/inventory' },

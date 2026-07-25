@@ -10,7 +10,7 @@ import { CommandPalette } from './CommandPalette'
 const NAV: { to: string; label: string; roles?: string[] }[] = [
   { to: '/', label: 'Начало' },
   { to: '/analytics', label: 'Анализи' },
-  { to: '/intake', label: 'Приемане' },
+  { to: '/intake', label: 'Нов продукт' },
   { to: '/orders', label: 'Поръчки' },
   { to: '/cod', label: 'Разчети' },
   { to: '/inventory', label: 'Наличности' },

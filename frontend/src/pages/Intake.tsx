@@ -81,7 +81,7 @@ export function Intake() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Приемане" subtitle="от доставка до готов продукт" right={
+      <PageHeader title="Нов продукт" subtitle="от доставка до готов продукт" right={
         <div style={{ display: 'flex', gap: '.3rem' }}>
           {([['delivery', 'Доставка'], ['single', 'Единично'], ['bulk', 'Наведнъж']] as ['delivery' | 'single' | 'bulk', string][]).map(([k, label]) => (
             <button key={k} className="font-type" onClick={() => setMode(k)}
