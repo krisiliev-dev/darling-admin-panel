@@ -92,6 +92,9 @@ function PayoutImport({ onApply }: { onApply: (p: Record<string, number>) => voi
   const [preview, setPreview] = useState<PayoutPreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [courier, setCourier] = useState('speedy')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
 
   const onFile = async (file: File) => {
     setBusy(true); setErr(''); setPreview(null)
@@ -105,12 +108,22 @@ function PayoutImport({ onApply }: { onApply: (p: Record<string, number>) => voi
     } finally { setBusy(false); if (inputRef.current) inputRef.current.value = '' }
   }
 
+  const autoPull = async () => {
+    if (!from || !to) { setErr('Избери период.'); return }
+    setBusy(true); setErr(''); setPreview(null)
+    try {
+      setPreview(await api.post<PayoutPreview>('/api/cod/reconcile-auto', { courier, date_from: from, date_to: to }))
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Изтеглянето се провали.')
+    } finally { setBusy(false) }
+  }
+
   const discrepancies = (preview?.matched || []).filter((m) => m.discrepancy).length
 
   return (
     <Sheet tilt="l">
       <div style={{ display: 'flex', gap: '.6rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '.4rem' }}>
-        <h3 style={{ fontSize: '1rem', flex: 1 }}>Импорт на файл за изплащане</h3>
+        <h3 style={{ fontSize: '1rem', flex: 1 }}>Изплащания от куриер</h3>
         <label className="btn-paper" style={{ cursor: 'pointer' }}>
           {busy ? 'чете…' : 'Избери файл (CSV)'}
           <input ref={inputRef} type="file" accept=".csv,text/csv,text/plain" style={{ display: 'none' }}
@@ -118,8 +131,18 @@ function PayoutImport({ onApply }: { onApply: (p: Record<string, number>) => voi
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f) }} />
         </label>
       </div>
+      {/* auto-pull directly from the courier API (validated live at launch) */}
+      <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.5rem' }}>
+        <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>или изтегли автоматично:</span>
+        <select className="input-paper" style={{ fontSize: '.76rem' }} value={courier} onChange={(e) => setCourier(e.target.value)}>
+          <option value="speedy">Speedy</option><option value="econt">Econt</option>
+        </select>
+        <input className="input-paper" type="date" style={{ fontSize: '.76rem' }} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="от дата" />
+        <input className="input-paper" type="date" style={{ fontSize: '.76rem' }} value={to} onChange={(e) => setTo(e.target.value)} aria-label="до дата" />
+        <button className="btn-paper" onClick={() => void autoPull()} disabled={busy}>Изтегли</button>
+      </div>
       <p style={{ color: 'var(--pencil)', fontSize: '.8rem', margin: '0 0 .6rem' }}>
-        качи разчетния файл от куриера — сверяваме по товарителница и попълваме формата долу
+        качи разчетния файл или изтегли от куриера — сверяваме по товарителница и попълваме формата долу
       </p>
       {err && <p style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.82rem' }}>Грешка: {err}</p>}
 

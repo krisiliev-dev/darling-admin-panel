@@ -140,6 +140,11 @@ class Courier:
         """{price, currency} quote — no side effects."""
         raise NotImplementedError
 
+    def payout_report(self, date_from, date_to) -> list:
+        """COD payout report for a date window → [{waybill, collected, fee, payout_date, status}].
+        Overridden per courier in the full adapter; [] here."""
+        return []
+
 
 def get(name) -> Courier:
     name = (name or "").lower()

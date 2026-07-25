@@ -71,6 +71,39 @@ async def test_import_payout_matches_and_flags(owner_client, fake_state):
     assert body["settle_lines"] == [{"order_id": "gid1", "collected": 25.5}]
 
 
+# --- endpoint: courier auto-pull (same reconcile shape, sourced from the courier API) ----------
+async def test_reconcile_auto_pulls_and_matches(owner_client, fake_state, monkeypatch):
+    class FakeAdapter:
+        def configured(self):
+            return True
+        def payout_report(self, df, dt):   # what the Speedy/Econt adapter returns at launch
+            return [{"waybill": "1234567890", "collected": 25.50, "fee": 1.2, "payout_date": "2026-07-25"},
+                    {"waybill": "8887776", "collected": 12.0}]
+    monkeypatch.setattr(cod.courier_mod, "get", lambda name: FakeAdapter())
+    r = await owner_client.post("/api/cod/reconcile-auto",
+                                json={"courier": "speedy", "date_from": "2026-07-01", "date_to": "2026-07-25"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["rows_pulled"] == 2 and body["courier"] == "speedy"
+    assert len(body["matched"]) == 1 and body["matched"][0]["order_id"] == "gid1"
+    assert body["matched"][0]["fee"] == 1.2 and body["matched"][0]["payout_date"] == "2026-07-25"
+    assert body["unmatched_rows"] == [{"tracking": "8887776", "collected": 12.0}]
+    assert [o["order_id"] for o in body["delivered_not_paid"]] == ["gid2"]
+    assert body["settle_lines"] == [{"order_id": "gid1", "collected": 25.5}]
+
+
+async def test_reconcile_auto_rejects_unknown_courier(owner_client, fake_state):
+    r = await owner_client.post("/api/cod/reconcile-auto",
+                                json={"courier": "dhl", "date_from": "2026-07-01", "date_to": "2026-07-25"})
+    assert r.status_code == 400
+
+
+async def test_reconcile_auto_requires_staff(client):
+    r = await client.post("/api/cod/reconcile-auto",
+                          json={"courier": "speedy", "date_from": "2026-07-01", "date_to": "2026-07-25"})
+    assert r.status_code == 401
+
+
 async def test_import_payout_flags_discrepancy(owner_client, fake_state):
     csv_bytes = "awb;cod\n1234567890;20.00\n".encode("utf-8")  # 20 collected vs 25.50 expected
     r = await owner_client.post("/api/cod/import-payout",

@@ -311,7 +311,18 @@ async def import_payout(
                             "Неразпознат файл — няма редове с товарителница и сума.")
 
     orders = await run_in_threadpool(_cod_orders)
-    # index awaiting/in-transit orders by normalised tracking
+    result = _reconcile(parsed["rows"], orders)
+    await log_action(session, actor, "cod.import_payout", target=file.filename or "",
+                     detail=f"matched={len(result['matched'])} unmatched={len(result['unmatched_rows'])} "
+                            f"missing={len(result['delivered_not_paid'])}")
+    return {"file": file.filename, "delimiter": parsed["delimiter"], "columns": parsed["columns"],
+            "skipped_rows": parsed["skipped"], **result}
+
+
+def _reconcile(rows: list[dict], orders: dict) -> dict:
+    """Match payout rows (each {tracking, amount, [fee, payout_date]}) to our awaiting COD orders by
+    tracking number → the buckets the Разчети UI renders. Shared by the file importer and the
+    courier auto-pull. Writes nothing — a preview + ready-to-submit settle_lines."""
     by_tracking, awaiting_oids = {}, set()
     for oid, s in orders.items():
         bucket = _BUCKET.get(s.get("status"), "preship")
@@ -322,20 +333,19 @@ async def import_payout(
                 by_tracking[tr] = (oid, s, bucket)
 
     matched, unmatched, matched_oids = [], [], set()
-    for r in parsed["rows"]:
+    for r in rows:
         hit = by_tracking.get(r["tracking"])
         if not hit:
             unmatched.append({"tracking": r["tracking"], "collected": r["amount"]})
             continue
         oid, s, bucket = hit
         expected = round(float(s.get("cod_amount") or 0), 2)
-        # /settle enforces 0 ≤ collected ≤ 1_000_000; a negative deduction line or an absurd value
-        # must NOT flow into settle_lines or it 422s the entire batch. Flag it for the operator.
         out_of_range = not (0 <= r["amount"] <= 1_000_000)
         matched.append({
             "order_id": oid, "order_name": s.get("order_name") or oid,
             "tracking": r["tracking"], "courier": s.get("courier") or "",
             "expected": expected, "collected": r["amount"], "bucket": bucket,
+            "fee": r.get("fee"), "payout_date": r.get("payout_date"),
             "discrepancy": abs(r["amount"] - expected) > 0.01, "out_of_range": out_of_range,
         })
         matched_oids.add(oid)
@@ -347,16 +357,46 @@ async def import_payout(
         for oid in awaiting_oids
         if oid not in matched_oids and _BUCKET.get(orders[oid].get("status")) == "awaiting"
     ]
-
-    await log_action(session, actor, "cod.import_payout", target=file.filename or "",
-                     detail=f"matched={len(matched)} unmatched={len(unmatched)} "
-                            f"missing={len(delivered_not_paid)}")
     return {
-        "file": file.filename, "delimiter": parsed["delimiter"], "columns": parsed["columns"],
-        "skipped_rows": parsed["skipped"],
         "matched": matched, "unmatched_rows": unmatched, "delivered_not_paid": delivered_not_paid,
-        # ready-to-submit settle lines (operator confirms, then POST /settle) — out-of-range
-        # amounts are excluded so one bad row can't reject the whole settle batch.
         "settle_lines": [{"order_id": m["order_id"], "collected": m["collected"]}
                          for m in matched if not m["out_of_range"]],
     }
+
+
+class ReconcileAutoRequest(BaseModel):
+    courier: str                     # speedy | econt
+    date_from: str = Field(..., max_length=10)   # YYYY-MM-DD
+    date_to: str = Field(..., max_length=10)
+
+
+@router.post("/reconcile-auto")
+async def reconcile_auto(req: ReconcileAutoRequest,
+                         actor: User = Depends(require_roles("staff")),
+                         session: AsyncSession = Depends(get_async_session)):
+    """Auto-pull a courier's COD payout report for a window and reconcile it against our orders by
+    waybill — same preview shape as the manual file import, so the Разчети UI renders it unchanged.
+    (Speedy /payments, Econt CD_send_sum — validated live at launch once shipments exist.)"""
+    name = req.courier.strip().lower()
+    if name not in ("speedy", "econt"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Куриерът трябва да е speedy или econt.")
+    adapter = courier_mod.get(name)
+    if not adapter.configured():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"{name} не е конфигуриран.")
+    try:
+        rows = await run_in_threadpool(adapter.payout_report, req.date_from, req.date_to)
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"{name}: {str(e)[:160]}")
+    norm = []
+    for r in (rows or []):
+        tr = _norm_tracking(r.get("tracking") or r.get("waybill"))
+        if not tr:
+            continue
+        norm.append({"tracking": tr, "amount": round(float(r.get("collected") or r.get("amount") or 0), 2),
+                     "fee": r.get("fee"), "payout_date": r.get("payout_date")})
+    orders = await run_in_threadpool(_cod_orders)
+    result = _reconcile(norm, orders)
+    await log_action(session, actor, "cod.reconcile_auto", target=name,
+                     detail=f"from={req.date_from} to={req.date_to} pulled={len(norm)} matched={len(result['matched'])}")
+    return {"courier": name, "date_from": req.date_from, "date_to": req.date_to,
+            "rows_pulled": len(norm), **result}
