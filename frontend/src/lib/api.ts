@@ -164,7 +164,9 @@ export interface IntakeAttribute { key: string; value: string }
 
 export interface DeliveryContext { batch_id: number; supplier: string; reference: string; doc_date: string; status: string }
 export interface DraftImageMeta { id: number; filename: string; uploaded: boolean }
-export interface ShopifyCategory { id: string; name: string; path: string }
+export interface ShopifyCategory { id: string; name: string; path: string; en: string }
+export interface TaxAttrValue { h: string; name: string }
+export interface TaxAttribute { handle: string; name: string; free: boolean; values: TaxAttrValue[] }
 
 export interface IntakeDraft {
   category: string

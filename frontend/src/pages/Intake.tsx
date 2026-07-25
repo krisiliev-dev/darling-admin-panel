@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
-import type { IntakeDraft, DeliveryContext, DraftImageMeta, ShopifyCategory } from '../lib/api'
+import type { IntakeDraft, IntakeAttribute, DeliveryContext, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
@@ -162,12 +162,8 @@ function ProductEditor({ draft, onDone, onCancel }: {
     (enriched && v && !touched[f]) ? { fontFamily: 'var(--hand)', color: 'var(--pencil)' } : {}
 
   const attrs = d.attributes || []
-  const setAttr = (i: number, key: string, value: string) => { mark('attributes'); setD({ ...d, attributes: attrs.map((a, j) => j === i ? { key, value } : a) }) }
-  const addAttr = () => { mark('attributes'); setD({ ...d, attributes: [...attrs, { key: '', value: '' }] }) }
-  const removeAttr = (i: number) => { mark('attributes'); setD({ ...d, attributes: attrs.filter((_, j) => j !== i) }) }
 
   const save = async () => {
-    if (!d.code?.trim()) { setError('Нужен е наш код.'); return }
     if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
     setBusy(true); setError(''); setNote('')
     try {
@@ -225,29 +221,23 @@ function ProductEditor({ draft, onDone, onCancel }: {
         описание и meta. Предложенията са в молив — имаш последната дума.
       </p>
 
-      {/* STEP 2 — suggestions (editable) */}
+      {/* STEP 2 — suggestions (editable). Order: category → attributes → name (name composes from them). */}
       {enriched && (
         <>
           <div className="font-type" style={eyebrow}>2 · Предложения — прегледай и коригирай</div>
-          <Field label="Търговско име"><input className="input-paper" style={pencil('name', d.name)} value={d.name}
-            onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
           <Field label="Категория (Shopify таксономия)">
             <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}
               onPick={(id, path) => { mark('category'); setD({ ...d, shopify_category_id: id, category: path }) }} />
           </Field>
           <div>
             <span className="font-type" style={eyebrow}>Атрибути</span>
-            <div style={{ display: 'grid', gap: '.3rem', marginTop: '.3rem' }}>
-              {attrs.map((a, i) => (
-                <div key={i} style={{ display: 'flex', gap: '.4rem' }}>
-                  <input className="input-paper" style={{ flex: '0 0 10rem' }} placeholder="напр. Цвят" value={a.key} onChange={(e) => setAttr(i, e.target.value, a.value)} />
-                  <input className="input-paper" style={{ flex: 1 }} placeholder="напр. Червен" value={a.value} onChange={(e) => setAttr(i, a.key, e.target.value)} />
-                  <button className="btn-paper" onClick={() => removeAttr(i)} title="премахни">✕</button>
-                </div>
-              ))}
-              <button className="btn-paper" style={{ justifySelf: 'start', fontSize: '.74rem' }} onClick={addAttr}>+ атрибут</button>
+            <div style={{ marginTop: '.3rem' }}>
+              <TaxonomyAttributes categoryId={d.shopify_category_id || ''} value={attrs}
+                onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
             </div>
           </div>
+          <Field label="Търговско име"><input className="input-paper" style={pencil('name', d.name)} value={d.name}
+            onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
           <Field label="Описание"><textarea className="input-paper" rows={3} style={pencil('description', d.description)} value={d.description || ''}
             onChange={(e) => { mark('description'); setD({ ...d, description: e.target.value }) }} /></Field>
           <Field label="Meta заглавие (SEO)"><input className="input-paper" style={pencil('meta_title', d.meta_title)} value={d.meta_title || ''}
@@ -257,16 +247,18 @@ function ProductEditor({ draft, onDone, onCancel }: {
         </>
       )}
 
-      {/* operational fields — human, never AI (price = Microinvest, per policy) */}
+      {/* operational fields — price/unit are human; the CODE is assigned by Barsy on save */}
       <div className="font-type" style={eyebrow}>Оперативни данни</div>
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-        <Field label="Наш код"><input className="input-paper" value={d.code || ''} onChange={(e) => setD({ ...d, code: e.target.value })} /></Field>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
         <Field label="Цена (€)"><input className="input-paper" inputMode="decimal" value={d.price || ''} onChange={(e) => setD({ ...d, price: e.target.value })} /></Field>
         <Field label="Мярка">
           <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </Field>
+        <span className="pencil" style={{ fontSize: '.74rem', paddingBottom: '.3rem' }}>
+          {d.code ? `Код (Barsy): ${d.code}` : 'Кодът се присвоява автоматично от Barsy при създаване.'}
+        </span>
       </div>
 
       {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
@@ -279,6 +271,60 @@ function ProductEditor({ draft, onDone, onCancel }: {
         Запис създава продукта в Barsy и качва снимките. Цялата доставка се изпраща наведнъж, щом всичките ѝ
         нови продукти са създадени.
       </p>
+    </div>
+  )
+}
+
+// Taxonomy-driven attribute fields: they change with the selected category. Picklist attributes
+// (Цвят, Материал…) render as dropdowns of the taxonomy's allowed BG values; free-text attributes
+// (dimensions, volume…) render as text inputs. Values are stored as {key: attr name, value}.
+function TaxonomyAttributes({ categoryId, value, onChange }: {
+  categoryId: string; value: IntakeAttribute[]; onChange: (a: IntakeAttribute[]) => void
+}) {
+  const [schema, setSchema] = useState<TaxAttribute[]>([])
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    if (!categoryId) { setSchema([]); return }
+    setLoading(true)
+    api.get<{ attributes: TaxAttribute[] }>(`/api/intake/shopify-categories/${categoryId}/attributes`)
+      .then((r) => setSchema(r.attributes)).catch(() => setSchema([])).finally(() => setLoading(false))
+  }, [categoryId])
+
+  const valueFor = (name: string) => value.find((a) => a.key === name)?.value || ''
+  const setValue = (name: string, v: string) => {
+    const rest = value.filter((a) => a.key !== name)
+    onChange(v ? [...rest, { key: name, value: v }] : rest)
+  }
+  const schemaNames = new Set(schema.map((s) => s.name))
+  const extras = value.filter((a) => a.key && !schemaNames.has(a.key))   // AI/legacy attrs not in schema — kept
+
+  if (!categoryId) return <p className="pencil" style={{ fontSize: '.76rem' }}>избери категория, за да се появят атрибутите</p>
+  return (
+    <div style={{ display: 'grid', gap: '.35rem' }}>
+      {loading && <span className="pencil" style={{ fontSize: '.74rem' }}>зарежда атрибути…</span>}
+      {schema.map((a) => (
+        <div key={a.handle} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+          <span className="font-type" style={{ flex: '0 0 12rem', fontSize: '.76rem' }}>{a.name}</span>
+          {a.free ? (
+            <input className="input-paper" style={{ flex: 1 }} value={valueFor(a.name)} placeholder="стойност…"
+              onChange={(e) => setValue(a.name, e.target.value)} />
+          ) : (
+            <select className="input-paper" style={{ flex: 1 }} value={valueFor(a.name)} onChange={(e) => setValue(a.name, e.target.value)}>
+              <option value="">—</option>
+              {a.values.map((v) => <option key={v.h} value={v.name}>{v.name}</option>)}
+            </select>
+          )}
+        </div>
+      ))}
+      {extras.length > 0 && <span className="pencil" style={{ fontSize: '.72rem', marginTop: '.2rem' }}>други (извън таксономията):</span>}
+      {extras.map((a, i) => (
+        <div key={'x' + i} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+          <input className="input-paper" style={{ flex: '0 0 12rem' }} value={a.key}
+            onChange={(e) => onChange(value.map((x) => x === a ? { ...x, key: e.target.value } : x))} />
+          <input className="input-paper" style={{ flex: 1 }} value={a.value}
+            onChange={(e) => onChange(value.map((x) => x === a ? { ...x, value: e.target.value } : x))} />
+        </div>
+      ))}
     </div>
   )
 }

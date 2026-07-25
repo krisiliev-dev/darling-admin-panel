@@ -443,13 +443,20 @@ async def test_draft_images_add_list_get_delete(owner_client):
 
 
 @pytest.mark.asyncio
-async def test_shopify_categories_endpoint_shape(owner_client):
-    r = await owner_client.get("/api/intake/shopify-categories", params={"q": "кухн"})
+async def test_shopify_categories_and_attributes(owner_client):
+    """The taxonomy is bundled in the panel (EN+BG). Category search works, and a category exposes its
+    attribute schema — picklists (Цвят → Черен/…) vs free-text."""
+    r = await owner_client.get("/api/intake/shopify-categories", params={"q": "готвене"})
     assert r.status_code == 200
     body = r.json()
-    assert "categories" in body and "available" in body
-    if body["available"]:
-        assert all("id" in c and "path" in c for c in body["categories"])
+    assert body["available"] is True and body["categories"]
+    assert all("id" in c and "path" in c and "en" in c for c in body["categories"])
+    # attribute schema for a known Home & Garden cookware leaf
+    ab = (await owner_client.get("/api/intake/shopify-categories/hg-11-2-1-1/attributes")).json()
+    assert ab["available"] is True and ab["attributes"]
+    color = next((a for a in ab["attributes"] if a["name"] == "Цвят"), None)
+    assert color and color["free"] is False
+    assert any(v["name"] == "Черен" for v in color["values"])
 
 
 @pytest.mark.asyncio

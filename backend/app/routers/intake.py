@@ -81,79 +81,77 @@ def categories(user=Depends(current_active_user)):
 
 
 # ---------------------------------------------------- Shopify product taxonomy (category picker) ---
-# The formal Shopify taxonomy (agent-pipeline/shopify_taxonomy/categories_bg.yml): id → BG name, keyed
-# hierarchically ("aa", "aa-1", "aa-1-1", …). Thousands of nodes → we serve a server-side SEARCH so the
-# UI shows a typeahead, not a giant dropdown. Parent chain is derived from the id (strip trailing -N).
-_TAX_ID_RE = re.compile(r"^ {4}([a-z]{2}(?:-\d+)*):\s*$")
-_TAX_NAME_RE = re.compile(r"^ {6}name:\s*(.+?)\s*$")
+# The formal Shopify taxonomy, precomputed to SLIM indexes bundled in the panel repo (so it's always
+# deployed with the panel — see app/data/shopify_taxonomy, built by scripts/precompute_taxonomy.py):
+#   categories.json  [{id, en, bg, leaf}]              — EN + BG breadcrumb per category
+#   cat_attrs.json   {category_id: [attribute_handle]} — which attributes a category has
+#   attributes.json  {handle: {en, bg, free, values}} — attribute defs + allowed values (EN + BG)
+_TAX_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "shopify_taxonomy")
 
 
-def _taxonomy_path() -> str | None:
-    """Locate categories_bg.yml — it ships in agent-pipeline/shopify_taxonomy (on sys.path via core)."""
+def _load_tax(name: str):
     try:
-        import run_one
-        base = os.path.dirname(os.path.abspath(run_one.__file__))
+        with open(os.path.join(_TAX_DIR, name), encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
-        base = ""
-    for cand in [os.path.join(base, "shopify_taxonomy", "categories_bg.yml")] if base else []:
-        if os.path.exists(cand):
-            return cand
-    return None
+        return None
 
 
 @lru_cache(maxsize=1)
-def _taxonomy() -> dict:
-    """{id -> bg name} parsed from the YAML with a tiny line reader (no pyyaml dependency)."""
-    path = _taxonomy_path()
-    out: dict[str, str] = {}
-    if not path:
-        return out
-    cur = None
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            m = _TAX_ID_RE.match(line)
-            if m:
-                cur = m.group(1)
-                continue
-            n = _TAX_NAME_RE.match(line)
-            if n and cur:
-                out[cur] = n.group(1)
-                cur = None
-    return out
+def _tax_categories() -> list:
+    return _load_tax("categories.json") or []
 
 
-def _tax_breadcrumb(cid: str, names: dict) -> str:
-    """id → 'Дом > Кухня > Тенджери' breadcrumb of BG names, walking the id hierarchy."""
-    chain, node = [], cid
-    while node:
-        if node in names:
-            chain.append(names[node])
-        parent = re.sub(r"-\d+$", "", node)
-        node = parent if parent != node else ""
-    return " > ".join(reversed(chain))
+@lru_cache(maxsize=1)
+def _tax_cat_attrs() -> dict:
+    return _load_tax("cat_attrs.json") or {}
+
+
+@lru_cache(maxsize=1)
+def _tax_attributes() -> dict:
+    return _load_tax("attributes.json") or {}
 
 
 @router.get("/shopify-categories")
 def shopify_categories(q: str = "", limit: int = 40, user=Depends(current_active_user)):
-    """Search the Shopify product taxonomy by BG name/breadcrumb. Returns [{id, name, path}]. Empty q
+    """Search the Shopify product taxonomy by BG or EN name. Returns [{id, name, path, en}]. Empty q
     returns the top-level verticals so the picker is never blank."""
-    names = _taxonomy()
-    if not names:
+    cats = _tax_categories()
+    if not cats:
         return {"categories": [], "available": False}
     ql = q.strip().lower()
+    lim = max(1, min(200, limit))
     items = []
-    for cid, nm in names.items():
+    for c in cats:
         if ql:
-            path = _tax_breadcrumb(cid, names)
-            if ql not in path.lower():
+            if ql not in (c.get("bg") or "").lower() and ql not in (c.get("en") or "").lower():
                 continue
-        elif "-" in cid:                 # empty query → only the top-level verticals
+        elif "-" in c["id"]:                 # empty query → only the top-level verticals
             continue
-        items.append({"id": cid, "name": nm, "path": _tax_breadcrumb(cid, names)})
-        if len(items) >= max(1, min(200, limit)) and ql:
+        bg = c.get("bg") or c.get("en") or ""
+        items.append({"id": c["id"], "name": bg.split(" > ")[-1], "path": bg, "en": c.get("en", "")})
+        if len(items) >= lim and ql:
             break
     items.sort(key=lambda x: (len(x["path"]), x["path"]))
-    return {"categories": items[:max(1, min(200, limit))], "available": True}
+    return {"categories": items[:lim], "available": True}
+
+
+@router.get("/shopify-categories/{cid}/attributes")
+def shopify_category_attributes(cid: str, user=Depends(current_active_user)):
+    """The attribute SCHEMA for a category: each attribute is either a picklist (free=false → dropdown
+    of allowed BG values) or free text (free=true → e.g. dimensions). Drives the dynamic attribute
+    fields in the product editor."""
+    adefs = _tax_attributes()
+    if not adefs:
+        return {"attributes": [], "available": False}
+    out = []
+    for h in _tax_cat_attrs().get(cid, []):
+        a = adefs.get(h)
+        if not a:
+            continue
+        out.append({"handle": h, "name": a["bg"], "free": a["free"],
+                    "values": [{"h": v["h"], "name": v["bg"]} for v in a["values"]]})
+    return {"attributes": out, "available": True}
 
 
 @router.post("/enrich", response_model=EnrichDraft)
@@ -309,10 +307,11 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     if aid is None:
         return {"live": True, "created": False, "error": "Barsy не върна article_id."}
     d.barsy_article_id = aid
+    d.code = d.code or _extract_code(out)          # Barsy assigns + returns the SKU
     d.status = "pushed"
     d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
     up = await _upload_pending_images(session, d.id, aid)
-    note = {"live": True, "created": True, "article_id": aid, "images_uploaded": up}
+    note = {"live": True, "created": True, "article_id": aid, "code": d.code, "images_uploaded": up}
     if d.delivery_line_id:                                    # write id back + try auto-finalise
         line = await session.get(DeliveryLine, d.delivery_line_id)
         if line:
@@ -406,8 +405,7 @@ async def update_draft(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
     if d.status == "pushed":
         raise HTTPException(status.HTTP_409_CONFLICT, "Вече е създадена в Barsy.")
-    if not (req.code.strip() or d.code):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Нужен е наш код.")
+    # NB: no 'code' requirement — Barsy assigns the SKU on create and returns it (see _save_to_barsy).
     n_images = (await _image_counts(session, [draft_id])).get(draft_id, 0)
     if n_images == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Задължителна е поне една снимка на продукта.")
@@ -519,14 +517,19 @@ async def delete_image(draft_id: int, image_id: int, actor: User = Depends(curre
 
 
 def _build_barsy_article(d: IntakeDraft) -> dict:
-    """Map an approved draft to a Barsy Articles_create body (verified contract)."""
+    """Map an approved draft to a Barsy Articles_create body (verified contract). The article `code`
+    (our SKU) is assigned BY BARSY on create — we omit it so Barsy generates it and returns it. A code
+    is only sent when we already have one (e.g. a delivery-matched existing product)."""
     art: dict = {
-        "code": d.code,
         "article_name": d.name,
         "article_name_ml": {"bg_BG": d.name},
         "amount_type_id": _UNIT_ID.get(d.unit, 1),
         "is_public": 1, "is_for_sale": 1,
     }
+    if d.code:
+        art["code"] = d.code
+    # NOTE: shopify_category_id is NOT sent to Barsy (unknown field) — it rides to Shopify via the
+    # connector/metafields at mirror time; it's persisted on the draft.
     if d.description:
         art["description_ml"] = {"bg_BG": d.description}
     if d.barcode:
@@ -558,6 +561,19 @@ def _extract_article_id(out):
     return _as_int(out)
 
 
+def _extract_code(out) -> str:
+    """The SKU Barsy assigned on create (returned in the response) — so we don't ask staff for it."""
+    if isinstance(out, dict):
+        for k in ("code", "article_code"):
+            v = out.get(k)
+            if v not in (None, ""):
+                return str(v)
+        art = out.get("article")
+        if isinstance(art, dict) and art.get("code"):
+            return str(art["code"])
+    return ""
+
+
 @router.post("/drafts/{draft_id}/push-barsy")
 async def push_to_barsy(
     draft_id: int, req: PushRequest,
@@ -569,9 +585,7 @@ async def push_to_barsy(
     d = await session.get(IntakeDraft, draft_id)
     if not d:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
-    if not d.code.strip():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                            "Липсва код (бизнес ключ) — задай го преди създаване в Barsy.")
+    # no 'code' requirement — Barsy assigns the SKU on create and returns it (captured below)
     if not req.confirm:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Създаването в Barsy е реално действие — потвърди с confirm=true.")
@@ -601,9 +615,9 @@ async def push_to_barsy(
     # The write has already happened. Mark pushed even if the id can't be parsed, so a
     # retry can't create a duplicate; surface a warning to verify in Barsy.
     new_id = _extract_article_id(out)
-    import datetime as _dt
     d.status = "pushed"
     d.barsy_article_id = new_id
+    d.code = d.code or _extract_code(out)          # Barsy-assigned SKU
     d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
     # if this product arrived on a delivery, reconcile its line so the delivery's finalise gate can
     # clear. Mark it existing + carry our code as match_code EVEN IF new_id couldn't be parsed —
