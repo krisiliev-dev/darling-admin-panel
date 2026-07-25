@@ -158,12 +158,56 @@ function CacheSync({ onSynced }: { onSynced: () => void }) {
   )
 }
 
+// native Barsy timed promotion (Pricelists) on the selected products — % / € discount or exact
+// promo price, active over a date window; auto-reverts, base price untouched.
+function PromoForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
+  const [name, setName] = useState('')
+  const [mode, setMode] = useState<'discount_pct' | 'discount_eur' | 'exact'>('discount_pct')
+  const [value, setValue] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const create = async () => {
+    if (!name.trim() || !value || !from || !to) { setMsg('Попълни име, стойност и период.'); return }
+    if (!window.confirm(`Създаване на промоция „${name}“ за ${ids.length} продукта (${from} → ${to})?`)) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await api.post<{ pricelist_id: number; period: string; count: number }>('/api/catalog/promo', {
+        article_ids: ids, name, mode, value: Number(value), date_from: from, date_to: to, confirm: true })
+      setMsg(`Промоцията е активна за ${r.count} продукта (${r.period}).`); onDone()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Промоцията се провали.') } finally { setBusy(false) }
+  }
+  const MODES: [typeof mode, string][] = [['discount_pct', '% отстъпка'], ['discount_eur', '€ отстъпка'], ['exact', 'точна промо цена €']]
+
+  return (
+    <div style={{ marginTop: '.6rem', border: '1px dashed var(--line)', borderRadius: 3, padding: '.7rem', background: 'var(--paper2)', display: 'grid', gap: '.5rem' }}>
+      <div className="font-type" style={{ fontSize: '.8rem', fontWeight: 700 }}>🏷 Промоция за период · {ids.length} продукта</div>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="input-paper" style={{ width: '12rem' }} placeholder="име (напр. Коледна)" value={name} onChange={(e) => setName(e.target.value)} />
+        <select className="input-paper" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
+          {MODES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        <input className="input-paper" style={{ width: '7rem' }} inputMode="decimal" placeholder={mode === 'discount_pct' ? '% напр. 20' : '€'} value={value} onChange={(e) => setValue(e.target.value)} />
+      </div>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <label className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center' }}>от <input className="input-paper" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center' }}>до <input className="input-paper" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <button className="btn-paper btn-red" onClick={() => void create()} disabled={busy}>{busy ? 'създава…' : 'Създай промоция'}</button>
+      </div>
+      {msg && <div className="font-type" style={{ fontSize: '.8rem', color: msg.includes('активна') ? 'var(--ready)' : 'var(--red)' }}>{msg}</div>}
+    </div>
+  )
+}
+
 function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
   const [op, setOp] = useState<'mul' | 'div' | 'add' | 'sub' | 'set'>('mul')
   const [value, setValue] = useState('')
   const [preview, setPreview] = useState<BulkPricePreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [showPromo, setShowPromo] = useState(false)
   const ids = selected.map((s) => s.article_id)
   const OPS: [typeof op, string][] = [['mul', '× умножи'], ['div', '÷ раздели'], ['add', '+ добави'], ['sub', '− извади'], ['set', '= задай']]
 
@@ -195,8 +239,10 @@ function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () =>
           value={value} onChange={(e) => { setValue(e.target.value); setPreview(null) }} />
         <button className="btn-paper" onClick={() => void runPreview()} disabled={busy}>Прегледай</button>
         {preview?.dry_run && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Приложи на {preview.count}</button>}
-        <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }} title="Изисква надграждане на Barsy плана (ценови правила все още не са отключени).">промоция за период — след надграждане на Barsy</span>
+        <span style={{ color: 'var(--line)' }}>│</span>
+        <button className="btn-paper" onClick={() => setShowPromo((s) => !s)}>🏷 Промоция за период</button>
       </div>
+      {showPromo && <PromoForm ids={ids} onDone={() => { setShowPromo(false); onDone() }} />}
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: msg.includes('Приложено') ? 'var(--ready)' : 'var(--red)', marginTop: '.4rem' }}>{msg}</div>}
       {preview?.dry_run && preview.changes && (
         <div style={{ marginTop: '.6rem', maxHeight: '16rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>

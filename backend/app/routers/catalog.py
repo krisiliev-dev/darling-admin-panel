@@ -178,7 +178,10 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
         p.price, p.stock, p.min_stock, p.low = d["price"], d["stock"], d["min_stock"], d["low"]
         p.has_image = d["has_image"]
         p.attributes_json = _json.dumps(d["attributes"], ensure_ascii=False)
-        p.search_lc = f"{d['name']} {d['code']} {d['barcode']}".lower()   # Cyrillic-safe search key
+        # universal free-text key — name, code, barcode, supplier AND price (Hermes: keep the cache
+        # as search source; just widen the index, incl. price at 2dp so "19.90" or "19.9" both match)
+        price_s = f"{d['price']:.2f}" if d["price"] is not None else ""
+        p.search_lc = f"{d['name']} {d['code']} {d['barcode']} {d['supplier']} {price_s}".lower()
         p.attr_lc = "|".join(f"{x['key']}={x['value']}" for x in d["attributes"]).lower()
         p.updated_at = now
         session.add(p)
@@ -296,6 +299,78 @@ async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner)
     await log_action(session, actor, "catalog.bulk_price",
                      detail=f"op={req.op} value={req.value} applied={applied} failed={len(failed)}")
     return {"dry_run": False, "count": len(changes), "applied": applied, "failed": failed}
+
+
+class PromoRequest(BaseModel):
+    article_ids: list[int]
+    name: str
+    mode: str = "discount_pct"          # discount_pct | discount_eur | exact
+    value: float
+    date_from: str                       # YYYY-MM-DD
+    date_to: str
+    confirm: bool = False
+
+
+_PROMO_MOD = {"discount_pct": 2, "discount_eur": 4, "exact": 5}   # Barsy modificator_type
+
+
+def _period(date_from: str, date_to: str) -> str:
+    """YYYY-MM-DD range → Barsy periods_date "d.m-d.m" (may cross year-end)."""
+    def dm(s: str) -> str:
+        parts = s.strip().split("-")
+        if len(parts) == 3:            # YYYY-MM-DD
+            return f"{int(parts[2])}.{int(parts[1])}"
+        raise ValueError("дата трябва да е ГГГГ-ММ-ДД")
+    return f"{dm(date_from)}-{dm(date_to)}"
+
+
+@router.post("/promo")
+async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
+                       session: AsyncSession = Depends(get_async_session)):
+    """Create a NATIVE Barsy timed promotion (Pricelists rule) on the selected products — a % or €
+    discount, or an exact promo price, active over a date window. Barsy adjusts current_price for the
+    window and auto-reverts; the base actual_price is untouched. Owner-only, audited."""
+    if not req.article_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма избрани продукти.")
+    if req.mode not in _PROMO_MOD:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалиден тип промоция.")
+    if not req.name.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дай име на промоцията.")
+    try:
+        period = _period(req.date_from, req.date_to)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    if not req.confirm:
+        return {"dry_run": True, "count": len(req.article_ids), "period": period,
+                "name": req.name, "mode": req.mode, "value": req.value}
+
+    values = {
+        "pricelist_name": req.name.strip(), "pricelist_type_id": 6, "pricelist_group_id": 1,
+        "weight": 1, "periods_date": period, "begin_price_type": 1, "price_tax_mode": 1,
+        "price_tax_id": 2, "modificator_type": _PROMO_MOD[req.mode], "modificator_value": req.value,
+        "modificator_round_type": 0, "price_change_groups": [1], "total_period": "current",
+        "price_type": 1,
+    }
+    try:
+        await run_in_threadpool(barsy.call, "Pricelists_edit",
+                                {"action_type": "save", "active_struct_id": "eStructForm_1", "values": values})
+        idx = await run_in_threadpool(barsy.call, "Pricelists_index", {"action_type": "values"}) or {}
+        rows = idx.get("rows", idx) if isinstance(idx, dict) else idx
+        pid = None
+        for r in (rows or []):
+            if str(r.get("pricelist_name")) == req.name.strip():
+                pid = r.get("pricelist_id") if pid is None else max(pid, r.get("pricelist_id"))
+        if pid is None:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Промоцията е създадена, но ID не се разчете — провери в Barsy.")
+        attach_rows = [{"article_id": aid, "req_amount": 1, "price_change_group": 1} for aid in req.article_ids]
+        await run_in_threadpool(barsy.call, "Pricelists_save_articles", {"id": pid, "rows": attach_rows})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (промоция): {str(e)[:180]}")
+    await log_action(session, actor, "catalog.promo", target=req.name.strip(),
+                     detail=f"pricelist={pid} mode={req.mode} value={req.value} period={period} n={len(req.article_ids)}")
+    return {"dry_run": False, "pricelist_id": pid, "count": len(req.article_ids), "period": period}
 
 
 @router.get("/facets")

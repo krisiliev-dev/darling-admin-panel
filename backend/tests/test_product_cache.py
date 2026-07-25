@@ -99,6 +99,50 @@ async def test_bulk_price_preview_then_apply(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_promo_creates_pricelist_and_attaches(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10"},
+        {"article_id": 2, "code": "B", "article_name": "Две", "actual_price": "20"},
+    ])
+    barsy_recorder.set_return("Pricelists_edit", 1)
+    barsy_recorder.set_return("Pricelists_index", {"rows": [{"pricelist_id": 42, "pricelist_name": "Коледа"}]})
+    barsy_recorder.set_return("Pricelists_save_articles", 1)
+    # preview
+    prev = (await owner_client.post("/api/catalog/promo", json={
+        "article_ids": [1, 2], "name": "Коледа", "mode": "discount_pct", "value": 20,
+        "date_from": "2026-12-15", "date_to": "2026-12-31"})).json()
+    assert prev["dry_run"] is True and prev["period"] == "15.12-31.12"
+    assert "Pricelists_edit" not in barsy_recorder.operations
+    # apply
+    r = (await owner_client.post("/api/catalog/promo", json={
+        "article_ids": [1, 2], "name": "Коледа", "mode": "discount_pct", "value": 20,
+        "date_from": "2026-12-15", "date_to": "2026-12-31", "confirm": True})).json()
+    assert r["pricelist_id"] == 42 and r["count"] == 2
+    body = barsy_recorder.body_for("Pricelists_edit")
+    assert body["values"]["modificator_type"] == 2 and body["values"]["periods_date"] == "15.12-31.12"
+    attach = barsy_recorder.body_for("Pricelists_save_articles")
+    assert {row["article_id"] for row in attach["rows"]} == {1, 2}
+
+
+@pytest.mark.asyncio
+async def test_promo_requires_owner(staff_client):
+    r = await staff_client.post("/api/catalog/promo", json={
+        "article_ids": [1], "name": "x", "mode": "discount_pct", "value": 10,
+        "date_from": "2026-12-15", "date_to": "2026-12-31", "confirm": True})
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_price_search_matches_number(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Чаша", "actual_price": "19.90"},
+        {"article_id": 2, "code": "B", "article_name": "Чиния", "actual_price": "4.50"},
+    ])
+    r = (await owner_client.get("/api/catalog/search?q=19.90")).json()
+    assert [i["article_id"] for i in r["items"]] == [1]   # a price search finds the product
+
+
+@pytest.mark.asyncio
 async def test_bulk_price_requires_owner(staff_client):
     r = await staff_client.post("/api/catalog/bulk-price",
                                 json={"article_ids": [1], "op": "set", "value": 5, "confirm": True})
