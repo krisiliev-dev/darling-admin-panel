@@ -174,6 +174,37 @@ export interface IntakeDraft {
   barsy_article_id?: number | null
 }
 
+// --- delivery-based intake (Приемане: supplier Excel → new-vs-existing → batch to Barsy) ---
+export interface DeliveryRow {
+  row: number
+  supplier_code: string
+  name: string
+  qty: number
+  delivery_price: number
+  is_new: boolean
+  match_code: string
+  match_name: string
+  match_method: string        // 'code' | 'name' | ''
+  match_confidence: string    // 'high' | 'medium' | ''
+  warnings: string[]
+}
+
+export interface DeliveryParseResponse {
+  columns: Record<string, string>
+  positional: boolean
+  rows: DeliveryRow[]
+  summary: { total: number; new: number; existing: number; total_qty: number }
+}
+
+export interface DeliveryCommitResponse {
+  ok: boolean
+  dry_run: boolean
+  created_article_ids: (number | null)[]
+  storeload_payload: unknown
+  storeload_id: number | null
+  warnings: string[]
+}
+
 export interface InventoryItem {
   article_id: number
   name: string

@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     # accuracy); 'sale' finalises + fiscalises immediately. Default review-first per the handoff.
     order_ingest_mode: str = "clientorder"
 
+    # --- Delivery intake (Приемане) -----------------------------------------------------
+    # SAFETY GATE for the batch delivery→Barsy write (storeload create). False (default) =>
+    # /intake/delivery/commit runs a DRY-RUN: it validates, creates nothing, and returns the exact
+    # Barsy payload it WOULD send. Flip to True (DELIVERY_BARSY_LIVE=1) only once the Barsy
+    # storeload API shape is confirmed (Hermes) and staff have trialled the flow. Mirrors webhooks_live.
+    delivery_barsy_live: bool = False
+    # Barsy depot the delivery loads into. 1 = 'Основен', can_load=1 (verified live).
+    barsy_depot_id: int = 1
+
     # nekorekten.com risky-customer lookup (COD refuser defense). Server-side API key (keep it in
     # env, never the browser); the whitelisted IP on nekorekten's side must be THIS server's egress
     # IP. Empty => the panel falls back to a manual deep-link lookup only, no API calls.

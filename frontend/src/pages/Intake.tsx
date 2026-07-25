@@ -7,6 +7,7 @@ import { useHotkey } from '../lib/useHotkey'
 import { Sheet, Stamp } from '../components/Paper'
 import { PageHeader } from '../components/PageHeader'
 import { IntakeBulk } from './IntakeBulk'
+import { IntakeDelivery } from './IntakeDelivery'
 
 // Приемане — THE signature flow. A bare stock name becomes a draft: category → attributes
 // → description, each step revealed in sequence. The AI writes in PENCIL (grey, editable);
@@ -28,7 +29,7 @@ export function Intake() {
   const [op, setOp] = useState({ code: '', barcode: '', price: '', unit: 'бр' })
   const [saving, setSaving] = useState(false)
   const [refreshDrafts, setRefreshDrafts] = useState(0)
-  const [mode, setMode] = useState<'single' | 'bulk'>('single')
+  const [mode, setMode] = useState<'delivery' | 'single' | 'bulk'>('delivery')
 
   useEffect(() => {
     api.get<{ categories: string[] }>('/api/intake/categories')
@@ -80,9 +81,9 @@ export function Intake() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Приемане" subtitle="от каса до готов продукт" right={
+      <PageHeader title="Приемане" subtitle="от доставка до готов продукт" right={
         <div style={{ display: 'flex', gap: '.3rem' }}>
-          {([['single', 'Единично'], ['bulk', 'Наведнъж']] as ['single' | 'bulk', string][]).map(([k, label]) => (
+          {([['delivery', 'Доставка'], ['single', 'Единично'], ['bulk', 'Наведнъж']] as ['delivery' | 'single' | 'bulk', string][]).map(([k, label]) => (
             <button key={k} className="font-type" onClick={() => setMode(k)}
               style={{
                 padding: '.3rem .7rem', fontSize: '.72rem', cursor: 'pointer', borderRadius: 2,
@@ -95,7 +96,9 @@ export function Intake() {
       } />
 
 
-      {mode === 'bulk' ? (
+      {mode === 'delivery' ? (
+        <IntakeDelivery categories={categories} />
+      ) : mode === 'bulk' ? (
         <IntakeBulk categories={categories} onApproved={() => setRefreshDrafts((n) => n + 1)} />
       ) : (
       <>
