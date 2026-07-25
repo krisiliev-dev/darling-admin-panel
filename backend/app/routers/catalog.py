@@ -92,6 +92,132 @@ def _stock_map() -> dict:
     return m
 
 
+# ------------------------------------------------------------------ local product cache ---
+# A SQLite mirror of Barsy's catalogue (product_cache) so search/filter is instant and doesn't hit
+# the low-tier Barsy per keystroke — and so attribute filters + bulk ops work over a selected set.
+import datetime as _dt
+import json as _json
+
+from sqlalchemy import Float, cast, select
+
+from ..models import ProductCache
+
+
+def _numf(v):
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def _sync_fetch() -> list[dict]:
+    """Blocking: pull ALL articles (+ picture_url) + stock from Barsy, enrich supplier from the local
+    supplier-code map (Barsy per-article supplier is tier-blocked). Attributes: bulk shape TBD → []."""
+    from .zayavki import _supplier_catalog
+    rows = barsy.call("Articles_getlist",
+                      {"filters": {}, "length": 20000, "extra_properties": {"picture_url": 1}}) or []
+    stock = _stock_map()
+    by_code = _supplier_catalog()["by_code"]        # our code -> {supplier: {...}}
+    out = []
+    for a in rows:
+        aid = a.get("article_id")
+        if aid is None:
+            continue
+        code = str(a.get("code") or "")
+        st = stock.get(aid, {})
+        sups = list((by_code.get(code) or {}).keys())
+        bc = a.get("barcode")
+        out.append({
+            "article_id": aid, "code": code, "name": a.get("article_name") or "",
+            "barcode": (bc if isinstance(bc, str) else (bc[0] if isinstance(bc, list) and bc else "")) or "",
+            "category": a.get("category_name") or a.get("category") or "",
+            "supplier": sups[0] if sups else "",
+            "price": _numf(a.get("actual_price")), "stock": st.get("amount"), "min_stock": st.get("min"),
+            "low": bool(st.get("low")), "has_image": bool(a.get("picture_url")), "attributes": [],
+        })
+    return out
+
+
+@router.post("/sync")
+async def sync_cache(actor: User = Depends(require_roles("staff")),
+                     session: AsyncSession = Depends(get_async_session)):
+    """Rebuild the local product cache from Barsy (manual trigger; also run nightly). One big
+    Articles_getlist + one Store_amounts, then upsert. Write-through keeps it fresh between syncs."""
+    data = await run_in_threadpool(_sync_fetch)
+    existing = {p.article_id: p for p in (await session.execute(select(ProductCache))).scalars().all()}
+    now = _dt.datetime.now(_dt.timezone.utc)
+    for d in data:
+        p = existing.get(d["article_id"]) or ProductCache(article_id=d["article_id"])
+        p.code, p.name, p.barcode = d["code"], d["name"], d["barcode"]
+        p.category, p.supplier = d["category"], d["supplier"]
+        p.price, p.stock, p.min_stock, p.low = d["price"], d["stock"], d["min_stock"], d["low"]
+        p.has_image = d["has_image"]
+        p.attributes_json = _json.dumps(d["attributes"], ensure_ascii=False)
+        p.search_lc = f"{d['name']} {d['code']} {d['barcode']}".lower()   # Cyrillic-safe search key
+        p.updated_at = now
+        session.add(p)
+    await session.commit()
+    await log_action(session, actor, "catalog.sync", detail=f"cached={len(data)}")
+    return {"synced": len(data)}
+
+
+@router.get("/cache-status")
+async def cache_status(user: User = Depends(current_active_user),
+                       session: AsyncSession = Depends(get_async_session)):
+    from sqlalchemy import func as _func
+    total = (await session.execute(select(_func.count()).select_from(ProductCache))).scalar() or 0
+    last = (await session.execute(select(_func.max(ProductCache.updated_at)))).scalar()
+    return {"count": total, "last_sync": last.isoformat() if last else None}
+
+
+@router.get("/search")
+async def search_cache(
+    user: User = Depends(current_active_user),
+    q: str = Query(""), supplier: str = Query(""), category: str = Query(""),
+    price_min: float | None = Query(None), price_max: float | None = Query(None),
+    low_only: bool = Query(False), sort: str = Query("name"), order: str = Query("asc"),
+    page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """INSTANT filtered search over the local cache (no Barsy round-trip)."""
+    stmt = select(ProductCache)
+    if q.strip():
+        stmt = stmt.where(ProductCache.search_lc.like(f"%{q.strip().lower()}%"))  # Cyrillic-safe
+    if supplier:
+        stmt = stmt.where(ProductCache.supplier == supplier)
+    if category:
+        stmt = stmt.where(ProductCache.category == category)
+    if price_min is not None:
+        stmt = stmt.where(cast(ProductCache.price, Float) >= price_min)
+    if price_max is not None:
+        stmt = stmt.where(cast(ProductCache.price, Float) <= price_max)
+    if low_only:
+        stmt = stmt.where(ProductCache.low.is_(True))
+    from sqlalchemy import func as _func
+    total = (await session.execute(select(_func.count()).select_from(stmt.subquery()))).scalar() or 0
+    col = {"name": ProductCache.name, "code": ProductCache.code, "price": ProductCache.price,
+           "stock": ProductCache.stock, "supplier": ProductCache.supplier}.get(sort, ProductCache.name)
+    stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
+    stmt = stmt.offset((page - 1) * per_page).limit(per_page)
+    rows = (await session.execute(stmt)).scalars().all()
+    return {"total": total, "page": page, "per_page": per_page, "items": [
+        {"article_id": p.article_id, "code": p.code, "name": p.name, "barcode": p.barcode,
+         "category": p.category, "supplier": p.supplier, "price": p.price, "stock": p.stock,
+         "low": p.low, "has_image": p.has_image,
+         "attributes": _json.loads(p.attributes_json or "[]")} for p in rows]}
+
+
+@router.get("/facets")
+async def facets(user: User = Depends(current_active_user),
+                 session: AsyncSession = Depends(get_async_session)):
+    """Distinct suppliers + categories for the filter dropdowns (from the cache)."""
+    sups = [s for (s,) in (await session.execute(
+        select(ProductCache.supplier).distinct())).all() if s]
+    cats = [c for (c,) in (await session.execute(
+        select(ProductCache.category).distinct())).all() if c]
+    return {"suppliers": sorted(sups), "categories": sorted(cats)}
+
+
 @router.get("")
 def list_articles(
     user: User = Depends(current_active_user),

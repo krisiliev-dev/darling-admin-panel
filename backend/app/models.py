@@ -106,6 +106,32 @@ class Zayavka(Base):
     sent_via: Mapped[str] = mapped_column(String(32), default="")   # email | export
 
 
+class ProductCache(Base):
+    """Local mirror of Barsy's article catalogue so search/filter is INSTANT and doesn't hit the
+    low-tier Barsy per keystroke. Barsy stays system of record; this is a read cache, kept fresh by
+    write-through (panel edits) + a periodic full re-sync. Enables attribute filtering (Цвят:Червен)
+    and bulk operations over a selected set."""
+    __tablename__ = "product_cache"
+
+    article_id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), default="", index=True)
+    name: Mapped[str] = mapped_column(String(255), default="", index=True)
+    barcode: Mapped[str] = mapped_column(String(64), default="", index=True)
+    category: Mapped[str] = mapped_column(String(255), default="", index=True)
+    supplier: Mapped[str] = mapped_column(String(255), default="", index=True)
+    price: Mapped[float | None] = mapped_column(default=None)          # actual_price (€)
+    stock: Mapped[float | None] = mapped_column(default=None)
+    min_stock: Mapped[float | None] = mapped_column(default=None)
+    low: Mapped[bool] = mapped_column(default=False)
+    attributes_json: Mapped[str] = mapped_column(Text, default="[]")   # [{key,value}, ...]
+    has_image: Mapped[bool] = mapped_column(default=False)
+    # name+code+barcode, Python-lowercased — SQLite LIKE doesn't case-fold Cyrillic, so we search
+    # this precomputed field with a lowercased query.
+    search_lc: Mapped[str] = mapped_column(String(400), default="", index=True)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+
 class SupplierPref(Base):
     """Persistent per-supplier settings for заявки — so email + minimum-order + lead time survive
     across orders (a supplier, not a single заявка, owns these)."""
