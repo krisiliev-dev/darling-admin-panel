@@ -19,8 +19,29 @@ async def test_list_articles_readable_by_staff(staff_client, barsy_recorder):
     assert r.status_code == 200, r.text
     items = r.json()["items"]
     assert [i["article_id"] for i in items] == [1, 2]
-    assert items[0] == {"article_id": 1, "code": "SKU-1", "name": "Чаша", "price": "5.00"}
-    assert barsy_recorder.operations == ["Articles_getlist"]
+    # core fields + stock folded in (None when Barsy stock is empty)
+    assert {k: items[0][k] for k in ("article_id", "code", "name", "price")} == \
+        {"article_id": 1, "code": "SKU-1", "name": "Чаша", "price": "5.00"}
+    assert items[0]["stock"] is None and items[0]["low"] is False
+    assert barsy_recorder.operations == ["Articles_getlist", "Store_amounts"]  # stock join
+
+
+async def test_catalog_folds_stock_and_low_filter(staff_client, barsy_recorder):
+    barsy_recorder.set_return("Articles_getlist", [
+        {"article_id": 1, "code": "A", "article_name": "Чаша", "actual_price": "5.00"},
+        {"article_id": 2, "code": "B", "article_name": "Чиния", "actual_price": "8.00"},
+    ])
+    barsy_recorder.set_return("Store_amounts", {"rows": [
+        {"article_id": 1, "store_amount": "2", "min_amount": "5", "below_min": 1},   # low
+        {"article_id": 2, "store_amount": "50", "min_amount": "5"},                   # ok
+    ]})
+    items = (await staff_client.get("/api/catalog")).json()["items"]
+    by_id = {i["article_id"]: i for i in items}
+    assert by_id[1]["stock"] == 2 and by_id[1]["low"] is True
+    assert by_id[2]["stock"] == 50 and by_id[2]["low"] is False
+    # low_only filter keeps just the low one
+    low = (await staff_client.get("/api/catalog?low_only=true")).json()["items"]
+    assert [i["article_id"] for i in low] == [1]
 
 
 async def test_list_articles_readable_by_packer(packer_client, barsy_recorder):

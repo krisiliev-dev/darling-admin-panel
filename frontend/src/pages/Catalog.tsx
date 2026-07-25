@@ -6,9 +6,12 @@ import { Pager, usePager } from '../components/TableControls'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
 
-// Каталог — browse + edit products straight from Barsy. Price is read-only (Microinvest-sourced).
-export function Catalog() {
+// Каталог — browse + edit products straight from Barsy, with live STOCK folded in (Наличности).
+// Price is read-only (Microinvest-sourced).
+export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   const [q, setQ] = useState('')
+  const [submitted, setSubmitted] = useState('')
+  const [lowOnly, setLowOnly] = useState(false)
   const [items, setItems] = useState<CatalogItem[] | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -17,38 +20,44 @@ export function Catalog() {
 
   const search = () => {
     setItems(null)
-    api.get<{ items: CatalogItem[] }>(`/api/catalog?q=${encodeURIComponent(q)}`)
+    setSubmitted(q)
+    api.get<{ items: CatalogItem[] }>(`/api/catalog?q=${encodeURIComponent(q)}&low_only=${lowOnly}`)
       .then((d) => setItems(d.items)).catch(() => setItems([]))
   }
-  useEffect(search, []) // eslint-disable-line
+  useEffect(() => { search() }, [lowOnly])  // eslint-disable-line
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Каталог" subtitle="продукти от Barsy" />
+      {!embedded && <PageHeader title="Каталог" subtitle="продукти + наличност от Barsy" />}
 
       <AuditPanel onOpen={setSelected} />
 
       <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 1.2fr' : '1fr', gap: '1.1rem' }}>
         <Sheet clip="left">
-          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.7rem' }}>
-            <input ref={searchRef} className="input-paper" placeholder="търси по име или код  ( / )" value={q}
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.7rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input ref={searchRef} className="input-paper" style={{ flex: 1, minWidth: '12rem' }} placeholder="търси по име или код  ( / )" value={q}
               onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') search() }} />
             <button className="btn-paper" onClick={search}>Търси</button>
+            <label className="font-type" style={{ fontSize: '.76rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
+              <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> само ниска наличност
+            </label>
           </div>
           {!items ? <Loading /> : items.length === 0 ? (
-            <EmptyNote>Няма продукти в Barsy за този филтър. Каталогът се пълни, щом одобрени продукти се качат в Barsy.</EmptyNote>
+            <EmptyNote>{submitted || lowOnly ? 'Няма продукти за този филтър.' : 'Каталогът се пълни, щом одобрени продукти се качат в Barsy.'}</EmptyNote>
           ) : (
             <div style={{ display: 'grid', gap: '.2rem' }}>
               {pg.slice.map((it) => (
                 <button key={it.article_id} onClick={() => setSelected(it.article_id)}
                   style={{
-                    display: 'grid', gridTemplateColumns: '1fr auto', gap: '.5rem', textAlign: 'left',
-                    border: 'none', borderLeft: `3px solid ${selected === it.article_id ? 'var(--red)' : 'transparent'}`,
+                    display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', textAlign: 'left', alignItems: 'baseline',
+                    border: 'none', borderLeft: `3px solid ${selected === it.article_id ? 'var(--red)' : it.low ? 'var(--blocked)' : 'transparent'}`,
                     background: selected === it.article_id ? 'var(--paper2)' : 'transparent', cursor: 'pointer',
                     padding: '.35rem .5rem', fontSize: '.82rem', borderBottom: '1px dashed var(--line)',
                   }}>
                   <span>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></span>
-                  <span className="font-type" style={{ color: 'var(--pencil)' }}>{it.price != null ? `${it.price} €` : ''}</span>
+                  <span className="font-type" style={{ fontSize: '.76rem', color: it.low ? 'var(--blocked)' : 'var(--pencil)', whiteSpace: 'nowrap' }}
+                    title="наличност">{it.stock != null ? `${it.stock} бр${it.low ? ' ⚠' : ''}` : '—'}</span>
+                  <span className="font-type" style={{ color: 'var(--pencil)', whiteSpace: 'nowrap' }}>{it.price != null ? `${it.price} €` : ''}</span>
                 </button>
               ))}
               <Pager {...pg} />

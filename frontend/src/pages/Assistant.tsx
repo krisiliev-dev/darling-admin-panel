@@ -17,7 +17,22 @@ const EXAMPLES = [
   'Как да добавя нов продукт?',
 ]
 
+// The standalone page (kept for deep-links). The assistant now lives mainly in a floating widget
+// (FloatingAssistant) that's available on every page.
 export function Assistant() {
+  return (
+    <div style={{ display: 'grid', gap: '1.1rem' }}>
+      <PageHeader title="Асистент" subtitle="питай на български за числата и работата на панела" />
+      <AssistantChat minHeight="26rem" />
+      <p className="pencil" style={{ fontSize: '.78rem', margin: 0 }}>
+        Асистентът чете реалните данни на панела, отговаря и може да предлага действия —
+        които ти потвърждаваш, преди да се изпълнят.
+      </p>
+    </div>
+  )
+}
+
+export function AssistantChat({ minHeight = '20rem', bare = false }: { minHeight?: string; bare?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -58,50 +73,42 @@ export function Assistant() {
     }
   }
 
-  return (
-    <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Асистент" subtitle="питай на български за числата и работата на панела" />
-
-      <Sheet clip="left" style={{ display: 'flex', flexDirection: 'column', minHeight: '26rem' }}>
-        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: '.7rem', maxHeight: '30rem', paddingRight: '.3rem' }}>
-          {msgs.length === 0 && (
-            <div style={{ display: 'grid', gap: '.6rem', placeContent: 'center', textAlign: 'center', padding: '1.5rem 0' }}>
-              <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '1.05rem', margin: 0 }}>
-                Питай ме нещо за магазина — отговарям с реалните числа от панела.
-              </p>
-              <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {EXAMPLES.map((ex) => (
-                  <button key={ex} className="font-type" onClick={() => void send(ex)}
-                    style={{ fontSize: '.72rem', padding: '.3rem .6rem', border: '1px dashed var(--line)', borderRadius: 2, background: 'var(--paper2)', color: 'var(--pencil)', cursor: 'pointer' }}>
-                    {ex}
-                  </button>
-                ))}
-              </div>
+  const body = (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight, height: '100%' }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: '.7rem', paddingRight: '.3rem' }}>
+        {msgs.length === 0 && (
+          <div style={{ display: 'grid', gap: '.6rem', placeContent: 'center', textAlign: 'center', padding: '1.2rem .5rem' }}>
+            <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '1rem', margin: 0 }}>
+              Питай ме нещо за магазина — отговарям с реалните числа от панела.
+            </p>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {EXAMPLES.map((ex) => (
+                <button key={ex} className="font-type" onClick={() => void send(ex)}
+                  style={{ fontSize: '.7rem', padding: '.3rem .6rem', border: '1px dashed var(--line)', borderRadius: 2, background: 'var(--paper2)', color: 'var(--pencil)', cursor: 'pointer' }}>
+                  {ex}
+                </button>
+              ))}
             </div>
-          )}
-          {msgs.map((m, i) => <Bubble key={i} msg={m} onAction={runAction} />)}
-          {busy && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="font-hand" style={{ color: 'var(--pencil)', fontSize: '.95rem' }}>
-              мисля…
-            </motion.div>
-          )}
-        </div>
+          </div>
+        )}
+        {msgs.map((m, i) => <Bubble key={i} msg={m} onAction={runAction} />)}
+        {busy && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="font-hand" style={{ color: 'var(--pencil)', fontSize: '.95rem' }}>
+            мисля…
+          </motion.div>
+        )}
+      </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); void send(q) }}
-          style={{ display: 'flex', gap: '.5rem', marginTop: '1rem', borderTop: '1px solid var(--line)', paddingTop: '.8rem' }}>
-          <input className="input-paper" style={{ flex: 1 }} placeholder="напиши въпрос…"
-            aria-label="въпрос към асистента" value={q} onChange={(e) => setQ(e.target.value)} disabled={busy} />
-          <button className="btn-paper btn-red" type="submit" disabled={busy || !q.trim()}>Питай</button>
-        </form>
-      </Sheet>
-
-      <p className="pencil" style={{ fontSize: '.78rem', margin: 0 }}>
-        Асистентът чете реалните данни на панела, отговаря и може да предлага действия —
-        които ти потвърждаваш, преди да се изпълнят.
-      </p>
+      <form onSubmit={(e) => { e.preventDefault(); void send(q) }}
+        style={{ display: 'flex', gap: '.5rem', marginTop: '.8rem', borderTop: '1px solid var(--line)', paddingTop: '.7rem' }}>
+        <input className="input-paper" style={{ flex: 1 }} placeholder="напиши въпрос…"
+          aria-label="въпрос към асистента" value={q} onChange={(e) => setQ(e.target.value)} disabled={busy} />
+        <button className="btn-paper btn-red" type="submit" disabled={busy || !q.trim()}>Питай</button>
+      </form>
     </div>
   )
+  return bare ? body : <Sheet clip="left" style={{ display: 'flex', flexDirection: 'column', minHeight }}>{body}</Sheet>
 }
 
 function Bubble({ msg, onAction }: { msg: Msg; onAction: (s: AssistantSuggestion) => void }) {

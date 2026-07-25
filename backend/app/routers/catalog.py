@@ -17,21 +17,52 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
 
+def _stock_map() -> dict:
+    """{article_id -> {amount, min, low}} from Barsy Store_amounts — folds live stock (Наличности)
+    into the catalogue list so it's one product view. Best-effort: empty if Barsy stock is empty."""
+    def _num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    try:
+        out = barsy.call("Store_amounts", {"action_type": "values", "page_num": 1, "rows": 500,
+                                           "filters": {}}) or {}
+    except Exception:
+        return {}
+    m: dict = {}
+    for r in (out.get("rows") or []):
+        aid = r.get("article_id")
+        if aid is None:
+            continue
+        amount, minimum = _num(r.get("store_amount")), _num(r.get("min_amount"))
+        low = (r.get("below_min") == 1) or (minimum is not None and amount is not None and amount <= minimum)
+        m[aid] = {"amount": amount, "min": minimum, "low": bool(low)}
+    return m
+
+
 @router.get("")
 def list_articles(
     user: User = Depends(current_active_user),
     q: str = Query(""), limit: int = Query(40, ge=1, le=100),
+    low_only: bool = Query(False, description="само артикули с ниска наличност"),
 ):
-    """Browse/search the Barsy catalog (fills as approved products push to Barsy)."""
+    """Browse/search the Barsy catalog WITH live stock folded in (fills as products push to Barsy)."""
     filters: dict = {}
     if q:
         filters["code" if q.strip().isdigit() else "article_name"] = q.strip()
     with upstream("Barsy каталог"):
         rows = barsy.call("Articles_getlist", {"filters": filters, "length": limit})
-    return {"items": [
-        {"article_id": a.get("article_id"), "code": a.get("code") or "",
-         "name": a.get("article_name") or "", "price": a.get("actual_price")}
-        for a in (rows or [])[:limit]]}
+    stock = _stock_map()
+    items = []
+    for a in (rows or [])[:limit]:
+        st = stock.get(a.get("article_id"), {})
+        if low_only and not st.get("low"):
+            continue
+        items.append({"article_id": a.get("article_id"), "code": a.get("code") or "",
+                      "name": a.get("article_name") or "", "price": a.get("actual_price"),
+                      "stock": st.get("amount"), "min_stock": st.get("min"), "low": bool(st.get("low"))})
+    return {"items": items}
 
 
 @router.get("/{article_id}")

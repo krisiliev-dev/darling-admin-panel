@@ -12,7 +12,7 @@ import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
 // Ценообразуване — cost-plus-markup repricing. Retail should track supplier COST: buy €1.00 +50%
 // → sell €1.50; when the supplier cost rises to €1.50, the shelf price should become €2.25. The
 // panel proposes; the OWNER applies (writing the price to Barsy is owner-only).
-export function Pricing() {
+export function Pricing({ embedded = false }: { embedded?: boolean } = {}) {
   const { me } = useAuth()
   const isOwner = !!me?.is_superuser
   // deep-link: /pricing?q=<name> jumps straight to an article (e.g. from the stale-stock "Отстъпка"
@@ -34,7 +34,7 @@ export function Pricing() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Ценообразуване" subtitle="доставна цена + надценка → продажна" />
+      {!embedded && <PageHeader title="Ценообразуване" subtitle="доставна цена + надценка → продажна" />}
 
       {isOwner && <SupplierRules />}
 

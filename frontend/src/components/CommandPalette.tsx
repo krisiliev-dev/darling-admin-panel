@@ -11,11 +11,10 @@ const COMMANDS: Command[] = [
   { label: 'Нов продукт', hint: 'нов продукт + AI', to: '/intake' },
   { label: 'Поръчки', hint: 'изпълнение + етикети', to: '/orders' },
   { label: 'Разчети', hint: 'наложен платеж', to: '/cod' },
-  { label: 'Наличности', hint: 'запаси от Barsy', to: '/inventory' },
-  { label: 'Каталог', hint: 'продукти от Barsy', to: '/catalog' },
-  { label: 'Ценообразуване', hint: 'доставна + надценка', to: '/pricing' },
-  { label: 'Доставки', hint: 'заявки към доставчици', to: '/purchasing' },
-  { label: 'Питай асистента', hint: 'въпрос на български', to: '/assistant' },
+  { label: 'Продукти', hint: 'каталог · наличност · цени', to: '/products' },
+  { label: 'Ценообразуване', hint: 'доставна + надценка', to: '/products' },
+  { label: 'Доставки', hint: 'приемане на стока', to: '/purchasing' },
+  { label: 'Заявки', hint: 'поръчки към доставчици', to: '/zayavki' },
 ]
 
 export function CommandPalette() {

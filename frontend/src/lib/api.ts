@@ -449,6 +449,9 @@ export interface CatalogItem {
   code: string
   name: string
   price: number | null
+  stock?: number | null
+  min_stock?: number | null
+  low?: boolean
 }
 
 export interface ArticleDetail {

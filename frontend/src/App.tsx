@@ -9,9 +9,7 @@ import { Home } from './pages/Home'
 import { Orders } from './pages/Orders'
 import { Cod } from './pages/Cod'
 import { Intake } from './pages/Intake'
-import { Inventory } from './pages/Inventory'
-import { Catalog } from './pages/Catalog'
-import { Pricing } from './pages/Pricing'
+import { Products } from './pages/Products'
 import { Deliveries } from './pages/Deliveries'
 import { Zayavki } from './pages/Zayavki'
 import { Assistant } from './pages/Assistant'
@@ -39,9 +37,11 @@ export default function App() {
         <Route path="intake" element={<Intake />} />
         <Route path="orders" element={<Orders />} />
         <Route path="cod" element={<Cod />} />
-        <Route path="inventory" element={<Inventory />} />
-        <Route path="catalog" element={<Catalog />} />
-        <Route path="pricing" element={<Pricing />} />
+        <Route path="products" element={<Products />} />
+        {/* old paths keep working (bookmarks / deep-links) → unified Продукти */}
+        <Route path="inventory" element={<Products />} />
+        <Route path="catalog" element={<Products />} />
+        <Route path="pricing" element={<Products />} />
         <Route path="purchasing" element={<Deliveries />} />
         <Route path="zayavki" element={<Zayavki />} />
         <Route path="assistant" element={<Assistant />} />

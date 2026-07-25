@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../lib/theme'
 import { CommandPalette } from './CommandPalette'
+import { FloatingAssistant } from './FloatingAssistant'
 
 // Menu is by JOB, not by table (design spec). Packer lands in shipping; owner sees all.
 const NAV: { to: string; label: string; roles?: string[] }[] = [
@@ -13,12 +14,9 @@ const NAV: { to: string; label: string; roles?: string[] }[] = [
   { to: '/intake', label: 'Нов продукт' },
   { to: '/orders', label: 'Поръчки' },
   { to: '/cod', label: 'Разчети' },
-  { to: '/inventory', label: 'Наличности' },
-  { to: '/catalog', label: 'Каталог' },
-  { to: '/pricing', label: 'Ценообразуване' },
+  { to: '/products', label: 'Продукти' },
   { to: '/purchasing', label: 'Доставки' },
   { to: '/zayavki', label: 'Заявки' },
-  { to: '/assistant', label: 'Асистент' },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
 ]
 
@@ -125,6 +123,7 @@ export function Shell() {
       </main>
 
       <CommandPalette />
+      <FloatingAssistant />
     </div>
   )
 }
