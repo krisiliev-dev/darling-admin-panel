@@ -163,9 +163,12 @@ export interface OrdersResponse {
 export interface IntakeAttribute { key: string; value: string }
 
 export interface DeliveryContext { batch_id: number; supplier: string; reference: string; doc_date: string; status: string }
+export interface DraftImageMeta { id: number; filename: string; uploaded: boolean }
+export interface ShopifyCategory { id: string; name: string; path: string }
 
 export interface IntakeDraft {
   category: string
+  shopify_category_id?: string
   name: string
   attributes: IntakeAttribute[]
   description: string

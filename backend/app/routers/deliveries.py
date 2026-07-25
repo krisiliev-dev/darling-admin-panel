@@ -165,6 +165,74 @@ def _catalog_ids_for_codes(codes: set) -> dict:
     return out
 
 
+async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, actor: User) -> dict:
+    """Called after a NEW product is created in Barsy (from Нов продукт save): if the delivery now has
+    ALL its new products created and every existing line resolved, send its storeload automatically —
+    ONE Barsy delivery, no manual step (owner asked for this). Not ready → {ready: False}, no write.
+
+    Only reached on the live path (caller already checked DELIVERY_BARSY_LIVE). The scan-confirm gate
+    is NOT enforced here — the owner defined the trigger as 'all products created'; the manual Доставки
+    finalise keeps the scan gate for the careful path."""
+    if batch_id is None:
+        return {"ready": False}
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        return {"ready": False}
+    if b.status == "finalised":
+        return {"ready": True, "sent": False, "already": True, "storeload_id": b.storeload_id}
+    lines = await _lines(session, batch_id)
+    if not lines or any(ln.qty <= 0 for ln in lines):
+        return {"ready": False}
+    if any(ln.is_new and ln.article_id is None for ln in lines):
+        return {"ready": False}                      # still new products to create
+    # resolve any existing lines' Barsy id by code
+    to_resolve = [ln for ln in lines if ln.article_id is None]
+    if to_resolve:
+        try:
+            cmap = await run_in_threadpool(_catalog_ids_for_codes, {ln.match_code for ln in to_resolve})
+        except Exception:
+            return {"ready": False}
+        for ln in to_resolve:
+            aid = cmap.get(ln.match_code)
+            if aid is not None:
+                ln.article_id = aid
+    if any(ln.article_id is None for ln in lines):
+        return {"ready": False}                      # something still unresolved → wait
+    # atomic claim so two concurrent saves can't double-send the storeload
+    claim = await session.execute(
+        update(DeliveryBatch).where(DeliveryBatch.id == batch_id,
+                                    DeliveryBatch.status.not_in(("finalised", "finalising")))
+        .values(status="finalising"))
+    await session.commit()
+    if claim.rowcount == 0:
+        return {"ready": True, "sent": False, "already": True}
+    doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
+    payload = {
+        "store_load": {
+            "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
+            "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
+        },
+        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),
+                      "current_price": str(ln.price)} for ln in lines],
+        "action_type": "save_and_close",
+    }
+    if b.supplier_id:
+        payload["store_load"]["supplier_id"] = b.supplier_id
+    try:
+        out = await run_in_threadpool(barsy.call, "Storeloads_create", payload)
+    except Exception as e:
+        b.status = "ready"                           # release the claim so it can be retried
+        await session.commit()
+        return {"ready": True, "sent": False, "error": str(e)[:160]}
+    b.storeload_id = D._article_id(out)
+    b.status = "finalised"
+    b.finalised_at = _dt.datetime.now(_dt.timezone.utc)
+    await session.commit()
+    await log_action(session, actor, "delivery.autofinalise", target=b.supplier or b.reference,
+                     detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
+    return {"ready": True, "sent": True, "storeload_id": b.storeload_id}
+
+
 # ------------------------------------------------------------------ create (upload) ---
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_delivery(

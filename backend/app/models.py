@@ -5,7 +5,7 @@ import datetime
 import uuid
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import String, DateTime, Text, Index, UniqueConstraint, func, text
+from sqlalchemy import String, DateTime, Text, Index, LargeBinary, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -53,6 +53,8 @@ class IntakeDraft(Base):
     # SEO / Shopify metafields — pipeline suggestions, human-editable (mapped to darling.* on push)
     meta_title: Mapped[str] = mapped_column(String(255), default="")
     meta_description: Mapped[str] = mapped_column(Text, default="")
+    # formal Shopify product-taxonomy id (e.g. "hg-11-2"); `category` holds the human breadcrumb
+    shopify_category_id: Mapped[str] = mapped_column(String(64), default="")
     model: Mapped[str] = mapped_column(String(64), default="")
     # lifecycle. For delivery-sourced products: new_from_delivery → done_from_delivery (enriched,
     # stays checkmarked in the queue) → the whole delivery leaves together when it's finalised.
@@ -64,6 +66,22 @@ class IntakeDraft(Base):
     # when this draft is a NEW product that arrived on a delivery, link back to the delivery line
     # so pushing it to Barsy can write the resulting article_id onto that line (finalise gate).
     delivery_line_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+
+
+class DraftImage(Base):
+    """A product image staged against an IntakeDraft (panel-owned, admin.db). Held here until the
+    article is created in Barsy, then uploaded via Files_upload and marked. Images are MANDATORY for a
+    new product (the enrichment pipeline reverse-image-searches them; the shop needs a photo)."""
+    __tablename__ = "draft_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    draft_id: Mapped[int] = mapped_column(index=True)
+    filename: Mapped[str] = mapped_column(String(255), default="image.jpg")
+    content_type: Mapped[str] = mapped_column(String(64), default="image/jpeg")
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    uploaded_barsy: Mapped[bool] = mapped_column(default=False)   # true once pushed to Barsy Files
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
 
 
 class DeliveryBatch(Base):

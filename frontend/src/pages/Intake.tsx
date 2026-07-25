@@ -1,43 +1,36 @@
-import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
-import type { IntakeDraft, DeliveryContext } from '../lib/api'
+import type { IntakeDraft, DeliveryContext, DraftImageMeta, ShopifyCategory } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { useHotkey } from '../lib/useHotkey'
-import { Sheet, Stamp } from '../components/Paper'
+import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 
-// Приемане — THE signature flow. A bare stock name becomes a draft: category → attributes
-// → description, each step revealed in sequence. The AI writes in PENCIL (grey, editable);
-// the human commits in PEN, adds the operational fields (code/price — never AI), and approves.
-// Approved drafts persist (panel-owned) and can be created in Barsy by the owner.
-type Phase = 'idle' | 'analysing' | 'draft' | 'approved'
-
+// Нов продукт — adding a product ALWAYS goes through one editor: FIRST the barcode + images, then a
+// button starts enrichment which fills the rest as editable suggestions (name, Shopify-taxonomy
+// category, attributes, description, meta), then Save. Save auto-creates the product in Barsy (+ uploads
+// the images); a delivery's whole batch is sent to Barsy as ONE storeload once all its new products are
+// created. Delivery products are grouped by delivery and stay checkmarked until the batch finalises.
 const UNITS = ['бр', 'л', 'кг', 'м', 'м2', 'компл']
 
-// Нов продукт — the MAIN view is the list of products that arrived on deliveries and still need
-// their info (barcode/images/enrichment). Click one → a second screen to add its info. A "+ Добави
-// продукт" button opens a standalone create flow (a product not tied to any delivery).
 export function Intake() {
-  const [categories, setCategories] = useState<string[]>([])
-  const [mode, setMode] = useState<'list' | 'add'>('list')
   const [editDraft, setEditDraft] = useState<IntakeDraft | null>(null)
+  const [adding, setAdding] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const bump = () => setRefresh((n) => n + 1)
 
-  useEffect(() => {
-    api.get<{ categories: string[] }>('/api/intake/categories').then((d) => setCategories(d.categories)).catch(() => {})
-  }, [])
+  const addProduct = async () => {
+    setAdding(true)
+    try { setEditDraft(await api.post<IntakeDraft>('/api/intake/drafts/blank', {})) }
+    catch { /* ignore */ } finally { setAdding(false) }
+  }
 
-  if (editDraft) return <ProductEditorScreen draft={editDraft} categories={categories}
+  if (editDraft) return <ProductEditorScreen draft={editDraft}
     onBack={() => setEditDraft(null)} onDone={() => { setEditDraft(null); bump() }} />
-  if (mode === 'add') return <NewProductScreen categories={categories}
-    onBack={() => setMode('list')} onDone={() => { setMode('list'); bump() }} />
-  return <WaitingList key={refresh} categories={categories} onEdit={setEditDraft} onAdd={() => setMode('add')} refreshKey={refresh} />
+  return <WaitingList key={refresh} refreshKey={refresh} onEdit={setEditDraft}
+    onAdd={() => void addProduct()} adding={adding} />
 }
 
-// MAIN VIEW: delivery-sourced products grouped by delivery. New products from a delivery stay listed
-// (checkmarked once done) until the WHOLE delivery is finalised — then they leave together.
+// MAIN VIEW: delivery-sourced products grouped by delivery (checkmarked once done) + a manual add.
 type DeliveryGroup = { ctx: DeliveryContext; items: IntakeDraft[] }
 function groupByDelivery(items: IntakeDraft[]): DeliveryGroup[] {
   const map = new Map<number, DeliveryGroup>()
@@ -50,8 +43,8 @@ function groupByDelivery(items: IntakeDraft[]): DeliveryGroup[] {
   return Array.from(map.values())
 }
 
-function WaitingList({ onEdit, onAdd, refreshKey }: {
-  categories: string[]; onEdit: (d: IntakeDraft) => void; onAdd: () => void; refreshKey: number
+function WaitingList({ onEdit, onAdd, adding, refreshKey }: {
+  onEdit: (d: IntakeDraft) => void; onAdd: () => void; adding: boolean; refreshKey: number
 }) {
   const [items, setItems] = useState<IntakeDraft[] | null>(null)
   useEffect(() => {
@@ -61,7 +54,7 @@ function WaitingList({ onEdit, onAdd, refreshKey }: {
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       <PageHeader title="Нов продукт" subtitle="нови продукти от доставки, чакащи да бъдат добавени" right={
-        <button className="btn-paper btn-red" onClick={onAdd}>+ Добави продукт</button>
+        <button className="btn-paper btn-red" onClick={onAdd} disabled={adding}>{adding ? 'създава…' : '+ Добави продукт'}</button>
       } />
       {!items ? <Loading /> : groups.length === 0 ? (
         <Sheet clip="left">
@@ -81,7 +74,7 @@ function WaitingList({ onEdit, onAdd, refreshKey }: {
                 {g.ctx.reference ? <span style={{ color: 'var(--pencil)', fontWeight: 400 }}> · {g.ctx.reference}</span> : null}
               </h3>
               <span className="font-type" style={{ fontSize: '.78rem', color: all ? 'var(--ready)' : 'var(--pending)' }}>
-                {done}/{g.items.length} добавени{all ? ' · готово за финализиране в Доставки' : ''}
+                {done}/{g.items.length} добавени{all ? ' · изпраща се към Barsy' : ''}
               </span>
             </div>
             <div style={{ display: 'grid', gap: '.5rem' }}>
@@ -112,108 +105,48 @@ function WaitingList({ onEdit, onAdd, refreshKey }: {
   )
 }
 
-// SECOND SCREEN for a delivery product: barcode + images + AI enrich + save.
-function ProductEditorScreen({ draft, categories, onBack, onDone }: {
-  draft: IntakeDraft; categories: string[]; onBack: () => void; onDone: () => void
+function ProductEditorScreen({ draft, onBack, onDone }: {
+  draft: IntakeDraft; onBack: () => void; onDone: () => void
 }) {
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       <button className="btn-paper" onClick={onBack} style={{ justifySelf: 'start' }}>← Назад към списъка</button>
-      <PageHeader title="Довърши продукта" subtitle="баркод + снимки + информация → готов продукт" />
-      <DeliveryProductEditor draft={draft} categories={categories} onDone={onDone} onCancel={onBack} />
+      <PageHeader title={draft.delivery_line_id ? 'Довърши продукта' : 'Нов продукт'}
+        subtitle="баркод + снимки → обогатяване → готов продукт в Barsy" />
+      <ProductEditor draft={draft} onDone={onDone} onCancel={onBack} />
     </div>
   )
 }
 
-// ADD PRODUCT (standalone, not tied to a delivery): the signature name → AI draft → approve flow.
-function NewProductScreen({ categories, onBack, onDone }: {
-  categories: string[]; onBack: () => void; onDone: () => void
-}) {
-  const [name, setName] = useState('')
-  const [hint, setHint] = useState('')
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [draft, setDraft] = useState<IntakeDraft | null>(null)
-  const [error, setError] = useState('')
-  const [penned, setPenned] = useState<Record<string, boolean>>({})
-  const [op, setOp] = useState({ code: '', barcode: '', price: '', unit: 'бр' })
-  const [saving, setSaving] = useState(false)
-
-  const process = async () => {
-    if (!name.trim()) return
-    setPhase('analysing'); setError(''); setDraft(null); setPenned({}); setOp({ code: '', barcode: '', price: '', unit: 'бр' })
-    try { const d = await api.post<IntakeDraft>('/api/intake/enrich', { name, hint }); setDraft(d); setPhase('draft') }
-    catch (e) { setError(e instanceof ApiError ? e.message : 'Обработката се провали.'); setPhase('idle') }
-  }
-  const approve = async () => {
-    if (!draft) return
-    try {
-      const chk = await api.post<{ ok: boolean; issues: string[] }>('/api/quality/check', {
-        name: draft.name, barcode: op.barcode, price: parseFloat(op.price) || 0, category: draft.category, description: draft.description })
-      if (!chk.ok && !window.confirm(`Забележки по данните:\n• ${chk.issues.join('\n• ')}\n\nДа продължа ли с одобрението?`)) return
-    } catch { /* advisory */ }
-    setSaving(true); setError('')
-    try {
-      await api.post('/api/intake/approve', { code: op.code, barcode: op.barcode, price: op.price, unit: op.unit,
-        name: draft.name, category: draft.category, description: draft.description, attributes: draft.attributes, model: draft.model })
-      setPhase('approved'); onDone()
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setSaving(false) }
-  }
-  const pen = (field: string) => setPenned((p) => ({ ...p, [field]: true }))
-  useHotkey((e) => (e.metaKey || e.ctrlKey) && e.key === 'Enter', () => { if (phase === 'draft' && !saving) void approve() }, [phase, saving, draft, op])
-
-  return (
-    <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <button className="btn-paper" onClick={onBack} style={{ justifySelf: 'start' }}>← Назад към списъка</button>
-      <PageHeader title="Нов продукт (ръчно)" subtitle="име → AI чернова → готов продукт в Barsy" />
-      <Sheet clip="left" tilt="l">
-        <div className="eyebrow">Нов продукт</div>
-        <div style={{ display: 'grid', gap: '.6rem', maxWidth: '38rem', marginTop: '.5rem' }}>
-          <input className="input-paper" placeholder="Име — напр. „Керамична купа за салата 25 см синя“" value={name}
-            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void process() }} />
-          <input className="input-paper" placeholder="Подсказка (по избор) — материал, употреба…" value={hint} onChange={(e) => setHint(e.target.value)} />
-          <div><button className="btn-paper btn-red" onClick={() => void process()} disabled={phase === 'analysing' || !name.trim()}>{phase === 'analysing' ? 'обработва…' : 'Обработи'}</button></div>
-          {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.82rem' }}>{error}</div>}
-        </div>
-        <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '.9rem', marginTop: '.6rem' }}>✎ AI пише с молив — сиво и презаписваемо. Ти потвърждаваш с химикал.</p>
-      </Sheet>
-      <AnimatePresence mode="sync">
-        {phase !== 'idle' && (
-          <motion.div key="flow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <FlowCards phase={phase} name={name} draft={draft} categories={categories} penned={penned} pen={pen} setDraft={setDraft} op={op} setOp={setOp} units={UNITS} saving={saving} onApprove={approve} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-// The delivery-product editor, in the order the spec asks for:
-//   1) the FIRST fields — Barcode + Images (the enrichment pipeline's inputs)
-//   2) a button that starts enrichment → fills the REST as editable SUGGESTIONS (grey pencil until
-//      you touch them): name, Shopify category, attributes, description, meta title + description
-//   3) operational fields (our code / price / unit — human, never AI) → Save.
-// NOTE: the real pipeline (GS1 barcode lookup + reverse-image search + taxonomy/attribute/name/meta
-// agents) is a LATER stage. Today the button runs the available AI enrich; the flow/fields are wired
-// so dropping the full pipeline in is a backend swap only.
-function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
-  draft: IntakeDraft; categories: string[]; onDone: () => void; onCancel: () => void
+// The one editor for delivery + standalone products.
+function ProductEditor({ draft, onDone, onCancel }: {
+  draft: IntakeDraft; onDone: () => void; onCancel: () => void
 }) {
   const [d, setD] = useState<IntakeDraft>(draft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [images, setImages] = useState<{ name: string; url: string }[]>([])
-  const urlsRef = useRef<string[]>([])
-  const [enriched, setEnriched] = useState<boolean>(!!draft.completed)   // already-done → show fields
+  const [note, setNote] = useState('')
+  const [images, setImages] = useState<DraftImageMeta[]>([])
+  const [enriched, setEnriched] = useState<boolean>(!!draft.completed)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
-  useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL) }, [])   // free blob URLs on unmount
-  const addImages = (files: FileList | null) => {
-    if (!files?.length) return
-    const imgs = Array.from(files).map((f) => { const url = URL.createObjectURL(f); urlsRef.current.push(url); return { name: f.name, url } })
-    setImages((prev) => [...prev, ...imgs])
-  }
-  const removeImage = (i: number) => setImages((prev) => prev.filter((_, j) => j !== i))
 
-  const canEnrich = !!(d.barcode && d.barcode.trim())    // barcode (GS1) is the pipeline's key input
+  const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
+    .then((r) => setImages(r.images)).catch(() => setImages([]))
+  useEffect(() => { void loadImages() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addImages = async (files: FileList | null) => {
+    if (!files?.length) return
+    const form = new FormData()
+    Array.from(files).forEach((f) => form.append('files', f))
+    setBusy(true); setError('')
+    try { await api.upload(`/api/intake/drafts/${draft.id}/images`, form); await loadImages() }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'Качването се провали.') } finally { setBusy(false) }
+  }
+  const removeImage = async (id: number) => {
+    try { await api.del(`/api/intake/drafts/${draft.id}/images/${id}`); await loadImages() } catch { /* ignore */ }
+  }
+
+  const canEnrich = !!(d.barcode && d.barcode.trim())
   const enrich = async () => {
     setBusy(true); setError('')
     try {
@@ -225,7 +158,6 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Обогатяването се провали.') } finally { setBusy(false) }
   }
   const mark = (f: string) => setTouched((t) => ({ ...t, [f]: true }))
-  // a suggested-but-untouched field is drawn in pencil (grey/hand); once edited it turns to pen
   const pencil = (f: string, v?: string): React.CSSProperties =>
     (enriched && v && !touched[f]) ? { fontFamily: 'var(--hand)', color: 'var(--pencil)' } : {}
 
@@ -236,14 +168,20 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
 
   const save = async () => {
     if (!d.code?.trim()) { setError('Нужен е наш код.'); return }
-    setBusy(true); setError('')
+    if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
+    setBusy(true); setError(''); setNote('')
     try {
-      await api.put(`/api/intake/drafts/${draft.id}`, {
-        code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
-        name: d.name, category: d.category || '', description: d.description || '',
-        attributes: attrs.filter((a) => a.key.trim()),
-        meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
-      })
+      const r = await api.put<{ barsy?: { live: boolean; created: boolean; note?: string; error?: string; delivery?: { sent: boolean } } }>(
+        `/api/intake/drafts/${draft.id}`, {
+          code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
+          name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
+          description: d.description || '', attributes: attrs.filter((a) => a.key.trim()),
+          meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
+        })
+      const b = r.barsy
+      if (b && !b.live) setNote(b.note || 'Записано (проба).')
+      else if (b?.error) { setError(`Barsy: ${b.error}`); setBusy(false); return }
+      else if (b?.delivery?.sent) setNote('Продуктът е създаден и доставката е изпратена към Barsy.')
       onDone()
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
@@ -251,32 +189,35 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
   const eyebrow = { fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 700 } as React.CSSProperties
   return (
     <div style={{ border: '1px solid var(--red)', borderRadius: 3, padding: '.9rem', background: 'var(--paper)', display: 'grid', gap: '.7rem' }}>
-      {/* STEP 1 — the first fields: barcode + images */}
+      {/* STEP 1 — the first fields: barcode + images (mandatory) */}
       <div className="font-type" style={eyebrow}>1 · Първи данни</div>
       <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
         <Field label="Баркод (GS1)"><input autoFocus className="input-paper" value={d.barcode || ''}
           placeholder="сканирай или въведи" onChange={(e) => setD({ ...d, barcode: e.target.value })} /></Field>
       </div>
       <div>
-        <span className="font-type" style={eyebrow}>Снимки</span>
+        <span className="font-type" style={eyebrow}>Снимки · задължителни</span>
         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '.3rem' }}>
-          {images.map((im, i) => (
-            <span key={i} style={{ position: 'relative' }}>
-              <img src={im.url} alt={im.name} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
-              <button onClick={() => removeImage(i)} title="премахни" style={{ position: 'absolute', top: -6, right: -6, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: '.7rem', lineHeight: 1 }}>✕</button>
+          {images.map((im) => (
+            <span key={im.id} style={{ position: 'relative' }}>
+              <img src={`/api/intake/drafts/${draft.id}/images/${im.id}`} alt={im.filename}
+                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
+              <button onClick={() => void removeImage(im.id)} title="премахни" style={{ position: 'absolute', top: -6, right: -6, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: '.7rem', lineHeight: 1 }}>✕</button>
             </span>
           ))}
           <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
-            + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => addImages(e.target.files)} />
+            + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => void addImages(e.target.files)} />
           </label>
         </div>
+        {images.length === 0 && <span className="pencil" style={{ fontSize: '.74rem' }}>качи поне една снимка на продукта</span>}
       </div>
 
-      {/* the enrichment trigger — gated on the first fields */}
+      {/* enrichment trigger — gated on the first fields */}
       <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
           {busy ? 'обогатява…' : enriched ? '↻ Обогати наново' : '✨ Започни обогатяване'}
         </button>
+        {!enriched && <button className="btn-paper" onClick={() => setEnriched(true)}>попълни ръчно</button>}
         {!canEnrich && <span className="pencil" style={{ fontSize: '.78rem' }}>въведи баркод, за да стартираш обогатяването</span>}
       </div>
       <p className="pencil" style={{ fontSize: '.74rem', margin: 0 }}>
@@ -284,18 +225,15 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
         описание и meta. Предложенията са в молив — имаш последната дума.
       </p>
 
-      {/* STEP 2 — suggestions (editable), revealed after enrichment */}
+      {/* STEP 2 — suggestions (editable) */}
       {enriched && (
         <>
           <div className="font-type" style={eyebrow}>2 · Предложения — прегледай и коригирай</div>
           <Field label="Търговско име"><input className="input-paper" style={pencil('name', d.name)} value={d.name}
             onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
           <Field label="Категория (Shopify таксономия)">
-            <select className="input-paper" style={pencil('category', d.category)} value={d.category || ''}
-              onChange={(e) => { mark('category'); setD({ ...d, category: e.target.value }) }}>
-              <option value="">— избери —</option>
-              {[d.category || '', ...categories.filter((c) => c !== d.category)].filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}
+              onPick={(id, path) => { mark('category'); setD({ ...d, shopify_category_id: id, category: path }) }} />
           </Field>
           <div>
             <span className="font-type" style={eyebrow}>Атрибути</span>
@@ -332,119 +270,57 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
       </div>
 
       {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
-      <div style={{ display: 'flex', gap: '.5rem' }}>
-        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>Запази</button>
+      {note && <div style={{ color: 'var(--ready)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{note}</div>}
+      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy || images.length === 0}>Запази</button>
         <button className="btn-paper" onClick={onCancel}>Отказ</button>
       </div>
       <p className="pencil" style={{ fontSize: '.76rem', margin: 0 }}>
-        След запис продуктът остава в списъка с отметка ✓. Цялата доставка отива към Barsy наведнъж
-        при финализиране в „Доставки“.
+        Запис създава продукта в Barsy и качва снимките. Цялата доставка се изпраща наведнъж, щом всичките ѝ
+        нови продукти са създадени.
       </p>
     </div>
   )
 }
 
-// ---------------------------------------------------------------------- the cards ---
-function FlowCards({
-  phase, name, draft, categories, penned, pen, setDraft, op, setOp, units, saving, onApprove,
-}: {
-  phase: Phase; name: string; draft: IntakeDraft | null; categories: string[]
-  penned: Record<string, boolean>; pen: (f: string) => void; setDraft: (d: IntakeDraft) => void
-  op: { code: string; barcode: string; price: string; unit: string }
-  setOp: (o: { code: string; barcode: string; price: string; unit: string }) => void
-  units: string[]; saving: boolean; onApprove: () => void
+// Searchable Shopify-taxonomy category picker (server-side search over the BG taxonomy).
+function TaxonomyPicker({ value, categoryId, onPick }: {
+  value: string; categoryId: string; onPick: (id: string, path: string) => void
 }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const [opts, setOpts] = useState<ShopifyCategory[]>([])
+  const [available, setAvailable] = useState(true)
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      api.get<{ categories: ShopifyCategory[]; available: boolean }>(`/api/intake/shopify-categories?q=${encodeURIComponent(q)}&limit=30`)
+        .then((r) => { setOpts(r.categories); setAvailable(r.available) }).catch(() => setOpts([]))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [q, open])
   return (
-    <div style={{ display: 'grid', gap: '.9rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))', gap: '.9rem' }}>
-        <Card step="1 · вход" title="От касата" delay={0}><span className="pen">{name}</span></Card>
-
-        <Card step="2 · анализ" title="Разчитане" scanning={phase === 'analysing'} delay={0.1}>
-          {phase === 'analysing'
-            ? <span className="pencil">чете форма, материал, цвят…</span>
-            : <span className="pen">готово ✓ <span style={{ color: 'var(--pencil)' }}>({draft?.model})</span></span>}
-        </Card>
-
-        <Card step="3 · авто" title="Категория" pencilCard={draft ? !penned.category : true} delay={0.2}>
-          {!draft ? <span className="pencil">появява се…</span> : (
-            <select className="input-paper" value={draft.category}
-              style={{ fontFamily: penned.category ? 'var(--serif)' : 'var(--hand)', color: penned.category ? 'var(--ink)' : 'var(--pencil)' }}
-              onChange={(e) => { pen('category'); setDraft({ ...draft, category: e.target.value }) }}>
-              {[draft.category, ...categories.filter((c) => c !== draft.category)].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          )}
-        </Card>
-
-        <Card step="4 · следствие" title="Атрибути" delay={0.3}>
-          {!draft ? <span className="pencil">следват категорията…</span> : (
-            <div style={{ display: 'grid', gap: '.25rem' }}>
-              {draft.attributes.map((a, i) => (
-                <motion.div key={a.key + i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + i * 0.12 }}
-                  style={{ fontSize: '.78rem', display: 'flex', justifyContent: 'space-between', gap: '.4rem' }}>
-                  <span className="font-type" style={{ color: 'var(--red)' }}>{a.key}</span>
-                  <span className="pen" style={{ textAlign: 'right' }}>{a.value}</span>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card step="5 · текст" title="Описание" pencilCard={draft ? !penned.description : true} delay={0.4}>
-          {!draft ? <span className="pencil">изгражда се…</span> : (
-            <textarea className="input-paper" rows={5} value={draft.description}
-              style={{ fontFamily: penned.description ? 'var(--serif)' : 'var(--hand)', color: penned.description ? 'var(--ink)' : 'var(--pencil)', fontSize: '.8rem' }}
-              onChange={(e) => { pen('description'); setDraft({ ...draft, description: e.target.value }) }} />
-          )}
-        </Card>
-      </div>
-
-      {draft && (
-        <Sheet clip="right">
-          <div style={{ display: 'grid', gap: '.6rem', maxWidth: '42rem' }}>
-            <label className="font-type" style={{ fontSize: '.68rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Търговско име</label>
-            <input className="input-paper" value={draft.name}
-              style={{ fontFamily: penned.name ? 'var(--serif)' : 'var(--hand)', color: penned.name ? 'var(--ink)' : 'var(--pencil)' }}
-              onChange={(e) => { pen('name'); setDraft({ ...draft, name: e.target.value }) }} />
-
-            {/* operational fields — human, never AI (price = Microinvest, per policy) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))', gap: '.5rem', marginTop: '.3rem' }}>
-              <Field label="Код (каса)"><input className="input-paper" value={op.code} onChange={(e) => setOp({ ...op, code: e.target.value })} /></Field>
-              <Field label="Баркод"><input className="input-paper" value={op.barcode} onChange={(e) => setOp({ ...op, barcode: e.target.value })} /></Field>
-              <Field label="Цена (€)"><input className="input-paper" inputMode="decimal" value={op.price} onChange={(e) => setOp({ ...op, price: e.target.value })} /></Field>
-              <Field label="Мярка">
-                <select className="input-paper" value={op.unit} onChange={(e) => setOp({ ...op, unit: e.target.value })}>
-                  {units.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </Field>
-            </div>
-
-            <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', marginTop: '.4rem' }}>
-              <button className="btn-paper btn-red" onClick={onApprove} disabled={saving || phase === 'approved'}>
-                {saving ? 'записва…' : 'Одобри с химикал'}
-              </button>
-              {phase === 'draft' && !saving && (
-                <kbd className="font-type" style={{ fontSize: '.62rem', color: 'var(--pencil)', border: '1px solid var(--line)', borderRadius: 3, padding: '.1rem .3rem' }}>⌘/Ctrl + ↵</kbd>
-              )}
-              {phase === 'approved' && (
-                <motion.div initial={{ scale: 0.6, opacity: 0, rotate: -20 }} animate={{ scale: 1, opacity: 1, rotate: -8 }}>
-                  <Stamp>прието</Stamp>
-                </motion.div>
-              )}
-              <span className="pencil" style={{ fontSize: '.78rem', marginLeft: 'auto' }}>
-                записва се като одобрена чернова → създаване в Barsy отдолу
-              </span>
-            </div>
-          </div>
-        </Sheet>
+    <div style={{ position: 'relative' }}>
+      <input className="input-paper" placeholder={value || 'търси категория…'} value={open ? q : value}
+        onFocus={() => { setOpen(true); setQ('') }} onChange={(e) => setQ(e.target.value)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 10, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 3, maxHeight: '14rem', overflowY: 'auto', width: '100%', boxShadow: '2px 3px 7px rgba(0,0,0,.14)' }}>
+          {!available && <div className="pencil" style={{ padding: '.4rem .5rem', fontSize: '.74rem' }}>таксономията не е налична на сървъра</div>}
+          {opts.map((o) => (
+            <button key={o.id} onMouseDown={() => { onPick(o.id, o.path); setOpen(false) }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '.35rem .5rem', border: 'none', borderBottom: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', fontSize: '.78rem' }}>
+              {o.path}
+            </button>
+          ))}
+        </div>
       )}
+      {categoryId && <span className="pencil" style={{ fontSize: '.7rem' }}>Shopify id: {categoryId}</span>}
     </div>
   )
 }
 
-// -------------------------------------------------------------- approved drafts list ---
+// -------------------------------------------------------------- standalone approved products ---
 function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
   const { me } = useAuth()
   const [drafts, setDrafts] = useState<IntakeDraft[] | null>(null)
@@ -473,7 +349,7 @@ function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
 
   return (
     <Sheet>
-      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Одобрени чернови</h3>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Ръчно създадени продукти</h3>
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--ink)', marginBottom: '.5rem' }}>{msg}</div>}
       <div style={{ display: 'grid', gap: '.4rem' }}>
         {drafts.map((d) => {
@@ -486,7 +362,7 @@ function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
               <div>
                 <span className="font-type" style={{ fontWeight: 700 }}>{d.name}</span>
                 <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}>
-                  {' '}· код {d.code || '—'} · {d.price ? d.price + ' €' : 'без цена'} · {d.category?.split('->').pop()?.trim()}
+                  {' '}· код {d.code || '—'} · {d.price ? d.price + ' €' : 'без цена'} · {d.category?.split('>').pop()?.trim()}
                 </span>
               </div>
               <span className="font-type" style={{ fontSize: '.7rem', color: pushed ? 'var(--ready)' : 'var(--pending)' }}>
@@ -512,27 +388,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
       {children}
     </label>
-  )
-}
-
-function Card({
-  step, title, children, scanning = false, pencilCard = false, delay = 0,
-}: {
-  step: string; title: string; children: React.ReactNode
-  scanning?: boolean; pencilCard?: boolean; delay?: number
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }} className={scanning ? 'scan' : ''}
-      style={{
-        background: pencilCard ? 'var(--paper)' : 'var(--paper2)', border: '1px solid var(--line)',
-        borderRadius: 3, padding: '.8rem .75rem', boxShadow: '2px 3px 7px rgba(0,0,0,.14)',
-        position: 'relative', overflow: 'hidden', minHeight: '6rem',
-      }}>
-      <div className="font-type" style={{ fontSize: '.6rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--red)' }}>{step}</div>
-      <div className="font-type" style={{ fontWeight: 700, margin: '.2rem 0 .35rem', fontSize: '.92rem' }}>{title}</div>
-      <div style={{ fontSize: '.82rem' }}>{children}</div>
-    </motion.div>
   )
 }

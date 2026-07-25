@@ -8,18 +8,25 @@ run_direct, which honours the NEVER_CALL blocklist, exhausted-model list and Das
 opt-in). It does NOT touch the live fleet's task/shard/telemetry-mutation machinery — it's a
 single, isolated, low-volume call per product."""
 import json
+import os
+import re
 import time
+from functools import lru_cache
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import delete, func as safunc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+import datetime as _dt
+
 from ..audit import log_action
+from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
-from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, User
+from ..models import DeliveryBatch, DeliveryLine, DraftImage, IntakeDraft, User
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
@@ -71,6 +78,82 @@ def categories(user=Depends(current_active_user)):
     """The real catalog taxonomy — lets the human re-pick the category in 'pen'."""
     import run_one
     return {"categories": run_one.known_categories()}
+
+
+# ---------------------------------------------------- Shopify product taxonomy (category picker) ---
+# The formal Shopify taxonomy (agent-pipeline/shopify_taxonomy/categories_bg.yml): id → BG name, keyed
+# hierarchically ("aa", "aa-1", "aa-1-1", …). Thousands of nodes → we serve a server-side SEARCH so the
+# UI shows a typeahead, not a giant dropdown. Parent chain is derived from the id (strip trailing -N).
+_TAX_ID_RE = re.compile(r"^ {4}([a-z]{2}(?:-\d+)*):\s*$")
+_TAX_NAME_RE = re.compile(r"^ {6}name:\s*(.+?)\s*$")
+
+
+def _taxonomy_path() -> str | None:
+    """Locate categories_bg.yml — it ships in agent-pipeline/shopify_taxonomy (on sys.path via core)."""
+    try:
+        import run_one
+        base = os.path.dirname(os.path.abspath(run_one.__file__))
+    except Exception:
+        base = ""
+    for cand in [os.path.join(base, "shopify_taxonomy", "categories_bg.yml")] if base else []:
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
+@lru_cache(maxsize=1)
+def _taxonomy() -> dict:
+    """{id -> bg name} parsed from the YAML with a tiny line reader (no pyyaml dependency)."""
+    path = _taxonomy_path()
+    out: dict[str, str] = {}
+    if not path:
+        return out
+    cur = None
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            m = _TAX_ID_RE.match(line)
+            if m:
+                cur = m.group(1)
+                continue
+            n = _TAX_NAME_RE.match(line)
+            if n and cur:
+                out[cur] = n.group(1)
+                cur = None
+    return out
+
+
+def _tax_breadcrumb(cid: str, names: dict) -> str:
+    """id → 'Дом > Кухня > Тенджери' breadcrumb of BG names, walking the id hierarchy."""
+    chain, node = [], cid
+    while node:
+        if node in names:
+            chain.append(names[node])
+        parent = re.sub(r"-\d+$", "", node)
+        node = parent if parent != node else ""
+    return " > ".join(reversed(chain))
+
+
+@router.get("/shopify-categories")
+def shopify_categories(q: str = "", limit: int = 40, user=Depends(current_active_user)):
+    """Search the Shopify product taxonomy by BG name/breadcrumb. Returns [{id, name, path}]. Empty q
+    returns the top-level verticals so the picker is never blank."""
+    names = _taxonomy()
+    if not names:
+        return {"categories": [], "available": False}
+    ql = q.strip().lower()
+    items = []
+    for cid, nm in names.items():
+        if ql:
+            path = _tax_breadcrumb(cid, names)
+            if ql not in path.lower():
+                continue
+        elif "-" in cid:                 # empty query → only the top-level verticals
+            continue
+        items.append({"id": cid, "name": nm, "path": _tax_breadcrumb(cid, names)})
+        if len(items) >= max(1, min(200, limit)) and ql:
+            break
+    items.sort(key=lambda x: (len(x["path"]), x["path"]))
+    return {"categories": items[:max(1, min(200, limit))], "available": True}
 
 
 @router.post("/enrich", response_model=EnrichDraft)
@@ -127,6 +210,7 @@ class ApproveRequest(BaseModel):
     # enriched (approved) fields
     name: str
     category: str = ""
+    shopify_category_id: str = ""
     description: str = ""
     attributes: list[Attribute] = []
     meta_title: str = ""
@@ -142,6 +226,7 @@ class DraftOut(BaseModel):
     unit: str
     name: str
     category: str
+    shopify_category_id: str = ""
     description: str
     attributes: list[Attribute]
     meta_title: str = ""
@@ -151,6 +236,7 @@ class DraftOut(BaseModel):
     approved_by: str
     delivery_line_id: int | None = None
     completed: bool = False
+    image_count: int = 0
 
 
 # a delivery product counts as "done" (checkmarked, awaiting the delivery's finalise) once it's been
@@ -158,15 +244,86 @@ class DraftOut(BaseModel):
 _DONE_STATES = {"done_from_delivery", "approved", "pushed"}
 
 
-def _row_to_out(d: IntakeDraft) -> DraftOut:
+def _row_to_out(d: IntakeDraft, image_count: int = 0) -> DraftOut:
     return DraftOut(
         id=d.id, code=d.code, barcode=d.barcode, price=d.price, unit=d.unit,
-        name=d.name, category=d.category, description=d.description,
+        name=d.name, category=d.category,
+        shopify_category_id=getattr(d, "shopify_category_id", "") or "",
+        description=d.description,
         attributes=[Attribute(**a) for a in json.loads(d.attributes_json or "[]")],
         meta_title=getattr(d, "meta_title", "") or "", meta_description=getattr(d, "meta_description", "") or "",
         status=d.status, barsy_article_id=d.barsy_article_id, approved_by=d.approved_by,
         delivery_line_id=d.delivery_line_id,
-        completed=(d.status in _DONE_STATES or d.barsy_article_id is not None))
+        completed=(d.status in _DONE_STATES or d.barsy_article_id is not None),
+        image_count=image_count)
+
+
+async def _image_counts(session: AsyncSession, draft_ids: list[int]) -> dict[int, int]:
+    """{draft_id -> #images} for a set of drafts (one grouped query)."""
+    if not draft_ids:
+        return {}
+    rows = (await session.execute(
+        select(DraftImage.draft_id, safunc.count()).where(DraftImage.draft_id.in_(draft_ids))
+        .group_by(DraftImage.draft_id))).all()
+    return {did: n for did, n in rows}
+
+
+async def _upload_pending_images(session: AsyncSession, draft_id: int, article_id: int) -> int:
+    """Upload every not-yet-uploaded DraftImage to the Barsy article (Files_upload). Best-effort per
+    image; returns how many landed."""
+    imgs = (await session.execute(select(DraftImage).where(
+        DraftImage.draft_id == draft_id, DraftImage.uploaded_barsy.is_(False)))).scalars().all()
+    n = 0
+    for im in imgs:
+        try:
+            await run_in_threadpool(barsy.upload_image, article_id, im.data, im.filename)
+            im.uploaded_barsy = True
+            n += 1
+        except Exception:
+            pass   # leave it un-uploaded → retried on the next save
+    await session.commit()
+    return n
+
+
+async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> dict:
+    """Auto-create the saved product in Barsy (article + images) and, for a delivery product, send the
+    delivery's storeload once ALL its new products are created. Real writes are gated by
+    DELIVERY_BARSY_LIVE — pre-launch this DRY-RUNS (writes nothing) so review clicks can't create junk."""
+    if not getattr(get_settings(), "delivery_barsy_live", False):
+        return {"live": False, "created": False,
+                "note": "Проба — не е записано в Barsy (ще се активира при пускане)."}
+    art_body = _build_barsy_article(d)                       # {"article": {...}}
+    if d.barsy_article_id:                                    # re-edit → update + upload any new images
+        try:
+            await run_in_threadpool(barsy.call, "Articles_update",
+                                    {"article_id": d.barsy_article_id, "article": art_body["article"]})
+        except Exception as e:
+            return {"live": True, "created": True, "error": f"Barsy update: {str(e)[:140]}"}
+        up = await _upload_pending_images(session, d.id, d.barsy_article_id)
+        return {"live": True, "created": True, "article_id": d.barsy_article_id, "images_uploaded": up}
+    try:                                                     # first save → create the article
+        out = await run_in_threadpool(barsy.call, "Articles_create", art_body)
+    except Exception as e:
+        return {"live": True, "created": False, "error": f"Barsy create: {str(e)[:140]}"}
+    aid = _extract_article_id(out)
+    if aid is None:
+        return {"live": True, "created": False, "error": "Barsy не върна article_id."}
+    d.barsy_article_id = aid
+    d.status = "pushed"
+    d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
+    up = await _upload_pending_images(session, d.id, aid)
+    note = {"live": True, "created": True, "article_id": aid, "images_uploaded": up}
+    if d.delivery_line_id:                                    # write id back + try auto-finalise
+        line = await session.get(DeliveryLine, d.delivery_line_id)
+        if line:
+            line.article_id = aid
+            line.is_new = False
+        await session.commit()
+        from .deliveries import autofinalise_if_ready
+        note["delivery"] = await autofinalise_if_ready(session, line.batch_id if line else None, actor)
+    else:
+        await session.commit()
+    return note
 
 
 @router.post("/approve", response_model=DraftOut, status_code=status.HTTP_201_CREATED)
@@ -179,6 +336,7 @@ async def approve(
     d = IntakeDraft(
         code=req.code.strip(), barcode=req.barcode.strip(), price=req.price.strip(),
         unit=req.unit or "бр", name=req.name.strip(), category=req.category,
+        shopify_category_id=req.shopify_category_id.strip(),
         description=req.description,
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
         meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
@@ -198,10 +356,11 @@ async def list_drafts(
     # STANDALONE drafts only (manually-created products). Delivery-sourced products live in their own
     # grouped view (/from-delivery) and must not double-show here.
     rows = (await session.execute(
-        select(IntakeDraft).where(IntakeDraft.status != "new_from_delivery",
+        select(IntakeDraft).where(IntakeDraft.status.not_in(("new_from_delivery", "editing")),
                                   IntakeDraft.delivery_line_id.is_(None))
         .order_by(IntakeDraft.created_at.desc()).limit(100))).scalars().all()
-    return {"drafts": [_row_to_out(d) for d in rows]}
+    counts = await _image_counts(session, [d.id for d in rows])
+    return {"drafts": [_row_to_out(d, counts.get(d.id, 0)) for d in rows]}
 
 
 @router.get("/from-delivery")
@@ -222,34 +381,43 @@ async def from_delivery(
             .order_by(DeliveryBatch.created_at.desc(), IntakeDraft.created_at.asc())
             .limit(500))
     rows = (await session.execute(stmt)).all()
+    counts = await _image_counts(session, [d.id for d, *_ in rows])
     out = []
     for d, batch_id, supplier, reference, doc_date, bstatus in rows:
-        item = _row_to_out(d).model_dump()
+        item = _row_to_out(d, counts.get(d.id, 0)).model_dump()
         item["delivery"] = {"batch_id": batch_id, "supplier": supplier or "",
                             "reference": reference or "", "doc_date": doc_date or "", "status": bstatus}
         out.append(item)
     return {"drafts": out}
 
 
-@router.put("/drafts/{draft_id}", response_model=DraftOut)
+@router.put("/drafts/{draft_id}")
 async def update_draft(
     draft_id: int, req: ApproveRequest,
     actor: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Enrich + approve an EXISTING draft in place (used for products staged from a delivery, so the
-    draft keeps its delivery_line_id → pushing it later writes the article_id back onto that line)."""
+    """Save an EXISTING draft (enrich + operational fields). Requires our code and AT LEAST ONE IMAGE
+    (mandatory). A delivery draft keeps its delivery_line_id. This is the 'Save' the owner asked to
+    auto-create in Barsy — the ERP write + image upload + auto-finalise are wired in _save_to_barsy,
+    gated by DELIVERY_BARSY_LIVE (dry-run pre-launch)."""
     d = await session.get(IntakeDraft, draft_id)
     if not d:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
     if d.status == "pushed":
         raise HTTPException(status.HTTP_409_CONFLICT, "Вече е създадена в Barsy.")
+    if not (req.code.strip() or d.code):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Нужен е наш код.")
+    n_images = (await _image_counts(session, [draft_id])).get(draft_id, 0)
+    if n_images == 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Задължителна е поне една снимка на продукта.")
     d.code = req.code.strip() or d.code
     d.barcode = req.barcode.strip() or d.barcode
     d.price = req.price.strip()
     d.unit = req.unit or "бр"
     d.name = req.name.strip()
     d.category = req.category
+    d.shopify_category_id = req.shopify_category_id.strip()
     d.description = req.description
     d.attributes_json = json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False)
     d.meta_title = req.meta_title.strip()
@@ -262,8 +430,92 @@ async def update_draft(
     d.approved_by = actor.email
     await session.commit()
     await session.refresh(d)
+    # Save AUTO-CREATES in Barsy (article + images), and auto-sends the delivery's storeload once all
+    # its new products are created. Real writes are gated by DELIVERY_BARSY_LIVE (dry-run pre-launch).
+    barsy_note = await _save_to_barsy(session, d, actor)
     await log_action(session, actor, "intake.update", target=d.name, detail=f"code={d.code}")
-    return _row_to_out(d)
+    out = _row_to_out(d, n_images).model_dump()
+    out["barsy"] = barsy_note
+    return out
+
+
+# ---------------------------------------------------------------- product images (mandatory) ---
+_IMG_MAX = 8 * 1024 * 1024
+_IMG_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+
+
+@router.post("/drafts/blank", response_model=DraftOut, status_code=status.HTTP_201_CREATED)
+async def create_blank_draft(actor: User = Depends(current_active_user),
+                             session: AsyncSession = Depends(get_async_session)):
+    """Start a NEW standalone product (not from a delivery) — an empty draft so the same
+    barcode+images-first editor can attach images + save it."""
+    d = IntakeDraft(status="editing", approved_by=actor.email)
+    session.add(d)
+    await session.commit()
+    await session.refresh(d)
+    return _row_to_out(d, 0)
+
+
+@router.post("/drafts/{draft_id}/images", status_code=status.HTTP_201_CREATED)
+async def add_images(draft_id: int, files: list[UploadFile] = File(...),
+                     actor: User = Depends(current_active_user),
+                     session: AsyncSession = Depends(get_async_session)):
+    """Attach image(s) to a draft — stored in admin.db until the article is created, then uploaded to
+    Barsy (Files_upload) on save."""
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    saved = []
+    for f in files:
+        raw = await f.read(_IMG_MAX + 1)
+        if not raw:
+            continue
+        if len(raw) > _IMG_MAX:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Снимката е твърде голяма (макс. 8 MB).")
+        ct = (f.content_type or "image/jpeg").lower()
+        if ct not in _IMG_EXT:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Поддържани формати: JPG, PNG, WEBP, GIF.")
+        fn = f.filename or ("image" + _IMG_EXT[ct])
+        if not fn.lower().endswith(tuple(_IMG_EXT.values())):
+            fn = fn + _IMG_EXT[ct]     # Barsy Files_upload needs a real image extension
+        img = DraftImage(draft_id=draft_id, filename=fn[:255], content_type=ct, data=raw)
+        session.add(img)
+        await session.flush()
+        saved.append({"id": img.id, "filename": img.filename})
+    await session.commit()
+    n = (await _image_counts(session, [draft_id])).get(draft_id, 0)
+    return {"added": saved, "image_count": n}
+
+
+@router.get("/drafts/{draft_id}/images")
+async def list_images(draft_id: int, actor: User = Depends(current_active_user),
+                      session: AsyncSession = Depends(get_async_session)):
+    rows = (await session.execute(
+        select(DraftImage.id, DraftImage.filename, DraftImage.uploaded_barsy)
+        .where(DraftImage.draft_id == draft_id).order_by(DraftImage.id))).all()
+    return {"images": [{"id": i, "filename": fn, "uploaded": bool(u)} for i, fn, u in rows]}
+
+
+@router.get("/drafts/{draft_id}/images/{image_id}")
+async def get_image(draft_id: int, image_id: int, actor: User = Depends(current_active_user),
+                    session: AsyncSession = Depends(get_async_session)):
+    im = await session.get(DraftImage, image_id)
+    if not im or im.draft_id != draft_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава снимка.")
+    return Response(content=im.data, media_type=im.content_type,
+                    headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.delete("/drafts/{draft_id}/images/{image_id}")
+async def delete_image(draft_id: int, image_id: int, actor: User = Depends(current_active_user),
+                       session: AsyncSession = Depends(get_async_session)):
+    im = await session.get(DraftImage, image_id)
+    if not im or im.draft_id != draft_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава снимка.")
+    await session.delete(im)
+    await session.commit()
+    n = (await _image_counts(session, [draft_id])).get(draft_id, 0)
+    return {"ok": True, "image_count": n}
 
 
 def _build_barsy_article(d: IntakeDraft) -> dict:

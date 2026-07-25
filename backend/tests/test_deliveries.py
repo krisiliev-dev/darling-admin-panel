@@ -55,6 +55,17 @@ async def _set_article_id(line_id, aid):
         await s.commit()
 
 
+_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64      # enough for the panel's format check (not decoded)
+
+
+async def _add_image(client, draft_id):
+    """Attach one image — images are MANDATORY before a product can be saved."""
+    r = await client.post(f"/api/intake/drafts/{draft_id}/images",
+                          files={"files": ("p.png", _PNG, "image/png")})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
 # ------------------------------------------------------------------ create + list + detail ---
 @pytest.mark.asyncio
 async def test_create_splits_and_stages_new(owner_client):
@@ -304,7 +315,8 @@ async def test_full_new_product_loop_clears_finalise_gate(owner_client, barsy_re
     fd = (await owner_client.get("/api/intake/from-delivery")).json()["drafts"]
     assert any(d["id"] == draft_id for d in fd)
 
-    # enrich + approve the EXISTING draft in place (keeps its delivery_line_id)
+    # enrich + approve the EXISTING draft in place (keeps its delivery_line_id). Images are mandatory.
+    await _add_image(owner_client, draft_id)
     r = await owner_client.put(f"/api/intake/drafts/{draft_id}", json={
         "code": "OUR-NEW-1", "name": "Готов нов продукт", "price": "9.99", "unit": "бр",
         "category": "Дом", "description": "…", "attributes": [], "barcode": "999"})
@@ -341,11 +353,16 @@ async def test_delivery_product_stays_checkmarked_then_leaves_on_finalise(owner_
     assert item["completed"] is False
     assert item["delivery"]["batch_id"] == b["id"] and item["delivery"]["supplier"] == SUP
 
+    # image is mandatory before save
+    noimg = await owner_client.put(f"/api/intake/drafts/{draft_id}", json={"code": "OUR-X", "name": "Готов"})
+    assert noimg.status_code == 400 and "снимка" in noimg.json()["detail"]
+    await _add_image(owner_client, draft_id)
+
     # enrich + save (PUT) → STILL listed, now completed=true, with meta persisted; and NOT double-shown
     # in the standalone /drafts list
     r = await owner_client.put(f"/api/intake/drafts/{draft_id}", json={
         "code": "OUR-X", "name": "Готов", "price": "5", "unit": "бр", "category": "Дом",
-        "description": "…", "attributes": [{"key": "Цвят", "value": "син"}],
+        "shopify_category_id": "hg-1", "description": "…", "attributes": [{"key": "Цвят", "value": "син"}],
         "meta_title": "Готов продукт", "meta_description": "кратко описание"})
     assert r.status_code == 200, r.text
     done = next(d for d in (await owner_client.get("/api/intake/from-delivery")).json()["drafts"]
@@ -397,6 +414,65 @@ async def test_enrich_returns_meta_suggestions(owner_client, monkeypatch):
     body = r.json()
     assert body["meta_title"] == "Керамична купа"                      # default = clean name
     assert body["meta_description"].startswith("Хубава купа")          # default = description head
+
+
+@pytest.mark.asyncio
+async def test_blank_draft_manual_save_requires_image(owner_client):
+    """"+ Добави продукт" → blank standalone draft → the SAME barcode+images editor. Save needs a code
+    AND an image (mandatory), then persists as a standalone approved product."""
+    did = (await owner_client.post("/api/intake/drafts/blank")).json()["id"]
+    r0 = await owner_client.put(f"/api/intake/drafts/{did}", json={"code": "M-1", "name": "Ръчен"})
+    assert r0.status_code == 400 and "снимка" in r0.json()["detail"]
+    await _add_image(owner_client, did)
+    r = await owner_client.put(f"/api/intake/drafts/{did}", json={"code": "M-1", "name": "Ръчен продукт"})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved" and r.json()["image_count"] == 1
+    assert any(x["id"] == did for x in (await owner_client.get("/api/intake/drafts")).json()["drafts"])
+
+
+@pytest.mark.asyncio
+async def test_draft_images_add_list_get_delete(owner_client):
+    did = (await owner_client.post("/api/intake/drafts/blank")).json()["id"]
+    assert (await _add_image(owner_client, did))["image_count"] == 1
+    imgs = (await owner_client.get(f"/api/intake/drafts/{did}/images")).json()["images"]
+    assert len(imgs) == 1 and imgs[0]["uploaded"] is False
+    raw = await owner_client.get(f"/api/intake/drafts/{did}/images/{imgs[0]['id']}")
+    assert raw.status_code == 200 and raw.content.startswith(b"\x89PNG")
+    d = await owner_client.delete(f"/api/intake/drafts/{did}/images/{imgs[0]['id']}")
+    assert d.status_code == 200 and d.json()["image_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_shopify_categories_endpoint_shape(owner_client):
+    r = await owner_client.get("/api/intake/shopify-categories", params={"q": "кухн"})
+    assert r.status_code == 200
+    body = r.json()
+    assert "categories" in body and "available" in body
+    if body["available"]:
+        assert all("id" in c and "path" in c for c in body["categories"])
+
+
+@pytest.mark.asyncio
+async def test_live_save_autocreates_article_and_autofinalises(owner_client, barsy_recorder, monkeypatch):
+    """With DELIVERY_BARSY_LIVE on: saving the delivery's last new product auto-creates the article,
+    uploads its image, and — all new products now created — auto-sends ONE storeload for the delivery."""
+    import app.routers.intake as intake_r
+    monkeypatch.setattr(intake_r, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+    monkeypatch.setattr(intake_r.barsy, "upload_image", lambda *a, **k: [{"file_id": 1}])
+    barsy_recorder.set_return("Articles_create", {"article_id": 7001})
+    barsy_recorder.set_return("Articles_getlist", [{"code": EXIST_CODE, "article_id": 555}])
+    barsy_recorder.set_return("Storeloads_create", {"storeload_id": 9100})
+
+    b = await _create(owner_client)
+    draft_id = next(l for l in b["lines"] if l["is_new"])["intake_draft_id"]
+    await _add_image(owner_client, draft_id)
+    body = (await owner_client.put(f"/api/intake/drafts/{draft_id}",
+            json={"code": "OUR-NEW", "name": "Нов"})).json()
+    assert body["barsy"]["created"] is True and body["barsy"]["article_id"] == 7001
+    assert body["barsy"]["images_uploaded"] == 1
+    assert body["barsy"]["delivery"]["sent"] is True and body["barsy"]["delivery"]["storeload_id"] == 9100
+    assert barsy_recorder.operations.count("Storeloads_create") == 1     # exactly ONE delivery
 
 
 @pytest.mark.asyncio
