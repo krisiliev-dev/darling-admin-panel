@@ -47,6 +47,8 @@ export const api = {
   get: <T>(p: string) => request<T>(p),
   post: <T>(p: string, body?: unknown) =>
     request<T>(p, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(p: string, body?: unknown) =>
+    request<T>(p, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   upload: <T>(p: string, form: FormData) => request<T>(p, { method: 'POST', body: form }),
   // FastAPI-Users login expects form-encoded username/password
   loginForm: async (email: string, password: string) => {
@@ -203,6 +205,59 @@ export interface DeliveryCommitResponse {
   storeload_payload: unknown
   storeload_id: number | null
   warnings: string[]
+}
+
+// --- Доставки (receiving) ---
+export interface DeliveryLineRow {
+  id: number
+  supplier_code: string
+  name: string
+  qty: number
+  price: number
+  barcode: string
+  is_new: boolean
+  match_code: string
+  match_method: string
+  match_confidence: string
+  article_id: number | null
+  scanned_qty: number
+  status: string            // pending | confirmed | mismatch
+  intake_draft_id: number | null
+}
+
+export interface DeliveryDetailResp {
+  id: number
+  supplier: string
+  supplier_id: number | null
+  depot_id: number
+  reference: string
+  doc_date: string
+  source: string
+  status: string            // awaiting_products | ready | finalised
+  storeload_id: number | null
+  created_by: string
+  created_at: string | null
+  finalised_at: string | null
+  total: number
+  new: number
+  existing: number
+  confirmed: number
+  mismatched: number
+  new_pending: number
+  lines: DeliveryLineRow[]
+}
+
+export interface DeliveryListItem {
+  id: number
+  supplier: string
+  reference: string
+  doc_date: string
+  source: string
+  status: string
+  storeload_id: number | null
+  created_at: string | null
+  total: number
+  new: number
 }
 
 export interface InventoryItem {

@@ -1,0 +1,10 @@
+# Optional OCR stack for the delivery "Нямам файл, само хартия" (photo → table) path.
+# Installed ONLY into the deployed Docker image (see Dockerfile) — kept OUT of requirements.txt /
+# requirements-dev.txt so CI and local test runs stay lean and the endpoint's graceful 503 fallback
+# (when these are absent) stays exercised. Chosen per the 2026 tool research: img2table (OpenCV grid
+# detection, MIT) + RapidOCR (PP-OCR via ONNXRuntime, Cyrillic, CPU-only) + pyzbar (decode barcodes
+# from the photo — never OCR the digits). Needs system libs: libgl1 libglib2.0-0 libzbar0.
+img2table==2.0.0
+rapidocr-onnxruntime==1.4.4
+pyzbar==0.1.9
+Pillow==11.4.0

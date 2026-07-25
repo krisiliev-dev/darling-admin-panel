@@ -12,7 +12,7 @@ import { Intake } from './pages/Intake'
 import { Inventory } from './pages/Inventory'
 import { Catalog } from './pages/Catalog'
 import { Pricing } from './pages/Pricing'
-import { Purchasing } from './pages/Purchasing'
+import { Deliveries } from './pages/Deliveries'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
 
@@ -41,7 +41,7 @@ export default function App() {
         <Route path="inventory" element={<Inventory />} />
         <Route path="catalog" element={<Catalog />} />
         <Route path="pricing" element={<Pricing />} />
-        <Route path="purchasing" element={<Purchasing />} />
+        <Route path="purchasing" element={<Deliveries />} />
         <Route path="assistant" element={<Assistant />} />
         <Route path="settings" element={me.is_superuser ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

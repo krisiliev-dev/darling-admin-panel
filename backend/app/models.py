@@ -57,6 +57,56 @@ class IntakeDraft(Base):
     approved_by: Mapped[str] = mapped_column(String(255), default="")
     pushed_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    # when this draft is a NEW product that arrived on a delivery, link back to the delivery line
+    # so pushing it to Barsy can write the resulting article_id onto that line (finalise gate).
+    delivery_line_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+
+
+class DeliveryBatch(Base):
+    """A goods-in delivery being received (Доставки page). Panel-owned staging (admin.db): staff
+    upload the supplier sheet, scan-confirm quantities, add any new products, then FINALISE — which
+    sends the whole thing to Barsy as ONE storeload. Barsy stays the system of record."""
+    __tablename__ = "delivery_batches"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+    supplier: Mapped[str] = mapped_column(String(255), default="")
+    supplier_id: Mapped[int | None] = mapped_column(nullable=True)   # Barsy supplier id
+    depot_id: Mapped[int] = mapped_column(default=1)                 # warehouse (1 = Основен)
+    reference: Mapped[str] = mapped_column(String(128), default="")  # supplier doc / invoice №
+    doc_date: Mapped[str] = mapped_column(String(32), default="")    # YYYY-MM-DD
+    source: Mapped[str] = mapped_column(String(16), default="excel")  # excel | csv | photo
+    # draft (uploaded, scanning) → awaiting_products (has un-added new products) →
+    # ready (all confirmed + every line has a Barsy article) → finalised (storeload sent)
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    storeload_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    finalised_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+
+class DeliveryLine(Base):
+    """One product row within a delivery. `scanned_qty` accrues from the handheld barcode scanner;
+    the line goes green when it equals the claimed `qty`, red on a mismatch."""
+    __tablename__ = "delivery_lines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    batch_id: Mapped[int] = mapped_column(index=True)
+    supplier_code: Mapped[str] = mapped_column(String(64), default="")  # THEIR code from the sheet
+    name: Mapped[str] = mapped_column(String(255), default="")
+    qty: Mapped[float] = mapped_column(default=0.0)                # claimed on the document
+    price: Mapped[float] = mapped_column(default=0.0)             # delivery/cost price
+    barcode: Mapped[str] = mapped_column(String(64), default="", index=True)
+    is_new: Mapped[bool] = mapped_column(default=True)
+    match_code: Mapped[str] = mapped_column(String(64), default="")  # OUR code, if matched
+    match_method: Mapped[str] = mapped_column(String(16), default="")
+    match_confidence: Mapped[str] = mapped_column(String(16), default="")
+    article_id: Mapped[int | None] = mapped_column(nullable=True)  # Barsy id (existing or once added)
+    scanned_qty: Mapped[float] = mapped_column(default=0.0)
+    # pending → confirmed (scanned == qty) → mismatch (scanned != qty)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    intake_draft_id: Mapped[int | None] = mapped_column(nullable=True)  # for new products
 
 
 # NOTE: supplier orders (заявки) live in BARSY as draft storeloads (складови зареждания),

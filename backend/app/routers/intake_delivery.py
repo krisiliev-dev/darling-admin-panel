@@ -116,6 +116,31 @@ def _supplier_index() -> dict:
             "by_sup_name": by_sup_name, "by_name": by_name}
 
 
+_BARCODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "barcodes.jsonl")
+
+
+@lru_cache(maxsize=1)
+def _barcode_index() -> dict:
+    """Two maps from the catalogue's known EANs: ean→our code, and our code→[eans]. Lets the
+    delivery scanner resolve a scanned barcode to a product even when the sheet had no barcode."""
+    ean_to_code: dict[str, str] = {}
+    code_to_eans: dict[str, list] = {}
+    try:
+        with open(_BARCODES_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                code, ean = str(r.get("code", "")).strip(), str(r.get("ean", "")).strip()
+                if code and ean:
+                    ean_to_code.setdefault(ean, code)
+                    code_to_eans.setdefault(code, []).append(ean)
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {"ean_to_code": ean_to_code, "code_to_eans": code_to_eans}
+
+
 @lru_cache(maxsize=1)
 def _seed_by_code() -> dict:
     """Our own catalogue keyed by our code — a secondary net when a sheet already uses our codes."""

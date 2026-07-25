@@ -171,8 +171,52 @@ async def list_drafts(
     session: AsyncSession = Depends(get_async_session),
 ):
     rows = (await session.execute(
-        select(IntakeDraft).order_by(IntakeDraft.created_at.desc()).limit(100))).scalars().all()
+        select(IntakeDraft).where(IntakeDraft.status != "new_from_delivery")
+        .order_by(IntakeDraft.created_at.desc()).limit(100))).scalars().all()
     return {"drafts": [_row_to_out(d) for d in rows]}
+
+
+@router.get("/from-delivery")
+async def from_delivery(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """New products that arrived on a delivery and still need enriching + creating in Barsy.
+    These are the products holding a delivery's finalise gate shut."""
+    rows = (await session.execute(
+        select(IntakeDraft).where(IntakeDraft.status == "new_from_delivery")
+        .order_by(IntakeDraft.created_at.desc()).limit(200))).scalars().all()
+    return {"drafts": [_row_to_out(d) for d in rows]}
+
+
+@router.put("/drafts/{draft_id}", response_model=DraftOut)
+async def update_draft(
+    draft_id: int, req: ApproveRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Enrich + approve an EXISTING draft in place (used for products staged from a delivery, so the
+    draft keeps its delivery_line_id → pushing it later writes the article_id back onto that line)."""
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    if d.status == "pushed":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Вече е създадена в Barsy.")
+    d.code = req.code.strip() or d.code
+    d.barcode = req.barcode.strip() or d.barcode
+    d.price = req.price.strip()
+    d.unit = req.unit or "бр"
+    d.name = req.name.strip()
+    d.category = req.category
+    d.description = req.description
+    d.attributes_json = json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False)
+    d.model = req.model
+    d.status = "approved"
+    d.approved_by = actor.email
+    await session.commit()
+    await session.refresh(d)
+    await log_action(session, actor, "intake.update", target=d.name, detail=f"code={d.code}")
+    return _row_to_out(d)
 
 
 def _build_barsy_article(d: IntakeDraft) -> dict:
@@ -260,6 +304,14 @@ async def push_to_barsy(
     d.status = "pushed"
     d.barsy_article_id = new_id
     d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
+    # if this product arrived on a delivery, write the new article_id onto that line so the
+    # delivery's finalise gate (all lines have a Barsy article) can clear.
+    if d.delivery_line_id and new_id is not None:
+        from ..models import DeliveryLine
+        line = await session.get(DeliveryLine, d.delivery_line_id)
+        if line and line.article_id is None:
+            line.article_id = new_id
+            line.is_new = False
     await session.commit()
     await log_action(session, actor, "intake.push_barsy", target=d.name,
                      detail=f"code={d.code} article_id={new_id}")

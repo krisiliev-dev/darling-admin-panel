@@ -2,3 +2,4 @@
 # context tiny + the layer cache stable by excluding everything else.
 *
 !requirements.txt
+!requirements-ocr.txt

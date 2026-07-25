@@ -11,9 +11,18 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app/admin-panel/backend
 
-# Only requirements.txt is in the build context (see .dockerignore) — keeps the layer cache stable.
+# Only requirements*.txt are in the build context (see .dockerignore) — keeps the layer cache stable.
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Optional OCR stack for the delivery photo→table path (kept out of the base test deps). System
+# libs: libgl1/libglib2.0-0 (OpenCV runtime), libzbar0 (barcode decode). Its own layer so a change
+# here doesn't bust the base deps cache. If this layer is removed, the /ocr endpoint 503s cleanly.
+COPY requirements-ocr.txt .
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 libglib2.0-0 libzbar0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install -r requirements-ocr.txt
 
 # The code + pipeline.db + admin.db arrive via the bind mount at runtime; this WORKDIR is overlaid.
 EXPOSE 8770

@@ -135,7 +135,94 @@ export function Intake() {
       </>
       )}
 
+      <DeliveryProducts categories={categories} onApproved={() => setRefreshDrafts((n) => n + 1)} />
       <ApprovedDrafts refreshKey={refreshDrafts} />
+    </div>
+  )
+}
+
+// --------------------------------------------------- new products arrived on a delivery ---
+// These drafts were staged by the Доставки flow (status 'new_from_delivery'). Enriching + approving
+// one updates it IN PLACE (keeps its delivery_line_id), so a later push to Barsy writes the new
+// article_id back onto the delivery line — clearing that delivery's finalise gate.
+function DeliveryProducts({ categories, onApproved }: { categories: string[]; onApproved: () => void }) {
+  const [items, setItems] = useState<IntakeDraft[] | null>(null)
+  const [openId, setOpenId] = useState<number | null>(null)
+  const load = () => api.get<{ drafts: IntakeDraft[] }>('/api/intake/from-delivery')
+    .then((d) => setItems(d.drafts)).catch(() => setItems([]))
+  useEffect(() => { void load() }, [])
+
+  if (!items || items.length === 0) return null
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Нови продукти от доставки ({items.length})</h3>
+      <p className="font-type" style={{ fontSize: '.76rem', color: 'var(--pencil)', marginBottom: '.6rem' }}>
+        Довърши тези, за да може доставката им да се финализира.
+      </p>
+      <div style={{ display: 'grid', gap: '.5rem' }}>
+        {items.map((d) => openId === d.id
+          ? <DeliveryProductEditor key={d.id} draft={d} categories={categories}
+              onDone={() => { setOpenId(null); void load(); onApproved() }} onCancel={() => setOpenId(null)} />
+          : (
+            <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.7rem',
+              border: '1px solid var(--line)', borderRadius: 2, padding: '.5rem .7rem', background: 'var(--paper2)' }}>
+              <span><span className="font-type" style={{ fontWeight: 700 }}>{d.name}</span>
+                <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}> · код {d.code || '—'}{d.barcode ? ` · ${d.barcode}` : ''}</span></span>
+              <button className="btn-paper" onClick={() => setOpenId(d.id ?? null)}>Обогати и завърши →</button>
+            </div>
+          ))}
+      </div>
+    </Sheet>
+  )
+}
+
+function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
+  draft: IntakeDraft; categories: string[]; onDone: () => void; onCancel: () => void
+}) {
+  const [d, setD] = useState<IntakeDraft>(draft)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const enrich = async () => {
+    setBusy(true); setError('')
+    try {
+      const e = await api.post<IntakeDraft>('/api/intake/enrich', { name: d.name })
+      setD({ ...d, name: e.name, category: e.category, description: e.description, attributes: e.attributes, model: e.model })
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Обогатяването се провали.') } finally { setBusy(false) }
+  }
+  const save = async () => {
+    if (!d.code?.trim()) { setError('Нужен е наш код.'); return }
+    setBusy(true); setError('')
+    try {
+      await api.put(`/api/intake/drafts/${draft.id}`, {
+        code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
+        name: d.name, category: d.category || '', description: d.description || '',
+        attributes: d.attributes || [], model: d.model || '',
+      })
+      onDone()
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
+  }
+  return (
+    <div style={{ border: '1px solid var(--red)', borderRadius: 3, padding: '.7rem', background: 'var(--paper)', display: 'grid', gap: '.5rem' }}>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        <Field label="Наш код"><input className="input-paper" value={d.code || ''} onChange={(e) => setD({ ...d, code: e.target.value })} /></Field>
+        <Field label="Баркод"><input className="input-paper" value={d.barcode || ''} onChange={(e) => setD({ ...d, barcode: e.target.value })} /></Field>
+        <Field label="Цена (€)"><input className="input-paper" value={d.price || ''} onChange={(e) => setD({ ...d, price: e.target.value })} /></Field>
+        <button className="btn-paper" onClick={() => void enrich()} disabled={busy} style={{ alignSelf: 'end' }}>{busy ? '…' : '✨ Обогати'}</button>
+      </div>
+      <Field label="Име"><input className="input-paper" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></Field>
+      <Field label="Категория">
+        <select className="input-paper" value={d.category || ''} onChange={(e) => setD({ ...d, category: e.target.value })}>
+          <option value="">— избери —</option>
+          {[d.category || '', ...categories.filter((c) => c !== d.category)].filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </Field>
+      <Field label="Описание"><textarea className="input-paper" rows={3} value={d.description || ''} onChange={(e) => setD({ ...d, description: e.target.value })} /></Field>
+      {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
+      <div style={{ display: 'flex', gap: '.5rem' }}>
+        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>Запази (одобри)</button>
+        <button className="btn-paper" onClick={onCancel}>Отказ</button>
+      </div>
     </div>
   )
 }

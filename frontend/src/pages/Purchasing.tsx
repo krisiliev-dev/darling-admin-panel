@@ -11,7 +11,7 @@ interface EditLine { article_id: number; name: string; amount: string; current_p
 
 // Доставки — supplier orders, Barsy-first. Заявки are draft storeloads in Barsy; receiving a
 // delivery closes the storeload (stock updates in Barsy).
-export function Purchasing() {
+export function Purchasing({ embedded = false }: { embedded?: boolean } = {}) {
   const { data: sup } = useApi<{ suppliers: Supplier[] }>('/api/purchasing/suppliers')
   const { data: reorder } = useApi<{ items: ReorderItem[] }>('/api/purchasing/reorder')
   const { data: orders, reload: reloadOrders } = useApi<{ orders: PurchaseOrder[] }>('/api/purchasing/orders')
@@ -19,7 +19,7 @@ export function Purchasing() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Доставки" subtitle="заявки към доставчици (в Barsy)" />
+      {!embedded && <PageHeader title="Доставки" subtitle="заявки към доставчици (в Barsy)" />}
 
       <Sheet clip="left" tilt="l">
         <h3 style={{ fontSize: '1rem', marginBottom: '.6rem' }}>Доставчици</h3>
