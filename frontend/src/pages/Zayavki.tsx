@@ -154,12 +154,21 @@ function CardProductRow({ p, onAdd }: { p: ZayavkaProduct; onAdd: (p: ZayavkaPro
 
 // ------------------------------------------------------------------ supplier list ---
 function SupplierList({ onOpen }: { onOpen: (s: string) => void }) {
-  const [rows, setRows] = useState<ZayavkaSupplier[] | null>(null)
-  useEffect(() => { api.get<{ suppliers: ZayavkaSupplier[] }>('/api/zayavki/suppliers').then((d) => setRows(d.suppliers)).catch(() => setRows([])) }, [])
-  if (!rows) return <Loading />
+  const [all, setAll] = useState<ZayavkaSupplier[] | null>(null)
+  const [q, setQ] = useState('')
+  const [openOnly, setOpenOnly] = useState(false)
+  useEffect(() => { api.get<{ suppliers: ZayavkaSupplier[] }>('/api/zayavki/suppliers').then((d) => setAll(d.suppliers)).catch(() => setAll([])) }, [])
+  if (!all) return <Loading />
+  const rows = all.filter((s) => (!q.trim() || s.supplier.toLowerCase().includes(q.trim().toLowerCase())) && (!openOnly || s.items > 0))
   return (
     <Sheet>
-      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Доставчици</h3>
+      <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '.5rem' }}>
+        <h3 style={{ fontSize: '1rem', flex: 1 }}>Доставчици</h3>
+        <input className="input-paper" style={{ width: '12rem' }} placeholder="търси доставчик…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
+          <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} /> само с отворена заявка
+        </label>
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.82rem' }}>
           <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>

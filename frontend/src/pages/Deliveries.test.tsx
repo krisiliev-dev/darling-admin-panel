@@ -39,7 +39,8 @@ describe('Deliveries — receiving', () => {
                     created_at: '2026-07-25', total: 4, new: 1 }]
     renderPage()
     expect(await screen.findByText('АНИС')).toBeInTheDocument()
-    expect(screen.getByText(/чакат нови продукти/)).toBeInTheDocument()
+    // status text appears in the row badge AND now in the filter dropdown option
+    expect(screen.getAllByText(/чакат нови продукти/).length).toBeGreaterThan(0)
   })
 
   it('opens the new-delivery wizard with supplier + upload modes', async () => {

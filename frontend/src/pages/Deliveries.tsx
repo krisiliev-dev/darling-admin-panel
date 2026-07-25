@@ -48,16 +48,28 @@ function StatusBadge({ status }: { status: string }) {
 
 // ------------------------------------------------------------------ list ---
 function DeliveryList({ onNew, onOpen }: { onNew: () => void; onOpen: (id: number) => void }) {
-  const [rows, setRows] = useState<DeliveryListItem[] | null>(null)
-  useEffect(() => { api.get<{ deliveries: DeliveryListItem[] }>('/api/deliveries').then((d) => setRows(d.deliveries)).catch(() => setRows([])) }, [])
+  const [all, setAll] = useState<DeliveryListItem[] | null>(null)
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('')
+  useEffect(() => { api.get<{ deliveries: DeliveryListItem[] }>('/api/deliveries').then((d) => setAll(d.deliveries)).catch(() => setAll([])) }, [])
+  const rows = (all || []).filter((d) =>
+    (!q.trim() || (d.supplier + ' ' + d.reference).toLowerCase().includes(q.trim().toLowerCase())) &&
+    (!status || d.status === status))
   return (
     <div style={{ display: 'grid', gap: '.8rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          <input className="input-paper" style={{ width: '13rem' }} placeholder="търси доставчик / №…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select className="input-paper" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">— всички статуси —</option>
+            {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}
+          </select>
+        </div>
         <button className="btn-paper btn-red" onClick={onNew}>+ Обработи нова доставка</button>
       </div>
       <Sheet>
-        {!rows ? <Loading /> : rows.length === 0 ? (
-          <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.85rem' }}>Още няма обработени доставки.</p>
+        {!all ? <Loading /> : rows.length === 0 ? (
+          <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.85rem' }}>{(all.length ? 'Няма доставки за този филтър.' : 'Още няма обработени доставки.')}</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
