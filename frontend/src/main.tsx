@@ -1,6 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+// self-hosted (no Google CDN → GDPR-safe): Nunito, a clean rounded "typed" face for sticky notes
+import '@fontsource/nunito/400.css'
+import '@fontsource/nunito/600.css'
+import '@fontsource/nunito/700.css'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './lib/auth'
