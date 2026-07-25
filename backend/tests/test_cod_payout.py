@@ -92,6 +92,25 @@ async def test_reconcile_auto_pulls_and_matches(owner_client, fake_state, monkey
     assert body["settle_lines"] == [{"order_id": "gid1", "collected": 25.5}]
 
 
+async def test_reconcile_auto_parses_comma_and_present_zero(owner_client, fake_state, monkeypatch):
+    """Amounts are parsed tolerantly (comma-decimal "25,50"), and a present collected 0.0 is respected
+    — it must NOT fall through to a different `amount` field (the old `collected or amount` bug)."""
+    class FakeAdapter:
+        def configured(self):
+            return True
+        def payout_report(self, df, dt):
+            return [{"waybill": "1234567890", "collected": "25,50"},
+                    {"waybill": "5550001", "collected": 0.0, "amount": 40.0}]
+    monkeypatch.setattr(cod.courier_mod, "get", lambda name: FakeAdapter())
+    r = await owner_client.post("/api/cod/reconcile-auto",
+                                json={"courier": "speedy", "date_from": "2026-07-01", "date_to": "2026-07-25"})
+    assert r.status_code == 200, r.text
+    m = {x["order_id"]: x for x in r.json()["matched"]}
+    assert m["gid1"]["collected"] == 25.5      # "25,50" → 25.50
+    assert m["gid2"]["collected"] == 0.0       # present 0.0 respected, not the 40.0 from `amount`
+    assert m["gid2"]["discrepancy"] is True     # collected 0 vs expected 40 → flagged
+
+
 async def test_reconcile_auto_rejects_unknown_courier(owner_client, fake_state):
     r = await owner_client.post("/api/cod/reconcile-auto",
                                 json={"courier": "dhl", "date_from": "2026-07-01", "date_to": "2026-07-25"})

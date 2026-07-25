@@ -249,7 +249,8 @@ function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () =>
     setBusy(true); setMsg('')
     try {
       const r = await api.post<BulkPricePreview>('/api/catalog/bulk-price', { article_ids: ids, op, value: Number(value), confirm: true })
-      setMsg(`Приложено на ${r.applied} продукта${r.failed && r.failed.length ? ` (неуспешни: ${r.failed.length})` : ''}.`)
+      const extra = [r.failed && r.failed.length ? `неуспешни: ${r.failed.length}` : '', r.skipped && r.skipped.length ? `пропуснати: ${r.skipped.length}` : ''].filter(Boolean).join(', ')
+      setMsg(`Приложено на ${r.applied} продукта${extra ? ` (${extra})` : ''}.`)
       setPreview(null); onDone()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
@@ -279,6 +280,18 @@ function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () =>
             </div>
           ))}
           {preview.changes.length > 100 && <span className="pencil" style={{ fontSize: '.72rem' }}>…и още {preview.changes.length - 100}</span>}
+        </div>
+      )}
+      {preview?.dry_run && preview.skipped && preview.skipped.length > 0 && (
+        <div className="font-type" style={{ marginTop: '.5rem', fontSize: '.74rem', color: 'var(--pencil)', borderTop: '1px dashed var(--line)', paddingTop: '.4rem' }}>
+          <b style={{ color: 'var(--red)' }}>{preview.skipped.length} пропуснати</b> (няма да се променят):
+          {preview.skipped.slice(0, 8).map((s) => (
+            <div key={s.article_id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '20rem' }}>{s.name} <span style={{ color: 'var(--pencil)' }}>{s.code}</span></span>
+              <span>{s.reason}</span>
+            </div>
+          ))}
+          {preview.skipped.length > 8 && <span>…и още {preview.skipped.length - 8}</span>}
         </div>
       )}
     </Sheet>

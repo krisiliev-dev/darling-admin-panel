@@ -49,6 +49,21 @@ def _cred(key):
     return os.environ.get(key) or _env_file_vals().get(key, "")
 
 
+def _amt(v):
+    """Tolerant money parse for courier payout feeds — handles comma-decimals ("19,99") and
+    thousands separators ("1.234,56"); None/blank/garbage → 0.0. The rightmost , or . is the decimal."""
+    import re
+    s = re.sub(r"[^\d,.\-]", "", str(v if v is not None else "")).strip(".,")
+    if not s:
+        return 0.0
+    sep = max(s.rfind(","), s.rfind("."))
+    num = (re.sub(r"[.,]", "", s[:sep]) + "." + s[sep + 1:]) if sep != -1 else s
+    try:
+        return round(float(num), 2)
+    except ValueError:
+        return 0.0
+
+
 # each entry: env var names for credentials + the API base
 REGISTRY = {
     "speedy":  {"user": "SPEEDY_USER",  "pass": "SPEEDY_PASS",  "base": "https://api.speedy.bg/v1"},
@@ -370,6 +385,38 @@ class Speedy(Courier):
                  "city": o.get("address", {}).get("siteName", "")}
                 for o in (out.get("offices") or [])]
 
+    def payout_report(self, date_from, date_to):
+        """Speedy COD payout report (Payments Service). POST /payments with fromDate/toDate +
+        includeDetails → payouts[], each carrying details[] keyed by shipmentId = waybill. Flatten to
+        per-waybill rows; fall back to payout-level rows if details are absent. Validate live at launch."""
+        out = self._post("/payments", {"fromDate": date_from, "toDate": date_to,
+                                        "includeDetails": True, "language": "BG"})
+        payouts = out.get("payouts") or out.get("payments") or out.get("rows") or []
+        norm = []
+        for p in payouts:
+            pdate = p.get("date") or p.get("payoutDate") or p.get("transferDate") or ""
+            details = p.get("details") or []
+            if details:
+                for d in details:
+                    norm.append({
+                        "waybill": str(d.get("shipmentId") or d.get("waybill") or d.get("parcelId") or ""),
+                        "collected": _amt(d.get("amount")),
+                        "fee": None,
+                        "payout_date": d.get("deliveryDate") or pdate,
+                        "status": p.get("paymentType") or p.get("docType") or "",
+                    })
+            else:
+                fee = p.get("fee", p.get("commission"))
+                norm.append({
+                    "waybill": str(p.get("shipmentId") or p.get("parcelId") or p.get("waybill")
+                                   or p.get("docId") or p.get("id") or ""),
+                    "collected": _amt(p.get("amount", p.get("codAmount"))),
+                    "fee": _amt(fee) if fee is not None else None,
+                    "payout_date": pdate,
+                    "status": p.get("paymentType") or p.get("status") or "",
+                })
+        return norm
+
 
 # ======================================================================================
 # Econt — ee.econt.com/services. HTTP Basic auth; JSON in, JSON out.
@@ -549,6 +596,25 @@ class Econt(Courier):
                  "address": o.get("address", {}).get("fullAddress", ""),
                  "city": o.get("address", {}).get("city", {}).get("name", "")}
                 for o in offices[:400]]
+
+    def payout_report(self, date_from, date_to):
+        """Econt COD payout report (PaymentReportService.PaymentReport). Rows (PaymentReportRow):
+        num=waybill, amount, payDate, payType. Validate live at launch (no shipments pre-launch)."""
+        out = self._post("/Shipments/PaymentReportService.PaymentReport.json",
+                         {"dateFrom": date_from, "dateTo": date_to})
+        rows = (out.get("paymentReport") or out.get("rows") or out.get("elements")
+                or out.get("shipments") or [])
+        norm = []
+        for r in rows:
+            amt = r.get("amount", r.get("cdPaidAmount", r.get("CD_send_sum", r.get("codAmount"))))
+            norm.append({
+                "waybill": str(r.get("num") or r.get("shipmentNumber") or r.get("waybill") or ""),
+                "collected": _amt(amt),
+                "fee": None,
+                "payout_date": r.get("payDate") or r.get("cdPaidTime") or r.get("CD_send_time") or "",
+                "status": r.get("payType") or r.get("type") or r.get("status") or "",
+            })
+        return norm
 
 
 # --- locker / secondary couriers: same interface, wired when their creds arrive --------

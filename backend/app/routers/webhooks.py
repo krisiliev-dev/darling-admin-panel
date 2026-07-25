@@ -138,9 +138,10 @@ async def _process_barsy_article(code: str, live: bool):
 
 @router.post("/barsy/article")
 async def barsy_article_receiver(request: Request, background: BackgroundTasks):
-    """Barsy article-changed webhook → mirror name/price onto Shopify. Barsy sends a test call on
-    registration and needs a 2xx to validate, so a tokenless/empty probe still returns 200 (but we
-    only process real, token-authenticated payloads)."""
+    """Barsy article-changed webhook → refresh the local product cache AND mirror name/price onto
+    Shopify (see _process_barsy_article). Barsy sends a test call on registration and needs a 2xx to
+    validate, so a tokenless/empty probe still returns 200 (but we only process real, token-authenticated
+    payloads)."""
     if not _verify_barsy_token(request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token.")
     try:

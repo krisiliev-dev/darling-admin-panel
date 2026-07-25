@@ -179,7 +179,7 @@ async def create_delivery(
 ):
     """Upload a supplier delivery sheet → parse + match → persist a draft batch with its lines.
     NEW lines each get a linked intake draft so they surface on the Приемане page for enrichment."""
-    raw = await file.read()
+    raw = await file.read(_MAX_UPLOAD_BYTES + 1)   # bounded read — don't buffer an oversized upload
     _check_size(raw)
     try:
         rows = await run_in_threadpool(_rows_from_upload, file.filename or "", raw)
@@ -272,7 +272,7 @@ async def ocr_photo(
     Returns raw rows for staff to CORRECT before creating the delivery (never trusted as-is).
     Barcodes are decoded from the image (pyzbar), never OCR'd as digits. OCR deps are optional —
     if the server doesn't have them installed the endpoint reports 503 cleanly."""
-    raw = await file.read()
+    raw = await file.read(_MAX_UPLOAD_BYTES + 1)   # bounded read — don't buffer an oversized upload
     _check_size(raw)
     try:
         rows, note = await run_in_threadpool(_ocr_extract, raw)

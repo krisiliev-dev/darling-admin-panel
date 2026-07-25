@@ -4,11 +4,11 @@ products auto-push to Barsy, so the panel requests them here. Price stays read-o
 sourced, never edited here — price policy). Editable: name, description, barcode."""
 import base64
 import urllib.request
-from functools import lru_cache
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
@@ -31,26 +31,47 @@ def _barsy_host() -> tuple[str, str, str]:
     return base.split("/endpoints/")[0], user, pw
 
 
-@lru_cache(maxsize=512)
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # never follow redirects — a redirect off the Barsy URL would chase it WITH the Basic creds,
+    # a credential-leak / SSRF vector.
+    def redirect_request(self, *a, **k):
+        return None
+
+
+_IMG_OPENER = urllib.request.build_opener(_NoRedirect)
+_IMG_CACHE: dict = {}                     # article_id -> (bytes, ctype); THUMBS ONLY, successes only
+_IMG_CACHE_MAX = 200                      # bound resident memory (thumbs are ~small)
+
+
 def _fetch_image(article_id: int, size: str):
-    """(bytes, content_type) for an article's first image, or None. Cached — repeat loads (a catalog
-    page re-render) don't re-hit the low-tier Barsy."""
+    """(bytes, content_type) for an article's first image, or None. Thumbs are cached (bounded,
+    successes only — a product that later gains an image isn't stuck 404); full images never cached."""
+    if size == "thumb" and article_id in _IMG_CACHE:
+        return _IMG_CACHE[article_id]
     files = barsy.call("Files_getlist", {"obj_type": "articles", "obj_id": article_id}) or []
     if not isinstance(files, list) or not files:
         return None
     f = files[0]
-    rel = f.get("thumbnail_url") if size == "thumb" else f.get("url")
-    rel = rel or f.get("url")
+    rel = (f.get("thumbnail_url") if size == "thumb" else f.get("url")) or f.get("url")
     if not rel:
         return None
     if size == "thumb":
         rel = rel.replace("width=50", "width=200")   # the default 50px thumb is too small for cards
     host, user, pw = _barsy_host()
+    url = host + rel
+    # SSRF guard: the resolved URL must still point at the Barsy host (rel comes from Barsy's response)
+    if urlsplit(url).hostname != urlsplit(host).hostname:
+        return None
     tok = base64.b64encode(f"{user}:{pw}".encode()).decode("ascii")
-    req = urllib.request.Request(host + rel)
+    req = urllib.request.Request(url)
     req.add_header("Authorization", "Basic " + tok)
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.read(), (f.get("type") or "image/png")
+    with _IMG_OPENER.open(req, timeout=20) as r:
+        result = (r.read(), (f.get("type") or "image/png"))
+    if size == "thumb":
+        if len(_IMG_CACHE) >= _IMG_CACHE_MAX:
+            _IMG_CACHE.pop(next(iter(_IMG_CACHE)))    # evict oldest (dict is insertion-ordered)
+        _IMG_CACHE[article_id] = result
+    return result
 
 
 @router.get("/image/{article_id}")
@@ -76,19 +97,23 @@ def _stock_map() -> dict:
             return float(v)
         except (TypeError, ValueError):
             return None
-    try:
-        out = barsy.call("Store_amounts", {"action_type": "values", "page_num": 1, "rows": 500,
-                                           "filters": {}}) or {}
-    except Exception:
-        return {}
     m: dict = {}
-    for r in (out.get("rows") or []):
-        aid = r.get("article_id")
-        if aid is None:
-            continue
-        amount, minimum = _num(r.get("store_amount")), _num(r.get("min_amount"))
-        low = (r.get("below_min") == 1) or (minimum is not None and amount is not None and amount <= minimum)
-        m[aid] = {"amount": amount, "min": minimum, "low": bool(low)}
+    for page in range(1, 100):        # paginate — one 500-row page misses stock for large catalogues
+        try:
+            out = barsy.call("Store_amounts", {"action_type": "values", "page_num": page,
+                                               "rows": 500, "filters": {}}) or {}
+        except Exception:
+            break
+        rows = out.get("rows") or []
+        for r in rows:
+            aid = r.get("article_id")
+            if aid is None:
+                continue
+            amount, minimum = _num(r.get("store_amount")), _num(r.get("min_amount"))
+            low = (r.get("below_min") == 1) or (minimum is not None and amount is not None and amount <= minimum)
+            m[aid] = {"amount": amount, "min": minimum, "low": bool(low)}
+        if len(rows) < 500:           # last page
+            break
     return m
 
 
@@ -97,6 +122,7 @@ def _stock_map() -> dict:
 # the low-tier Barsy per keystroke — and so attribute filters + bulk ops work over a selected set.
 import datetime as _dt
 import json as _json
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import Float, cast, select
 
@@ -241,19 +267,30 @@ async def search_cache(
          "attributes": _json.loads(p.attributes_json or "[]")} for p in rows]}
 
 
+_BULK_MAX = 2000                 # cap the selection — each apply is a serial, blocking Barsy write
+
+
 class BulkPriceRequest(BaseModel):
-    article_ids: list[int]
+    article_ids: list[int] = Field(min_length=1, max_length=_BULK_MAX)
     op: str                      # mul | div | add | sub | set
     value: float
     round_to: int = 2
     confirm: bool = False
 
 
-def _apply_op(old: float | None, op: str, value: float) -> float:
-    o = old if old is not None else 0.0
-    n = {"mul": o * value, "div": (o / value if value else o), "add": o + value,
-         "sub": o - value, "set": value}[op]
-    return max(0.0, n)
+def _apply_op(old: float | None, op: str, value: float, rd: int) -> float | None:
+    """New price as an exact-decimal float, or None if the result is invalid (no baseline for a
+    relative op, or a price that would land ≤ 0 — which would silently make the product free)."""
+    if op != "set" and old is None:
+        return None                                       # relative op with no baseline → refuse
+    o = Decimal(str(old if old is not None else 0))
+    v = Decimal(str(value))
+    n = {"mul": o * v, "div": (o / v if v != 0 else o), "add": o + v,
+         "sub": o - v, "set": v}[op]
+    n = n.quantize(Decimal(1).scaleb(-rd), rounding=ROUND_HALF_UP)   # ROUND_HALF_UP, not banker's
+    if n <= 0:
+        return None                                       # never write a free/negative price
+    return float(n)
 
 
 @router.post("/bulk-price")
@@ -261,48 +298,67 @@ async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner)
                      session: AsyncSession = Depends(get_async_session)):
     """Bulk change the SELL price (actual_price) of the selected products. Preview first (confirm=
     false → computed new prices, writes nothing); confirm=true writes each via Articles_update and
-    updates the cache. Owner/manager only, audited. (Permanent base change — the panel is source of
-    truth for price post-Microinvest-migration; timed promos use Pricelists separately.)"""
+    updates the cache. Owner/manager only, audited. For relative ops the live Barsy price is re-read
+    at apply time so a stale cache can't quietly revert a price. (Permanent base change — the panel is
+    source of truth for price post-Microinvest-migration; timed promos use Pricelists separately.)"""
     if req.op not in ("mul", "div", "add", "sub", "set"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалидна операция.")
-    if not req.article_ids:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма избрани продукти.")
     if req.op == "div" and req.value == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Деление на нула.")
     rd = max(0, min(4, req.round_to))
     rows = {p.article_id: p for p in (await session.execute(
         select(ProductCache).where(ProductCache.article_id.in_(req.article_ids)))).scalars().all()}
-    changes = []
+    changes, skipped = [], []
     for aid in req.article_ids:
         p = rows.get(aid)
         if not p:
             continue
-        new = round(_apply_op(p.price, req.op, req.value), rd)
+        new = _apply_op(p.price, req.op, req.value, rd)
+        if new is None:
+            skipped.append({"article_id": aid, "code": p.code, "name": p.name, "old_price": p.price,
+                            "reason": "няма базова цена" if p.price is None else "цената би станала ≤ 0"})
+            continue
         changes.append({"article_id": aid, "code": p.code, "name": p.name,
                         "old_price": p.price, "new_price": new})
     if not req.confirm:
-        return {"dry_run": True, "count": len(changes), "changes": changes}
+        return {"dry_run": True, "count": len(changes), "changes": changes, "skipped": skipped}
 
     applied, failed = 0, []
     for c in changes:
+        aid = c["article_id"]
+        if req.op == "set":
+            new = c["new_price"]
+        else:
+            # re-read the live baseline; a relative op on a stale cache value could revert a real change
+            try:
+                fresh = await run_in_threadpool(barsy.call, "Articles_get", {"article_id": aid})
+                base = _numf((fresh or {}).get("actual_price"))
+            except Exception:
+                base = None
+            if base is None:
+                base = rows[aid].price                    # fall back to the cache baseline
+            new = _apply_op(base, req.op, req.value, rd)
+            if new is None:
+                failed.append(c["code"])
+                continue
         try:
             await run_in_threadpool(barsy.call, "Articles_update",
-                                    {"article_id": c["article_id"],
-                                     "article": {"actual_price": str(c["new_price"])}})
+                                    {"article_id": aid, "article": {"actual_price": str(new)}})
         except Exception:
             failed.append(c["code"])
             continue
-        p = rows[c["article_id"]]
-        p.price = c["new_price"]                  # write-through to the cache
+        rows[aid].price = new                             # write-through to the cache
+        c["new_price"] = new                              # reflect what was actually applied
         applied += 1
     await session.commit()
     await log_action(session, actor, "catalog.bulk_price",
                      detail=f"op={req.op} value={req.value} applied={applied} failed={len(failed)}")
-    return {"dry_run": False, "count": len(changes), "applied": applied, "failed": failed}
+    return {"dry_run": False, "count": len(changes), "applied": applied,
+            "failed": failed, "skipped": skipped}
 
 
 class PromoRequest(BaseModel):
-    article_ids: list[int]
+    article_ids: list[int] = Field(min_length=1, max_length=_BULK_MAX)
     name: str
     mode: str = "discount_pct"          # discount_pct | discount_eur | exact
     value: float
@@ -315,12 +371,14 @@ _PROMO_MOD = {"discount_pct": 2, "discount_eur": 4, "exact": 5}   # Barsy modifi
 
 
 def _period(date_from: str, date_to: str) -> str:
-    """YYYY-MM-DD range → Barsy periods_date "d.m-d.m" (may cross year-end)."""
+    """YYYY-MM-DD range → Barsy periods_date "d.m-d.m". from>to is allowed (a promo crossing
+    year-end). Raises ValueError on anything that isn't a real calendar date."""
     def dm(s: str) -> str:
-        parts = s.strip().split("-")
-        if len(parts) == 3:            # YYYY-MM-DD
-            return f"{int(parts[2])}.{int(parts[1])}"
-        raise ValueError("дата трябва да е ГГГГ-ММ-ДД")
+        try:
+            d = _dt.datetime.strptime((s or "").strip(), "%Y-%m-%d")
+        except (ValueError, TypeError):
+            raise ValueError("дата трябва да е ГГГГ-ММ-ДД")
+        return f"{d.day}.{d.month}"
     return f"{dm(date_from)}-{dm(date_to)}"
 
 
@@ -330,8 +388,6 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
     """Create a NATIVE Barsy timed promotion (Pricelists rule) on the selected products — a % or €
     discount, or an exact promo price, active over a date window. Barsy adjusts current_price for the
     window and auto-reverts; the base actual_price is untouched. Owner-only, audited."""
-    if not req.article_ids:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма избрани продукти.")
     if req.mode not in _PROMO_MOD:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалиден тип промоция.")
     if not req.name.strip():
@@ -351,6 +407,7 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
         "modificator_round_type": 0, "price_change_groups": [1], "total_period": "current",
         "price_type": 1,
     }
+    # 1) create the rule, then resolve its id
     try:
         await run_in_threadpool(barsy.call, "Pricelists_edit",
                                 {"action_type": "save", "active_struct_id": "eStructForm_1", "values": values})
@@ -359,15 +416,27 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
         pid = None
         for r in (rows or []):
             if str(r.get("pricelist_name")) == req.name.strip():
-                pid = r.get("pricelist_id") if pid is None else max(pid, r.get("pricelist_id"))
+                rid = r.get("pricelist_id")
+                if rid is None:                       # guard: max(pid, None) would TypeError
+                    continue
+                pid = rid if pid is None else max(pid, rid)
         if pid is None:
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Промоцията е създадена, но ID не се разчете — провери в Barsy.")
-        attach_rows = [{"article_id": aid, "req_amount": 1, "price_change_group": 1} for aid in req.article_ids]
-        await run_in_threadpool(barsy.call, "Pricelists_save_articles", {"id": pid, "rows": attach_rows})
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (промоция): {str(e)[:180]}")
+    # 2) attach the articles — if this fails, delete the just-created empty rule so we don't orphan it
+    attach_rows = [{"article_id": aid, "req_amount": 1, "price_change_group": 1} for aid in req.article_ids]
+    try:
+        await run_in_threadpool(barsy.call, "Pricelists_save_articles", {"id": pid, "rows": attach_rows})
+    except Exception as e:
+        try:
+            await run_in_threadpool(barsy.call, "Pricelists_delete", {"id": pid})
+        except Exception:
+            pass
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            f"Barsy (прикачване): {str(e)[:160]} — празната промоция е премахната.")
     await log_action(session, actor, "catalog.promo", target=req.name.strip(),
                      detail=f"pricelist={pid} mode={req.mode} value={req.value} period={period} n={len(req.article_ids)}")
     return {"dry_run": False, "pricelist_id": pid, "count": len(req.article_ids), "period": period}

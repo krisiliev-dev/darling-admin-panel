@@ -99,6 +99,52 @@ async def test_bulk_price_preview_then_apply(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_bulk_price_decimal_rounding(owner_client, barsy_recorder):
+    """Money math is exact-Decimal ROUND_HALF_UP — not binary float + round() (which gives 2.67)."""
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "5.35"},
+    ])
+    prev = (await owner_client.post("/api/catalog/bulk-price",
+            json={"article_ids": [1], "op": "mul", "value": 0.5})).json()
+    assert prev["changes"][0]["new_price"] == 2.68        # 5.35×0.5 = 2.675 → half-up → 2.68
+
+
+@pytest.mark.asyncio
+async def test_bulk_price_skips_free_and_baseless(owner_client, barsy_recorder):
+    """A relative op must never make a product free/negative, and must refuse a product with no
+    baseline price — those are reported as `skipped`, never written."""
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10.00"},
+        {"article_id": 2, "code": "B", "article_name": "Без цена"},   # no actual_price → price is None
+    ])
+    prev = (await owner_client.post("/api/catalog/bulk-price",
+            json={"article_ids": [1, 2], "op": "sub", "value": 10})).json()
+    assert prev["changes"] == []                          # both refused
+    skipped = {s["article_id"] for s in prev["skipped"]}
+    assert skipped == {1, 2}                              # id1: would be ≤0; id2: no baseline
+    # confirm writes nothing
+    ap = (await owner_client.post("/api/catalog/bulk-price",
+          json={"article_ids": [1, 2], "op": "sub", "value": 10, "confirm": True})).json()
+    assert ap["applied"] == 0 and "Articles_update" not in barsy_recorder.operations
+
+
+@pytest.mark.asyncio
+async def test_bulk_price_rejects_oversized_selection(owner_client):
+    """The selection is capped so a bulk op can't fan out into thousands of serial Barsy writes."""
+    r = await owner_client.post("/api/catalog/bulk-price",
+                                json={"article_ids": list(range(3000)), "op": "mul", "value": 1.1})
+    assert r.status_code == 422                           # pydantic max_length
+
+
+@pytest.mark.asyncio
+async def test_promo_rejects_bad_date(owner_client, barsy_recorder):
+    r = await owner_client.post("/api/catalog/promo", json={
+        "article_ids": [1], "name": "x", "mode": "discount_pct", "value": 10,
+        "date_from": "15-12-2026", "date_to": "2026-12-31", "confirm": True})
+    assert r.status_code == 400                           # not ГГГГ-ММ-ДД
+
+
+@pytest.mark.asyncio
 async def test_promo_creates_pricelist_and_attaches(owner_client, barsy_recorder):
     await _sync(owner_client, barsy_recorder, [
         {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10"},

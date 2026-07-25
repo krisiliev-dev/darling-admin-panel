@@ -223,10 +223,11 @@ async def parse_delivery(
     if not name.endswith((".xlsx", ".xlsm")):
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Качи Excel файл (.xlsx) с доставката.")
-    raw = await file.read()
+    _cap = 15 * 1024 * 1024           # cap upload — guards memory / xlsx zip-bombs
+    raw = await file.read(_cap + 1)   # bounded read — don't buffer an oversized upload
     if not raw:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Файлът е празен.")
-    if len(raw) > 15 * 1024 * 1024:   # cap upload — guards memory / xlsx zip-bombs
+    if len(raw) > _cap:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Файлът е твърде голям (макс. 15 MB).")
     try:
         rows = await run_in_threadpool(_read_rows, raw)

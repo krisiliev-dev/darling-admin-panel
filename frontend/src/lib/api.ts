@@ -220,7 +220,8 @@ export interface CacheProduct {
 export interface CacheSearchResp { total: number; page: number; per_page: number; items: CacheProduct[] }
 export interface CacheFacets { suppliers: string[]; categories: string[]; attributes: Record<string, string[]> }
 export interface BulkPriceChange { article_id: number; code: string; name: string; old_price: number | null; new_price: number }
-export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; applied?: number; failed?: string[] }
+export interface BulkPriceSkip { article_id: number; code: string; name: string; old_price: number | null; reason: string }
+export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; skipped?: BulkPriceSkip[]; applied?: number; failed?: string[] }
 
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {

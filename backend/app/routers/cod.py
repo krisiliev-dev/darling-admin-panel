@@ -302,7 +302,7 @@ async def import_payout(
       • unmatched_rows     — payout lines with no order on our side (paid-not-delivered / unknown)
       • delivered_not_paid — awaiting orders absent from the file (courier owes us / missing)
     """
-    raw = await file.read()
+    raw = await file.read(_MAX_PAYOUT_BYTES + 1)   # bounded read — don't buffer an oversized upload
     if len(raw) > _MAX_PAYOUT_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Файлът е твърде голям.")
     parsed = _parse_payout(_decode(raw))
@@ -392,7 +392,10 @@ async def reconcile_auto(req: ReconcileAutoRequest,
         tr = _norm_tracking(r.get("tracking") or r.get("waybill"))
         if not tr:
             continue
-        norm.append({"tracking": tr, "amount": round(float(r.get("collected") or r.get("amount") or 0), 2),
+        # presence-based, not truthiness — a legitimately collected 0.00 must not fall through to
+        # `amount`; _parse_amount tolerates comma-decimals ("19,99") from the courier feed.
+        raw_amt = r["collected"] if "collected" in r else r.get("amount")
+        norm.append({"tracking": tr, "amount": _parse_amount(raw_amt) or 0.0,
                      "fee": r.get("fee"), "payout_date": r.get("payout_date")})
     orders = await run_in_threadpool(_cod_orders)
     result = _reconcile(norm, orders)
