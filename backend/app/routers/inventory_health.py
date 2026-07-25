@@ -36,6 +36,27 @@ def _seed():
     except (OSError, json.JSONDecodeError):
         return None
 
+
+_PRODUCTS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "seed_products.json")
+_SORT_FIELDS = {"name", "supplier", "units", "rev", "marg", "stock", "stockval", "last", "cover"}
+_TEXT_FIELDS = {"name", "supplier", "last"}
+
+
+@lru_cache(maxsize=1)
+def _products():
+    try:
+        with open(_PRODUCTS_PATH, encoding="utf-8") as f:
+            return json.load(f).get("products", [])
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _numf(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
 router = APIRouter(prefix="/api/inventory-health", tags=["inventory-health"])
 
 # Row keys for Store_amounts_lots. Confirmed by Hermes against the report schema + a live probe
@@ -194,3 +215,51 @@ def diagnosis(user=Depends(current_active_user)):
     if not s:
         return {"available": False}
     return {"available": True, **s}
+
+
+@router.get("/products")
+def products(
+    user=Depends(current_active_user),
+    supplier: str = Query(""),
+    status: str = Query("all", pattern="^(all|dead|active|discontinued)$"),
+    q: str = Query(""),
+    sort: str = Query("stockval"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+):
+    """Historical product explorer (pre-migration seed) — filter/sort/paginate SERVER-SIDE over the
+    full ~12k rows. Filters: supplier, status (all/dead/active/discontinued), name search."""
+    rows = _products()
+    if not rows:
+        return {"available": False, "total": 0, "products": []}
+    ql = q.strip().lower()
+
+    def keep(p):
+        if supplier and p.get("supplier") != supplier:
+            return False
+        if status == "dead" and not p.get("dead"):
+            return False
+        if status == "active" and (p.get("dead") or p.get("discontinued")):
+            return False
+        if status == "discontinued" and not p.get("discontinued"):
+            return False
+        if ql and ql not in (p.get("name") or "").lower():
+            return False
+        return True
+
+    filtered = [p for p in rows if keep(p)]
+    key = sort if sort in _SORT_FIELDS else "stockval"
+    if key in _TEXT_FIELDS:
+        def sk(p):
+            return str(p.get(key) or "").lower()
+    else:
+        def sk(p):
+            n = _numf(p.get(key))
+            return n if n is not None else float("-inf")
+    filtered.sort(key=sk, reverse=(order != "asc"))
+
+    total = len(filtered)
+    start = (page - 1) * per_page
+    return {"available": True, "total": total, "page": page, "per_page": per_page,
+            "sort": key, "order": order, "products": filtered[start:start + per_page]}

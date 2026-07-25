@@ -60,13 +60,27 @@ seed = {
     "suppliers": sorted(
         [{"name": s["name"], "rev": num(s["rev"]), "marg": s.get("marg"),
           "nprod": s.get("nprod"), "deadval": num(s.get("deadval"))} for s in d["suppliers"]],
-        key=lambda s: s["rev"], reverse=True)[:20],
+        key=lambda s: s["rev"], reverse=True),   # all suppliers (sortable/filterable in the UI)
     "dead_products": dead_top,
 }
 
 os.makedirs(os.path.dirname(DST), exist_ok=True)
 json.dump(seed, open(DST, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 print("wrote", DST, os.path.getsize(DST), "bytes")
+
+# --- product explorer dataset (ALL products, trimmed) → separate (bigger) file, served + filtered
+# server-side so we never ship 12k rows to the browser at once ---
+PRODUCTS_DST = DST.replace("seed_analytics.json", "seed_products.json")
+products = [{
+    "name": p[i["name"]], "supplier": p[i["sup"]] or "",
+    "units": p[i["units"]], "rev": num(p[i["rev"]]), "marg": p[i["marg"]],
+    "stock": p[i["stock"]], "stockval": num(p[i["stockval"]]),
+    "last": p[i["last"]], "cover": p[i["cover"]],
+    "dead": bool(int(p[i["flag"]]) & 2), "discontinued": bool(int(p[i["flag"]]) & 1),
+} for p in d["P"]]
+json.dump({"meta": seed["meta"], "products": products},
+          open(PRODUCTS_DST, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+print("wrote", PRODUCTS_DST, os.path.getsize(PRODUCTS_DST), "bytes,", len(products), "products")
 print("period:", seed["meta"]["period_from"], "..", seed["meta"]["period_to"])
 print("kpi(EUR, as-is):", json.dumps(seed["kpi"], ensure_ascii=False))
 print("dead_top[0]:", json.dumps(dead_top[0], ensure_ascii=False))

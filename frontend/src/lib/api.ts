@@ -265,6 +265,16 @@ export interface HomeResponse {
   has_sales: boolean
 }
 
+export interface ProductRow {
+  name: string; supplier: string; units: number; rev: number; marg: number
+  stock: number; stockval: number; last: string; cover: number
+  dead: boolean; discontinued: boolean
+}
+export interface ProductsResponse {
+  available: boolean; total: number; page: number; per_page: number
+  sort: string; order: string; products: ProductRow[]
+}
+
 export interface MetricsItem {
   article_id: number; name: string; stock: number; unit_cost: number; sell_price: number | null
   units_sold: number; velocity: number; days_of_cover: number | null; reorder_point: number

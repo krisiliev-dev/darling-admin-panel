@@ -9,6 +9,7 @@ import type { CatalogDashboard, SalesDashboard, InsightsResponse, DiagnosisRespo
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
+import { ProductExplorer } from '../components/ProductExplorer'
 
 type Tab = 'inventory' | 'catalog' | 'sales' | 'customers'
 
@@ -506,6 +507,11 @@ function HistoricalDiagnosis() {
             </div>
           ))}
         </div>
+      </Sheet>
+
+      <Sheet>
+        <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Продукти — търсене и филтри</h3>
+        <ProductExplorer suppliers={(data.suppliers || []).map((s) => s.name)} />
       </Sheet>
     </div>
   )

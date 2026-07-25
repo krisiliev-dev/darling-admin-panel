@@ -166,6 +166,58 @@ async def test_diagnosis_requires_auth(client):
     assert r.status_code == 401
 
 
+# ---- product explorer (filter/sort/paginate, server-side) ----
+
+_PROD = [
+    {"name": "Чаша", "supplier": "Алфа", "units": 100, "rev": 500, "marg": 40, "stock": 5,
+     "stockval": 25, "last": "2026-01", "cover": 10, "dead": False, "discontinued": False},
+    {"name": "Ваза", "supplier": "Бета", "units": 0, "rev": 0, "marg": 0, "stock": 8,
+     "stockval": 80, "last": "2023-01", "cover": -1, "dead": True, "discontinued": False},
+    {"name": "Чиния", "supplier": "Алфа", "units": 50, "rev": 200, "marg": 30, "stock": 2,
+     "stockval": 10, "last": "2025-06", "cover": 5, "dead": False, "discontinued": True},
+]
+
+
+def _seed_products(monkeypatch):
+    monkeypatch.setattr(router, "_products", lambda: [dict(p) for p in _PROD])
+
+
+async def test_products_filter_status_dead(owner_client, monkeypatch):
+    _seed_products(monkeypatch)
+    r = await owner_client.get("/api/inventory-health/products?status=dead")
+    assert r.status_code == 200
+    assert [p["name"] for p in r.json()["products"]] == ["Ваза"]
+
+
+async def test_products_active_excludes_dead_and_discontinued(owner_client, monkeypatch):
+    _seed_products(monkeypatch)
+    r = await owner_client.get("/api/inventory-health/products?status=active")
+    assert [p["name"] for p in r.json()["products"]] == ["Чаша"]   # Ваза dead, Чиния discontinued
+
+
+async def test_products_supplier_and_search(owner_client, monkeypatch):
+    _seed_products(monkeypatch)
+    r = await owner_client.get("/api/inventory-health/products?supplier=Алфа")
+    assert {p["name"] for p in r.json()["products"]} == {"Чаша", "Чиния"}
+    r2 = await owner_client.get("/api/inventory-health/products?q=чаш")
+    assert [p["name"] for p in r2.json()["products"]] == ["Чаша"]
+
+
+async def test_products_sort_and_paginate(owner_client, monkeypatch):
+    _seed_products(monkeypatch)
+    r = await owner_client.get("/api/inventory-health/products?sort=units&order=desc&per_page=2&page=1")
+    b = r.json()
+    assert b["total"] == 3 and b["per_page"] == 2
+    assert [p["units"] for p in b["products"]] == [100, 50]        # desc, page 1
+    r2 = await owner_client.get("/api/inventory-health/products?sort=units&order=desc&per_page=2&page=2")
+    assert [p["units"] for p in r2.json()["products"]] == [0]      # remainder on page 2
+
+
+async def test_products_requires_auth(client):
+    r = await client.get("/api/inventory-health/products")
+    assert r.status_code == 401
+
+
 # ---- go-forward live metrics ----
 
 import app.inventory_metrics as im
