@@ -14,8 +14,8 @@ async def test_home_empty_prelaunch(owner_client, monkeypatch):
     assert r.status_code == 200, r.text
     b = r.json()
     assert b["has_sales"] is False
-    assert b["kpi"] == {"turnover": 0, "profit": 0, "units": 0, "orders_done": 0,
-                        "orders_to_pack": 0, "reorder_n": 0, "top_product": None}
+    assert b["kpi"] == {"turnover": 0, "profit": 0, "profit_complete": True, "units": 0,
+                        "orders_done": 0, "orders_to_pack": 0, "reorder_n": 0, "top_product": None}
     assert b["to_pack"] == [] and b["attention"] == []
 
 
@@ -39,6 +39,7 @@ async def test_home_computes_kpis_and_cards(owner_client, monkeypatch):
     assert k["turnover"] == 40.0
     assert k["units"] == 3
     assert k["profit"] == 40.0 - 2 * 5.0            # COGS only where cost is known
+    assert k["profit_complete"] is False            # C2 has no cost → profit flagged as estimate
     assert k["orders_to_pack"] == 1 and k["orders_done"] == 1   # o2 new→to-pack, o1 shipped→done
     assert k["top_product"] == {"name": "Чаша", "units": 2}
     assert k["reorder_n"] == 3

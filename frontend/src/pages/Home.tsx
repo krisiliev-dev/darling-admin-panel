@@ -71,7 +71,8 @@ export function Home() {
       {/* KPI cards */}
       <section style={grid}>
         <Stat label="Оборот" value={k.turnover} money instant hint="продажби за периода" />
-        <Stat label="Приход" value={k.profit} money instant hint="оборот − себестойност" />
+        <Stat label="Приход" value={k.profit} money instant
+          hint={k.profit_complete ? 'оборот − себестойност' : '≈ приблизително (липсва себестойност за някои)'} />
         {/* orders: two numbers on one chit */}
         <div style={{ background: 'var(--paper2)', border: '1px solid var(--line)', borderRadius: 2, padding: '.85rem 1rem', boxShadow: '2px 3px 7px rgba(0,0,0,.13)' }}>
           <div className="font-type" style={{ fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--red)', marginBottom: '.25rem' }}>Поръчки</div>
@@ -83,7 +84,7 @@ export function Home() {
         </div>
         <Stat label="Продадени артикули" value={k.units} instant hint="бройки за периода" />
         <Link to="/purchasing" style={tileLink}>
-          <Stat label="За дозареждане" value={k.reorder_n} tone={k.reorder_n > 0 ? 'pending' : undefined} hint="под минимума" />
+          <Stat label="За дозареждане" value={k.reorder_n} instant tone={k.reorder_n > 0 ? 'pending' : undefined} hint="под минимума" />
         </Link>
         <Link to="/inventory" style={tileLink}>
           <Stat label="Застояла стока" value={stale ?? '—'} money={stale != null} instant tone={stale && stale > 0 ? 'blocked' : undefined} hint="замразен капитал" />

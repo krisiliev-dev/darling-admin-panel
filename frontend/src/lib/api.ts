@@ -256,7 +256,7 @@ export interface HomeCard {
 export interface HomeResponse {
   period: string
   kpi: {
-    turnover: number; profit: number; units: number
+    turnover: number; profit: number; profit_complete: boolean; units: number
     orders_done: number; orders_to_pack: number; reorder_n: number
     top_product: { name: string; units: number } | null
   }

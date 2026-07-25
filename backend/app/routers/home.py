@@ -79,9 +79,18 @@ async def home(user=Depends(current_active_user), period: str = Query("today")):
 
     turnover = round(sum(_f(o.get("total")) for o in win), 2)
     units = sum(int(_f(it.get("qty"))) for o in win for it in (o.get("items") or []))
+    # profit = turnover − COGS. If a sold item has no known cost, COGS is UNDERstated (→ profit
+    # OVERstated), so flag it: profit_complete=False lets the UI mark the figure as an estimate.
     cost = await run_in_threadpool(_cost_by_code)
-    cogs = sum(int(_f(it.get("qty"))) * cost.get(str(it.get("sku") or ""), 0.0)
-               for o in win for it in (o.get("items") or []))
+    cogs = 0.0
+    profit_complete = True
+    for o in win:
+        for it in (o.get("items") or []):
+            c = cost.get(str(it.get("sku") or ""))
+            if c is None:
+                profit_complete = False
+            else:
+                cogs += int(_f(it.get("qty"))) * c
     profit = round(turnover - cogs, 2)
 
     to_pack = sum(1 for o in win if (o.get("op_status") or "new") in _PENDING)
@@ -115,7 +124,8 @@ async def home(user=Depends(current_active_user), period: str = Query("today")):
     return {
         "period": period,
         "kpi": {
-            "turnover": turnover, "profit": profit, "units": units,
+            "turnover": turnover, "profit": profit, "profit_complete": profit_complete,
+            "units": units,
             "orders_done": done, "orders_to_pack": to_pack,
             "reorder_n": reorder_n,
             "top_product": ({"name": top[0], "units": top[1]} if top else None),
