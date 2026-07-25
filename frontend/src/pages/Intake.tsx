@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
-import type { IntakeDraft } from '../lib/api'
+import type { IntakeDraft, DeliveryContext } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useHotkey } from '../lib/useHotkey'
 import { Sheet, Stamp } from '../components/Paper'
@@ -36,41 +36,77 @@ export function Intake() {
   return <WaitingList key={refresh} categories={categories} onEdit={setEditDraft} onAdd={() => setMode('add')} refreshKey={refresh} />
 }
 
-// MAIN VIEW: delivery-sourced products waiting to be completed + a manual add-product entry.
+// MAIN VIEW: delivery-sourced products grouped by delivery. New products from a delivery stay listed
+// (checkmarked once done) until the WHOLE delivery is finalised — then they leave together.
+type DeliveryGroup = { ctx: DeliveryContext; items: IntakeDraft[] }
+function groupByDelivery(items: IntakeDraft[]): DeliveryGroup[] {
+  const map = new Map<number, DeliveryGroup>()
+  for (const it of items) {
+    const ctx = it.delivery
+    if (!ctx) continue
+    if (!map.has(ctx.batch_id)) map.set(ctx.batch_id, { ctx, items: [] })
+    map.get(ctx.batch_id)!.items.push(it)
+  }
+  return Array.from(map.values())
+}
+
 function WaitingList({ onEdit, onAdd, refreshKey }: {
   categories: string[]; onEdit: (d: IntakeDraft) => void; onAdd: () => void; refreshKey: number
 }) {
   const [items, setItems] = useState<IntakeDraft[] | null>(null)
   useEffect(() => {
     api.get<{ drafts: IntakeDraft[] }>('/api/intake/from-delivery').then((d) => setItems(d.drafts)).catch(() => setItems([]))
-  }, [])
+  }, [refreshKey])
+  const groups = groupByDelivery(items || [])
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Нов продукт" subtitle="продукти от доставки, чакащи да бъдат добавени" right={
+      <PageHeader title="Нов продукт" subtitle="нови продукти от доставки, чакащи да бъдат добавени" right={
         <button className="btn-paper btn-red" onClick={onAdd}>+ Добави продукт</button>
       } />
-      <Sheet clip="left">
-        <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Чакащи от доставки{items ? ` (${items.length})` : ''}</h3>
-        {!items ? <Loading /> : items.length === 0 ? (
+      {!items ? <Loading /> : groups.length === 0 ? (
+        <Sheet clip="left">
           <p className="font-hand" style={{ color: 'var(--pencil)', fontSize: '1rem', padding: '1.4rem 0', textAlign: 'center' }}>
             Няма непознати продукти от доставки, които те чакат.<br />
             Натисни „+ Добави продукт“, за да създадеш нов продукт ръчно.
           </p>
-        ) : (
-          <div style={{ display: 'grid', gap: '.5rem' }}>
-            {items.map((d) => (
-              <button key={d.id} onClick={() => onEdit(d)} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.7rem', textAlign: 'left',
-                border: '1px solid var(--line)', borderRadius: 2, padding: '.55rem .7rem', background: 'var(--paper2)', cursor: 'pointer',
-              }}>
-                <span><span className="font-type" style={{ fontWeight: 700 }}>{d.name || '(без име)'}</span>
-                  <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}> · код {d.code || '—'}{d.barcode ? ` · ${d.barcode}` : ''}</span></span>
-                <span style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.78rem', whiteSpace: 'nowrap' }}>добави информация →</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </Sheet>
+        </Sheet>
+      ) : groups.map((g) => {
+        const done = g.items.filter((d) => d.completed).length
+        const all = done === g.items.length
+        return (
+          <Sheet key={g.ctx.batch_id} clip="left">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '.6rem', marginBottom: '.5rem', flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: '1rem' }}>
+                Доставка · {g.ctx.supplier || 'без доставчик'}
+                {g.ctx.reference ? <span style={{ color: 'var(--pencil)', fontWeight: 400 }}> · {g.ctx.reference}</span> : null}
+              </h3>
+              <span className="font-type" style={{ fontSize: '.78rem', color: all ? 'var(--ready)' : 'var(--pending)' }}>
+                {done}/{g.items.length} добавени{all ? ' · готово за финализиране в Доставки' : ''}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gap: '.5rem' }}>
+              {g.items.map((d) => (
+                <button key={d.id} onClick={() => onEdit(d)} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.7rem', textAlign: 'left',
+                  border: '1px solid var(--line)', borderRadius: 2, padding: '.55rem .7rem',
+                  background: d.completed ? 'var(--paper)' : 'var(--paper2)', cursor: 'pointer',
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                    <span style={{ color: d.completed ? 'var(--ready)' : 'var(--line)', fontSize: '1rem', width: '1rem' }}>{d.completed ? '✓' : '○'}</span>
+                    <span>
+                      <span className="font-type" style={{ fontWeight: 700, color: d.completed ? 'var(--pencil)' : 'var(--ink)' }}>{d.name || '(без име)'}</span>
+                      <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}> · код {d.code || '—'}{d.barcode ? ` · ${d.barcode}` : ''}</span>
+                    </span>
+                  </span>
+                  <span style={{ color: d.completed ? 'var(--pencil)' : 'var(--red)', fontFamily: 'var(--type)', fontSize: '.78rem', whiteSpace: 'nowrap' }}>
+                    {d.completed ? 'редактирай' : 'добави информация →'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Sheet>
+        )
+      })}
       <ApprovedDrafts refreshKey={refreshKey} />
     </div>
   )
@@ -151,6 +187,14 @@ function NewProductScreen({ categories, onBack, onDone }: {
   )
 }
 
+// The delivery-product editor, in the order the spec asks for:
+//   1) the FIRST fields — Barcode + Images (the enrichment pipeline's inputs)
+//   2) a button that starts enrichment → fills the REST as editable SUGGESTIONS (grey pencil until
+//      you touch them): name, Shopify category, attributes, description, meta title + description
+//   3) operational fields (our code / price / unit — human, never AI) → Save.
+// NOTE: the real pipeline (GS1 barcode lookup + reverse-image search + taxonomy/attribute/name/meta
+// agents) is a LATER stage. Today the button runs the available AI enrich; the flow/fields are wired
+// so dropping the full pipeline in is a backend swap only.
 function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
   draft: IntakeDraft; categories: string[]; onDone: () => void; onCancel: () => void
 }) {
@@ -159,20 +203,37 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
   const [error, setError] = useState('')
   const [images, setImages] = useState<{ name: string; url: string }[]>([])
   const urlsRef = useRef<string[]>([])
+  const [enriched, setEnriched] = useState<boolean>(!!draft.completed)   // already-done → show fields
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL) }, [])   // free blob URLs on unmount
   const addImages = (files: FileList | null) => {
     if (!files?.length) return
     const imgs = Array.from(files).map((f) => { const url = URL.createObjectURL(f); urlsRef.current.push(url); return { name: f.name, url } })
     setImages((prev) => [...prev, ...imgs])
   }
+  const removeImage = (i: number) => setImages((prev) => prev.filter((_, j) => j !== i))
 
+  const canEnrich = !!(d.barcode && d.barcode.trim())    // barcode (GS1) is the pipeline's key input
   const enrich = async () => {
     setBusy(true); setError('')
     try {
-      const e = await api.post<IntakeDraft>('/api/intake/enrich', { name: d.name })
-      setD({ ...d, name: e.name, category: e.category, description: e.description, attributes: e.attributes, model: e.model })
+      const e = await api.post<IntakeDraft>('/api/intake/enrich',
+        { name: d.name, hint: d.barcode ? `баркод ${d.barcode}` : '' })
+      setD((prev) => ({ ...prev, name: e.name, category: e.category, description: e.description,
+        attributes: e.attributes, meta_title: e.meta_title, meta_description: e.meta_description, model: e.model }))
+      setTouched({}); setEnriched(true)
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Обогатяването се провали.') } finally { setBusy(false) }
   }
+  const mark = (f: string) => setTouched((t) => ({ ...t, [f]: true }))
+  // a suggested-but-untouched field is drawn in pencil (grey/hand); once edited it turns to pen
+  const pencil = (f: string, v?: string): React.CSSProperties =>
+    (enriched && v && !touched[f]) ? { fontFamily: 'var(--hand)', color: 'var(--pencil)' } : {}
+
+  const attrs = d.attributes || []
+  const setAttr = (i: number, key: string, value: string) => { mark('attributes'); setD({ ...d, attributes: attrs.map((a, j) => j === i ? { key, value } : a) }) }
+  const addAttr = () => { mark('attributes'); setD({ ...d, attributes: [...attrs, { key: '', value: '' }] }) }
+  const removeAttr = (i: number) => { mark('attributes'); setD({ ...d, attributes: attrs.filter((_, j) => j !== i) }) }
+
   const save = async () => {
     if (!d.code?.trim()) { setError('Нужен е наш код.'); return }
     setBusy(true); setError('')
@@ -180,41 +241,105 @@ function DeliveryProductEditor({ draft, categories, onDone, onCancel }: {
       await api.put(`/api/intake/drafts/${draft.id}`, {
         code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
         name: d.name, category: d.category || '', description: d.description || '',
-        attributes: d.attributes || [], model: d.model || '',
+        attributes: attrs.filter((a) => a.key.trim()),
+        meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
       })
       onDone()
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
+
+  const eyebrow = { fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 700 } as React.CSSProperties
   return (
-    <div style={{ border: '1px solid var(--red)', borderRadius: 3, padding: '.7rem', background: 'var(--paper)', display: 'grid', gap: '.5rem' }}>
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-        <Field label="Наш код"><input className="input-paper" value={d.code || ''} onChange={(e) => setD({ ...d, code: e.target.value })} /></Field>
-        <Field label="Баркод"><input className="input-paper" value={d.barcode || ''} onChange={(e) => setD({ ...d, barcode: e.target.value })} /></Field>
-        <Field label="Цена (€)"><input className="input-paper" value={d.price || ''} onChange={(e) => setD({ ...d, price: e.target.value })} /></Field>
-        <button className="btn-paper" onClick={() => void enrich()} disabled={busy} style={{ alignSelf: 'end' }}>{busy ? '…' : '✨ Обогати'}</button>
+    <div style={{ border: '1px solid var(--red)', borderRadius: 3, padding: '.9rem', background: 'var(--paper)', display: 'grid', gap: '.7rem' }}>
+      {/* STEP 1 — the first fields: barcode + images */}
+      <div className="font-type" style={eyebrow}>1 · Първи данни</div>
+      <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
+        <Field label="Баркод (GS1)"><input autoFocus className="input-paper" value={d.barcode || ''}
+          placeholder="сканирай или въведи" onChange={(e) => setD({ ...d, barcode: e.target.value })} /></Field>
       </div>
       <div>
-        <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Снимки</span>
+        <span className="font-type" style={eyebrow}>Снимки</span>
         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '.3rem' }}>
-          {images.map((im, i) => <img key={i} src={im.url} alt={im.name} style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />)}
+          {images.map((im, i) => (
+            <span key={i} style={{ position: 'relative' }}>
+              <img src={im.url} alt={im.name} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
+              <button onClick={() => removeImage(i)} title="премахни" style={{ position: 'absolute', top: -6, right: -6, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: '.7rem', lineHeight: 1 }}>✕</button>
+            </span>
+          ))}
           <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
             + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => addImages(e.target.files)} />
           </label>
         </div>
       </div>
-      <Field label="Име"><input className="input-paper" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></Field>
-      <Field label="Категория">
-        <select className="input-paper" value={d.category || ''} onChange={(e) => setD({ ...d, category: e.target.value })}>
-          <option value="">— избери —</option>
-          {[d.category || '', ...categories.filter((c) => c !== d.category)].filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </Field>
-      <Field label="Описание"><textarea className="input-paper" rows={3} value={d.description || ''} onChange={(e) => setD({ ...d, description: e.target.value })} /></Field>
+
+      {/* the enrichment trigger — gated on the first fields */}
+      <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
+          {busy ? 'обогатява…' : enriched ? '↻ Обогати наново' : '✨ Започни обогатяване'}
+        </button>
+        {!canEnrich && <span className="pencil" style={{ fontSize: '.78rem' }}>въведи баркод, за да стартираш обогатяването</span>}
+      </div>
+      <p className="pencil" style={{ fontSize: '.74rem', margin: 0 }}>
+        ✎ Пайплайнът (GS1 по баркода + обратно търсене по снимка + AI) предлага име, категория, атрибути,
+        описание и meta. Предложенията са в молив — имаш последната дума.
+      </p>
+
+      {/* STEP 2 — suggestions (editable), revealed after enrichment */}
+      {enriched && (
+        <>
+          <div className="font-type" style={eyebrow}>2 · Предложения — прегледай и коригирай</div>
+          <Field label="Търговско име"><input className="input-paper" style={pencil('name', d.name)} value={d.name}
+            onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
+          <Field label="Категория (Shopify таксономия)">
+            <select className="input-paper" style={pencil('category', d.category)} value={d.category || ''}
+              onChange={(e) => { mark('category'); setD({ ...d, category: e.target.value }) }}>
+              <option value="">— избери —</option>
+              {[d.category || '', ...categories.filter((c) => c !== d.category)].filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+          <div>
+            <span className="font-type" style={eyebrow}>Атрибути</span>
+            <div style={{ display: 'grid', gap: '.3rem', marginTop: '.3rem' }}>
+              {attrs.map((a, i) => (
+                <div key={i} style={{ display: 'flex', gap: '.4rem' }}>
+                  <input className="input-paper" style={{ flex: '0 0 10rem' }} placeholder="напр. Цвят" value={a.key} onChange={(e) => setAttr(i, e.target.value, a.value)} />
+                  <input className="input-paper" style={{ flex: 1 }} placeholder="напр. Червен" value={a.value} onChange={(e) => setAttr(i, a.key, e.target.value)} />
+                  <button className="btn-paper" onClick={() => removeAttr(i)} title="премахни">✕</button>
+                </div>
+              ))}
+              <button className="btn-paper" style={{ justifySelf: 'start', fontSize: '.74rem' }} onClick={addAttr}>+ атрибут</button>
+            </div>
+          </div>
+          <Field label="Описание"><textarea className="input-paper" rows={3} style={pencil('description', d.description)} value={d.description || ''}
+            onChange={(e) => { mark('description'); setD({ ...d, description: e.target.value }) }} /></Field>
+          <Field label="Meta заглавие (SEO)"><input className="input-paper" style={pencil('meta_title', d.meta_title)} value={d.meta_title || ''}
+            onChange={(e) => { mark('meta_title'); setD({ ...d, meta_title: e.target.value }) }} /></Field>
+          <Field label="Meta описание (SEO)"><textarea className="input-paper" rows={2} style={pencil('meta_description', d.meta_description)} value={d.meta_description || ''}
+            onChange={(e) => { mark('meta_description'); setD({ ...d, meta_description: e.target.value }) }} /></Field>
+        </>
+      )}
+
+      {/* operational fields — human, never AI (price = Microinvest, per policy) */}
+      <div className="font-type" style={eyebrow}>Оперативни данни</div>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        <Field label="Наш код"><input className="input-paper" value={d.code || ''} onChange={(e) => setD({ ...d, code: e.target.value })} /></Field>
+        <Field label="Цена (€)"><input className="input-paper" inputMode="decimal" value={d.price || ''} onChange={(e) => setD({ ...d, price: e.target.value })} /></Field>
+        <Field label="Мярка">
+          <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
+            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </Field>
+      </div>
+
       {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
       <div style={{ display: 'flex', gap: '.5rem' }}>
-        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>Запази (одобри)</button>
+        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>Запази</button>
         <button className="btn-paper" onClick={onCancel}>Отказ</button>
       </div>
+      <p className="pencil" style={{ fontSize: '.76rem', margin: 0 }}>
+        След запис продуктът остава в списъка с отметка ✓. Цялата доставка отива към Barsy наведнъж
+        при финализиране в „Доставки“.
+      </p>
     </div>
   )
 }

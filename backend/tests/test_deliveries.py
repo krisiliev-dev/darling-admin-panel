@@ -328,6 +328,78 @@ async def test_full_new_product_loop_clears_finalise_gate(owner_client, barsy_re
 
 
 @pytest.mark.asyncio
+async def test_delivery_product_stays_checkmarked_then_leaves_on_finalise(owner_client, barsy_recorder, monkeypatch):
+    """Spec: a saved delivery product STAYS in the Нов продукт queue (checkmarked, grouped by its
+    delivery) and leaves only when the whole delivery is finalised — not one-by-one."""
+    b = await _create(owner_client)
+    new_line = next(l for l in b["lines"] if l["is_new"])
+    draft_id = new_line["intake_draft_id"]
+
+    # pending: listed, not completed, carries its delivery context for grouping
+    item = next(d for d in (await owner_client.get("/api/intake/from-delivery")).json()["drafts"]
+                if d["id"] == draft_id)
+    assert item["completed"] is False
+    assert item["delivery"]["batch_id"] == b["id"] and item["delivery"]["supplier"] == SUP
+
+    # enrich + save (PUT) → STILL listed, now completed=true, with meta persisted; and NOT double-shown
+    # in the standalone /drafts list
+    r = await owner_client.put(f"/api/intake/drafts/{draft_id}", json={
+        "code": "OUR-X", "name": "Готов", "price": "5", "unit": "бр", "category": "Дом",
+        "description": "…", "attributes": [{"key": "Цвят", "value": "син"}],
+        "meta_title": "Готов продукт", "meta_description": "кратко описание"})
+    assert r.status_code == 200, r.text
+    done = next(d for d in (await owner_client.get("/api/intake/from-delivery")).json()["drafts"]
+                if d["id"] == draft_id)
+    assert done["completed"] is True and done["meta_title"] == "Готов продукт"
+    assert all(d["id"] != draft_id for d in (await owner_client.get("/api/intake/drafts")).json()["drafts"])
+
+    # push the new product, then finalise the delivery (live) → its products leave together
+    barsy_recorder.set_return("Articles_create", {"article_id": 4242})
+    await owner_client.post(f"/api/intake/drafts/{draft_id}/push-barsy", json={"confirm": True})
+    monkeypatch.setattr(deliveries, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+    for l in b["lines"]:
+        if not l["is_new"]:
+            await _set_article_id(l["id"], 555)
+    barsy_recorder.set_return("Storeloads_create", {"storeload_id": 900})
+    fin = await owner_client.post(f"/api/deliveries/{b['id']}/finalise", json={"confirm": True, "force": True})
+    assert fin.status_code == 200, fin.text
+    assert all(d["id"] != draft_id
+               for d in (await owner_client.get("/api/intake/from-delivery")).json()["drafts"])
+
+
+@pytest.mark.asyncio
+async def test_enrich_returns_meta_suggestions(owner_client, monkeypatch):
+    """The editor's enrichment fills meta title/description as suggestions (defaults derived when the
+    model omits them)."""
+    class _RunOne:
+        @staticmethod
+        def known_categories():
+            return ["Дом"]
+
+        @staticmethod
+        def generate_with_chain(_p):
+            return ('{"category":"Дом","name":"Керамична купа","attributes":[],'
+                    '"description":"Хубава купа за салата на масата."}', "test-model")
+
+        @staticmethod
+        def extract_json(t):
+            import json as _j
+            return _j.loads(t)
+
+        @staticmethod
+        def apply_ru_fix(s):
+            return (s, False)
+
+    monkeypatch.setitem(__import__("sys").modules, "run_one", _RunOne)
+    r = await owner_client.post("/api/intake/enrich", json={"name": "купа"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["meta_title"] == "Керамична купа"                      # default = clean name
+    assert body["meta_description"].startswith("Хубава купа")          # default = description head
+
+
+@pytest.mark.asyncio
 async def test_ocr_endpoint_degrades_gracefully_when_deps_absent(owner_client):
     # img2table/rapidocr aren't installed in CI/local → the endpoint 503s with a clear message
     # (on the deployed image the OCR layer is present and it returns extracted rows instead).

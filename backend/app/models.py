@@ -50,9 +50,13 @@ class IntakeDraft(Base):
     category: Mapped[str] = mapped_column(String(255), default="")
     description: Mapped[str] = mapped_column(Text, default="")
     attributes_json: Mapped[str] = mapped_column(Text, default="[]")
+    # SEO / Shopify metafields — pipeline suggestions, human-editable (mapped to darling.* on push)
+    meta_title: Mapped[str] = mapped_column(String(255), default="")
+    meta_description: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(String(64), default="")
-    # lifecycle
-    status: Mapped[str] = mapped_column(String(16), default="approved", index=True)
+    # lifecycle. For delivery-sourced products: new_from_delivery → done_from_delivery (enriched,
+    # stays checkmarked in the queue) → the whole delivery leaves together when it's finalised.
+    status: Mapped[str] = mapped_column(String(24), default="approved", index=True)
     barsy_article_id: Mapped[int | None] = mapped_column(nullable=True)
     approved_by: Mapped[str] = mapped_column(String(255), default="")
     pushed_at: Mapped[datetime.datetime | None] = mapped_column(

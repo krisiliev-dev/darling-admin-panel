@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import log_action
 from ..core import barsy
 from ..db import get_async_session
-from ..models import IntakeDraft, User
+from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, User
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
@@ -44,6 +44,8 @@ class EnrichDraft(BaseModel):
     name: str
     attributes: list[Attribute]
     description: str
+    meta_title: str = ""
+    meta_description: str = ""
     model: str
     elapsed_ms: int
 
@@ -55,7 +57,8 @@ def _prompt(name: str, hint: str, categories: list[str]) -> str:
         "върни САМО валиден JSON без коментар, точно с този вид:\n"
         '{"category":"<най-подходяща категория>","name":"<чисто търговско име на български>",'
         '"attributes":[{"key":"Материал","value":"..."},{"key":"Цвят","value":"..."}],'
-        '"description":"<кратко продажно описание на български, 2-3 изречения, без цена>"}\n\n'
+        '"description":"<кратко продажно описание на български, 2-3 изречения, без цена>",'
+        '"meta_title":"<SEO заглавие до 60 знака>","meta_description":"<SEO описание до 155 знака>"}\n\n'
         "Правила: категорията избери от списъка (или най-близката); чист български без руски/"
         "сръбски думи; не измисляй цена, количество или марка, ако не са дадени.\n"
         f"Възможни категории: {categories}\n\n"
@@ -97,11 +100,18 @@ def enrich(req: EnrichRequest, user=Depends(current_active_user)):
         if isinstance(a, dict) and a.get("key"):
             attrs.append(Attribute(key=fix(str(a.get("key", ""))),
                                    value=fix(str(a.get("value", "")))))
+    clean_name = fix(str(parsed.get("name", req.name)))
+    clean_desc = fix(str(parsed.get("description", "")))
+    # meta fields: use the model's if given, else sensible SEO defaults (name / first ~155 chars)
+    meta_title = fix(str(parsed.get("meta_title", ""))) or clean_name[:60]
+    meta_description = fix(str(parsed.get("meta_description", ""))) or clean_desc[:155]
     return EnrichDraft(
         category=str(parsed.get("category", "")),
-        name=fix(str(parsed.get("name", req.name))),
+        name=clean_name,
         attributes=attrs,
-        description=fix(str(parsed.get("description", ""))),
+        description=clean_desc,
+        meta_title=meta_title,
+        meta_description=meta_description,
         model=model,
         elapsed_ms=int((time.time() - t0) * 1000),
     )
@@ -119,6 +129,8 @@ class ApproveRequest(BaseModel):
     category: str = ""
     description: str = ""
     attributes: list[Attribute] = []
+    meta_title: str = ""
+    meta_description: str = ""
     model: str = ""
 
 
@@ -132,9 +144,18 @@ class DraftOut(BaseModel):
     category: str
     description: str
     attributes: list[Attribute]
+    meta_title: str = ""
+    meta_description: str = ""
     status: str
     barsy_article_id: int | None
     approved_by: str
+    delivery_line_id: int | None = None
+    completed: bool = False
+
+
+# a delivery product counts as "done" (checkmarked, awaiting the delivery's finalise) once it's been
+# enriched + saved, or already created in Barsy.
+_DONE_STATES = {"done_from_delivery", "approved", "pushed"}
 
 
 def _row_to_out(d: IntakeDraft) -> DraftOut:
@@ -142,7 +163,10 @@ def _row_to_out(d: IntakeDraft) -> DraftOut:
         id=d.id, code=d.code, barcode=d.barcode, price=d.price, unit=d.unit,
         name=d.name, category=d.category, description=d.description,
         attributes=[Attribute(**a) for a in json.loads(d.attributes_json or "[]")],
-        status=d.status, barsy_article_id=d.barsy_article_id, approved_by=d.approved_by)
+        meta_title=getattr(d, "meta_title", "") or "", meta_description=getattr(d, "meta_description", "") or "",
+        status=d.status, barsy_article_id=d.barsy_article_id, approved_by=d.approved_by,
+        delivery_line_id=d.delivery_line_id,
+        completed=(d.status in _DONE_STATES or d.barsy_article_id is not None))
 
 
 @router.post("/approve", response_model=DraftOut, status_code=status.HTTP_201_CREATED)
@@ -157,6 +181,7 @@ async def approve(
         unit=req.unit or "бр", name=req.name.strip(), category=req.category,
         description=req.description,
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
+        meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
         model=req.model, status="approved", approved_by=actor.email)
     session.add(d)
     await session.commit()
@@ -170,8 +195,11 @@ async def list_drafts(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
+    # STANDALONE drafts only (manually-created products). Delivery-sourced products live in their own
+    # grouped view (/from-delivery) and must not double-show here.
     rows = (await session.execute(
-        select(IntakeDraft).where(IntakeDraft.status != "new_from_delivery")
+        select(IntakeDraft).where(IntakeDraft.status != "new_from_delivery",
+                                  IntakeDraft.delivery_line_id.is_(None))
         .order_by(IntakeDraft.created_at.desc()).limit(100))).scalars().all()
     return {"drafts": [_row_to_out(d) for d in rows]}
 
@@ -181,12 +209,26 @@ async def from_delivery(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """New products that arrived on a delivery and still need enriching + creating in Barsy.
-    These are the products holding a delivery's finalise gate shut."""
-    rows = (await session.execute(
-        select(IntakeDraft).where(IntakeDraft.status == "new_from_delivery")
-        .order_by(IntakeDraft.created_at.desc()).limit(200))).scalars().all()
-    return {"drafts": [_row_to_out(d) for d in rows]}
+    """Products that arrived on a not-yet-finalised delivery. Includes BOTH the ones still to enrich
+    AND the ones already done (checkmarked) — the whole delivery's products stay listed together and
+    leave together only when the delivery is finalised (its storeload is sent). Each item carries its
+    `delivery` context so the UI can group by delivery."""
+    stmt = (select(IntakeDraft, DeliveryLine.batch_id, DeliveryBatch.supplier,
+                   DeliveryBatch.reference, DeliveryBatch.doc_date, DeliveryBatch.status)
+            .join(DeliveryLine, DeliveryLine.id == IntakeDraft.delivery_line_id)
+            .join(DeliveryBatch, DeliveryBatch.id == DeliveryLine.batch_id)
+            .where(IntakeDraft.delivery_line_id.is_not(None),
+                   DeliveryBatch.status != "finalised")
+            .order_by(DeliveryBatch.created_at.desc(), IntakeDraft.created_at.asc())
+            .limit(500))
+    rows = (await session.execute(stmt)).all()
+    out = []
+    for d, batch_id, supplier, reference, doc_date, bstatus in rows:
+        item = _row_to_out(d).model_dump()
+        item["delivery"] = {"batch_id": batch_id, "supplier": supplier or "",
+                            "reference": reference or "", "doc_date": doc_date or "", "status": bstatus}
+        out.append(item)
+    return {"drafts": out}
 
 
 @router.put("/drafts/{draft_id}", response_model=DraftOut)
@@ -210,8 +252,13 @@ async def update_draft(
     d.category = req.category
     d.description = req.description
     d.attributes_json = json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False)
+    d.meta_title = req.meta_title.strip()
+    d.meta_description = req.meta_description.strip()
     d.model = req.model
-    d.status = "approved"
+    # A delivery-sourced draft stays linked to its delivery and remains in the Нов продукт queue
+    # (checkmarked) until the whole delivery is finalised — so the batch disappears together, not
+    # one-by-one. A standalone draft (no delivery line) just becomes 'approved'.
+    d.status = "done_from_delivery" if d.delivery_line_id else "approved"
     d.approved_by = actor.email
     await session.commit()
     await session.refresh(d)
@@ -277,11 +324,13 @@ async def push_to_barsy(
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Създаването в Barsy е реално действие — потвърди с confirm=true.")
 
-    # Atomic claim: only the request that flips approved→pushing proceeds. Blocks the
-    # double-push race (two owners / double-click) BEFORE the real ERP write.
+    # Atomic claim: only the request that flips a ready draft → pushing proceeds. Blocks the
+    # double-push race (two owners / double-click) BEFORE the real ERP write. A delivery-sourced
+    # draft is 'done_from_delivery' (enriched, checkmarked in the queue); a standalone one is 'approved'.
     claim = await session.execute(
         update(IntakeDraft).where(IntakeDraft.id == draft_id,
-                                  IntakeDraft.status == "approved").values(status="pushing"))
+                                  IntakeDraft.status.in_(("approved", "done_from_delivery")))
+        .values(status="pushing"))
     await session.commit()
     if claim.rowcount == 0:
         await session.refresh(d)

@@ -162,11 +162,15 @@ export interface OrdersResponse {
 
 export interface IntakeAttribute { key: string; value: string }
 
+export interface DeliveryContext { batch_id: number; supplier: string; reference: string; doc_date: string; status: string }
+
 export interface IntakeDraft {
   category: string
   name: string
   attributes: IntakeAttribute[]
   description: string
+  meta_title?: string
+  meta_description?: string
   model: string
   elapsed_ms: number
   // present on persisted drafts (from /drafts, /approve)
@@ -177,6 +181,10 @@ export interface IntakeDraft {
   unit?: string
   status?: string
   barsy_article_id?: number | null
+  // present on delivery-sourced drafts (from /from-delivery)
+  delivery_line_id?: number | null
+  completed?: boolean
+  delivery?: DeliveryContext
 }
 
 // --- delivery-based intake (Приемане: supplier Excel → new-vs-existing → batch to Barsy) ---
