@@ -74,6 +74,38 @@ async def test_facets_from_cache(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_bulk_price_preview_then_apply(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10.00"},
+        {"article_id": 2, "code": "B", "article_name": "Две", "actual_price": "20.00"},
+    ])
+    # preview: ×1.2, writes nothing
+    prev = (await owner_client.post("/api/catalog/bulk-price",
+            json={"article_ids": [1, 2], "op": "mul", "value": 1.2})).json()
+    assert prev["dry_run"] is True
+    by = {c["article_id"]: c for c in prev["changes"]}
+    assert by[1]["old_price"] == 10 and by[1]["new_price"] == 12.0
+    assert by[2]["new_price"] == 24.0
+    assert "Articles_update" not in barsy_recorder.operations   # nothing written on preview
+
+    # apply
+    ap = (await owner_client.post("/api/catalog/bulk-price",
+          json={"article_ids": [1, 2], "op": "mul", "value": 1.2, "confirm": True})).json()
+    assert ap["applied"] == 2
+    assert barsy_recorder.operations.count("Articles_update") == 2
+    # cache updated (write-through) → search reflects the new price
+    a1 = (await owner_client.get("/api/catalog/search?q=едно")).json()["items"][0]
+    assert a1["price"] == 12.0
+
+
+@pytest.mark.asyncio
+async def test_bulk_price_requires_owner(staff_client):
+    r = await staff_client.post("/api/catalog/bulk-price",
+                                json={"article_ids": [1], "op": "set", "value": 5, "confirm": True})
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_search_requires_auth(client):
     assert (await client.get("/api/catalog/search")).status_code == 401
 

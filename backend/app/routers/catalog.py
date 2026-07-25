@@ -16,7 +16,7 @@ from ..core import barsy
 from ..db import get_async_session
 from ..models import User
 from ..upstream import upstream
-from ..users import current_active_user, require_roles
+from ..users import current_active_user, current_owner, require_roles
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
@@ -236,6 +236,66 @@ async def search_cache(
          "category": p.category, "supplier": p.supplier, "price": p.price, "stock": p.stock,
          "low": p.low, "has_image": p.has_image,
          "attributes": _json.loads(p.attributes_json or "[]")} for p in rows]}
+
+
+class BulkPriceRequest(BaseModel):
+    article_ids: list[int]
+    op: str                      # mul | div | add | sub | set
+    value: float
+    round_to: int = 2
+    confirm: bool = False
+
+
+def _apply_op(old: float | None, op: str, value: float) -> float:
+    o = old if old is not None else 0.0
+    n = {"mul": o * value, "div": (o / value if value else o), "add": o + value,
+         "sub": o - value, "set": value}[op]
+    return max(0.0, n)
+
+
+@router.post("/bulk-price")
+async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner),
+                     session: AsyncSession = Depends(get_async_session)):
+    """Bulk change the SELL price (actual_price) of the selected products. Preview first (confirm=
+    false → computed new prices, writes nothing); confirm=true writes each via Articles_update and
+    updates the cache. Owner/manager only, audited. (Permanent base change — the panel is source of
+    truth for price post-Microinvest-migration; timed promos use Pricelists separately.)"""
+    if req.op not in ("mul", "div", "add", "sub", "set"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалидна операция.")
+    if not req.article_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма избрани продукти.")
+    if req.op == "div" and req.value == 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Деление на нула.")
+    rd = max(0, min(4, req.round_to))
+    rows = {p.article_id: p for p in (await session.execute(
+        select(ProductCache).where(ProductCache.article_id.in_(req.article_ids)))).scalars().all()}
+    changes = []
+    for aid in req.article_ids:
+        p = rows.get(aid)
+        if not p:
+            continue
+        new = round(_apply_op(p.price, req.op, req.value), rd)
+        changes.append({"article_id": aid, "code": p.code, "name": p.name,
+                        "old_price": p.price, "new_price": new})
+    if not req.confirm:
+        return {"dry_run": True, "count": len(changes), "changes": changes}
+
+    applied, failed = 0, []
+    for c in changes:
+        try:
+            await run_in_threadpool(barsy.call, "Articles_update",
+                                    {"article_id": c["article_id"],
+                                     "article": {"actual_price": str(c["new_price"])}})
+        except Exception:
+            failed.append(c["code"])
+            continue
+        p = rows[c["article_id"]]
+        p.price = c["new_price"]                  # write-through to the cache
+        applied += 1
+    await session.commit()
+    await log_action(session, actor, "catalog.bulk_price",
+                     detail=f"op={req.op} value={req.value} applied={applied} failed={len(failed)}")
+    return {"dry_run": False, "count": len(changes), "applied": applied, "failed": failed}
 
 
 @router.get("/facets")

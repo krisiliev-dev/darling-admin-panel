@@ -210,6 +210,18 @@ export interface DeliveryCommitResponse {
   warnings: string[]
 }
 
+// --- product cache: filterable search + bulk price ops ---
+export interface ProductAttr { key: string; value: string; key_id?: number; value_id?: number }
+export interface CacheProduct {
+  article_id: number; code: string; name: string; barcode: string
+  category: string; supplier: string; price: number | null; stock: number | null
+  low: boolean; has_image: boolean; attributes: ProductAttr[]
+}
+export interface CacheSearchResp { total: number; page: number; per_page: number; items: CacheProduct[] }
+export interface CacheFacets { suppliers: string[]; categories: string[]; attributes: Record<string, string[]> }
+export interface BulkPriceChange { article_id: number; code: string; name: string; old_price: number | null; new_price: number }
+export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; applied?: number; failed?: string[] }
+
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {
   code: string; name: string; supplier: string; suppliers: string[]

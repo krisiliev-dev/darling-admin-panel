@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { Pager, usePager } from '../components/TableControls'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
+import { ProductBulkPricing } from '../components/ProductBulkPricing'
 
 // Ценообразуване — cost-plus-markup repricing. Retail should track supplier COST: buy €1.00 +50%
 // → sell €1.50; when the supplier cost rises to €1.50, the shelf price should become €2.25. The
@@ -36,6 +37,7 @@ export function Pricing({ embedded = false }: { embedded?: boolean } = {}) {
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       {!embedded && <PageHeader title="Ценообразуване" subtitle="доставна цена + надценка → продажна" />}
 
+      {isOwner && <ProductBulkPricing />}
       {isOwner && <SupplierRules />}
 
       {deepMd && Number(deepMd) > 0 && (
