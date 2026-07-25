@@ -1,0 +1,84 @@
+{
+  "_doc": "Deterministic name-composer config. NO LLM at runtime. Each attribute renders into a fragment placed in a ZONE around the TYPE noun; adjectives gender-agree to the type. Every attribute has VARIANTS (standardised phrasings) — switch the chosen variant globally (`style`) or per batch (`overrides`) to re-render, revert by switching back. Tokens in a variant's `tpl`: {adj}=form agreeing with the type's gender, {m}/{f}/{n}/{pl}=explicit gender forms, {noun}=material/color as a noun, {value}=raw text (features).",
+
+  "zones": ["prefix", "pre", "type", "post", "size", "suffix"],
+  "pre_order":  ["Color", "Material", "Shape"],
+  "post_order": ["Color", "Material", "Shape", "Feature"],
+
+  "attributes": {
+    "Material": {
+      "kind": "adj", "from": ["Material", "материал"], "default": "prefix",
+      "variants": {
+        "prefix": {"zone": "pre",  "tpl": "{adj}"},
+        "suffix": {"zone": "post", "tpl": "от {noun}"}
+      }
+    },
+    "Color": {
+      "kind": "adj", "from": ["Color", "цвят"], "default": "prefix",
+      "variants": {
+        "prefix":       {"zone": "pre",  "tpl": "{adj}"},
+        "suffix":       {"zone": "post", "tpl": "в {n}"},
+        "suffix_cvyat": {"zone": "post", "tpl": "в {m} цвят"}
+      }
+    },
+    "Shape": {
+      "kind": "adj", "from": ["Shape", "форма"], "default": "prefix",
+      "variants": {
+        "prefix": {"zone": "pre",  "tpl": "{adj}"},
+        "suffix": {"zone": "post", "tpl": "с {f} форма"}
+      }
+    },
+    "Feature": {
+      "kind": "text", "from": ["Feature", "характеристика", "feature"], "default": "suffix",
+      "variants": {
+        "suffix": {"zone": "post", "tpl": "с {value}"}
+      }
+    }
+  },
+
+  "adjectives": {
+    "glass":     {"aliases": ["стъкло", "стъклен"],       "noun": "стъкло",    "m": "стъклен",     "f": "стъклена",    "n": "стъклено",    "pl": "стъклени"},
+    "plastic":   {"aliases": ["пластмаса", "пластмасов"], "noun": "пластмаса", "m": "пластмасов",  "f": "пластмасова", "n": "пластмасово", "pl": "пластмасови"},
+    "ceramic":   {"aliases": ["керамика", "керамичен"],   "noun": "керамика",  "m": "керамичен",   "f": "керамична",   "n": "керамично",   "pl": "керамични"},
+    "porcelain": {"aliases": ["порцелан"],                "noun": "порцелан",  "m": "порцеланов",  "f": "порцеланова", "n": "порцеланово", "pl": "порцеланови"},
+    "metal":     {"aliases": ["метал"],                   "noun": "метал",     "m": "метален",     "f": "метална",     "n": "метално",     "pl": "метални"},
+    "steel":     {"aliases": ["стомана", "stainless steel", "неръждаема стомана"], "noun": "стомана", "m": "стоманен", "f": "стоманена", "n": "стоманено", "pl": "стоманени"},
+    "wood":      {"aliases": ["дърво", "дървен"],         "noun": "дърво",     "m": "дървен",      "f": "дървена",     "n": "дървено",     "pl": "дървени"},
+    "bamboo":    {"aliases": ["бамбук"],                  "noun": "бамбук",    "m": "бамбуков",    "f": "бамбукова",   "n": "бамбуково",   "pl": "бамбукови"},
+    "silicone":  {"aliases": ["силикон"],                 "noun": "силикон",   "m": "силиконов",   "f": "силиконова",  "n": "силиконово",  "pl": "силиконови"},
+    "acrylic":   {"aliases": ["акрил"],                   "noun": "акрил",     "m": "акрилен",     "f": "акрилна",     "n": "акрилно",     "pl": "акрилни"},
+    "melamine":  {"aliases": ["меламин"],                 "noun": "меламин",   "m": "меламинов",   "f": "меламинова",  "n": "меламиново",  "pl": "меламинови"},
+
+    "white":       {"aliases": ["бял", "бяло"],           "m": "бял",       "f": "бяла",      "n": "бяло",      "pl": "бели"},
+    "black":       {"aliases": ["черен", "черно"],        "m": "черен",     "f": "черна",     "n": "черно",     "pl": "черни"},
+    "red":         {"aliases": ["червен", "червено"],     "m": "червен",    "f": "червена",   "n": "червено",   "pl": "червени"},
+    "blue":        {"aliases": ["син", "синьо"],          "m": "син",       "f": "синя",      "n": "синьо",     "pl": "сини"},
+    "green":       {"aliases": ["зелен", "зелено"],       "m": "зелен",     "f": "зелена",    "n": "зелено",    "pl": "зелени"},
+    "pink":        {"aliases": ["розов", "розово"],       "m": "розов",     "f": "розова",    "n": "розово",    "pl": "розови"},
+    "yellow":      {"aliases": ["жълт", "жълто"],         "m": "жълт",      "f": "жълта",     "n": "жълто",     "pl": "жълти"},
+    "gray":        {"aliases": ["сив", "сиво", "grey"],   "m": "сив",       "f": "сива",      "n": "сиво",      "pl": "сиви"},
+    "brown":       {"aliases": ["кафяв", "кафяво"],       "m": "кафяв",     "f": "кафява",    "n": "кафяво",    "pl": "кафяви"},
+    "transparent": {"aliases": ["прозрачен", "clear"],    "m": "прозрачен", "f": "прозрачна", "n": "прозрачно", "pl": "прозрачни"},
+    "orange":      {"aliases": ["оранжев"],               "m": "оранжев",   "f": "оранжева",  "n": "оранжево",  "pl": "оранжеви"},
+    "purple":      {"aliases": ["лилав", "violet"],       "m": "лилав",     "f": "лилава",    "n": "лилаво",    "pl": "лилави"},
+    "gold":        {"aliases": ["златист", "golden"],     "m": "златист",   "f": "златиста",  "n": "златисто",  "pl": "златисти"},
+    "silver":      {"aliases": ["сребрист"],              "m": "сребрист",  "f": "сребриста", "n": "сребристо", "pl": "сребристи"},
+
+    "round":       {"aliases": ["кръгъл", "кръгло"],      "m": "кръгъл",      "f": "кръгла",      "n": "кръгло",      "pl": "кръгли"},
+    "oval":        {"aliases": ["овален"],                "m": "овален",      "f": "овална",      "n": "овално",      "pl": "овални"},
+    "square":      {"aliases": ["квадратен"],             "m": "квадратен",   "f": "квадратна",   "n": "квадратно",   "pl": "квадратни"},
+    "rectangular": {"aliases": ["правоъгълен"],           "m": "правоъгълен", "f": "правоъгълна", "n": "правоъгълно", "pl": "правоъгълни"}
+  },
+
+  "style": {},
+
+  "overrides": [
+    {
+      "_note": "EXAMPLE — Valentine's Day: rename every pink/red product. enabled=false by default; flip to true to render, delete/false to revert.",
+      "enabled": false,
+      "when": {"Color": ["pink", "red", "розов", "червен"]},
+      "prefix": "Свети Валентин",
+      "drop": ["Color"]
+    }
+  ]
+}

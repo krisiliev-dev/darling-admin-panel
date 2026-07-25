@@ -122,13 +122,19 @@ function ProductEditorScreen({ draft, onBack, onDone }: {
 function ProductEditor({ draft, onDone, onCancel }: {
   draft: IntakeDraft; onDone: () => void; onCancel: () => void
 }) {
-  const [d, setD] = useState<IntakeDraft>(draft)
+  // size lives in its own fields (below), not in the attribute list — strip it out of the loaded draft
+  const [d, setD] = useState<IntakeDraft>(() => ({
+    ...draft, attributes: (draft.attributes || []).filter((a) => a.key !== 'Размери' && a.key !== 'Вместимост'),
+  }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [images, setImages] = useState<DraftImageMeta[]>([])
   const [enriched, setEnriched] = useState<boolean>(!!draft.completed)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const initSize = (k: string) => (draft.attributes || []).find((a) => a.key === k)?.value || ''
+  const [capacity, setCapacity] = useState(initSize('Вместимост'))   // вместимост
+  const [dimensions, setDimensions] = useState(initSize('Размери'))  // размери
 
   const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
     .then((r) => setImages(r.images)).catch(() => setImages([]))
@@ -163,15 +169,38 @@ function ProductEditor({ draft, onDone, onCancel }: {
 
   const attrs = d.attributes || []
 
+  // The NAME is derived (v3 composer: leaf singular + gender-agreed adjectives + size) — it recomposes
+  // as category/attributes/size change, until the user edits it by hand (then we stop overwriting).
+  useEffect(() => {
+    if (touched.name || !d.shopify_category_id) return
+    const t = setTimeout(async () => {
+      try {
+        const attrsMap: Record<string, string> = {}
+        attrs.forEach((a) => { if (a.key) attrsMap[a.key] = a.value })
+        const r = await api.post<{ name: string }>('/api/intake/compose-name', {
+          category_id: d.shopify_category_id, attributes: attrsMap, capacity, dimensions })
+        if (r.name) setD((d0) => ({ ...d0, name: r.name }))
+      } catch { /* composer best-effort */ }
+    }, 300)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.shopify_category_id, JSON.stringify(attrs), capacity, dimensions, touched.name])
+
   const save = async () => {
     if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
     setBusy(true); setError(''); setNote('')
     try {
+      // fold the standardized size fields into the saved attributes (they also feed the name composer)
+      const sized = [
+        ...attrs.filter((a) => a.key.trim() && a.key !== 'Размери' && a.key !== 'Вместимост'),
+        ...(dimensions.trim() ? [{ key: 'Размери', value: dimensions.trim() }] : []),
+        ...(capacity.trim() ? [{ key: 'Вместимост', value: capacity.trim() }] : []),
+      ]
       const r = await api.put<{ barsy?: { live: boolean; created: boolean; note?: string; error?: string; delivery?: { sent: boolean } } }>(
         `/api/intake/drafts/${draft.id}`, {
           code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
           name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
-          description: d.description || '', attributes: attrs.filter((a) => a.key.trim()),
+          description: d.description || '', attributes: sized,
           meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
         })
       const b = r.barsy
@@ -236,8 +265,13 @@ function ProductEditor({ draft, onDone, onCancel }: {
                 onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
             </div>
           </div>
-          <Field label="Търговско име"><input className="input-paper" style={pencil('name', d.name)} value={d.name}
-            onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+            <Field label="Размери (напр. 24x24x8 см)"><input className="input-paper" value={dimensions} onChange={(e) => setDimensions(e.target.value)} /></Field>
+            <Field label="Вместимост (напр. 250 мл)"><input className="input-paper" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></Field>
+          </div>
+          <Field label="Търговско име (съставя се автоматично — редактирай при нужда)">
+            <input className="input-paper" style={pencil('name', d.name)} value={d.name}
+              onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
           <Field label="Описание"><textarea className="input-paper" rows={3} style={pencil('description', d.description)} value={d.description || ''}
             onChange={(e) => { mark('description'); setD({ ...d, description: e.target.value }) }} /></Field>
           <Field label="Meta заглавие (SEO)"><input className="input-paper" style={pencil('meta_title', d.meta_title)} value={d.meta_title || ''}

@@ -103,13 +103,9 @@ def _tax_categories() -> list:
 
 
 @lru_cache(maxsize=1)
-def _tax_cat_attrs() -> dict:
-    return _load_tax("cat_attrs.json") or {}
-
-
-@lru_cache(maxsize=1)
-def _tax_attributes() -> dict:
-    return _load_tax("attributes.json") or {}
+def _tax_schemas() -> dict:
+    """{category_id -> [{name(BG), handle, values:[BG], free}]} — the v3 per-leaf attribute schema."""
+    return _load_tax("schemas.json") or {}
 
 
 @router.get("/shopify-categories")
@@ -141,17 +137,57 @@ def shopify_category_attributes(cid: str, user=Depends(current_active_user)):
     """The attribute SCHEMA for a category: each attribute is either a picklist (free=false → dropdown
     of allowed BG values) or free text (free=true → e.g. dimensions). Drives the dynamic attribute
     fields in the product editor."""
-    adefs = _tax_attributes()
-    if not adefs:
+    schemas = _tax_schemas()
+    if not schemas:
         return {"attributes": [], "available": False}
     out = []
-    for h in _tax_cat_attrs().get(cid, []):
-        a = adefs.get(h)
-        if not a:
-            continue
-        out.append({"handle": h, "name": a["bg"], "free": a["free"],
-                    "values": [{"h": v["h"], "name": v["bg"]} for v in a["values"]]})
+    for g in schemas.get(cid, []):
+        out.append({"handle": g["handle"], "name": g["name"],
+                    "role": _role_for_handle(g["handle"], g["name"]), "free": g["free"],
+                    "values": [{"h": v, "name": v} for v in g["values"]]})
     return {"attributes": out, "available": True}
+
+
+# map a taxonomy attribute to the v3 name-composer's canonical role (Color/Material/Shape/Feature)
+_ROLE_KEYWORDS = [("colour", "Color"), ("color", "Color"), ("material", "Material"),
+                  ("shape", "Shape"), ("feature", "Feature")]
+
+
+def _role_for_handle(handle: str, en: str) -> str:
+    s = f"{handle} {en}".lower()
+    for kw, role in _ROLE_KEYWORDS:
+        if kw in s:
+            return role
+    return ""
+
+
+class ComposeNameRequest(BaseModel):
+    category_id: str = ""
+    attributes: dict[str, str] = {}    # {BG attribute name: BG value} as filled in the editor
+    capacity: str = ""                  # вместимост
+    dimensions: str = ""                # размери
+
+
+@router.post("/compose-name")
+def compose_name(req: ComposeNameRequest, user=Depends(current_active_user)):
+    """Deterministically compose the Bulgarian product name from the Shopify leaf + attributes + size,
+    using the v3 composer (app/naming.py). The name is derived, so it recomputes as fields change."""
+    from .. import naming
+    cats = {c["id"]: c for c in _tax_categories()}
+    cat = cats.get(req.category_id)
+    if not cat:
+        return {"name": "", "available": bool(cats)}
+    canonical: dict[str, str] = {}
+    for g in _tax_schemas().get(req.category_id, []):
+        role = _role_for_handle(g["handle"], g["name"])
+        if not role:
+            continue
+        val = req.attributes.get(g["name"])           # BG value the user picked (keyed by BG attr name)
+        if val:
+            canonical[role] = val                      # BG value — the composer resolves it via aliases
+    facts = {"leaf_bg": cat.get("bg") or "", "attributes": canonical,
+             "вместимост": req.capacity, "размери": req.dimensions}
+    return {"name": naming.build(facts), "available": True}
 
 
 @router.post("/enrich", response_model=EnrichDraft)

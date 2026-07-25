@@ -1,86 +1,80 @@
 # -*- coding: utf-8 -*-
-"""Precompute SLIM Shopify-taxonomy indexes to bundle INTO the panel repo (so it's always deployed,
-not dependent on the sibling agent-pipeline being present on the server).
+"""Precompute SLIM Shopify-taxonomy indexes for the panel, sourced from PIPELINE-V3 so leaf names
+align with pipeline-v3/leaf_forms.json (the name composer). Bundle output into the panel repo.
 
-Outputs (to OUT):
-  categories.json  : [{id, en, bg, leaf}]                       (EN + BG breadcrumb, per category)
-  cat_attrs.json   : {category_id: [attribute_handle, ...]}     (which attributes each category has)
-  attributes.json  : {handle: {en, bg, free, values:[{h,en,bg}]}}  (attr defs + allowed values, EN+BG)
+Sources (pipeline-v3):
+  taxonomy_slim.json   [{gid, full(EN), bg(BG LEAF name), leaf}]
+  leaf_schemas.jsonl   {gid, schema:[{група(BG attr), стойности:[BG values], shopify_attr(handle)}]}
+
+Outputs (OUT):
+  categories.json  [{id, en, bg, leaf}]              — id = short gid; en/bg = breadcrumbs
+  schemas.json     {id: [{name, handle, values:[bg], free}]}  — per-leaf attribute schema (BG)
+
+Usage: python precompute_taxonomy.py <pipeline-v3 dir> <out dir>
 """
-import json, re, os, sys
+import json, os, re, sys
 
-SRC = sys.argv[1]   # agent-pipeline/shopify_taxonomy
+SRC = sys.argv[1]   # pipeline-v3
 OUT = sys.argv[2]   # backend/app/data/shopify_taxonomy
+# Darling is a HOME & GARDEN shop; pipeline-v3/leaf_forms.json (the name composer) covers HG 100%.
+# Restrict the bundle to the "hg" vertical → full composer coverage + a fraction of the size.
+VERTICAL = os.environ.get("TAXONOMY_VERTICAL", "hg")
 os.makedirs(OUT, exist_ok=True)
 
 
-def parse_bg(path):
-    """{handle_underscored -> bg name} from a *_bg.yml (tiny line reader, no pyyaml)."""
-    out, cur = {}, None
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            m = re.match(r"^    ([^\s:][^:]*):\s*$", line)
-            if m:
-                cur = m.group(1).strip()
-                continue
-            n = re.match(r"^      name:\s*(.+?)\s*$", line)
-            if n and cur:
-                out[cur] = n.group(1)
-                cur = None
-    return out
+def _keep(cid):
+    return cid == VERTICAL or cid.startswith(VERTICAL + "-")
 
 
-def u(h):
-    return h.replace("-", "_")
+def short(gid):
+    return gid.split("/")[-1]
 
 
-cats_bg_by_id = parse_bg(os.path.join(SRC, "categories_bg.yml"))     # id -> bg leaf name
-attrs_bg = parse_bg(os.path.join(SRC, "attributes_bg.yml"))          # attr handle -> bg
-values_bg = parse_bg(os.path.join(SRC, "values_bg.yml"))            # value handle -> bg
+slim = json.load(open(os.path.join(SRC, "taxonomy_slim.json"), encoding="utf-8"))
+bg_leaf = {short(c["gid"]): c.get("bg") or "" for c in slim}   # id -> BG leaf name
 
 
 def bg_breadcrumb(cid):
     chain, node = [], cid
     while node:
-        if node in cats_bg_by_id:
-            chain.append(cats_bg_by_id[node])
+        if bg_leaf.get(node):
+            chain.append(bg_leaf[node])
         parent = re.sub(r"-\d+$", "", node)
         node = parent if parent != node else ""
     return " > ".join(reversed(chain))
 
 
-# --- attributes: handle -> {en, bg, free, values} -------------------------------------
-aj = json.load(open(os.path.join(SRC, "attributes.json"), encoding="utf-8"))
-attrs = {}
-for a in aj["attributes"]:
-    h = a["handle"]
-    vals = [{"h": v["handle"], "en": v["name"], "bg": values_bg.get(u(v["handle"]), v["name"])}
-            for v in (a.get("values") or [])]
-    # "free" = free-text (no curated value list, or only an 'other'); otherwise a picklist
-    real = [v for v in vals if not v["h"].endswith("__other")]
-    attrs[h] = {"en": a["name"], "bg": attrs_bg.get(u(h), a["name"]),
-                "free": len(real) == 0, "values": vals}
+cats = [{"id": short(c["gid"]), "en": c.get("full") or "", "bg": bg_breadcrumb(short(c["gid"])),
+         "leaf": bool(c.get("leaf"))} for c in slim if _keep(short(c["gid"]))]
 
-# --- categories + category -> attribute handles ---------------------------------------
-cj = json.load(open(os.path.join(SRC, "categories.json"), encoding="utf-8"))
-cats, cat_attrs = [], {}
-# leaf = has no child (no other category lists it as parent)
-has_child = set()
-flat = []
-for vert in cj["verticals"]:
-    for c in vert["categories"]:
-        flat.append(c)
-        if c.get("parent_id"):
-            has_child.add(c["parent_id"])
-for c in flat:
-    sid = c["id"].split("/")[-1]
-    cats.append({"id": sid, "en": c.get("full_name", ""), "bg": bg_breadcrumb(sid),
-                 "leaf": c["id"] not in has_child})
-    cat_attrs[sid] = [a["handle"] for a in (c.get("attributes") or [])]
+schemas = {}
+with open(os.path.join(SRC, "leaf_schemas.jsonl"), encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        cid = short(row.get("gid", ""))
+        if not _keep(cid):
+            continue
+        out = []
+        for g in row.get("schema", []):
+            vals = [str(v) for v in (g.get("стойности") or []) if str(v).strip()]
+            out.append({"name": g.get("група") or "", "handle": g.get("shopify_attr") or "",
+                        "values": vals, "free": len(vals) == 0})
+        if cid and out:
+            schemas[cid] = out
 
 json.dump(cats, open(os.path.join(OUT, "categories.json"), "w", encoding="utf-8"), ensure_ascii=False)
-json.dump(cat_attrs, open(os.path.join(OUT, "cat_attrs.json"), "w", encoding="utf-8"), ensure_ascii=False)
-json.dump(attrs, open(os.path.join(OUT, "attributes.json"), "w", encoding="utf-8"), ensure_ascii=False)
-print(f"categories={len(cats)} cat_attrs={len(cat_attrs)} attributes={len(attrs)}")
-for f in ("categories.json", "cat_attrs.json", "attributes.json"):
-    print(f, os.path.getsize(os.path.join(OUT, f)) // 1024, "KB")
+json.dump(schemas, open(os.path.join(OUT, "schemas.json"), "w", encoding="utf-8"), ensure_ascii=False)
+# remove the old agent-pipeline-sourced files if present (superseded)
+for old in ("cat_attrs.json", "attributes.json"):
+    p = os.path.join(OUT, old)
+    if os.path.exists(p):
+        os.remove(p)
+print(f"categories={len(cats)} schemas={len(schemas)}")
+for fn in ("categories.json", "schemas.json"):
+    print(fn, os.path.getsize(os.path.join(OUT, fn)) // 1024, "KB")

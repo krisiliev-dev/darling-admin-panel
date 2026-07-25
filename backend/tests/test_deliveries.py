@@ -446,17 +446,42 @@ async def test_draft_images_add_list_get_delete(owner_client):
 async def test_shopify_categories_and_attributes(owner_client):
     """The taxonomy is bundled in the panel (EN+BG). Category search works, and a category exposes its
     attribute schema — picklists (Цвят → Черен/…) vs free-text."""
-    r = await owner_client.get("/api/intake/shopify-categories", params={"q": "готвене"})
+    r = await owner_client.get("/api/intake/shopify-categories", params={"q": "Купи"})
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is True and body["categories"]
     assert all("id" in c and "path" in c and "en" in c for c in body["categories"])
-    # attribute schema for a known Home & Garden cookware leaf
-    ab = (await owner_client.get("/api/intake/shopify-categories/hg-11-2-1-1/attributes")).json()
-    assert ab["available"] is True and ab["attributes"]
-    color = next((a for a in ab["attributes"] if a["name"] == "Цвят"), None)
-    assert color and color["free"] is False
-    assert any(v["name"] == "Черен" for v in color["values"])
+    # some bowl leaf exposes a Цвят picklist that includes Черен
+    found = False
+    for c in body["categories"][:12]:
+        ab = (await owner_client.get(f"/api/intake/shopify-categories/{c['id']}/attributes")).json()
+        assert ab["available"] is True
+        color = next((a for a in ab["attributes"] if a["name"] == "Цвят"), None)
+        if color and color["free"] is False and any(v["name"] == "Черен" for v in color["values"]):
+            found = True
+            break
+    assert found, "expected a Цвят picklist with Черен on a bowl leaf"
+
+
+@pytest.mark.asyncio
+async def test_compose_name_v3(owner_client):
+    """The name is composed deterministically (v3): Shopify leaf singular + gender-agreed attribute
+    adjectives + size. Finds a HG leaf carrying a Material attribute, composes with Керамика."""
+    cats = (await owner_client.get("/api/intake/shopify-categories", params={"q": "Купи"})).json()["categories"]
+    cid = matname = None
+    for c in cats:
+        sch = (await owner_client.get(f"/api/intake/shopify-categories/{c['id']}/attributes")).json()["attributes"]
+        m = next((a for a in sch if a["role"] == "Material" and any(v["name"] == "Керамика" for v in a["values"])), None)
+        if m:
+            cid, matname = c["id"], m["name"]
+            break
+    assert cid, "expected a bowl leaf with a Material=Керамика attribute in the HG taxonomy"
+    r = await owner_client.post("/api/intake/compose-name", json={
+        "category_id": cid, "attributes": {matname: "Керамика"}, "dimensions": "24 x 24 x 8 cm"})
+    assert r.status_code == 200, r.text
+    name = r.json()["name"]
+    assert "керамичн" in name.lower()               # gender-agreed material adjective rendered
+    assert "24х24х8см" in name.replace(" ", "")
 
 
 @pytest.mark.asyncio
