@@ -9,7 +9,7 @@ interface Command { label: string; hint: string; to: string }
 const COMMANDS: Command[] = [
   { label: 'Днес', hint: 'какво чака внимание', to: '/' },
   { label: 'Нов продукт', hint: 'нов продукт + AI', to: '/intake' },
-  { label: 'Поръчки', hint: 'изпълнение + етикети', to: '/orders' },
+  { label: 'Онлайн поръчки', hint: 'изпълнение + етикети', to: '/orders' },
   { label: 'Разчети', hint: 'наложен платеж', to: '/cod' },
   { label: 'Продукти', hint: 'каталог · наличност · цени', to: '/products' },
   { label: 'Ценообразуване', hint: 'доставна + надценка', to: '/products' },

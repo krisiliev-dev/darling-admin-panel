@@ -153,25 +153,19 @@ function PriceRow({ it, isOwner, onChanged }: { it: PricingItem; isOwner: boolea
 // rule always wins over its supplier's. Applying writes prices to Barsy for the whole supplier.
 function SupplierRules() {
   const { data, reload } = useApi<{ suppliers: SupplierRule[] }>('/api/pricing/suppliers')
-  const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState('')
 
   return (
     <Sheet tilt="l">
-      <div style={{ display: 'flex', gap: '.6rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <h3 style={{ fontSize: '1rem', flex: 1 }}>Правила по доставчик</h3>
-        <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => setOpen((o) => !o)}>{open ? 'скрий' : 'покажи'}</button>
-      </div>
+      <h3 style={{ fontSize: '1rem' }}>Правила по доставчик</h3>
       <p style={{ color: 'var(--pencil)', fontSize: '.8rem', margin: '.2rem 0 0' }}>
         надценка за цял доставчик; продукт със собствена надценка има предимство
       </p>
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--ready)', marginTop: '.4rem' }}>{msg}</div>}
-      {open && (
-        <div style={{ display: 'grid', gap: '.3rem', marginTop: '.6rem' }}>
-          {!data ? <span className="pencil" style={{ fontSize: '.82rem' }}>зарежда…</span>
-            : data.suppliers.map((s) => <SupplierRow key={s.name} s={s} onChanged={(m) => { setMsg(m); reload() }} />)}
-        </div>
-      )}
+      <div style={{ display: 'grid', gap: '.3rem', marginTop: '.6rem', maxHeight: '20rem', overflowY: 'auto' }}>
+        {!data ? <span className="pencil" style={{ fontSize: '.82rem' }}>зарежда…</span>
+          : data.suppliers.map((s) => <SupplierRow key={s.name} s={s} onChanged={(m) => { setMsg(m); reload() }} />)}
+      </div>
     </Sheet>
   )
 }

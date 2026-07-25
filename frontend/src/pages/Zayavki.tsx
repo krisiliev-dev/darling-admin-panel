@@ -98,7 +98,7 @@ function useFastAdd(onAdded: () => void) {
 // ------------------------------------------------------------------ insight cards ---
 function InsightCards({ onAdded }: { onAdded: () => void }) {
   const [cards, setCards] = useState<ZayavkaCard[] | null>(null)
-  const [openKey, setOpenKey] = useState<string | null>('reorder')
+  const [openKey, setOpenKey] = useState<string | null>(null)   // all cards collapsed by default
   const { add, dialog, msg } = useFastAdd(onAdded)
   useEffect(() => { api.get<{ cards: ZayavkaCard[] }>('/api/zayavki/insights').then((d) => setCards(d.cards)).catch(() => setCards([])) }, [])
 

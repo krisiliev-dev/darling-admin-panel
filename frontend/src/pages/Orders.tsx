@@ -38,7 +38,7 @@ export function Orders() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Поръчки" subtitle="изпълнение с етикет и наложен платеж" />
+      <PageHeader title="Онлайн поръчки" subtitle="изпълнение с етикет и наложен платеж" />
 
       {/* inverted pyramid: the work queue is the payload, so it leads; couriers are context */}
       <OrderQueue data={data} onLabel={labelFromOrder} />

@@ -37,16 +37,18 @@ describe('Zayavki', () => {
 
   it('renders insight cards and the supplier list', async () => {
     render(<Zayavki />)
+    // cards are collapsed by default — the title shows, the product is hidden until expanded
     expect(await screen.findByText('Да се поръча')).toBeInTheDocument()
-    // reorder card is expanded by default → its product shows
+    expect(screen.queryByText('Продукт А')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Да се поръча'))
     expect(await screen.findByText('Продукт А')).toBeInTheDocument()
     expect(await screen.findByText('Доставчици')).toBeInTheDocument()
-    // supplier row with an open заявка
     expect(await screen.findByText('АНИС')).toBeInTheDocument()
   })
 
   it('fast-adds a single-supplier product with its suggested qty', async () => {
     render(<Zayavki />)
+    fireEvent.click(await screen.findByText('Да се поръча'))   // expand the card
     const addBtn = await screen.findByTitle('добави 4 бр')
     fireEvent.click(addBtn)
     await waitFor(() => expect((state.lastAdd as { code: string }).code).toBe('A1'))
@@ -57,6 +59,7 @@ describe('Zayavki', () => {
   it('prompts for a supplier when the product has several (409)', async () => {
     state.addThrows = new ApiError(409, 'need supplier')
     render(<Zayavki />)
+    fireEvent.click(await screen.findByText('Да се поръча'))   // expand the card
     // give the product two suppliers by clicking add → 409 → dialog
     const addBtn = await screen.findByTitle('добави 4 бр')
     // override product suppliers via a second-level: the mock product has one supplier, so simulate

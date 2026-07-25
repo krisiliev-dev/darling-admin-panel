@@ -6,8 +6,6 @@ import { useAuth } from '../lib/auth'
 import { useHotkey } from '../lib/useHotkey'
 import { Sheet, Stamp } from '../components/Paper'
 import { PageHeader } from '../components/PageHeader'
-import { IntakeBulk } from './IntakeBulk'
-import { IntakeDelivery } from './IntakeDelivery'
 
 // Приемане — THE signature flow. A bare stock name becomes a draft: category → attributes
 // → description, each step revealed in sequence. The AI writes in PENCIL (grey, editable);
@@ -29,7 +27,6 @@ export function Intake() {
   const [op, setOp] = useState({ code: '', barcode: '', price: '', unit: 'бр' })
   const [saving, setSaving] = useState(false)
   const [refreshDrafts, setRefreshDrafts] = useState(0)
-  const [mode, setMode] = useState<'delivery' | 'single' | 'bulk'>('delivery')
 
   useEffect(() => {
     api.get<{ categories: string[] }>('/api/intake/categories')
@@ -81,27 +78,8 @@ export function Intake() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Нов продукт" subtitle="от доставка до готов продукт" right={
-        <div style={{ display: 'flex', gap: '.3rem' }}>
-          {([['delivery', 'Доставка'], ['single', 'Единично'], ['bulk', 'Наведнъж']] as ['delivery' | 'single' | 'bulk', string][]).map(([k, label]) => (
-            <button key={k} className="font-type" onClick={() => setMode(k)}
-              style={{
-                padding: '.3rem .7rem', fontSize: '.72rem', cursor: 'pointer', borderRadius: 2,
-                border: '1px solid var(--line)',
-                background: mode === k ? 'var(--red)' : 'var(--paper2)',
-                color: mode === k ? '#fff' : 'var(--pencil)',
-              }}>{label}</button>
-          ))}
-        </div>
-      } />
+      <PageHeader title="Нов продукт" subtitle="име (или снимка) → AI чернова → готов продукт в Barsy" />
 
-
-      {mode === 'delivery' ? (
-        <IntakeDelivery categories={categories} />
-      ) : mode === 'bulk' ? (
-        <IntakeBulk categories={categories} onApproved={() => setRefreshDrafts((n) => n + 1)} />
-      ) : (
-      <>
       <Sheet clip="left" tilt="l">
         <div className="eyebrow">Нов продукт</div>
         <div style={{ display: 'grid', gap: '.6rem', maxWidth: '38rem', marginTop: '.5rem' }}>
@@ -132,8 +110,6 @@ export function Intake() {
           </motion.div>
         )}
       </AnimatePresence>
-      </>
-      )}
 
       <DeliveryProducts categories={categories} onApproved={() => setRefreshDrafts((n) => n + 1)} />
       <ApprovedDrafts refreshKey={refreshDrafts} />

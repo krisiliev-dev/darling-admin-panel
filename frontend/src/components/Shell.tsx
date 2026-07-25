@@ -11,12 +11,12 @@ import { FloatingAssistant } from './FloatingAssistant'
 const NAV: { to: string; label: string; roles?: string[] }[] = [
   { to: '/', label: 'Начало' },
   { to: '/analytics', label: 'Анализи' },
-  { to: '/intake', label: 'Нов продукт' },
-  { to: '/orders', label: 'Поръчки' },
-  { to: '/cod', label: 'Разчети' },
+  { to: '/orders', label: 'Онлайн поръчки' },
   { to: '/products', label: 'Продукти' },
+  { to: '/intake', label: 'Нов продукт' },
   { to: '/purchasing', label: 'Доставки' },
   { to: '/zayavki', label: 'Заявки' },
+  { to: '/cod', label: 'Разчети' },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
 ]
 
