@@ -8,7 +8,8 @@ import { CommandPalette } from './CommandPalette'
 
 // Menu is by JOB, not by table (design spec). Packer lands in shipping; owner sees all.
 const NAV: { to: string; label: string; roles?: string[] }[] = [
-  { to: '/', label: 'Анализи' },
+  { to: '/', label: 'Начало' },
+  { to: '/analytics', label: 'Анализи' },
   { to: '/intake', label: 'Приемане' },
   { to: '/orders', label: 'Поръчки' },
   { to: '/cod', label: 'Разчети' },

@@ -249,6 +249,22 @@ export interface DiagnosisResponse {
     cover: number; last: string; discontinued: boolean }[]
 }
 
+export interface HomeCard {
+  id: string; name: string; total: number; customer: string; city: string
+  op_status_bg: string; items: { title: string; qty: number; sku: string }[]
+}
+export interface HomeResponse {
+  period: string
+  kpi: {
+    turnover: number; profit: number; units: number
+    orders_done: number; orders_to_pack: number; reorder_n: number
+    top_product: { name: string; units: number } | null
+  }
+  attention: { tone: string; text: string; to: string }[]
+  to_pack: HomeCard[]
+  has_sales: boolean
+}
+
 export interface MetricsItem {
   article_id: number; name: string; stock: number; unit_cost: number; sell_price: number | null
   units_sold: number; velocity: number; days_of_cover: number | null; reorder_point: number

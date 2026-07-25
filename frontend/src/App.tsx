@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { Shell } from './components/Shell'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
+import { Home } from './pages/Home'
 import { Orders } from './pages/Orders'
 import { Cod } from './pages/Cod'
 import { Intake } from './pages/Intake'
@@ -32,7 +33,8 @@ export default function App() {
     <ErrorBoundary>
     <Routes>
       <Route element={<Shell />}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<Home />} />
+        <Route path="analytics" element={<Dashboard />} />
         <Route path="intake" element={<Intake />} />
         <Route path="orders" element={<Orders />} />
         <Route path="cod" element={<Cod />} />

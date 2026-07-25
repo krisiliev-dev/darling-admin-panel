@@ -5,16 +5,15 @@ import { Bar, Line } from 'react-chartjs-2'
 import { cssVar } from '../lib/charts'
 import { api } from '../lib/api'
 import { useApi } from '../lib/useApi'
-import type { CatalogDashboard, SalesDashboard, CodResponse, InsightsResponse, DiagnosisResponse, MetricsResponse } from '../lib/api'
+import type { CatalogDashboard, SalesDashboard, InsightsResponse, DiagnosisResponse, MetricsResponse } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
-import { StaleStockAlert } from '../components/StaleStockAlert'
 
-type Tab = 'today' | 'inventory' | 'catalog' | 'sales' | 'customers'
+type Tab = 'inventory' | 'catalog' | 'sales' | 'customers'
 
 export function Dashboard() {
-  const [tab, setTab] = useState<Tab>('today')
+  const [tab, setTab] = useState<Tab>('inventory')
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
@@ -25,7 +24,7 @@ export function Dashboard() {
 
       {/* file-folder tabs */}
       <div style={{ display: 'flex', gap: '.4rem' }}>
-        {([['today', 'Днес'], ['inventory', 'Инвентар'], ['catalog', 'Каталог'], ['sales', 'Продажби'], ['customers', 'Клиенти']] as [Tab, string][]).map(([k, label]) => (
+        {([['inventory', 'Инвентар'], ['catalog', 'Каталог'], ['sales', 'Продажби'], ['customers', 'Клиенти']] as [Tab, string][]).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
             className="font-type"
             style={{
@@ -47,72 +46,11 @@ export function Dashboard() {
         <motion.div key={tab}
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.25 }}>
-          {tab === 'today' ? <TodayTab /> : tab === 'inventory' ? <InventoryTab />
+          {tab === 'inventory' ? <InventoryTab />
             : tab === 'catalog' ? <CatalogTab />
             : tab === 'sales' ? <SalesTab /> : <CustomersTab />}
         </motion.div>
       </AnimatePresence>
-    </div>
-  )
-}
-
-// -------------------------------------------------- Днес (the operator cockpit) ---
-// The landing answers "what needs my attention now / how much money is at risk" — not the
-// catalog-project stats. Reuses the badge counts + COD summary already computed elsewhere.
-// Tone fires only when a value crosses zero (Stat's conditional salience) so a calm day stays calm.
-function TodayTab() {
-  const { data: badges } = useApi<Record<string, number>>('/api/summary/badges')
-  const { data: cod } = useApi<CodResponse>('/api/cod')
-  if (!badges || !cod) return <Sheet><Loading /></Sheet>
-
-  const m = cod.summary
-  const toShip = badges['/orders'] || 0
-  const toSettle = badges['/cod'] || 0
-  const drafts = badges['/intake'] || 0
-  const allClear = toShip + toSettle + drafts === 0 && m.outstanding_amount === 0 && m.discrepancy_count === 0
-
-  const tileLink = { textDecoration: 'none', color: 'inherit', display: 'block' } as const
-  const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9.5rem, 1fr))', gap: '.8rem' } as const
-
-  return (
-    <div style={{ display: 'grid', gap: '1.1rem' }}>
-      {allClear && (
-        <div className="sticky-note" style={{ transform: 'rotate(-1deg)', width: 'fit-content', maxWidth: '30rem' }}>
-          Чисто — няма спешни задачи. Щом дойдат поръчки, тук ще светнат парите в обращение,
-          какво чака етикет и какво е за разчет.
-        </div>
-      )}
-
-      <section>
-        <div className="eyebrow" style={{ marginBottom: '.4rem' }}>Пари в риск</div>
-        <div style={grid}>
-          <Stat label="Изходящ НП" value={m.outstanding_amount} money instant hint="в обращение + за изплащане" />
-          <Link to="/cod" style={tileLink}>
-            <Stat label="За изплащане" value={m.awaiting_amount} money tone="blocked" instant hint="куриерите ни дължат" />
-          </Link>
-          <Link to="/cod" style={tileLink}>
-            <Stat label="Разлики" value={m.discrepancy_amount} money tone="pending" instant hint={`${m.discrepancy_count} бр · събрано ≠ очаквано`} />
-          </Link>
-        </div>
-      </section>
-
-      {/* frozen capital in slow-moving stock — renders only when there IS stale stock */}
-      <StaleStockAlert />
-
-      <section>
-        <div className="eyebrow" style={{ marginBottom: '.4rem' }}>За вършене</div>
-        <div style={grid}>
-          <Link to="/orders" style={tileLink}>
-            <Stat label="За етикет" value={toShip} tone="pending" hint="поръчки чакат пратка" />
-          </Link>
-          <Link to="/cod" style={tileLink}>
-            <Stat label="За разчет" value={toSettle} tone="pending" hint="доставени, за изплащане" />
-          </Link>
-          <Link to="/intake" style={tileLink}>
-            <Stat label="Чернови за Barsy" value={drafts} tone="pending" hint="одобрени, за качване" />
-          </Link>
-        </div>
-      </section>
     </div>
   )
 }

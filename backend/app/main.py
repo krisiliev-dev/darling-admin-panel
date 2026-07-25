@@ -15,7 +15,7 @@ from .db import create_db_and_tables
 from .schemas import UserCreate, UserRead, UserUpdate
 from .users import auth_backend, fastapi_users
 from .routers import (
-    admin, assistant, auth_extra, catalog, cod, dashboard, gdpr, insights, intake, inventory,
+    admin, assistant, auth_extra, catalog, cod, dashboard, gdpr, home, insights, intake, inventory,
     inventory_health, orders, pricing, products, purchasing, quality, risk, summary, webhooks)
 
 settings = get_settings()
@@ -80,6 +80,7 @@ app.include_router(pricing.router)
 app.include_router(quality.router)
 app.include_router(risk.router)
 app.include_router(summary.router)
+app.include_router(home.router)
 app.include_router(webhooks.router)  # Barsy⇄Shopify receivers (HMAC/token-gated, no session auth)
 
 
