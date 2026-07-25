@@ -11,10 +11,10 @@ import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
 import { ProductExplorer } from '../components/ProductExplorer'
 
-type Tab = 'inventory' | 'catalog' | 'sales' | 'customers'
+type Tab = 'overview' | 'inventory' | 'catalog' | 'online'
 
 export function Dashboard() {
-  const [tab, setTab] = useState<Tab>('inventory')
+  const [tab, setTab] = useState<Tab>('overview')
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
@@ -25,7 +25,7 @@ export function Dashboard() {
 
       {/* file-folder tabs */}
       <div style={{ display: 'flex', gap: '.4rem' }}>
-        {([['inventory', 'Инвентар'], ['catalog', 'Каталог'], ['sales', 'Продажби'], ['customers', 'Клиенти']] as [Tab, string][]).map(([k, label]) => (
+        {([['overview', 'Преглед'], ['inventory', 'Склад'], ['catalog', 'Каталог'], ['online', 'Онлайн продажби']] as [Tab, string][]).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
             className="font-type"
             style={{
@@ -47,9 +47,9 @@ export function Dashboard() {
         <motion.div key={tab}
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.25 }}>
-          {tab === 'inventory' ? <InventoryTab />
-            : tab === 'catalog' ? <CatalogTab />
-            : tab === 'sales' ? <SalesTab /> : <CustomersTab />}
+          {tab === 'overview' ? <HistoricalDiagnosis />
+            : tab === 'inventory' ? <LiveInventory />
+            : tab === 'catalog' ? <CatalogTab /> : <OnlineTab />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -368,16 +368,16 @@ function LiveInventory() {
 // ---------------------------------------------------------- Инвентар (composed) ---
 // LIVE Barsy metrics are the MAIN view; the old-ERP snapshot is reference-only, shown collapsed
 // below. Owner directive: from now on we track with Barsy; the historical seed is just context.
-function InventoryTab() {
+// Онлайн продажби — order-derived analytics; empty until the store is live, so a clear state.
+function OnlineTab() {
   return (
     <div style={{ display: 'grid', gap: '1.3rem' }}>
-      <LiveInventory />
-      <details>
-        <summary className="font-type" style={{ cursor: 'pointer', color: 'var(--pencil)', fontSize: '.82rem', padding: '.3rem 0' }}>
-          📁 Историческо от стария софтуер (само за справка) — покажи
-        </summary>
-        <div style={{ marginTop: '.8rem' }}><HistoricalDiagnosis /></div>
-      </details>
+      <div className="sticky-note" style={{ transform: 'rotate(-.5deg)', width: 'fit-content', maxWidth: '40rem' }}>
+        🛒 Онлайн продажбите и клиентите се попълват след старта на магазина. Дотогава разчитай на
+        „Преглед“ (исторически данни от стария софтуер) и „Склад“ (живо от Barsy).
+      </div>
+      <SalesTab />
+      <CustomersTab />
     </div>
   )
 }
@@ -416,7 +416,7 @@ function HistoricalDiagnosis() {
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       <div className="sticky-note" style={{ transform: 'rotate(-.6deg)', width: 'fit-content', maxWidth: '40rem' }}>
         📁 Историческо от стария софтуер (Microinvest), {data.meta?.period_from}–{data.meta?.period_to}.
-        Само за справка — това са минали данни. Живите числа за склада идват от Barsy (виж основния изглед горе).
+        Само за справка — това са минали данни. Живите числа за склада са в раздел „Склад“ (от Barsy).
       </div>
 
       {/* Диагноза на инвентара — the exception KPIs */}
