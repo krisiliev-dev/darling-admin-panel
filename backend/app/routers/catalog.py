@@ -373,6 +373,56 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
     return {"dry_run": False, "pricelist_id": pid, "count": len(req.article_ids), "period": period}
 
 
+def _cache_fields(a: dict) -> dict:
+    """Normalise one Barsy article row → the cache fields (shared by full sync + single refresh)."""
+    from .zayavki import _supplier_catalog
+    code = str(a.get("code") or "")
+    sups = list((_supplier_catalog()["by_code"].get(code) or {}).keys())
+    bc = a.get("barcode")
+    attrs = _parse_attributes(a)
+    price = _numf(a.get("actual_price"))
+    price_s = f"{price:.2f}" if price is not None else ""
+    name = a.get("article_name") or ""
+    barcode = (bc if isinstance(bc, str) else (bc[0] if isinstance(bc, list) and bc else "")) or ""
+    supplier = sups[0] if sups else ""
+    return {"code": code, "name": name, "barcode": barcode,
+            "category": a.get("category_name") or a.get("category") or "", "supplier": supplier,
+            "price": price, "has_image": bool(a.get("picture_url")), "attributes": attrs,
+            "search_lc": f"{name} {code} {barcode} {supplier} {price_s}".lower(),
+            "attr_lc": "|".join(f"{x['key']}={x['value']}" for x in attrs).lower()}
+
+
+async def refresh_cache_for_code(code: str) -> bool:
+    """Re-fetch ONE article from Barsy and upsert its cache row — the write-through target for the
+    Barsy article.updated webhook (keeps the cache fresh for changes made outside the panel)."""
+    if not code:
+        return False
+    from ..db import async_session_maker
+
+    def _fetch():
+        rows = barsy.call("Articles_getlist", {"filters": {"code": str(code)}, "length": 3,
+                          "extra_properties": {"article_details": 1, "picture_url": 1, "has_attributes": 1}}) or []
+        for a in rows:
+            if str(a.get("code")) == str(code):
+                return a
+        return rows[0] if rows else None
+    a = await run_in_threadpool(_fetch)
+    if not a or a.get("article_id") is None:
+        return False
+    f = _cache_fields(a)
+    async with async_session_maker() as session:
+        p = await session.get(ProductCache, a["article_id"]) or ProductCache(article_id=a["article_id"])
+        p.code, p.name, p.barcode = f["code"], f["name"], f["barcode"]
+        p.category, p.supplier, p.price = f["category"], (f["supplier"] or p.supplier), f["price"]
+        p.has_image = f["has_image"]
+        p.attributes_json = _json.dumps(f["attributes"], ensure_ascii=False)
+        p.search_lc, p.attr_lc = f["search_lc"], f["attr_lc"]
+        p.updated_at = _dt.datetime.now(_dt.timezone.utc)
+        session.add(p)
+        await session.commit()
+    return True
+
+
 @router.get("/facets")
 async def facets(user: User = Depends(current_active_user),
                  session: AsyncSession = Depends(get_async_session)):

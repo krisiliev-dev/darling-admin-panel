@@ -119,11 +119,21 @@ def _barsy_code(payload) -> str:
 
 
 async def _process_barsy_article(code: str, live: bool):
+    """ONE fan-out for a Barsy article.updated event: (a) refresh the local product cache row so
+    search/filter stay fresh, (b) mirror name/price to Shopify. Panel owns the single subscription."""
+    # (a) refresh the local product cache — always (independent of webhooks_live)
+    try:
+        from .catalog import refresh_cache_for_code
+        ok = await refresh_cache_for_code(code)
+        log.info("Barsy article %s -> cache refresh: %s", code, ok)
+    except Exception as e:
+        log.exception("Barsy article %s cache refresh failed: %s", code, e)
+    # (b) mirror to Shopify (dry-run unless webhooks_live)
     try:
         result = await run_in_threadpool(connector.barsy_article_to_shopify, code, live)
         log.info("Barsy article %s -> Shopify (live=%s): %s", code, live, result)
     except Exception as e:
-        log.exception("Barsy article %s handler failed: %s", code, e)
+        log.exception("Barsy article %s Shopify mirror failed: %s", code, e)
 
 
 @router.post("/barsy/article")

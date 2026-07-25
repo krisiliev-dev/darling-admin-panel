@@ -150,6 +150,17 @@ async def test_bulk_price_requires_owner(staff_client):
 
 
 @pytest.mark.asyncio
+async def test_refresh_cache_for_code_upserts(owner_client, barsy_recorder):
+    """The webhook write-through: re-fetch one article and upsert its cache row."""
+    from app.routers.catalog import refresh_cache_for_code
+    barsy_recorder.set_return("Articles_getlist", [
+        {"article_id": 77, "code": "WH-1", "article_name": "Уебхук продукт", "actual_price": "5.00"}])
+    assert await refresh_cache_for_code("WH-1") is True
+    r = (await owner_client.get("/api/catalog/search?q=уебхук")).json()
+    assert [i["article_id"] for i in r["items"]] == [77]
+
+
+@pytest.mark.asyncio
 async def test_search_requires_auth(client):
     assert (await client.get("/api/catalog/search")).status_code == 401
 
