@@ -195,7 +195,7 @@ function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () =>
           value={value} onChange={(e) => { setValue(e.target.value); setPreview(null) }} />
         <button className="btn-paper" onClick={() => void runPreview()} disabled={busy}>Прегледай</button>
         {preview?.dry_run && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Приложи на {preview.count}</button>}
-        <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>промоция за период — скоро</span>
+        <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }} title="Изисква надграждане на Barsy плана (ценови правила все още не са отключени).">промоция за период — след надграждане на Barsy</span>
       </div>
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: msg.includes('Приложено') ? 'var(--ready)' : 'var(--red)', marginTop: '.4rem' }}>{msg}</div>}
       {preview?.dry_run && preview.changes && (
