@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '../lib/api'
+import { printLabel } from '../lib/label'
 import type { ArticleDetail, CacheFacets, CacheProduct, CacheSearchResp, QualityAudit } from '../lib/api'
 import { useHotkey, isTyping } from '../lib/useHotkey'
 import { Sheet } from '../components/Paper'
@@ -260,6 +261,8 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
           </label>
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
             <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>{busy ? 'записва…' : 'Запиши в Barsy'}</button>
+            <button className="btn-paper" title="Печат на етикет (58мм) с баркод и цена"
+              onClick={() => printLabel({ name, price: detail.price, barcode, code: detail.code })}>🏷 Етикет</button>
             {msg && <span className="font-type" style={{ fontSize: '.8rem', color: 'var(--pencil)' }}>{msg}</span>}
           </div>
         </div>

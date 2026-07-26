@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api'
 import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview, BulkJob } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
+import { printLabel } from '../lib/label'
 
 // G4c: poll a background bulk job until it finishes, reporting progress. Large bulk-price/rename
 // runs return {async, job_id} instead of blocking the request for minutes.
@@ -126,6 +127,7 @@ export function ProductBulkPricing() {
                 <th style={{ padding: '.25rem' }}>Продукт</th><th style={{ padding: '.25rem' }}>Код</th>
                 <th style={{ padding: '.25rem' }}>Доставчик</th><th style={{ padding: '.25rem', textAlign: 'right' }}>Налич.</th>
                 <th style={{ padding: '.25rem', textAlign: 'right' }}>Цена</th>
+                <th style={{ padding: '.25rem' }}></th>
               </tr></thead>
               <tbody>
                 {items.map((p) => (
@@ -137,9 +139,13 @@ export function ProductBulkPricing() {
                     <td style={{ padding: '.3rem .25rem', color: 'var(--pencil)', maxWidth: '10rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.supplier}>{p.supplier || '—'}</td>
                     <td style={{ padding: '.3rem .25rem', textAlign: 'right', color: p.low ? 'var(--blocked)' : undefined }}>{p.stock ?? '—'}</td>
                     <td style={{ padding: '.3rem .25rem', textAlign: 'right', fontWeight: 700 }}>{eur(p.price)}</td>
+                    <td style={{ padding: '.3rem .25rem', textAlign: 'center' }}>
+                      <button className="btn-paper" style={{ fontSize: '.72rem', padding: '.1rem .35rem' }}
+                        title="Печат на етикет (58мм)" onClick={() => printLabel({ name: p.name, price: p.price, barcode: p.barcode, code: p.code })}>🏷</button>
+                    </td>
                   </tr>
                 ))}
-                {items.length === 0 && <tr><td colSpan={6} style={{ padding: '.6rem', color: 'var(--pencil)' }}>Няма продукти за този филтър (или кешът не е синхронизиран).</td></tr>}
+                {items.length === 0 && <tr><td colSpan={7} style={{ padding: '.6rem', color: 'var(--pencil)' }}>Няма продукти за този филтър (или кешът не е синхронизиран).</td></tr>}
               </tbody>
             </table>
           </div>
