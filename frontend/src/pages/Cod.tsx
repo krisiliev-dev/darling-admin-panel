@@ -14,7 +14,7 @@ const BUCKET_TONE: Record<string, string> = {
   awaiting: 'var(--red)', settled: 'var(--ready)', rto: 'var(--pencil)',
 }
 
-export function Cod() {
+export function Cod({ embedded = false }: { embedded?: boolean } = {}) {
   const { data, error: err, reload } = useApi<CodResponse>('/api/cod')
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
@@ -40,7 +40,7 @@ export function Cod() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Разчети" subtitle="наложен платеж — събрано и изплатено" />
+      {!embedded && <PageHeader title="Разчети" subtitle="наложен платеж — събрано и изплатено" />}
 
       {s && (
         <>

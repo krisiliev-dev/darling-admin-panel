@@ -58,19 +58,13 @@ export function Settings() {
       </Sheet>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' }}>
-        <Sheet>
-          <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Куриери</h3>
-          {!couriers ? <Loading /> : (
-            <div style={{ display: 'grid', gap: '.25rem' }}>
-              {couriers.couriers.map((c) => (
-                <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
-                  <span className="font-type">{c.name}</span>
-                  <CourierBadge c={c} compact />
-                </div>
-              ))}
-            </div>
-          )}
-        </Sheet>
+        {/* Куриери moved here from Онлайн поръчки — owner-only management surface */}
+        {me?.role === 'owner' ? <CourierManage couriers={couriers?.couriers ?? null} /> : (
+          <Sheet>
+            <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Куриери</h3>
+            <p className="pencil" style={{ fontSize: '.78rem' }}>Настройката на куриерите е видима само за собственика.</p>
+          </Sheet>
+        )}
 
         <Sheet>
           <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Модел на асистента</h3>
@@ -94,6 +88,61 @@ export function Settings() {
 
       <GdprPanel />
       </>}
+    </div>
+  )
+}
+
+// Куриери — owner-only management. Expand a courier to see its live status (свързан/готов),
+// sender identity and note. Credentials live in the server env (~/.hermes/.env) and are never
+// shown or editable from the browser — a deliberate safety line for secrets.
+function CourierManage({ couriers }: { couriers: CourierReadiness[] | null }) {
+  const [open, setOpen] = useState<string | null>(null)
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Куриери</h3>
+      {!couriers ? <Loading /> : couriers.length === 0 ? (
+        <p className="pencil" style={{ fontSize: '.8rem' }}>Няма конфигурирани куриери.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '.35rem' }}>
+          {couriers.map((c) => {
+            const isOpen = open === c.key
+            return (
+              <div key={c.key} style={{ border: '1px solid var(--line)', borderRadius: 2, background: 'var(--paper2)' }}>
+                <button className="font-type" onClick={() => setOpen(isOpen ? null : c.key)} aria-expanded={isOpen}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem',
+                    background: 'transparent', border: 'none', cursor: 'pointer', padding: '.45rem .6rem', fontSize: '.82rem', color: 'var(--ink)' }}>
+                  <span style={{ display: 'inline-flex', gap: '.4rem', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--pencil)' }}>{isOpen ? '▾' : '▸'}</span>{c.name}
+                  </span>
+                  <CourierBadge c={c} compact />
+                </button>
+                {isOpen && (
+                  <div style={{ padding: '.1rem .7rem .6rem', fontSize: '.78rem', display: 'grid', gap: '.25rem', borderTop: '1px dashed var(--line)' }}>
+                    <Row k="връзка" v={c.configured ? 'конфигуриран' : 'липсват данни за връзка'} />
+                    <Row k="състояние" v={c.ready ? 'готов за етикети' : 'не е готов'} />
+                    <Row k="подател" v={c.sender || '—'} />
+                    {c.note && <Row k="бележка" v={c.note} />}
+                    <p className="pencil" style={{ fontSize: '.72rem', marginTop: '.3rem' }}>
+                      Достъпите (API ключове/договори) се настройват в средата на сървъра (~/.hermes/.env) и
+                      не се показват тук по съображения за сигурност. Настройки по подразбиране за етикета
+                      (чупливо, преглед) се задават при създаване на пратка.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Sheet>
+  )
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '6rem 1fr', gap: '.5rem' }}>
+      <span className="font-type" style={{ fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--pencil)' }}>{k}</span>
+      <span>{v}</span>
     </div>
   )
 }
