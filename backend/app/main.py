@@ -17,7 +17,7 @@ from .users import auth_backend, fastapi_users
 from .routers import (
     admin, assistant, auth_extra, brands, catalog, cod, dashboard, deliveries, gdpr, home, insights,
     intake, intake_delivery, inventory,
-    inventory_health, orders, pricing, products, purchasing, quality, risk, summary, webhooks,
+    inventory_health, logs, orders, pricing, products, purchasing, quality, risk, summary, webhooks,
     zayavki)
 
 settings = get_settings()
@@ -54,6 +54,24 @@ async def _rate_limit_auth(request, call_next):
             return JSONResponse({"detail": e.detail}, status_code=e.status_code, headers=e.headers)
     return await call_next(request)
 
+
+# Audit EVERY mutating request (POST/PUT/PATCH/DELETE) so nothing a user does goes unlogged. Semantic
+# log_action rows add the rich detail on top. Never let auditing break the request.
+_AUDIT_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def _audit_mutations(request, call_next):
+    from . import audit
+    response = await call_next(request)
+    if request.method in _AUDIT_METHODS and request.url.path.startswith("/api/") \
+            and not request.url.path.startswith("/api/health"):
+        try:
+            await audit.record_request(request, response.status_code)
+        except Exception:
+            pass
+    return response
+
 # --- auth: cookie login/logout, current-user, first-run setup ------------------------
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"])
@@ -80,6 +98,7 @@ app.include_router(cod.router)
 app.include_router(assistant.router)
 app.include_router(purchasing.router)
 app.include_router(admin.router)
+app.include_router(logs.router)
 app.include_router(gdpr.router)
 app.include_router(insights.router)
 app.include_router(pricing.router)

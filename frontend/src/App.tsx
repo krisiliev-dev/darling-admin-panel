@@ -13,6 +13,7 @@ import { Products } from './pages/Products'
 import { Deliveries } from './pages/Deliveries'
 import { Zayavki } from './pages/Zayavki'
 import { Brands } from './pages/Brands'
+import { Logs } from './pages/Logs'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
 
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="zayavki" element={<Zayavki />} />
         <Route path="brands" element={<Brands />} />
         <Route path="assistant" element={<Assistant />} />
+        <Route path="logs" element={me.is_superuser ? <Logs /> : <Navigate to="/" replace />} />
         <Route path="settings" element={me.is_superuser ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
