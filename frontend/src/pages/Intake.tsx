@@ -178,13 +178,13 @@ function ProductEditor({ draft, onDone, onCancel }: {
         const attrsMap: Record<string, string> = {}
         attrs.forEach((a) => { if (a.key) attrsMap[a.key] = a.value })
         const r = await api.post<{ name: string }>('/api/intake/compose-name', {
-          category_id: d.shopify_category_id, attributes: attrsMap, capacity, dimensions })
+          category_id: d.shopify_category_id, brand: d.brand || '', attributes: attrsMap, capacity, dimensions })
         if (r.name) setD((d0) => ({ ...d0, name: r.name }))
       } catch { /* composer best-effort */ }
     }, 300)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.shopify_category_id, JSON.stringify(attrs), capacity, dimensions, touched.name])
+  }, [d.shopify_category_id, d.brand, JSON.stringify(attrs), capacity, dimensions, touched.name])
 
   const save = async () => {
     if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
@@ -200,7 +200,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
         `/api/intake/drafts/${draft.id}`, {
           code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
           name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
-          description: d.description || '', attributes: sized,
+          brand: d.brand || '', description: d.description || '', attributes: sized,
           meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
         })
       const b = r.barsy
@@ -254,6 +254,9 @@ function ProductEditor({ draft, onDone, onCancel }: {
       {enriched && (
         <>
           <div className="font-type" style={eyebrow}>2 · Предложения — прегледай и коригирай</div>
+          <Field label="Бранд">
+            <BrandPicker value={d.brand || ''} onPick={(b) => setD({ ...d, brand: b })} />
+          </Field>
           <Field label="Категория (Shopify таксономия)">
             <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}
               onPick={(id, path) => { mark('category'); setD({ ...d, shopify_category_id: id, category: path }) }} />
@@ -359,6 +362,55 @@ function TaxonomyAttributes({ categoryId, value, onChange }: {
             onChange={(e) => onChange(value.map((x) => x === a ? { ...x, value: e.target.value } : x))} />
         </div>
       ))}
+    </div>
+  )
+}
+
+// Brand picker: autocompletes over the gazetteer (+ panel-added brands) so staff pick the canonical
+// spelling; if the typed brand isn't known, offers to add it (panel store, source=panel).
+function BrandPicker({ value, onPick }: { value: string; onPick: (b: string) => void }) {
+  const [q, setQ] = useState(value)
+  const [open, setOpen] = useState(false)
+  const [opts, setOpts] = useState<{ name: string }[]>([])
+  const [known, setKnown] = useState(true)
+  const [adding, setAdding] = useState(false)
+  useEffect(() => { setQ(value) }, [value])
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      api.get<{ brands: { name: string }[]; known: boolean }>(`/api/brands?q=${encodeURIComponent(q)}&limit=20`)
+        .then((r) => { setOpts(r.brands); setKnown(r.known || !q.trim()) }).catch(() => setOpts([]))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [q, open])
+  const add = async () => {
+    const name = q.trim()
+    if (!name) return
+    setAdding(true)
+    try { await api.post('/api/brands', { name }); onPick(name); setOpen(false); setKnown(true) }
+    catch { /* ignore */ } finally { setAdding(false) }
+  }
+  return (
+    <div style={{ position: 'relative' }}>
+      <input className="input-paper" placeholder="търси или въведи бранд…" value={q}
+        onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true) }}
+        onBlur={() => setTimeout(() => setOpen(false), 180)} />
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 10, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 3, maxHeight: '13rem', overflowY: 'auto', width: '100%', boxShadow: '2px 3px 7px rgba(0,0,0,.14)' }}>
+          {opts.map((o) => (
+            <button key={o.name} onMouseDown={() => { onPick(o.name); setQ(o.name); setOpen(false) }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '.35rem .5rem', border: 'none', borderBottom: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', fontSize: '.8rem' }}>
+              {o.name}
+            </button>
+          ))}
+          {q.trim() && !known && !opts.some((o) => o.name.toLowerCase() === q.trim().toLowerCase()) && (
+            <button onMouseDown={(e) => { e.preventDefault(); void add() }} disabled={adding}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '.4rem .5rem', border: 'none', background: 'var(--paper2)', cursor: 'pointer', fontSize: '.78rem', color: 'var(--red)' }}>
+              {adding ? 'добавя…' : `+ Добави нов бранд „${q.trim()}“`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

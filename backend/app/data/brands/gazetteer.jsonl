@@ -1,0 +1,108 @@
+{"name": "Luminarc", "source": "scrape", "ts": "2026-07-13T22:02:13"}
+{"name": "BRIO", "source": "scrape", "ts": "2026-07-13T22:02:13"}
+{"name": "Hobby life", "source": "scrape", "ts": "2026-07-13T22:02:13"}
+{"name": "Купро Емайл", "source": "scrape", "ts": "2026-07-13T22:02:13"}
+{"name": "Пармаш", "source": "scrape", "ts": "2026-07-13T22:02:14"}
+{"name": "Ibili", "source": "scrape", "ts": "2026-07-13T22:02:14"}
+{"name": "Tramontina", "source": "scrape", "ts": "2026-07-13T22:02:15"}
+{"name": "Okyanus", "source": "scrape", "ts": "2026-07-13T22:02:15"}
+{"name": "Zambak", "source": "scrape", "ts": "2026-07-13T22:02:16"}
+{"name": "Vertex", "source": "scrape", "ts": "2026-07-13T22:02:16"}
+{"name": "Uniglass", "source": "scrape", "ts": "2026-07-13T22:02:18"}
+{"name": "elbulgaria", "source": "scrape", "ts": "2026-07-13T22:02:18"}
+{"name": "Titiz", "source": "scrape", "ts": "2026-07-13T22:02:18"}
+{"name": "Четпром", "source": "scrape", "ts": "2026-07-13T22:02:18"}
+{"name": "Tefal", "source": "vision+llm", "ts": "2026-07-13T22:02:33"}
+{"name": "CRYSTALEX", "source": "vision+llm", "ts": "2026-07-13T22:12:32"}
+{"name": "OXFORD", "source": "vision+llm", "ts": "2026-07-13T22:36:47"}
+{"name": "IKEA", "source": "vision+llm", "ts": "2026-07-13T22:47:54"}
+{"name": "Dunya", "source": "vision+llm", "ts": "2026-07-13T23:52:01"}
+{"name": "LOCK&LOCK", "source": "vision+llm", "ts": "2026-07-14T00:00:21"}
+{"name": "DURALEX", "source": "vision+llm", "ts": "2026-07-14T00:28:13"}
+{"name": "EASY LIFE", "source": "vision+llm", "ts": "2026-07-14T00:37:18"}
+{"name": "Bormioli Rocco", "source": "vision+llm", "ts": "2026-07-14T03:08:00"}
+{"name": "WMF", "source": "vision+llm", "ts": "2026-07-14T04:27:26"}
+{"name": "TOPKAPI", "source": "vision+llm", "ts": "2026-07-14T04:47:12"}
+{"name": "TOWER", "source": "vision+llm", "ts": "2026-07-14T05:40:48"}
+{"name": "RIEDEL", "source": "vision+llm", "ts": "2026-07-14T13:32:06"}
+{"name": "E-Cloth", "source": "vision+llm", "ts": "2026-07-14T13:32:44"}
+{"name": "Royal Winton", "source": "vision+llm", "ts": "2026-07-14T13:32:58"}
+{"name": "Anchor Hocking", "source": "vision+llm", "ts": "2026-07-14T13:43:01"}
+{"name": "The Little Flower Soap Co.", "source": "vision+llm", "ts": "2026-07-14T13:46:10"}
+{"name": "OCEAN", "source": "vision+llm", "ts": "2026-07-14T13:51:39"}
+{"name": "Teavana", "source": "vision+llm", "ts": "2026-07-14T13:54:50"}
+{"name": "Lenox", "source": "vision+llm", "ts": "2026-07-14T14:08:22"}
+{"name": "Vileda", "source": "vision+llm", "ts": "2026-07-14T14:14:49"}
+{"name": "Wilton", "source": "vision+llm", "ts": "2026-07-14T14:27:00"}
+{"name": "Zepter", "source": "vision+llm", "ts": "2026-07-14T14:30:36"}
+{"name": "Guzzini", "source": "vision+llm", "ts": "2026-07-14T14:43:42"}
+{"name": "Tupperware", "source": "vision+llm", "ts": "2026-07-14T14:47:34"}
+{"name": "InnovaGoods", "source": "vision+llm", "ts": "2026-07-14T15:01:12"}
+{"name": "Leifheit", "source": "vision+llm", "ts": "2026-07-14T15:13:11"}
+{"name": "Bormioli", "source": "vision+llm", "ts": "2026-07-14T15:33:57"}
+{"name": "Fissler", "source": "vision+llm", "ts": "2026-07-14T15:42:26"}
+{"name": "Alkan Züccaciye", "source": "vision+llm", "ts": "2026-07-14T17:05:57"}
+{"name": "Luigi Bormioli", "source": "vision+llm", "ts": "2026-07-14T18:36:23"}
+{"name": "Arcoroc", "source": "vision+llm", "ts": "2026-07-14T18:40:33"}
+{"name": "Lékué", "source": "vision+llm", "ts": "2026-07-14T18:45:52"}
+{"name": "Winco", "source": "vision+llm", "ts": "2026-07-14T19:25:33"}
+{"name": "KitchenAid", "source": "vision+llm", "ts": "2026-07-14T19:32:34"}
+{"name": "Char-Broil", "source": "vision+llm", "ts": "2026-07-14T21:00:05"}
+{"name": "HORECANO", "source": "canon-fix", "ts": "2026-07-14T21:22:27"}
+{"name": "Zicco", "source": "canon-fix", "ts": "2026-07-14T21:22:27"}
+{"name": "Dreamfarm", "source": "vision+llm", "ts": "2026-07-14T21:41:28"}
+{"name": "LAV", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Pirge", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Vidivi", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Cristar", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Werzalit", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Inoxriv", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Perilla", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "ILSA", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Grammy", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Serinova", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Bisetti", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Marinex", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Nadír", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Bonna", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Belisima", "source": "slot-verify", "ts": "2026-07-14T21:55:20"}
+{"name": "Rosenthal", "source": "vision+llm", "ts": "2026-07-14T22:18:38"}
+{"name": "Hario", "source": "vision+llm", "ts": "2026-07-14T22:31:44"}
+{"name": "AMEFA", "source": "vision+llm", "ts": "2026-07-14T23:23:14"}
+{"name": "OMCAN", "source": "vision+llm", "ts": "2026-07-15T03:43:21"}
+{"name": "HORECANO HOME", "source": "vision+llm", "ts": "2026-07-15T11:40:43"}
+{"name": "FOXY", "source": "vision+llm", "ts": "2026-07-15T11:58:23"}
+{"name": "KILIÇLAR", "source": "vision+llm", "ts": "2026-07-15T13:13:17"}
+{"name": "HG", "source": "vision+llm", "ts": "2026-07-16T08:53:29"}
+{"name": "HISAR", "source": "vision+llm", "ts": "2026-07-16T08:56:57"}
+{"name": "RICE", "source": "vision+llm", "ts": "2026-07-16T09:40:26"}
+{"name": "Mira-N", "source": "vision+llm", "ts": "2026-07-16T10:53:32"}
+{"name": "Tescoma", "source": "vision+llm", "ts": "2026-07-16T20:43:45"}
+{"name": "Home Perfect", "source": "vision+llm", "ts": "2026-07-16T22:28:29"}
+{"name": "Arian Lion", "source": "vision+llm", "ts": "2026-07-16T22:54:48"}
+{"name": "Koblenz", "source": "vision+llm", "ts": "2026-07-16T23:00:07"}
+{"name": "Hascevher", "source": "vision+llm", "ts": "2026-07-16T23:08:19"}
+{"name": "ELA", "source": "vision+llm", "ts": "2026-07-16T23:30:29"}
+{"name": "Arian", "source": "vision+llm", "ts": "2026-07-16T23:42:34"}
+{"name": "Bormioli Luigi", "source": "vision+llm", "ts": "2026-07-17T02:32:26"}
+{"name": "Kulsan", "source": "vision+llm", "ts": "2026-07-17T03:31:25"}
+{"name": "Polaris", "source": "vision+llm", "ts": "2026-07-17T04:46:23"}
+{"name": "Mothercare", "source": "vision+llm", "ts": "2026-07-17T14:31:15"}
+{"name": "Aqua Optima", "source": "vision+llm", "ts": "2026-07-17T15:56:14"}
+{"name": "POLYWOOD", "source": "vision+llm", "ts": "2026-07-17T17:11:19"}
+{"name": "Joseph Joseph", "source": "vision+llm", "ts": "2026-07-17T18:22:32"}
+{"name": "Villeroy & Boch", "source": "vision+llm", "ts": "2026-07-17T18:37:34"}
+{"name": "Koziol", "source": "vision+llm", "ts": "2026-07-17T20:50:45"}
+{"name": "Vista Alegre", "source": "vision+llm", "ts": "2026-07-17T22:07:08"}
+{"name": "Renga", "source": "gs1", "ts": "2026-07-18T14:35:42"}
+{"name": "Efay", "source": "gs1", "ts": "2026-07-18T14:35:42"}
+{"name": "Duralex", "source": "gs1", "ts": "2026-07-18T14:35:42"}
+{"name": "Planet Gecko", "source": "gs1", "ts": "2026-07-18T14:35:42"}
+{"name": "Oztiryakiler", "source": "gs1", "ts": "2026-07-18T14:35:42"}
+{"name": "Senyayla", "source": "gs1", "ts": "2026-07-18T14:35:42"}
+{"name": "Güral Porselen", "source": "gs1", "ts": "2026-07-18T14:51:26"}
+{"name": "Hobby Life", "source": "gs1", "ts": "2026-07-18T14:51:26"}
+{"name": "Plastart", "source": "gs1", "ts": "2026-07-18T14:51:26"}
+{"name": "GastroPlast", "source": "gs1", "ts": "2026-07-18T14:51:26"}
+{"name": "Alform", "source": "gs1", "ts": "2026-07-18T14:51:26"}
+{"name": "Atlas Melamin", "source": "owner_normalized", "ts": "2026-07-19T02:39:10"}

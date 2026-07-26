@@ -171,6 +171,7 @@ export interface TaxAttribute { handle: string; name: string; free: boolean; val
 export interface IntakeDraft {
   category: string
   shopify_category_id?: string
+  brand?: string
   name: string
   attributes: IntakeAttribute[]
   description: string

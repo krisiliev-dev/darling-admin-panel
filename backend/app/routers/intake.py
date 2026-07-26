@@ -257,6 +257,7 @@ class ApproveRequest(BaseModel):
     name: str
     category: str = ""
     shopify_category_id: str = ""
+    brand: str = ""
     description: str = ""
     attributes: list[Attribute] = []
     meta_title: str = ""
@@ -273,6 +274,7 @@ class DraftOut(BaseModel):
     name: str
     category: str
     shopify_category_id: str = ""
+    brand: str = ""
     description: str
     attributes: list[Attribute]
     meta_title: str = ""
@@ -295,6 +297,7 @@ def _row_to_out(d: IntakeDraft, image_count: int = 0) -> DraftOut:
         id=d.id, code=d.code, barcode=d.barcode, price=d.price, unit=d.unit,
         name=d.name, category=d.category,
         shopify_category_id=getattr(d, "shopify_category_id", "") or "",
+        brand=getattr(d, "brand", "") or "",
         description=d.description,
         attributes=[Attribute(**a) for a in json.loads(d.attributes_json or "[]")],
         meta_title=getattr(d, "meta_title", "") or "", meta_description=getattr(d, "meta_description", "") or "",
@@ -383,7 +386,7 @@ async def approve(
     d = IntakeDraft(
         code=req.code.strip(), barcode=req.barcode.strip(), price=req.price.strip(),
         unit=req.unit or "бр", name=req.name.strip(), category=req.category,
-        shopify_category_id=req.shopify_category_id.strip(),
+        shopify_category_id=req.shopify_category_id.strip(), brand=req.brand.strip(),
         description=req.description,
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
         meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
@@ -464,6 +467,7 @@ async def update_draft(
     d.name = req.name.strip()
     d.category = req.category
     d.shopify_category_id = req.shopify_category_id.strip()
+    d.brand = req.brand.strip()
     d.description = req.description
     d.attributes_json = json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False)
     d.meta_title = req.meta_title.strip()

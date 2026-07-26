@@ -15,8 +15,8 @@ from .db import create_db_and_tables
 from .schemas import UserCreate, UserRead, UserUpdate
 from .users import auth_backend, fastapi_users
 from .routers import (
-    admin, assistant, auth_extra, catalog, cod, dashboard, deliveries, gdpr, home, insights, intake,
-    intake_delivery, inventory,
+    admin, assistant, auth_extra, brands, catalog, cod, dashboard, deliveries, gdpr, home, insights,
+    intake, intake_delivery, inventory,
     inventory_health, orders, pricing, products, purchasing, quality, risk, summary, webhooks,
     zayavki)
 
@@ -68,6 +68,7 @@ app.include_router(auth_extra.router)
 app.include_router(dashboard.router)
 app.include_router(products.router)
 app.include_router(catalog.router)
+app.include_router(brands.router)
 app.include_router(orders.router)
 app.include_router(intake.router)
 app.include_router(intake_delivery.router)

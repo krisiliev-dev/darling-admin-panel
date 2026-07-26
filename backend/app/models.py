@@ -55,6 +55,7 @@ class IntakeDraft(Base):
     meta_description: Mapped[str] = mapped_column(Text, default="")
     # formal Shopify product-taxonomy id (e.g. "hg-11-2"); `category` holds the human breadcrumb
     shopify_category_id: Mapped[str] = mapped_column(String(64), default="")
+    brand: Mapped[str] = mapped_column(String(128), default="")   # canonical brand (→ Shopify vendor)
     model: Mapped[str] = mapped_column(String(64), default="")
     # lifecycle. For delivery-sourced products: new_from_delivery → done_from_delivery (enriched,
     # stays checkmarked in the queue) → the whole delivery leaves together when it's finalised.
@@ -206,6 +207,23 @@ class DeliveryLine(Base):
 
 # NOTE: supplier orders (заявки) live in BARSY as draft storeloads (складови зареждания),
 # not in a local table — Barsy is the system of record. See routers/purchasing.py.
+
+
+class Brand(Base):
+    """Panel-owned brand store (admin.db). The picker merges the bundled gazetteer snapshot (107
+    confirmed brands from pipeline-v3) with these panel-added rows; a future job syncs them back to
+    the pipeline's gazetteer.jsonl (brand.upsert). Row schema mirrors the gazetteer exactly:
+    {name, aliases, logo, confirmed, source, ts}. `confirmed` is a manual flag — NOT GS1 confirmation."""
+    __tablename__ = "brands"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, index=True)   # canonical, merge key
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")
+    logo: Mapped[str] = mapped_column(String(512), default="")
+    confirmed: Mapped[bool] = mapped_column(default=False)
+    source: Mapped[str] = mapped_column(String(32), default="panel")
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
 
 
 class CodSettlement(Base):
