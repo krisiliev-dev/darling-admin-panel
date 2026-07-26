@@ -20,9 +20,13 @@ docker compose up -d --build
 docker image prune -f >/dev/null 2>&1 || true
 
 echo "[deploy] health check…"
-sleep 6
-if curl -fsS https://panel.darlinghome.bg/api/health >/dev/null; then
-  echo "[deploy] OK — now at $(git rev-parse --short HEAD)"
-else
-  echo "[deploy] HEALTH CHECK FAILED"; exit 1
-fi
+# Poll rather than a flat sleep: the container needs a variable moment to boot
+# (alembic migrate + uvicorn) and a fixed wait races startup → false 502 failures.
+for i in $(seq 1 20); do
+  if curl -fsS --max-time 5 https://panel.darlinghome.bg/api/health >/dev/null; then
+    echo "[deploy] OK — now at $(git rev-parse --short HEAD) (healthy after ~$((i*3))s)"
+    exit 0
+  fi
+  sleep 3
+done
+echo "[deploy] HEALTH CHECK FAILED — not healthy after ~60s"; exit 1
