@@ -84,6 +84,14 @@ class Settings(BaseSettings):
     # verify against a Barsy test object before raising it above 0; writes are gated pre-launch.
     barsy_min_profit_percent: float = 0.0
 
+    # --- Склад / store operations (Ревизия/Изписване/Прехвърляне/Зареждане/Сторно) ---------
+    # SAFETY GATE for the panel's store-ops MUTATING writes: manual goods-load (Storeloads_create),
+    # write-off (Storeouts_save), transfer (Storemoves_create), stocktake post (Revisions_*), and
+    # document storno. False (default) => every store-ops write DRY-RUNS: it validates, writes nothing,
+    # and returns the exact Barsy body it WOULD send. Flip to True (STORE_OPS_BARSY_LIVE=1) only after
+    # the (partly undocumented) write shapes are trialled live against a test object with Hermes.
+    store_ops_barsy_live: bool = False
+
     # --- Заявки email sending (Gmail SMTP) ---------------------------------------------
     # The panel sends a заявка to a supplier via the business Gmail. Set GMAIL_USER +
     # GMAIL_APP_PASSWORD (a Google App Password, NOT the account password) in ~/.hermes/.env.

@@ -32,6 +32,20 @@ flipping live, run one genuine delivery — ngrok is optional (only if not yet d
   receiver verifies with the real secret and logs the dry-run plan. Keep `WEBHOOKS_LIVE=0` for this —
   even the first real delivery should be an inspectable dry-run before step 8 flips the switch.
 
+## ⚠ PRE-LAUNCH CLEANUP — remove ALL test data before go-live (do this FIRST)
+During pre-launch we clean Barsy, load ~40 TEST products + test stock, and exercise every flow. All of
+that MUST be wiped before the real catalog + real stock go in. Go through each and confirm clean:
+- [ ] **Delete the test articles** (the 40 from `agent-pipeline/test_data_approved.jsonl`) and their stock.
+- [ ] **Delete the TEST depot** "ТЕСТ — Склад 2 (изтрий преди старт)" (created only to exercise Прехвърляне).
+- [ ] **Delete all test documents**: test storeloads/deliveries, storeouts (write-offs), storemoves
+      (transfers), revisions (stocktakes), accounts/orders + payments, clientorders, clients, pricelists,
+      any фактури — everything generated during system testing.
+- [ ] **Clear test supplier↔article links** (`Suppliers_save_articles` empty rows) if any were set.
+- [ ] **Reset idempotency/echo state** so test runs don't suppress real ones: connector order log
+      (`_seen_*`/order-log JSONL), `.connector_echo.json`, `store_synced.jsonl`, `stock_loaded.jsonl`.
+- [ ] **Confirm Barsy holds ZERO products/orders/stock** before importing the real catalog + real stock.
+- [ ] Keep: suppliers, categories, users, POS/каса, payment methods, couriers, reasons, the MAIN depot.
+
 ## Launch steps (do these ONLY at store launch, in order)
 1. **Deploy the backend to the always-on public-HTTPS host** (webhooks can't reach the laptop).
 2. **Set secrets** on that host's env (NOT in git):

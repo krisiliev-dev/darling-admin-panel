@@ -34,6 +34,7 @@ from .routers import (
     purchasing,
     quality,
     risk,
+    store_ops,
     summary,
     webhooks,
     zayavki,
@@ -130,6 +131,7 @@ app.include_router(pricing.router)
 app.include_router(quality.router)
 app.include_router(risk.router)
 app.include_router(summary.router)
+app.include_router(store_ops.router)
 app.include_router(home.router)
 app.include_router(webhooks.router)  # Barsy⇄Shopify receivers (HMAC/token-gated, no session auth)
 

@@ -13,6 +13,7 @@ import { Products } from './pages/Products'
 import { Deliveries } from './pages/Deliveries'
 import { Zayavki } from './pages/Zayavki'
 import { Brands } from './pages/Brands'
+import { Sklad } from './pages/Sklad'
 import { Kancelaria } from './pages/Kancelaria'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="pricing" element={<Products />} />
         <Route path="purchasing" element={<Deliveries />} />
         <Route path="zayavki" element={<Zayavki />} />
+        <Route path="sklad" element={me.is_superuser ? <Sklad /> : <Navigate to="/" replace />} />
         <Route path="brands" element={<Brands />} />
         <Route path="kancelaria" element={<Kancelaria />} />
         <Route path="assistant" element={<Assistant />} />
