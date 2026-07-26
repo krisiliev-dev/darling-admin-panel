@@ -37,19 +37,13 @@ def _seed():
         return None
 
 
-_PRODUCTS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "seed_products.json")
 _SORT_FIELDS = {"code", "name", "supplier", "units", "rev", "marg", "stock", "stockval",
                 "price", "last", "cover"}
 _TEXT_FIELDS = {"code", "name", "supplier", "last"}
 
-
-@lru_cache(maxsize=1)
-def _products():
-    try:
-        with open(_PRODUCTS_PATH, encoding="utf-8") as f:
-            return json.load(f).get("products", [])
-    except (OSError, json.JSONDecodeError):
-        return []
+# the seed catalogue now lives in the service layer; keep the module-level name (tests patch
+# router._products, and the endpoints below call _products()).
+from ..services.product_seed import products as _products  # noqa: E402
 
 
 def _numf(v):

@@ -34,8 +34,8 @@ from ..core import barsy
 from ..db import get_async_session
 from ..models import User
 from ..services.jsonl import iter_jsonl
+from ..services.product_seed import products as _products
 from ..users import current_active_user, current_owner
-from .inventory_health import _products  # reuse the cached seed catalogue (interim match source)
 
 router = APIRouter(prefix="/api/intake/delivery", tags=["intake"])
 
