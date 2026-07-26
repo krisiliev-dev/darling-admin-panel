@@ -196,6 +196,30 @@ async def test_save_to_barsy_sets_category_from_leaf(make_draft, monkeypatch, mo
     assert body["cat_id"] == 3803 and body["master_cat_id"] == 3803
 
 
+# --- delivery traceability: supplier code → ref_num, raw supplier name → alias (live path) ---
+async def test_save_to_barsy_sets_ref_num_and_alias_from_delivery_line(make_draft, monkeypatch, mock_barsy):
+    from types import SimpleNamespace
+
+    import app.routers.intake as intake
+    from app.db import async_session_maker
+    from app.models import DeliveryLine, IntakeDraft
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "_resolve_cat_id", lambda sid: None)
+    async with async_session_maker() as s:
+        line = DeliveryLine(batch_id=1, supplier_code="SUP-42", name="КУПА КЕР. СТАРО ИМЕ", qty=1, price=1.0)
+        s.add(line)
+        await s.commit()
+        await s.refresh(line)
+        line_id = line.id
+    did = await make_draft(code="Z", name="Чиста купа", status="approved", delivery_line_id=line_id)
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
+    body = next(b for op, b in mock_barsy if op == "Articles_create")["article"]
+    assert body["ref_num"] == "SUP-42"                       # supplier's catalogue code
+    assert body["article_aliases"] == ["КУПА КЕР. СТАРО ИМЕ"]  # raw supplier name → search alias
+
+
 async def test_save_to_barsy_omits_category_when_unresolved(make_draft, monkeypatch, mock_barsy):
     from types import SimpleNamespace
 

@@ -421,6 +421,15 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     if cat_id:
         art_body["article"]["cat_id"] = cat_id
         art_body["article"]["master_cat_id"] = cat_id
+    is_create = not (d.barsy_article_id and d.barsy_article_id > 0)
+    # delivery-sourced products carry supplier traceability from their delivery line: the supplier's
+    # own catalogue code → ref_num, and their raw row name → a search alias (POS/search). ref_num is
+    # safe on update; article_aliases is create-only (re-sending an attached synonym 501s in Barsy).
+    dline = await session.get(DeliveryLine, d.delivery_line_id) if d.delivery_line_id else None
+    if dline and dline.supplier_code:
+        art_body["article"]["ref_num"] = dline.supplier_code
+    if is_create and dline and dline.name.strip() and dline.name.strip() != (d.name or "").strip():
+        art_body["article"]["article_aliases"] = [dline.name.strip()]
     if d.barsy_article_id and d.barsy_article_id > 0:        # re-edit → update + upload any new images
         try:
             await run_in_threadpool(barsy.call, "Articles_update",

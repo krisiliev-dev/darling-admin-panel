@@ -70,8 +70,8 @@ class Settings(BaseSettings):
     # Currencies_getlist live). Prices are entered in EUR, so this stays 1.
     barsy_currency_id: int = 1
     # Storeloads price_mode: 1 = the delivery unit prices we send are VAT-INCLUSIVE (our prices are).
-    # ⚠️ Barsy's docs don't state polarity; VERIFY LIVE with one test storeload (create price_mode=1,
-    # read the stored cost back) before launch — a backwards flag corrupts cost/margin by the VAT rate.
+    # Polarity confirmed in storeloads/getlist.rst: "0 => без включено ДДС, 1 => с включено ДДС"
+    # (the create.rst entry omits it, which earlier flagged this as unverified). 1 is correct.
     barsy_price_mode: int = 1
 
     # --- Заявки email sending (Gmail SMTP) ---------------------------------------------

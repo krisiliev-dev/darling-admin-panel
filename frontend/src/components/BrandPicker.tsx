@@ -1,7 +1,6 @@
 // Brand picker: autocompletes over the gazetteer (+ panel-added brands) so staff pick the canonical
-// spelling; if the typed brand isn't known, offers to add it (panel store, source=panel). Shared by
-// the single-product editor (Intake) and delivery intake (IntakeDelivery) so both write a canonical
-// "Марка" onto the Barsy article.
+// spelling; if the typed brand isn't known, offers to add it (panel store, source=panel). Used by the
+// product editor (Intake) to write a canonical "Марка" onto the Barsy article.
 import { useEffect, useState } from 'react'
 
 import { api } from '../lib/api'
