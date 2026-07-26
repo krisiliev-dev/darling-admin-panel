@@ -61,6 +61,10 @@ flipping live, run one genuine delivery — ngrok is optional (only if not yet d
 8. **Flip `WEBHOOKS_LIVE=1`** — only after 1–7. Watch logs for `missing_skus` (unmatched line items —
    these now REFUSE the sale + flag for review rather than booking a partial one) and mis-fiscalisation
    on the first real orders.
+   - **G5 — verify stock decrement:** on the FIRST real order, confirm Barsy stock actually drops for
+     the ordered articles (the sale is drawn down at order time via `Accounts_place`, not at
+     fulfilment). If it doesn't, the panel/connector isn't the one decrementing — resolve before more
+     orders. Also confirm the online payment recorded with `fiscal:0` (no premature бон).
 9. **COD↔Barsy writes** are a SEPARATE gate: `COD_BARSY_POST_LIVE` (default off). When on:
    - a refused delivery (Разчети/risk `outcome=refused`) **stornos** the Barsy sale → restores stock;
    - a settled COD payout **posts** the collected money to the sale account with **`fiscal:0`** (record-

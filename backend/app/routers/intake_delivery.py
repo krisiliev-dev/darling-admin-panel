@@ -316,7 +316,9 @@ async def commit_delivery(
             created.append(ln.article_id)
             continue
         try:
-            out = await run_in_threadpool(barsy.call, "Articles_create", _new_article_body(ln))
+            new_body = _new_article_body(ln)
+            new_body["article"]["min_profit_percent"] = get_settings().barsy_min_profit_percent  # POS below-cost floor
+            out = await run_in_threadpool(barsy.call, "Articles_create", new_body)
         except Exception as e:
             done = [str(c) for c in created if c]
             hint = (f" Вече създадени в Barsy: {', '.join(done)} — провери преди повторение."

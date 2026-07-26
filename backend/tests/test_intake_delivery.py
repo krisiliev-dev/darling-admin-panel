@@ -232,7 +232,7 @@ async def test_commit_requires_owner(staff_client):
 async def test_commit_live_creates_articles_then_one_storeload(owner_client, barsy_recorder, monkeypatch):
     # flip the gate ON for this test only
     monkeypatch.setattr(intake_delivery, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1, barsy_min_profit_percent=0.0))
     barsy_recorder.set_return("Articles_create", {"article_id": 9001})
     barsy_recorder.set_return("Storeloads_create", {"storeload_id": 700})
 
@@ -253,7 +253,7 @@ async def test_commit_live_creates_articles_then_one_storeload(owner_client, bar
 @pytest.mark.asyncio
 async def test_commit_live_resolves_supplier_id_into_header(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(intake_delivery, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1, barsy_min_profit_percent=0.0))
     barsy_recorder.set_return("Suppliers_getlist",
                               [{"supplier_id": 39, "supplier_name": "Тестов доставчик"}])
     barsy_recorder.set_return("Articles_create", {"article_id": 9001})
@@ -268,7 +268,7 @@ async def test_commit_live_resolves_supplier_id_into_header(owner_client, barsy_
 @pytest.mark.asyncio
 async def test_commit_live_needs_confirm(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(intake_delivery, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1, barsy_min_profit_percent=0.0))
     body = _commit_body()
     body["confirm"] = False
     r = await owner_client.post("/api/intake/delivery/commit", json=body)

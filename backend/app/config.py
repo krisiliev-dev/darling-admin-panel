@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     # Polarity confirmed in storeloads/getlist.rst: "0 => без включено ДДС, 1 => с включено ДДС"
     # (the create.rst entry omits it, which earlier flagged this as unverified). 1 is correct.
     barsy_price_mode: int = 1
+    # Barsy article min_profit_percent — a per-article floor guarding an in-store POS sale from going
+    # below cost (0 = never below cost). Set on panel-created articles. ⚠️ Undocumented semantics —
+    # verify against a Barsy test object before raising it above 0; writes are gated pre-launch.
+    barsy_min_profit_percent: float = 0.0
 
     # --- Заявки email sending (Gmail SMTP) ---------------------------------------------
     # The panel sends a заявка to a supplier via the business Gmail. Set GMAIL_USER +

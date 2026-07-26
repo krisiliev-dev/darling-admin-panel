@@ -154,7 +154,7 @@ async def test_save_to_barsy_claim_blocks_concurrent_create(make_draft, monkeypa
     import app.routers.intake as intake
     from app.db import async_session_maker
     from app.models import IntakeDraft
-    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
     # a draft mid-creation: barsy_article_id = -1 (the claim sentinel a concurrent save holds)
     did = await make_draft(code="X", name="Дубликат", barsy_article_id=-1, status="approved")
     async with async_session_maker() as s:
@@ -170,7 +170,7 @@ async def test_save_to_barsy_creates_once_and_claims(make_draft, monkeypatch, mo
     import app.routers.intake as intake
     from app.db import async_session_maker
     from app.models import IntakeDraft
-    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
     did = await make_draft(code="Y", name="Нов", status="approved")     # barsy_article_id NULL
     async with async_session_maker() as s:
         d = await s.get(IntakeDraft, did)
@@ -186,7 +186,7 @@ async def test_save_to_barsy_sets_category_from_leaf(make_draft, monkeypatch, mo
     import app.routers.intake as intake
     from app.db import async_session_maker
     from app.models import IntakeDraft
-    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
     monkeypatch.setattr(intake, "_resolve_cat_id", lambda sid: 3803 if sid else None)
     did = await make_draft(code="Z", name="С категория", status="approved", shopify_category_id="hg-1-2")
     async with async_session_maker() as s:
@@ -203,7 +203,7 @@ async def test_save_to_barsy_sets_ref_num_and_alias_from_delivery_line(make_draf
     import app.routers.intake as intake
     from app.db import async_session_maker
     from app.models import DeliveryLine, IntakeDraft
-    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
     monkeypatch.setattr(intake, "_resolve_cat_id", lambda sid: None)
     async with async_session_maker() as s:
         line = DeliveryLine(batch_id=1, supplier_code="SUP-42", name="КУПА КЕР. СТАРО ИМЕ", qty=1, price=1.0)
@@ -226,7 +226,7 @@ async def test_save_to_barsy_omits_category_when_unresolved(make_draft, monkeypa
     import app.routers.intake as intake
     from app.db import async_session_maker
     from app.models import IntakeDraft
-    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
     monkeypatch.setattr(intake, "_resolve_cat_id", lambda sid: None)   # unknown leaf / absent checkpoint
     did = await make_draft(code="Z2", name="Без категория", status="approved", shopify_category_id="zzz")
     async with async_session_maker() as s:
