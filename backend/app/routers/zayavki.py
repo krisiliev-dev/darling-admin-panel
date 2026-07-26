@@ -23,10 +23,13 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from starlette.concurrency import run_in_threadpool
+
 from ..audit import log_action
+from ..core import barsy, barsy_write_live
 from ..db import get_async_session
 from ..models import SupplierPref, User, Zayavka, ZayavkaLine
-from ..users import current_active_user
+from ..users import current_active_user, current_owner
 from .inventory_health import _products
 from .intake_delivery import _norm, iter_jsonl
 
@@ -193,6 +196,11 @@ class PrefPatch(BaseModel):
     website: str | None = None
     phone: str | None = None
     notes: str | None = None
+    official_name: str | None = None
+    bulstat: str | None = None
+    vat_num: str | None = None
+    mol: str | None = None
+    address: str | None = None
 
 
 def _norm_url(u: str) -> str:
@@ -231,9 +239,79 @@ async def set_pref(supplier: str, req: PrefPatch, actor: User = Depends(current_
         p.phone = req.phone.strip()[:64]
     if req.notes is not None:
         p.notes = req.notes
+    if req.official_name is not None:
+        p.official_name = req.official_name.strip()[:255]
+    if req.bulstat is not None:
+        p.bulstat = req.bulstat.strip()[:32]
+    if req.vat_num is not None:
+        p.vat_num = req.vat_num.strip()[:32]
+    if req.mol is not None:
+        p.mol = req.mol.strip()[:255]
+    if req.address is not None:
+        p.address = req.address.strip()[:500]
     await session.commit()
     return {"supplier": supplier, "email": p.email, "min_order": p.min_order,
-            "lead_days": p.lead_days, "website": p.website, "phone": p.phone, "notes": p.notes}
+            "lead_days": p.lead_days, "website": p.website, "phone": p.phone, "notes": p.notes,
+            "official_name": p.official_name, "bulstat": p.bulstat, "vat_num": p.vat_num,
+            "mol": p.mol, "address": p.address, "barsy_supplier_id": p.barsy_supplier_id}
+
+
+def _supplier_data(p: SupplierPref, supplier: str) -> dict:
+    """Build a Barsy SupplierData body from a panel SupplierPref. Barsy's SupplierData has no
+    website/phone fields (mol/email are single-value), so website + phone fold into notes — mirroring
+    agent-pipeline/push_suppliers.py. supplier_name falls back to the display name if no legal name."""
+    extra = []
+    if p.website:
+        extra.append(f"Уебсайт: {p.website}")
+    if p.phone:
+        extra.append(f"Тел: {p.phone}")
+    notes = "; ".join([n for n in [p.notes.strip() if p.notes else "", *extra] if n])
+    data = {"supplier_name": (p.official_name or supplier).strip()}
+    if p.bulstat:
+        data["bulstat"] = p.bulstat
+    if p.vat_num:
+        data["vat_num"] = p.vat_num
+    if p.mol:
+        data["mol"] = p.mol            # single value — a ';'-joined multi would 500 (Barsy gotcha)
+    if p.address:
+        data["address"] = p.address
+    if p.email:
+        data["email"] = p.email
+    if notes:
+        data["notes"] = notes
+    return data
+
+
+@router.post("/supplier/{supplier}/push-barsy")
+async def push_supplier_to_barsy(supplier: str, actor: User = Depends(current_owner),
+                                 session: AsyncSession = Depends(get_async_session)):
+    """Reflect a supplier's identity to Barsy (the ERP system-of-record): Suppliers_update if we
+    already know its Barsy id, else Suppliers_create (and store the returned id). Owner-only, audited,
+    and gated by BARSY_WRITE_LIVE (dry-run pre-launch)."""
+    p = await session.get(SupplierPref, supplier)
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма запазени данни за този доставчик.")
+    data = _supplier_data(p, supplier)
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True,
+                "action": "update" if p.barsy_supplier_id else "create",
+                "supplier_id": p.barsy_supplier_id, "would_send": data,
+                "note": "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — нищо не е записано."}
+    if p.barsy_supplier_id:
+        await run_in_threadpool(barsy.call, "Suppliers_update",
+                                {"supplier_id": p.barsy_supplier_id, "supplier": data})
+        action, sid = "update", p.barsy_supplier_id
+    else:
+        out = await run_in_threadpool(barsy.call, "Suppliers_create", {"supplier": data})
+        sid = int(out) if isinstance(out, int) or (isinstance(out, str) and out.isdigit()) else (
+            out.get("supplier_id") if isinstance(out, dict) else None)
+        if sid:
+            p.barsy_supplier_id = int(sid)
+            await session.commit()
+        action = "create"
+    await log_action(session, actor, "supplier.push_barsy", target=supplier,
+                     detail=f"action={action} supplier_id={sid}")
+    return {"ok": True, "action": action, "supplier_id": sid, "sent": data}
 
 
 @router.get("/supplier/{supplier}/history")

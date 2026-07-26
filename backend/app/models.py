@@ -172,6 +172,14 @@ class SupplierPref(Base):
     website: Mapped[str] = mapped_column(String(500), default="")  # supplier's order/catalogue site
     phone: Mapped[str] = mapped_column(String(64), default="")     # contact phone
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Barsy supplier identity — so supplier edits can REFLECT to Barsy (Suppliers_create/update).
+    # barsy_supplier_id decides create-vs-update; the rest map to SupplierData fields.
+    barsy_supplier_id: Mapped[int | None] = mapped_column(nullable=True, default=None)
+    official_name: Mapped[str] = mapped_column(String(255), default="")  # legal name (else `supplier`)
+    bulstat: Mapped[str] = mapped_column(String(32), default="")   # ЕИК
+    vat_num: Mapped[str] = mapped_column(String(32), default="")   # ДДС номер
+    mol: Mapped[str] = mapped_column(String(255), default="")      # МОЛ (single value)
+    address: Mapped[str] = mapped_column(String(500), default="")
 
 
 class ZayavkaLine(Base):

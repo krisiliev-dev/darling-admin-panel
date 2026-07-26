@@ -200,3 +200,59 @@ async def test_send_email_sends_when_configured(owner_client, monkeypatch):
     # zayavka is now marked sent
     detail = (await owner_client.get(f"/api/zayavki/zayavka/{z['id']}")).json()
     assert detail["status"] == "sent" and detail["sent_via"] == "email"
+
+
+# --- supplier identity → Barsy reflection (Suppliers_create/update) ---
+def test_supplier_data_body_maps_fields_and_folds_contacts():
+    from app.models import SupplierPref
+    from app.routers.zayavki import _supplier_data
+    p = SupplierPref(supplier="АНИС", email="a@x.bg", website="https://anis.bg",
+                     phone="0888", notes="стара бележка", official_name="АНИС ЕООД",
+                     bulstat="123456789", vat_num="BG123456789", mol="Иван Иванов",
+                     address="ул. Роза 1")
+    d = _supplier_data(p, "АНИС")
+    assert d["supplier_name"] == "АНИС ЕООД"        # legal name preferred
+    assert d["bulstat"] == "123456789" and d["vat_num"] == "BG123456789"
+    assert d["mol"] == "Иван Иванов" and d["address"] == "ул. Роза 1"
+    assert d["email"] == "a@x.bg"
+    # website + phone have no native SupplierData field → folded into notes (Barsy gotcha)
+    assert "Уебсайт: https://anis.bg" in d["notes"] and "Тел: 0888" in d["notes"]
+    assert "стара бележка" in d["notes"]
+
+
+def test_supplier_data_falls_back_to_display_name():
+    from app.models import SupplierPref
+    from app.routers.zayavki import _supplier_data
+    d = _supplier_data(SupplierPref(supplier="ГАМА"), "ГАМА")
+    assert d["supplier_name"] == "ГАМА"
+    assert "bulstat" not in d and "notes" not in d   # nothing set → minimal body
+
+
+@pytest.mark.asyncio
+async def test_push_supplier_gated_dry_run(owner_client, monkeypatch):
+    from app.routers import zayavki
+    monkeypatch.setattr(zayavki, "barsy_write_live", lambda: False)
+    await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}",
+                             json={"official_name": f"{SUP} ЕООД", "bulstat": "123"})
+    r = await owner_client.post(f"/api/zayavki/supplier/{SUP}/push-barsy")
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["gated"] is True and b["action"] == "create"
+    assert b["would_send"]["supplier_name"] == f"{SUP} ЕООД"
+
+
+@pytest.mark.asyncio
+async def test_push_supplier_create_then_update(owner_client, barsy_recorder, monkeypatch):
+    from app.routers import zayavki
+    monkeypatch.setattr(zayavki, "barsy_write_live", lambda: True)
+    barsy_recorder.set_return("Suppliers_create", 42)   # Barsy returns the new supplier_id
+    await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}", json={"bulstat": "999"})
+
+    r1 = await owner_client.post(f"/api/zayavki/supplier/{SUP}/push-barsy")
+    assert r1.status_code == 200 and r1.json()["action"] == "create" and r1.json()["supplier_id"] == 42
+    assert barsy_recorder.body_for("Suppliers_create")["supplier"]["bulstat"] == "999"
+
+    # a second push now UPDATES by the stored id, not create
+    r2 = await owner_client.post(f"/api/zayavki/supplier/{SUP}/push-barsy")
+    assert r2.json()["action"] == "update" and r2.json()["supplier_id"] == 42
+    assert barsy_recorder.body_for("Suppliers_update")["supplier_id"] == 42
