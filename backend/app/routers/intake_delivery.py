@@ -20,7 +20,6 @@ import io
 import os
 import re
 import time
-import unicodedata
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -35,6 +34,7 @@ from ..db import get_async_session
 from ..models import User
 from ..services.jsonl import iter_jsonl
 from ..services.product_seed import products as _products
+from ..services.text import norm as _norm
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake/delivery", tags=["intake"])
@@ -48,12 +48,6 @@ _HEADERS = {
     "qty": ("количество", "к-во", "кол", "брой", "бр", "qty", "quantity", "count"),
     "price": ("цена", "price", "доставна", "ед.цена", "ед. цена", "стойност", "ст-ст", "cost"),
 }
-
-
-def _norm(s: str) -> str:
-    """Lowercase, strip accents/spaces/punct — for fuzzy header + name comparison."""
-    s = unicodedata.normalize("NFKD", str(s or "")).lower()
-    return re.sub(r"[\s\.\-_/№#]+", "", s)
 
 
 def _detect_columns(header: list) -> dict:

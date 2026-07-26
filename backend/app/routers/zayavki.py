@@ -28,8 +28,8 @@ from ..db import get_async_session
 from ..models import SupplierPref, User, Zayavka, ZayavkaLine
 from ..services.product_seed import products as _products
 from ..services.supplier_catalog import supplier_catalog, suppliers_for
+from ..services.text import norm as _norm
 from ..users import current_active_user, current_owner
-from .intake_delivery import _norm
 
 router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
 
