@@ -7,6 +7,7 @@ import type {
 import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
+import { BrandPicker } from '../components/BrandPicker'
 
 // Delivery-based intake. A supplier's Excel (their code, name, qty, delivery price) is parsed and
 // split into ALREADY-IN-CATALOG (just received) vs NEW (must be enriched: barcode + images →
@@ -23,6 +24,7 @@ interface NewEdit {
   unit: string
   name: string
   category: string
+  brand: string
   description: string
   attributes: IntakeAttribute[]
   images: { name: string; url: string }[]
@@ -33,7 +35,7 @@ interface NewEdit {
 
 const blankEdit = (r: DeliveryRow): NewEdit => ({
   code: r.supplier_code, barcode: '', sale_price: '', unit: 'бр',
-  name: r.name, category: '', description: '', attributes: [],
+  name: r.name, category: '', brand: '', description: '', attributes: [],
   images: [], enriching: false, ready: false, error: '',
 })
 
@@ -118,7 +120,7 @@ export function IntakeDelivery({ categories }: { categories: string[] }) {
           return {
             is_new: true, supplier_code: r.supplier_code, name: e.name, qty: r.qty,
             delivery_price: r.delivery_price, code: e.code, barcode: e.barcode,
-            sale_price: e.sale_price, unit: e.unit, category: e.category,
+            sale_price: e.sale_price, unit: e.unit, category: e.category, brand: e.brand,
             description: e.description, attributes: e.attributes,
           }
         }
@@ -317,6 +319,9 @@ function NewProductCard({
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
+        </HdrField>
+        <HdrField label="Марка">
+          <BrandPicker value={edit.brand} onPick={(b) => onPatch({ brand: b })} />
         </HdrField>
         <HdrField label="Описание">
           <textarea className="input-paper" rows={3} value={edit.description}

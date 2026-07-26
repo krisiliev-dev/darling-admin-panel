@@ -25,6 +25,30 @@ EXISTING_CODE = "0191500"
 EXISTING_NAME = "AB-BAIN MARIE -Касерола с двойни стени (46116)"
 
 
+# ------------------------------------------------------------------ _new_article_body (brand) ---
+def _line(**kw):
+    kw.setdefault("name", "Нов")
+    kw.setdefault("qty", 1)
+    return intake_delivery.CommitLine(**kw)
+
+
+def test_new_article_body_prepends_brand_as_marka_detail():
+    art = intake_delivery._new_article_body(_line(brand="Luminarc"))["article"]
+    assert art["details"][0] == {"detail_name": "Марка", "detail_value": "Luminarc"}
+
+
+def test_new_article_body_no_marka_when_brand_empty():
+    art = intake_delivery._new_article_body(_line())["article"]
+    assert "details" not in art
+
+
+def test_new_article_body_brand_not_duplicated_if_attr_has_marka():
+    ln = _line(brand="Друга", attributes=[{"key": "Марка", "value": "ВЕЧЕ"}])
+    art = intake_delivery._new_article_body(ln)["article"]
+    marka = [d for d in art["details"] if d["detail_name"] == "Марка"]
+    assert len(marka) == 1 and marka[0]["detail_value"] == "ВЕЧЕ"
+
+
 def _upload(content: bytes, filename="dostavka.xlsx"):
     return {"file": (filename, content,
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}

@@ -156,6 +156,7 @@ class CommitLine(BaseModel):
     sale_price: str = ""       # € shelf price (staff/Microinvest — never AI, per price policy)
     unit: str = "бр"
     category: str = ""
+    brand: str = ""            # → "Марка" article detail (Barsy has no native brand field)
     description: str = ""
     attributes: list[Attribute] = []
 
@@ -184,8 +185,13 @@ def _new_article_body(ln: CommitLine) -> dict:
         art["barcode"] = ln.barcode
     if ln.sale_price:
         art["actual_price"] = str(ln.sale_price)
-    if ln.attributes:
-        art["details"] = [{"detail_name": a.key, "detail_value": a.value} for a in ln.attributes if a.key]
+    details = [{"detail_name": a.key, "detail_value": a.value} for a in ln.attributes if a.key]
+    # Brand has no native Barsy field — it's the "Марка" article detail (parity with intake.push /
+    # barsy_push). Prepend it, unless the attributes already carry a Марка row.
+    if ln.brand and not any(x["detail_name"] == "Марка" for x in details):
+        details.insert(0, {"detail_name": "Марка", "detail_value": ln.brand.strip()})
+    if details:
+        art["details"] = details
     return {"article": art}
 
 
