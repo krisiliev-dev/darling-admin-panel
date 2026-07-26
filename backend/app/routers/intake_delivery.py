@@ -17,7 +17,6 @@ isolated behind clearly-marked seams:
     DELIVERY_BARSY_LIVE gate (default OFF => dry-run returns the payload, writes nothing).
 """
 import io
-import json
 import os
 import re
 import time
@@ -34,6 +33,7 @@ from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
 from ..models import User
+from ..services.jsonl import iter_jsonl
 from ..users import current_active_user, current_owner
 from .inventory_health import _products  # reuse the cached seed catalogue (interim match source)
 
@@ -87,24 +87,6 @@ def _to_float(v) -> float:
 # rname(=their name for it), dprice} sourced from Barsy's suppliers_details / the ERP export.
 _SUPPLIER_CODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                     "data", "supplier_codes.jsonl")
-
-
-def iter_jsonl(path: str):
-    """Yield parsed objects from a .jsonl file, SKIPPING blank/malformed lines individually. A single
-    bad line must not truncate the rest of the file (these maps have 20k+ rows)."""
-    try:
-        f = open(path, encoding="utf-8")
-    except OSError:
-        return
-    with f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
 
 
 @lru_cache(maxsize=1)

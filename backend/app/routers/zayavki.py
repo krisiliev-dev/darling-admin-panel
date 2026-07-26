@@ -12,7 +12,6 @@ the historical sales seed (units/revenue/margin) for the insight cards.
 """
 import csv
 import io
-import os
 import re
 from functools import lru_cache
 
@@ -27,40 +26,18 @@ from ..audit import log_action
 from ..core import barsy, barsy_write_live
 from ..db import get_async_session
 from ..models import SupplierPref, User, Zayavka, ZayavkaLine
+from ..services.supplier_catalog import supplier_catalog, suppliers_for
 from ..users import current_active_user, current_owner
-from .intake_delivery import _norm, iter_jsonl
+from .intake_delivery import _norm
 from .inventory_health import _products
 
 router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
 
-_SUPPLIER_CODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                    "data", "supplier_codes.jsonl")
 _PERIOD_MONTHS = 54   # the historical seed spans ~2021-11 → 2026-07
 
-
-# ------------------------------------------------------------------ supplier catalogue ---
-@lru_cache(maxsize=1)
-def _supplier_catalog() -> dict:
-    """Load supplier_codes.jsonl into:
-      by_supplier[supplier] -> [ {code, ref, name, dprice} ... ]   (that supplier's catalogue)
-      by_code[code]         -> { supplier -> {ref, name, dprice} } (who supplies a product + at what)
-    """
-    by_supplier: dict[str, list] = {}
-    by_code: dict[str, dict] = {}
-    for r in iter_jsonl(_SUPPLIER_CODES_PATH):   # per-line: one bad row can't truncate the rest
-        sup = (r.get("supplier") or "").strip()
-        code = str(r.get("code") or "").strip()
-        if not sup or not code:
-            continue
-        row = {"code": code, "ref": str(r.get("ref") or ""),
-               "name": r.get("rname") or "", "dprice": r.get("dprice") or 0.0}
-        by_supplier.setdefault(sup, []).append(row)
-        by_code.setdefault(code, {})[sup] = row
-    return {"by_supplier": by_supplier, "by_code": by_code}
-
-
-def _suppliers_for(code: str) -> dict:
-    return _supplier_catalog()["by_code"].get(str(code), {})
+# supplier catalogue now lives in the service layer; keep the private aliases for the call sites here
+_supplier_catalog = supplier_catalog
+_suppliers_for = suppliers_for
 
 
 @lru_cache(maxsize=1)

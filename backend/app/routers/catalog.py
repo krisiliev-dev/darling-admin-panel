@@ -187,7 +187,7 @@ def _sync_fetch() -> list[dict]:
     """Blocking: pull ALL articles + their attributes/stock/picture from Barsy in ONE bulk call
     (extra_properties), enriching supplier from the local code map as a fallback. Paginated to keep
     each page light on the low-tier server."""
-    from .zayavki import _supplier_catalog
+    from ..services.supplier_catalog import supplier_catalog as _supplier_catalog
     by_code = _supplier_catalog()["by_code"]
     extra = {"article_details": 1, "picture_url": 1, "has_attributes": 1}
     rows: list = []
@@ -514,7 +514,7 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
 
 def _cache_fields(a: dict) -> dict:
     """Normalise one Barsy article row → the cache fields (shared by full sync + single refresh)."""
-    from .zayavki import _supplier_catalog
+    from ..services.supplier_catalog import supplier_catalog as _supplier_catalog
     code = str(a.get("code") or "")
     sups = list((_supplier_catalog()["by_code"].get(code) or {}).keys())
     bc = a.get("barcode")
