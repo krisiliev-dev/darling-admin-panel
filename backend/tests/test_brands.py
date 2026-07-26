@@ -31,6 +31,25 @@ async def test_add_brand_then_findable(owner_client):
 
 
 @pytest.mark.asyncio
+async def test_edit_and_delete_panel_brand(owner_client):
+    await owner_client.post("/api/brands", json={"name": "Мебелко"})
+    # edit: aliases + logo + confirmed
+    up = await owner_client.put("/api/brands/Мебелко", json={"aliases": ["Mebelko"], "logo": "http://x/l.png", "confirmed": True})
+    assert up.status_code == 200, up.text
+    assert up.json()["brand"]["confirmed"] is True and up.json()["brand"]["logo"] == "http://x/l.png"
+    assert (await owner_client.get("/api/brands", params={"q": "mebelko"})).json()["brands"]   # alias match
+    # editing a BUNDLED brand creates a panel override
+    ov = await owner_client.put("/api/brands/Luminarc", json={"aliases": ["Люминарк"], "logo": "", "confirmed": True})
+    assert ov.status_code == 200 and ov.json()["brand"]["source"] == "panel"
+    # delete the panel brand
+    d = await owner_client.delete("/api/brands/Мебелко")
+    assert d.status_code == 200
+    # a bundled-only brand can't be deleted from the panel store
+    d2 = await owner_client.delete("/api/brands/BRIO")
+    assert d2.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_add_brand_requires_staff(packer_client):
     r = await packer_client.post("/api/brands", json={"name": "X"})
     assert r.status_code == 403

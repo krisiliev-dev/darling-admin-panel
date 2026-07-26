@@ -77,7 +77,8 @@ async def list_brands(q: str = "", limit: int = 20, user: User = Depends(current
         if not ql or ql in hay:
             items.append(b)
     items.sort(key=lambda x: x["name"].lower())
-    return {"brands": items[:max(1, min(100, limit))], "known": ql in {b["name"].lower() for b in merged.values()} if ql else False}
+    return {"brands": items[:max(1, min(1000, limit))],
+            "known": ql in {b["name"].lower() for b in merged.values()} if ql else False}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -99,3 +100,45 @@ async def add_brand(req: BrandIn, actor: User = Depends(require_roles("staff")),
     await session.refresh(b)
     await log_action(session, actor, "brand.add", target=name)
     return {"ok": True, "brand": _row(b), "created": True}
+
+
+class BrandEdit(BaseModel):
+    aliases: list[str] = []
+    logo: str = ""
+    confirmed: bool = False
+
+
+@router.put("/{name}")
+async def upsert_brand(name: str, req: BrandEdit, actor: User = Depends(require_roles("staff")),
+                       session: AsyncSession = Depends(get_async_session)):
+    """Edit a brand (aliases/logo/confirmed). Editing a bundled gazetteer brand creates a panel
+    OVERRIDE row with the same name (the deployed panel can't write the pipeline gazetteer)."""
+    nm = name.strip()
+    if not nm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Празно име.")
+    b = (await session.execute(select(Brand).where(Brand.name == nm))).scalar_one_or_none()
+    if not b:
+        b = Brand(name=nm, source="panel")
+        session.add(b)
+    b.aliases_json = json.dumps([a.strip() for a in req.aliases if a.strip()], ensure_ascii=False)
+    b.logo = req.logo.strip()
+    b.confirmed = bool(req.confirmed)
+    await session.commit()
+    await session.refresh(b)
+    await log_action(session, actor, "brand.upsert", target=nm)
+    return {"ok": True, "brand": _row(b)}
+
+
+@router.delete("/{name}")
+async def delete_brand(name: str, actor: User = Depends(require_roles("staff")),
+                       session: AsyncSession = Depends(get_async_session)):
+    """Remove a PANEL brand row (reverts to the bundled gazetteer entry if one exists). Bundled
+    entries themselves aren't deleted here — they live in the pipeline gazetteer."""
+    b = (await session.execute(select(Brand).where(Brand.name == name.strip()))).scalar_one_or_none()
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "Няма такъв бранд в панел-хранилището (вградените се управляват в пайплайна).")
+    await session.delete(b)
+    await session.commit()
+    await log_action(session, actor, "brand.delete", target=name.strip())
+    return {"ok": True}

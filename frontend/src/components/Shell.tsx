@@ -17,6 +17,7 @@ const NAV: { to: string; label: string; roles?: string[] }[] = [
   { to: '/purchasing', label: 'Доставки' },
   { to: '/zayavki', label: 'Заявки' },
   { to: '/cod', label: 'Разчети' },
+  { to: '/brands', label: 'Брандове' },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
 ]
 
