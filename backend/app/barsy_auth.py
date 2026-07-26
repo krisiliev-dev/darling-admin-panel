@@ -4,10 +4,7 @@ auth, so we verify a panel login by calling Users_getcurrent AS that user: succe
 profile (id, name, role); failure is an auth error. Passwords are never stored — Barsy generates
 and emails them; the panel only verifies. The panel's OWN Barsy data calls keep using the service
 account; a user's credentials are used only at login."""
-import base64
-import json
-import urllib.error
-import urllib.request
+import httpx
 
 from .core import barsy
 
@@ -23,20 +20,20 @@ def verify(username: str, password: str) -> dict | None:
     'wrong password' from 'Barsy down')."""
     if not username or not password:
         return None
-    tok = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
-    req = urllib.request.Request(
-        f"{_barsy_base()}/Users_getcurrent", data=b"[]", method="POST",
-        headers={"Content-Type": "application/json", "Authorization": "Basic " + tok})
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            out = json.loads(r.read().decode("utf-8", "replace"))
-    except urllib.error.HTTPError as e:
-        # 4xx = request/credentials rejected → invalid login; 5xx = Barsy is down
-        if 400 <= e.code < 500:
-            return None
-        raise RuntimeError(f"Barsy HTTP {e.code}")
-    except Exception as e:
+        r = httpx.post(f"{_barsy_base()}/Users_getcurrent", content=b"[]",
+                       headers={"Content-Type": "application/json"},
+                       auth=(username, password), timeout=20)
+    except httpx.HTTPError as e:            # connection/timeout → availability problem
         raise RuntimeError(str(e)[:80])
+    if 400 <= r.status_code < 500:          # credentials rejected → invalid login
+        return None
+    if r.status_code >= 500:                # Barsy is down
+        raise RuntimeError(f"Barsy HTTP {r.status_code}")
+    try:
+        out = r.json()
+    except Exception:
+        return None
     # a valid session returns the user object; an API error body (error/err, or no user_id) is
     # NOT a successful login
     if isinstance(out, dict) and out.get("user_id") and not (out.get("error") or out.get("err")):
