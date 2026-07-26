@@ -137,6 +137,32 @@ def _find_shopify(code):
     return sync._find_by_sku(code)                         # (product_id, variant_id)
 
 
+def _note_attrs(order):
+    """Shopify order note_attributes ([{name,value}]) → dict. The storefront's cart 'Фактура за фирма'
+    section writes darling_invoice_* here (Basic plan can't add structured checkout fields)."""
+    return {str(a.get("name")): a.get("value")
+            for a in (order.get("note_attributes") or []) if a.get("name")}
+
+
+def _invoice_data(order, account):
+    """Build Barsy Accounts_place invoice_data (InvoiceMakeData) from the storefront's darling_invoice_*
+    note-attributes when the buyer ticked 'фактура за фирма'. None otherwise. Barsy issues + (given the
+    account email) emails the VAT invoice; this is the фактура, NOT the fiscal бон (device-printed)."""
+    na = _note_attrs(order)
+    if str(na.get("darling_invoice") or "").lower() != "true":
+        return None
+    return {
+        "gen_mode": 1,                                     # 1 = detailed (all articles)
+        "receiver_company_name": na.get("darling_invoice_company") or "",
+        "receiver_identity_num": na.get("darling_invoice_eik") or "",     # ЕИК
+        "receiver_vat_num": na.get("darling_invoice_vat") or "",          # ДДС № (optional)
+        "receiver_mol": na.get("darling_invoice_mol") or "",
+        "receiver_name": na.get("darling_invoice_mol") or account.get("contact_name") or "",
+        "receiver_town": na.get("darling_invoice_city") or "",
+        "receiver_address": na.get("darling_invoice_address") or "",
+    }
+
+
 # ============================================================ A. Shopify → Barsy
 def shopify_order_to_barsy(order, mode="sale", do_write=False):
     """New/paid Shopify order → Barsy. mode='sale' finalises immediately (fiscalises + draws down
@@ -193,9 +219,17 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
     payments = ([{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
                   "transaction_id": oid, "description": "Shopify (collected online)", "fiscal": 0}]
                 if paid_online else [])
-    aid = b.call("Accounts_place", {"account": account, "orders": rows, "payments": payments})
+    place = {"account": account, "orders": rows, "payments": payments}
+    inv = _invoice_data(order, account)
+    if inv:                                                # buyer asked for a company VAT invoice (фактура)
+        place["invoice_data"] = inv
+        email = (order.get("customer") or {}).get("email") or order.get("email") or ""
+        if email:                                          # so Barsy auto-emails the issued фактура
+            account["email"] = email
+            account["email_invoices"] = email
+    aid = b.call("Accounts_place", place)
     _record_order(oid, aid, len(rows), "sale")
-    return {**plan, "account_id": aid, "paid_online": paid_online, "written": True}
+    return {**plan, "account_id": aid, "paid_online": paid_online, "invoice": bool(inv), "written": True}
 
 
 def shopify_order_cancellation_to_barsy(order, do_write=False):
@@ -424,6 +458,11 @@ def barsy_quantity_change_to_shopify(code, qty=None, do_write=False):
              userErrors{ message } } }""",
           {"in": {"reason": "correction", "setQuantities": [
               {"inventoryItemId": inv_item, "locationId": _shopify_location(), "quantity": int(float(qty or 0))}]}})
+    # 4) darling.backorder metafield (product-level) → the storefront renders the "по поръчка · по-дълга
+    # доставка" badge off it. CONTINUE (sale_below_zero=YES) products are backorderable; others are not.
+    s.gql("""mutation($m:[MetafieldsSetInput!]!){ metafieldsSet(metafields:$m){ userErrors{ message } } }""",
+          {"m": [{"ownerId": pid, "namespace": "darling", "key": "backorder", "type": "boolean",
+                  "value": "true" if policy == "CONTINUE" else "false"}]})
     return {**plan, "written": True}
 
 

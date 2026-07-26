@@ -252,3 +252,65 @@ def test_cod_payment_skips_when_no_logged_sale(conn, monkeypatch):
     monkeypatch.setattr(connector, "_seen_order", lambda oid: None)
     res = connector.cod_payment_to_barsy("999", 10.0, do_write=True)
     assert "skipped" in res
+
+
+# ---------------------------------------------------------------- VAT invoice (фактура) ---
+def _order_with_invoice(**over):
+    o = _order(**over)
+    o["email"] = "buyer@firma.bg"
+    o["note_attributes"] = [
+        {"name": "darling_invoice", "value": "true"},
+        {"name": "darling_invoice_company", "value": "Фирма ЕООД"},
+        {"name": "darling_invoice_eik", "value": "123456789"},
+        {"name": "darling_invoice_vat", "value": "BG123456789"},
+        {"name": "darling_invoice_mol", "value": "Иван Иванов"},
+        {"name": "darling_invoice_city", "value": "София"},
+        {"name": "darling_invoice_address", "value": "ул. Роза 1, 1000"},
+    ]
+    return o
+
+
+def test_company_invoice_builds_invoice_data_and_emails(conn):
+    connector.shopify_order_to_barsy(_order_with_invoice(), mode="sale", do_write=True)
+    body = conn.body_for("Accounts_place")
+    inv = body["invoice_data"]
+    assert inv["gen_mode"] == 1
+    assert inv["receiver_company_name"] == "Фирма ЕООД"
+    assert inv["receiver_identity_num"] == "123456789"     # ЕИК
+    assert inv["receiver_vat_num"] == "BG123456789"        # ДДС №
+    assert inv["receiver_mol"] == "Иван Иванов"
+    assert inv["receiver_town"] == "София" and inv["receiver_address"] == "ул. Роза 1, 1000"
+    # so Barsy can email the issued фактура
+    assert body["account"]["email_invoices"] == "buyer@firma.bg"
+
+
+def test_no_invoice_when_not_requested(conn):
+    connector.shopify_order_to_barsy(_order(), mode="sale", do_write=True)
+    assert "invoice_data" not in conn.body_for("Accounts_place")
+
+
+# ---------------------------------------------------------------- backorder metafield ---
+def _stock_conn(conn, monkeypatch, sbz):
+    monkeypatch.setattr(connector, "_catalog", lambda: {"C1": {"article_id": 1, "sale_below_zero": sbz}})
+    monkeypatch.setattr(connector, "_find_shopify", lambda code: ("gid://Product/1", "gid://Variant/1"))
+    monkeypatch.setattr(connector, "_shopify_location", lambda: "gid://Location/1")
+    monkeypatch.setattr(connector.s, "gql", lambda q, v=None: {
+        "productVariant": {"inventoryItem": {"id": "gid://Inv/1"}}})
+    calls = []
+    monkeypatch.setattr(connector.s, "gql", lambda q, v=None: (
+        calls.append((q, v)) or {"productVariant": {"inventoryItem": {"id": "gid://Inv/1"}}}))
+    return calls
+
+
+def test_backorder_metafield_true_for_oversellable(conn, monkeypatch):
+    calls = _stock_conn(conn, monkeypatch, "YES")
+    connector.barsy_quantity_change_to_shopify("C1", qty=0, do_write=True)
+    mf = next(v["m"][0] for q, v in calls if "metafieldsSet" in q)
+    assert mf["namespace"] == "darling" and mf["key"] == "backorder" and mf["value"] == "true"
+
+
+def test_backorder_metafield_false_for_normal_product(conn, monkeypatch):
+    calls = _stock_conn(conn, monkeypatch, "NO")
+    connector.barsy_quantity_change_to_shopify("C1", qty=0, do_write=True)
+    mf = next(v["m"][0] for q, v in calls if "metafieldsSet" in q)
+    assert mf["value"] == "false"
