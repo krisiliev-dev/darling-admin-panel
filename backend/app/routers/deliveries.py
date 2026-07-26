@@ -209,10 +209,13 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
     if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
         return {"ready": True, "sent": False, "already": True}
     doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
+    _cfg = get_settings()
     payload = {
         "store_load": {
             "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
             "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
+            # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
+            "currency_id": _cfg.barsy_currency_id, "price_mode": _cfg.barsy_price_mode,
         },
         "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
                       "current_price": str(ln.price)} for ln in lines],
@@ -664,6 +667,8 @@ async def finalise(
         "store_load": {
             "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
             "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
+            # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
+            "currency_id": settings.barsy_currency_id, "price_mode": settings.barsy_price_mode,
         },
         "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
                       "current_price": str(ln.price)} for ln in lines],

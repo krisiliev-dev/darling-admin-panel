@@ -208,7 +208,7 @@ async def test_finalise_dry_run_after_products_added(owner_client, barsy_recorde
 @pytest.mark.asyncio
 async def test_finalise_live_sends_one_storeload(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(deliveries, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     b = await _create(owner_client)
     for l in b["lines"]:
         if l["is_new"]:
@@ -222,6 +222,7 @@ async def test_finalise_live_sends_one_storeload(owner_client, barsy_recorder, m
     assert barsy_recorder.operations.count("Storeloads_create") == 1
     hdr = barsy_recorder.body_for("Storeloads_create")["store_load"]
     assert hdr["supplier_id"] == 39 and hdr["operation_type"] == 1
+    assert hdr["currency_id"] == 1 and hdr["price_mode"] == 1   # EUR + VAT-inclusive (COGS correctness)
     # batch now finalised
     assert (await owner_client.get(f"/api/deliveries/{b['id']}")).json()["status"] == "finalised"
 
@@ -255,7 +256,7 @@ async def test_finalise_blocks_zero_qty(owner_client):
 async def test_finalise_double_is_blocked(owner_client, barsy_recorder, monkeypatch):
     """The atomic claim blocks a second (concurrent/double-click) finalise → no double storeload."""
     monkeypatch.setattr(deliveries, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     b = await _create(owner_client)
     for l in b["lines"]:
         await _set_article_id(l["id"], 9000 + l["id"])
@@ -270,7 +271,7 @@ async def test_finalise_double_is_blocked(owner_client, barsy_recorder, monkeypa
 @pytest.mark.asyncio
 async def test_edit_refused_after_finalised(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(deliveries, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     b = await _create(owner_client)
     for l in b["lines"]:
         await _set_article_id(l["id"], 9000 + l["id"])
@@ -373,7 +374,7 @@ async def test_delivery_product_stays_checkmarked_then_leaves_on_finalise(owner_
     barsy_recorder.set_return("Articles_create", {"article_id": 4242})
     await owner_client.post(f"/api/intake/drafts/{draft_id}/push-barsy", json={"confirm": True})
     monkeypatch.setattr(deliveries, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     for l in b["lines"]:
         if not l["is_new"]:
             await _set_article_id(l["id"], 555)
@@ -491,7 +492,7 @@ async def test_live_save_autocreates_article_and_autofinalises(owner_client, bar
     uploads its image, and — all new products now created — auto-sends ONE storeload for the delivery."""
     import app.routers.intake as intake_r
     monkeypatch.setattr(intake_r, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     monkeypatch.setattr(intake_r.barsy, "upload_image", lambda *a, **k: [{"file_id": 1}])
     barsy_recorder.set_return("Articles_create", {"article_id": 7001})
     barsy_recorder.set_return("Articles_getlist", [{"code": EXIST_CODE, "article_id": 555}])
