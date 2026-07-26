@@ -58,8 +58,15 @@ flipping live, run one genuine delivery — ngrok is optional (only if not yet d
    push until the Barsy webhook is on, else Direction B could ping-pong our own DB→Barsy writes).
 7. **Schedule the nightly reconcile** (webhooks get missed): a cron/scheduled task hitting the drift
    sweep. Keep it dry-run until step 8; it respects `webhooks_live`.
-8. **Flip `WEBHOOKS_LIVE=1`** — only after 1–7. Watch logs for `missing_skus` (unmatched line items)
-   and mis-fiscalisation on the first real orders.
+8. **Flip `WEBHOOKS_LIVE=1`** — only after 1–7. Watch logs for `missing_skus` (unmatched line items —
+   these now REFUSE the sale + flag for review rather than booking a partial one) and mis-fiscalisation
+   on the first real orders.
+9. **COD↔Barsy writes** are a SEPARATE gate: `COD_BARSY_POST_LIVE` (default off). When on:
+   - a refused delivery (Разчети/risk `outcome=refused`) **stornos** the Barsy sale → restores stock;
+   - a settled COD payout **posts** the collected money to the sale account with **`fiscal:0`** (record-
+     only; the fiscal бон was already printed on-site at packing, so no device is fired).
+   Trial both against a Barsy test object first, then flip `COD_BARSY_POST_LIVE=1`. Both are idempotent
+   (keyed in the connector's order log) so a repeated webhook/settle can't double-write.
 
 ## Source-of-truth policy to decide before launch
 Once staff edit products IN Barsy, Barsy is the operational source for those. Stop the DB→Barsy push

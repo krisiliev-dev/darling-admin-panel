@@ -92,15 +92,28 @@ def test_prepaid_sale_places_account_with_lines_and_online_payment(conn):
     assert pay["transaction_id"] == "12345"
 
 
-def test_unmatched_skus_are_surfaced_not_dropped(conn):
+def test_unmatched_skus_refuse_the_whole_sale(conn):
+    # a partial sale would drift stock vs the Shopify order → refuse and flag for review, write nothing
     order = _order(line_items=[
         {"sku": "SKU-1", "quantity": 1, "price": "9.90"},
         {"sku": "GHOST", "quantity": 3, "price": "1.00"},
     ])
     res = connector.shopify_order_to_barsy(order, mode="sale", do_write=True)
-    assert res["missing_skus"] == ["GHOST"]
-    body = conn.body_for("Accounts_place")
-    assert [r["article_id"] for r in body["orders"]] == [501]   # ghost line excluded
+    assert res["missing_skus"] == ["GHOST"] and res.get("needs_review") is True and "error" in res
+    with pytest.raises(KeyError):
+        conn.body_for("Accounts_place")            # nothing booked
+
+
+def test_online_payment_is_recorded_non_fiscal(conn):
+    # fiscal:0 → book the collected money WITHOUT firing the device (бон printed at packing)
+    connector.shopify_order_to_barsy(_order(), mode="sale", do_write=True)
+    assert conn.body_for("Accounts_place")["payments"][0]["fiscal"] == 0
+
+
+def test_cod_sale_records_no_payment(conn):
+    res = connector.shopify_order_to_barsy(_order(financial_status="pending"), mode="sale", do_write=True)
+    assert res["paid_online"] is False
+    assert conn.body_for("Accounts_place")["payments"] == []
 
 
 def test_no_matching_line_items_writes_nothing(conn):
@@ -203,3 +216,39 @@ def test_paid_order_still_books_the_online_payment(conn):
     body = conn.body_for("Accounts_place")
     assert len(body["payments"]) == 1 and body["payments"][0]["actual_paid_sum"] == "24.30"
     assert res.get("paid_online") is True
+
+
+# ---------------------------------------------------------------- COD lifecycle (panel-driven) ---
+def test_cod_payment_posts_non_fiscal_against_the_sale(conn, monkeypatch):
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"account_id": 900})
+    monkeypatch.setattr(connector, "_seen_key", lambda key: False)
+    res = connector.cod_payment_to_barsy("12345", 19.90, waybill="ECONT-77", do_write=True)
+    assert res["written"] is True
+    body = conn.body_for("Accounts_place")
+    assert body["account_id"] == 900 and body["orders"] == []
+    pay = body["payments"][0]
+    assert pay["paymethod_id"] == 5 and pay["actual_paid_sum"] == "19.9" and pay["fiscal"] == 0
+
+
+def test_cod_payment_is_idempotent(conn, monkeypatch):
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"account_id": 900})
+    monkeypatch.setattr(connector, "_seen_key", lambda key: True)   # already posted
+    res = connector.cod_payment_to_barsy("12345", 19.90, do_write=True)
+    assert "skipped" in res
+    with pytest.raises(KeyError):
+        conn.body_for("Accounts_place")            # no double-post
+
+
+def test_cod_refusal_stornos_the_sale(conn, monkeypatch):
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": "12345", "account_id": 900})
+    monkeypatch.setattr(connector, "_seen_key", lambda key: False)
+    res = connector.cod_refused_to_barsy("12345", do_write=True)
+    assert res["written"] is True
+    body = conn.body_for("Accounts_place")
+    assert body["account"]["storno_of_account_id"] == 900       # reverses the sale → restores stock
+
+
+def test_cod_payment_skips_when_no_logged_sale(conn, monkeypatch):
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: None)
+    res = connector.cod_payment_to_barsy("999", 10.0, do_write=True)
+    assert "skipped" in res

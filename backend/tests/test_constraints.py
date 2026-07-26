@@ -106,7 +106,8 @@ async def test_double_settle_leaves_exactly_one_row(owner_client, settle_state):
 
     # second settle of the same order is skipped, not double-recorded (backed by the UNIQUE index)
     r2 = await owner_client.post("/api/cod/settle", json=body)
-    assert r2.json() == {"ok": True, "settled": 0, "discrepancies": 0, "skipped": 1}
+    j = r2.json()
+    assert (j["ok"], j["settled"], j["discrepancies"], j["skipped"]) == (True, 0, 0, 1)
 
     async with async_session_maker() as s:
         n = (await s.execute(select(func.count()).select_from(CodSettlement)

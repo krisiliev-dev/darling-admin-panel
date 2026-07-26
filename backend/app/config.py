@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     # Barsy payload it WOULD send. Flip to True (DELIVERY_BARSY_LIVE=1) only once the Barsy
     # storeload API shape is confirmed (Hermes) and staff have trialled the flow. Mirrors webhooks_live.
     delivery_barsy_live: bool = False
+    # SAFETY GATE for COD↔Barsy writes: on a refused delivery → storno the Barsy sale (restore stock);
+    # on a settled COD → post the collected payment (fiscal:0, record-only). False (default) => the panel
+    # only records outcomes/settlements locally and returns a dry-run plan. Flip to True
+    # (COD_BARSY_POST_LIVE=1) once the account linkage + posting shape are trialled against a Barsy test
+    # object. Barsy stays the fiscal point; posting a COD payment never fires the device (fiscal:0).
+    cod_barsy_post_live: bool = False
     # Barsy depot the delivery loads into. 1 = 'Основен', can_load=1 (verified live).
     barsy_depot_id: int = 1
     # Barsy currency for storeload/order prices. 1 = Евро/EUR (is_current on our install,

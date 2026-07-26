@@ -113,10 +113,24 @@ def _seen_order(oid):
     return None
 
 
-def _record_order(oid, account_id, n, kind="sale"):
+def _record_order(oid, account_id, n, kind="sale", key=None):
     with ORDERS_STATE.open("a", encoding="utf-8") as f:
         f.write(json.dumps({"order_id": str(oid), "account_id": account_id, "rows": n, "kind": kind,
-                            "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}, ensure_ascii=False) + "\n")
+                            "key": key, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}, ensure_ascii=False) + "\n")
+
+
+def _seen_key(key):
+    """True if an action with this idempotency key was already recorded (dedupes repeat webhooks —
+    a duplicate cancel/refund/fulfilment delivery must not double-storno or re-write)."""
+    if not key or not ORDERS_STATE.exists():
+        return False
+    for l in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
+        try:
+            if json.loads(l).get("key") == key:
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def _find_shopify(code):
@@ -156,6 +170,11 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
             "would_decrement": [(r["article_id"], r["amount"]) for r in rows]}
     if not rows:
         return {**plan, "error": "no line items matched a Barsy article"}
+    if missing:
+        # Refuse to book a PARTIAL sale: a human must map the unmatched SKUs first. Booking only the
+        # matched lines would make the Barsy sale diverge from the Shopify order and drift stock.
+        return {**plan, "error": f"unmatched SKUs {missing} — sale NOT booked, needs review",
+                "needs_review": True}
     if not do_write:
         return {**plan, "dry_run": True}
 
@@ -164,12 +183,15 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         _record_order(oid, aid, len(rows), "clientorder")
         return {**plan, "clientorder_id": aid, "written": True}
     # Only record a payment that Shopify actually COLLECTED. A COD order arrives with
-    # financial_status='pending' (cash collected on delivery, reconciled via the panel's COD
+    # financial_status='pending' (cash is collected on delivery, reconciled via the panel's COD
     # flow) — booking its total as "collected online" here would double-count the cash in Barsy's
     # ledger. So attach the online payment only for a genuinely paid (prepaid) order.
     paid_online = str(order.get("financial_status") or "").lower() == "paid"
+    # fiscal:0 → RECORD the online payment WITHOUT firing the fiscal device. Fiscalisation (the бон)
+    # happens on-site at packing via Accounts_close, per the owner's workflow — so booking the sale
+    # here must not print a receipt early. (COD sends no payment at all; collected on delivery.)
     payments = ([{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
-                  "transaction_id": oid, "description": "Shopify (collected online)"}]
+                  "transaction_id": oid, "description": "Shopify (collected online)", "fiscal": 0}]
                 if paid_online else [])
     aid = b.call("Accounts_place", {"account": account, "orders": rows, "payments": payments})
     _record_order(oid, aid, len(rows), "sale")
@@ -182,6 +204,9 @@ def shopify_order_cancellation_to_barsy(order, do_write=False):
     rec = _seen_order(oid)
     if not rec or not rec.get("account_id"):
         return {"skipped": "no logged Barsy sale for this order", "order_id": oid}
+    key = f"storno-{oid}"
+    if _seen_key(key):
+        return {"skipped": "already stornoed", "order_id": oid}
     plan = {"order_id": oid, "storno_of_account_id": rec["account_id"]}
     if not do_write:
         return {**plan, "dry_run": True}
@@ -190,6 +215,7 @@ def shopify_order_cancellation_to_barsy(order, do_write=False):
                  "storno_of_account_id": rec["account_id"],
                  "storno_reason": order.get("cancel_reason") or "Shopify cancellation",
                  "notes": f"Storno на Shopify поръчка {rec.get('order_id')}"}, "orders": [], "payments": []})
+    _record_order(oid, res, 0, "storno", key=key)
     return {**plan, "storno_account_id": res, "written": True}
 
 
@@ -199,6 +225,9 @@ def shopify_refund_to_barsy(refund, do_write=False):
     rec = _seen_order(oid)
     if not rec:
         return {"skipped": "no logged sale", "order_id": oid}
+    key = f"refund-{refund.get('id')}"                      # dedupe per refund (an order can have several)
+    if _seen_key(key):
+        return {"skipped": "already refunded", "order_id": oid, "refund_id": refund.get("id")}
     cat = _catalog()
     rows = []
     for ri in (refund.get("refund_line_items") or []):
@@ -212,6 +241,7 @@ def shopify_refund_to_barsy(refund, do_write=False):
     res = b.call("Accounts_place", {"account": {"uuid": f"shopify-refund-{refund.get('id')}",
                  "storno_of_account_id": rec["account_id"], "storno_reason": "Shopify refund"},
                  "orders": rows, "payments": []})
+    _record_order(oid, res, len(rows), "refund", key=key)
     return {**plan, "storno_account_id": res, "written": True}
 
 
@@ -223,12 +253,16 @@ def shopify_fulfillment_to_barsy(order, do_write=False):
         return {"skipped": "no logged sale", "order_id": oid}
     ful = (order.get("fulfillments") or [{}])[0]
     track = ful.get("tracking_number") or order.get("tracking_number") or ""
+    key = f"track-{oid}-{track}"                            # dedupe per (order, waybill)
+    if track and _seen_key(key):
+        return {"skipped": "tracking already written", "order_id": oid, "tracking_number": track}
     plan = {"order_id": oid, "account_id": rec["account_id"], "tracking_number": track}
     if not do_write:
         return {**plan, "dry_run": True}
     # continue the existing account by id and set its tracking number
     b.call("Accounts_place", {"account_id": rec["account_id"],
                               "account": {"tracking_number": track}, "orders": [], "payments": []})
+    _record_order(oid, rec["account_id"], 0, "fulfillment", key=key)
     return {**plan, "written": True}
 
 
@@ -262,6 +296,36 @@ def shopify_product_edit_to_barsy(product, do_write=False, enabled=False):
         return {**plan, "dry_run": True}
     b.call("Articles_update", {"article_id": int(art["article_id"]),
            "article": {"article_name": product.get("title"), "actual_price": str(var.get("price") or "")}})
+    return {**plan, "written": True}
+
+
+# ---- COD lifecycle (driven by the panel's наложен-платеж flow, not a Shopify webhook) ----
+def cod_refused_to_barsy(oid, reason="COD отказан (RTO)", do_write=False):
+    """A REFUSED COD delivery (RTO) → storno the Barsy sale so the returned goods go back into stock.
+    Mechanically identical to a Shopify cancellation (idempotent, keyed). The panel calls this when it
+    records an order outcome as 'refused'."""
+    return shopify_order_cancellation_to_barsy({"id": str(oid), "cancel_reason": reason}, do_write=do_write)
+
+
+def cod_payment_to_barsy(oid, amount, paymethod_id=5, waybill=None, do_write=False):
+    """A SETTLED COD collection → record the received payment on the Barsy sale account. fiscal:0 →
+    NO fiscal device is fired (the бон was already printed on-site at packing); this only books the
+    money against the (already-fiscalised) sale. paymethod_id 5 = По банка (BG COD couriers bank the
+    batch); use 1 for cash-in-hand. Idempotent per order via the connector's action log."""
+    oid = str(oid)
+    rec = _seen_order(oid)
+    if not rec or not rec.get("account_id"):
+        return {"skipped": "no logged Barsy sale for this order", "order_id": oid}
+    key = f"codpay-{oid}"
+    if _seen_key(key):
+        return {"skipped": "COD payment already posted", "order_id": oid}
+    pay = {"paymethod_id": paymethod_id, "actual_paid_sum": str(amount), "fiscal": 0,
+           "description": f"COD събран (куриер){f' · {waybill}' if waybill else ''}"}
+    plan = {"order_id": oid, "account_id": rec["account_id"], "amount": str(amount), "fiscal": 0}
+    if not do_write:
+        return {**plan, "dry_run": True}
+    b.call("Accounts_place", {"account_id": rec["account_id"], "orders": [], "payments": [pay]})
+    _record_order(oid, rec["account_id"], 0, "cod_payment", key=key)
     return {**plan, "written": True}
 
 

@@ -10,6 +10,8 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import nekorekten
 from ..audit import log_action
+from ..config import get_settings
+from ..core import connector
 from ..db import get_async_session
 from ..models import OrderOutcome, User
 from ..users import current_active_user, current_owner, require_roles
@@ -82,7 +84,21 @@ async def record_outcome(
     session.add(row)
     await session.commit()
     await log_action(session, actor, "risk.outcome", target=ph, detail=body.outcome)
-    return {"ok": True, "phone": ph, "outcome": body.outcome}
+    # a REFUSED COD (RTO) means the goods came back → storno the Barsy sale to restore stock. Gated:
+    # dry-run until COD_BARSY_POST_LIVE is on. Never blocks recording the outcome.
+    barsy = await _cod_storno_on_refusal(body) if body.outcome == "refused" else None
+    return {"ok": True, "phone": ph, "outcome": body.outcome, "barsy": barsy}
+
+
+async def _cod_storno_on_refusal(body: "OutcomeBody"):
+    if not body.order_id:
+        return None
+    live = get_settings().cod_barsy_post_live
+    try:
+        return await run_in_threadpool(connector.cod_refused_to_barsy, body.order_id,
+                                       "COD отказан (RTO)", live)
+    except Exception as e:
+        return {"error": str(e)[:140]}
 
 
 class ReportBody(BaseModel):

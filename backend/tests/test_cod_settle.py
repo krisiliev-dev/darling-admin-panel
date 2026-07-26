@@ -40,7 +40,9 @@ async def test_settle_records_and_advances(owner_client, settle_state):
     r = await owner_client.post("/api/cod/settle", json={
         "reference": "P1", "payout_date": "2026-07-21", "courier": "", "lines": [{"order_id": "o1", "collected": 30.0}]})
     assert r.status_code == 200, r.text
-    assert r.json() == {"ok": True, "settled": 1, "discrepancies": 0, "skipped": 0}
+    body = r.json()
+    assert (body["settled"], body["discrepancies"], body["skipped"]) == (1, 0, 0)
+    assert body["barsy"] == {"live": False, "posted": 0}   # gated off → recorded locally only
     assert ("o1", {"status": "cod_paid"}) in calls
     row = await _settlement("o1")
     assert row and row.collected == 30.0 and row.expected == 30.0
@@ -62,8 +64,8 @@ async def test_settle_is_idempotent(owner_client, settle_state):
     body = {"reference": "P", "payout_date": "", "courier": "", "lines": [{"order_id": "o1", "collected": 30.0}]}
     assert (await owner_client.post("/api/cod/settle", json=body)).json()["settled"] == 1
     # second attempt on the same order is skipped, not double-recorded
-    assert (await owner_client.post("/api/cod/settle", json=body)).json() == {
-        "ok": True, "settled": 0, "discrepancies": 0, "skipped": 1}
+    j = (await owner_client.post("/api/cod/settle", json=body)).json()
+    assert (j["settled"], j["discrepancies"], j["skipped"]) == (0, 0, 1)
 
 
 async def test_settle_prefers_order_courier_over_batch(owner_client, settle_state):
