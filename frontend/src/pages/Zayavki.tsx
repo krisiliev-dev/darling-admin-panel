@@ -289,17 +289,31 @@ function SupplierDetailBar({ supplier, pref }: { supplier: string; pref: Zayavka
   const [edit, setEdit] = useState(false)
   const [website, setWebsite] = useState(pref?.website || '')
   const [phone, setPhone] = useState(pref?.phone || '')
+  // Barsy identity fields (write-mostly — not returned on the suppliers list, so they start blank)
+  const [ident, setIdent] = useState({ official_name: '', bulstat: '', vat_num: '', mol: '', address: '' })
   const [saved, setSaved] = useState<{ website: string; phone: string }>({ website: pref?.website || '', phone: pref?.phone || '' })
+  const [pushMsg, setPushMsg] = useState('')
   const email = pref?.email || ''
 
   const saveContacts = async () => {
     try {
       const r = await api.patch<{ website: string; phone: string }>(
-        `/api/zayavki/supplier-prefs/${encodeURIComponent(supplier)}`, { website, phone })
+        `/api/zayavki/supplier-prefs/${encodeURIComponent(supplier)}`, { website, phone, ...ident })
       setSaved({ website: r.website, phone: r.phone })
       setWebsite(r.website); setPhone(r.phone)   // reflect server normalisation (e.g. https:// prefix)
       setEdit(false)
     } catch { /* keep the form open on error */ }
+  }
+
+  const pushToBarsy = async () => {
+    setPushMsg('изпраща…')
+    try {
+      const r = await api.post<{ gated?: boolean; action: string; supplier_id: number | null }>(
+        `/api/zayavki/supplier/${encodeURIComponent(supplier)}/push-barsy`, {})
+      setPushMsg(r.gated
+        ? 'Barsy запис е изключен (пробен режим) — нищо не е записано.'
+        : `Записано в Barsy (${r.action === 'create' ? 'нов' : 'обновен'}, id ${r.supplier_id}).`)
+    } catch (e) { setPushMsg(e instanceof ApiError ? e.message : 'Грешка при запис в Barsy.') }
   }
 
   const toggleHist = async () => {
@@ -327,14 +341,32 @@ function SupplierDetailBar({ supplier, pref }: { supplier: string; pref: Zayavka
         <button className="btn-paper" onClick={() => setEdit((v) => !v)} style={{ fontSize: '.72rem' }}>
           {edit ? 'откажи' : '✎ контакти'}
         </button>
+        <button className="btn-paper" onClick={() => void pushToBarsy()} title="запиши данните на доставчика в Barsy"
+          style={{ fontSize: '.72rem' }}>⇪ Запиши в Barsy</button>
+        {pushMsg && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)' }}>{pushMsg}</span>}
       </div>
       {edit && (
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="input-paper" style={{ width: '16rem' }} placeholder="сайт (напр. anis.bg)"
-            aria-label="сайт на доставчика" value={website} onChange={(e) => setWebsite(e.target.value)} />
-          <input className="input-paper" style={{ width: '10rem' }} placeholder="телефон"
-            aria-label="телефон на доставчика" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <button className="btn-paper btn-red" onClick={() => void saveContacts()}>Запази</button>
+        <div style={{ display: 'grid', gap: '.4rem' }}>
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input className="input-paper" style={{ width: '16rem' }} placeholder="сайт (напр. anis.bg)"
+              aria-label="сайт на доставчика" value={website} onChange={(e) => setWebsite(e.target.value)} />
+            <input className="input-paper" style={{ width: '10rem' }} placeholder="телефон"
+              aria-label="телефон на доставчика" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          {/* Barsy supplier identity — reflected via „Запиши в Barsy" (Suppliers_create/update) */}
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input className="input-paper" style={{ width: '14rem' }} placeholder="юридическо име"
+              aria-label="юридическо име" value={ident.official_name} onChange={(e) => setIdent({ ...ident, official_name: e.target.value })} />
+            <input className="input-paper" style={{ width: '8rem' }} placeholder="ЕИК"
+              aria-label="ЕИК" value={ident.bulstat} onChange={(e) => setIdent({ ...ident, bulstat: e.target.value })} />
+            <input className="input-paper" style={{ width: '9rem' }} placeholder="ДДС №"
+              aria-label="ДДС номер" value={ident.vat_num} onChange={(e) => setIdent({ ...ident, vat_num: e.target.value })} />
+            <input className="input-paper" style={{ width: '11rem' }} placeholder="МОЛ"
+              aria-label="МОЛ" value={ident.mol} onChange={(e) => setIdent({ ...ident, mol: e.target.value })} />
+            <input className="input-paper" style={{ width: '16rem' }} placeholder="адрес"
+              aria-label="адрес" value={ident.address} onChange={(e) => setIdent({ ...ident, address: e.target.value })} />
+            <button className="btn-paper btn-red" onClick={() => void saveContacts()}>Запази</button>
+          </div>
         </div>
       )}
       {showHist && (
