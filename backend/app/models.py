@@ -143,6 +143,7 @@ class ProductCache(Base):
     category: Mapped[str] = mapped_column(String(255), default="", index=True)
     supplier: Mapped[str] = mapped_column(String(255), default="", index=True)
     brand: Mapped[str] = mapped_column(String(128), default="", index=True)
+    shopify_category_id: Mapped[str] = mapped_column(String(64), default="")   # leaf for name recompose
     desc_lc: Mapped[str] = mapped_column(Text, default="")            # lowercased description, for "contains" filter
     price: Mapped[float | None] = mapped_column(default=None)          # actual_price (€)
     stock: Mapped[float | None] = mapped_column(default=None)
@@ -209,6 +210,18 @@ class DeliveryLine(Base):
 
 # NOTE: supplier orders (заявки) live in BARSY as draft storeloads (складови зареждания),
 # not in a local table — Barsy is the system of record. See routers/purchasing.py.
+
+
+class NameRecipe(Base):
+    """A naming 'recipe' = the v3 composer's style overrides ({attr: variant}, e.g. Color:suffix). One
+    GLOBAL row (leaf_id="") is the default; a per-leaf row overrides it for that Shopify leaf, so new
+    products in that leaf auto-apply it. Panel-owned (admin.db)."""
+    __tablename__ = "name_recipes"
+
+    leaf_id: Mapped[str] = mapped_column(String(64), primary_key=True)   # "" = global default
+    style_json: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
 
 
 class Brand(Base):

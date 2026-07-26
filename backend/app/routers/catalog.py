@@ -552,6 +552,61 @@ async def delete_promo(pid: int, actor: User = Depends(current_owner),
     return {"ok": True}
 
 
+class BulkRenameRequest(BaseModel):
+    article_ids: list[int] = Field(min_length=1, max_length=_BULK_MAX)
+    style: dict[str, str] = {}          # optional recipe override for this run (else per-leaf/global)
+    confirm: bool = False
+
+
+@router.post("/bulk-rename")
+async def bulk_rename(req: BulkRenameRequest, actor: User = Depends(current_owner),
+                      session: AsyncSession = Depends(get_async_session)):
+    """Recompose the NAME of the selected products via the v3 naming recipe (leaf + attributes + brand),
+    optionally under a chosen style override. Preview first (confirm=false); confirm=true writes each
+    via Articles_update. Products with no resolvable Shopify leaf are reported as `skipped`."""
+    from . import intake as I
+    from .. import naming
+    cats = {c["id"]: c for c in I._tax_categories()}
+    rows = {p.article_id: p for p in (await session.execute(
+        select(ProductCache).where(ProductCache.article_id.in_(req.article_ids)))).scalars().all()}
+    override = {k: v for k, v in req.style.items() if v}
+    changes, skipped = [], []
+    for aid in req.article_ids:
+        p = rows.get(aid)
+        if not p:
+            continue
+        leaf = getattr(p, "shopify_category_id", "") or ""
+        cat = cats.get(leaf)
+        if not cat:
+            skipped.append({"article_id": aid, "code": p.code, "name": p.name, "reason": "няма Shopify категория"})
+            continue
+        attrs = {a["key"]: a["value"] for a in _json.loads(p.attributes_json or "[]") if a.get("key")}
+        facts = I._facts_from(cat.get("bg") or "", p.brand, attrs)
+        style = {**(await I._recipe_style(session, leaf)), **override}
+        new = naming.build(facts, style or None)
+        if not new or new == p.name:
+            skipped.append({"article_id": aid, "code": p.code, "name": p.name,
+                            "reason": "без промяна" if new == p.name else "не може да се състави име"})
+            continue
+        changes.append({"article_id": aid, "code": p.code, "old_name": p.name, "new_name": new})
+    if not req.confirm:
+        return {"dry_run": True, "count": len(changes), "changes": changes, "skipped": skipped}
+    applied, failed = 0, []
+    for c in changes:
+        try:
+            await run_in_threadpool(barsy.call, "Articles_update", {"article_id": c["article_id"],
+                "article": {"article_name": c["new_name"], "article_name_ml": {"bg_BG": c["new_name"]}}})
+        except Exception:
+            failed.append(c["code"])
+            continue
+        rows[c["article_id"]].name = c["new_name"]           # write-through
+        applied += 1
+    await session.commit()
+    await log_action(session, actor, "catalog.bulk_rename",
+                     detail=f"applied={applied} failed={len(failed)} skipped={len(skipped)}")
+    return {"dry_run": False, "count": len(changes), "applied": applied, "failed": failed, "skipped": skipped}
+
+
 @router.get("/facets")
 async def facets(user: User = Depends(current_active_user),
                  session: AsyncSession = Depends(get_async_session)):

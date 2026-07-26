@@ -26,7 +26,7 @@ from ..audit import log_action
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
-from ..models import DeliveryBatch, DeliveryLine, DraftImage, IntakeDraft, User
+from ..models import DeliveryBatch, DeliveryLine, DraftImage, IntakeDraft, NameRecipe, User
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
@@ -196,10 +196,27 @@ class ComposeNameRequest(BaseModel):
     dimensions: str = ""                # размери
 
 
+async def _recipe_style(session: AsyncSession, leaf_id: str = "") -> dict:
+    """Effective naming recipe = the global style overlaid by the leaf's own (if any)."""
+    ids = [""] if not leaf_id else ["", leaf_id]
+    rows = (await session.execute(select(NameRecipe).where(NameRecipe.leaf_id.in_(ids)))).scalars().all()
+    by = {r.leaf_id: json.loads(r.style_json or "{}") for r in rows}
+    return {**by.get("", {}), **(by.get(leaf_id, {}) if leaf_id else {})}
+
+
+def _facts_from(cat_bg: str, brand: str, attributes: dict, capacity: str = "", dimensions: str = "") -> dict:
+    """Build the v3 composer facts from a leaf breadcrumb + BG attributes (schema roles resolved by the
+    composer's own aliases, so we pass the BG {name: value} straight through)."""
+    return {"leaf_bg": cat_bg or "", "brand": (brand or "").strip(), "attributes": attributes or {},
+            "вместимост": capacity, "размери": dimensions}
+
+
 @router.post("/compose-name")
-def compose_name(req: ComposeNameRequest, user=Depends(current_active_user)):
+async def compose_name(req: ComposeNameRequest, user=Depends(current_active_user),
+                       session: AsyncSession = Depends(get_async_session)):
     """Deterministically compose the Bulgarian product name from the Shopify leaf + attributes + size,
-    using the v3 composer (app/naming.py). The name is derived, so it recomputes as fields change."""
+    using the v3 composer (app/naming.py) under the leaf's naming RECIPE (per-leaf default style, else
+    global). Derived — recomputes as fields change."""
     from .. import naming
     cats = {c["id"]: c for c in _tax_categories()}
     cat = cats.get(req.category_id)
@@ -208,14 +225,50 @@ def compose_name(req: ComposeNameRequest, user=Depends(current_active_user)):
     canonical: dict[str, str] = {}
     for g in _leaf_schema(req.category_id):
         role = _role_for_handle(g["handle"], g["name"])
-        if not role:
-            continue
-        val = req.attributes.get(g["name"])           # BG value the user picked (keyed by BG attr name)
-        if val:
-            canonical[role] = val                      # BG value — the composer resolves it via aliases
-    facts = {"leaf_bg": cat.get("bg") or "", "brand": req.brand.strip(), "attributes": canonical,
-             "вместимост": req.capacity, "размери": req.dimensions}
-    return {"name": naming.build(facts), "available": True}
+        if role and req.attributes.get(g["name"]):
+            canonical[role] = req.attributes[g["name"]]
+    facts = _facts_from(cat.get("bg") or "", req.brand, canonical, req.capacity, req.dimensions)
+    style = await _recipe_style(session, req.category_id)
+    return {"name": naming.build(facts, style or None), "available": True}
+
+
+# ---------------------------------------------------------------- naming recipes (style) ---
+class RecipeIn(BaseModel):
+    style: dict[str, str] = {}
+
+
+@router.get("/recipe/options")
+def recipe_options(user=Depends(current_active_user)):
+    """The editable recipe knobs: {attribute: {default, variants}} (e.g. Color: prefix|suffix|…)."""
+    from .. import naming
+    return {"options": naming.style_options()}
+
+
+@router.get("/recipe")
+async def get_recipe(leaf: str = "", user=Depends(current_active_user),
+                     session: AsyncSession = Depends(get_async_session)):
+    """The global recipe + (optionally) a leaf's override + the effective merge."""
+    glob = (await session.execute(select(NameRecipe).where(NameRecipe.leaf_id == ""))).scalar_one_or_none()
+    leaf_row = (await session.execute(select(NameRecipe).where(NameRecipe.leaf_id == leaf))).scalar_one_or_none() if leaf else None
+    return {"global": json.loads(glob.style_json) if glob else {},
+            "leaf": json.loads(leaf_row.style_json) if leaf_row else {},
+            "effective": await _recipe_style(session, leaf)}
+
+
+@router.put("/recipe")
+async def put_recipe(req: RecipeIn, leaf: str = "", actor: User = Depends(current_owner),
+                     session: AsyncSession = Depends(get_async_session)):
+    """Set the global (leaf="") or a per-leaf naming recipe. New products in that leaf auto-apply it."""
+    style = {k: v for k, v in req.style.items() if v}          # drop cleared knobs
+    row = await session.get(NameRecipe, leaf)
+    if not row:
+        row = NameRecipe(leaf_id=leaf)
+        session.add(row)
+    row.style_json = json.dumps(style, ensure_ascii=False)
+    row.updated_at = _dt.datetime.now(_dt.timezone.utc)
+    await session.commit()
+    await log_action(session, actor, "intake.recipe", target=leaf or "global", detail=json.dumps(style))
+    return {"ok": True, "leaf": leaf, "style": style}
 
 
 @router.post("/enrich", response_model=EnrichDraft)

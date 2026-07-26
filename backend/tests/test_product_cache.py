@@ -121,6 +121,39 @@ async def test_bulk_price_preview_then_apply(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_naming_recipe_roundtrip(owner_client):
+    opts = (await owner_client.get("/api/intake/recipe/options")).json()["options"]
+    assert "Color" in opts and "suffix" in opts["Color"]["variants"]        # recipe knobs available
+    r = await owner_client.put("/api/intake/recipe?leaf=hg-1", json={"style": {"Color": "suffix"}})
+    assert r.status_code == 200, r.text
+    g = (await owner_client.get("/api/intake/recipe?leaf=hg-1")).json()
+    assert g["leaf"].get("Color") == "suffix" and g["effective"].get("Color") == "suffix"
+
+
+@pytest.mark.asyncio
+async def test_bulk_rename_recomposes(owner_client, barsy_recorder):
+    from app.db import async_session_maker
+    from app.models import ProductCache
+    cats = (await owner_client.get("/api/intake/shopify-categories", params={"q": "Купи"})).json()["categories"]
+    leaf = next((c["id"] for c in cats if c["path"].endswith("Купи")), None)
+    assert leaf, "expected a 'Купи' leaf in the taxonomy"
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "старо име", "actual_price": "9",
+         "article_details": {"1": {"key": "Материал", "value": "Керамика", "key_id": 1, "value_id": 5}}},
+    ])
+    async with async_session_maker() as s:                       # sync doesn't carry the Shopify leaf; set it
+        p = await s.get(ProductCache, 1)
+        p.shopify_category_id = leaf
+        await s.commit()
+    prev = (await owner_client.post("/api/catalog/bulk-rename", json={"article_ids": [1]})).json()
+    assert prev["dry_run"] is True and prev["changes"]
+    assert "керамичн" in prev["changes"][0]["new_name"].lower()   # recomposed via the v3 recipe
+    barsy_recorder.set_return("Articles_update", 1)
+    ap = (await owner_client.post("/api/catalog/bulk-rename", json={"article_ids": [1], "confirm": True})).json()
+    assert ap["applied"] == 1 and barsy_recorder.operations.count("Articles_update") == 1
+
+
+@pytest.mark.asyncio
 async def test_bulk_price_decimal_rounding(owner_client, barsy_recorder):
     """Money math is exact-Decimal ROUND_HALF_UP — not binary float + round() (which gives 2.67)."""
     await _sync(owner_client, barsy_recorder, [

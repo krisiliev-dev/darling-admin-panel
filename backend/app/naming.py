@@ -31,6 +31,14 @@ def _load():
     return _RULES, _FORMS
 
 
+def style_options() -> dict:
+    """The editable 'recipe' knobs: {attribute: {default, variants:[...]}} — e.g. Color can render as
+    a prefix adjective or a suffix phrase. Drives the recipe editor + bulk-rename dialog."""
+    rules, _ = _load()
+    return {name: {"default": cfg.get("default"), "variants": list((cfg.get("variants") or {}).keys())}
+            for name, cfg in (rules.get("attributes") or {}).items() if (cfg.get("variants") or {})}
+
+
 def _adj_index(rules):
     idx = {}
     for key, forms in rules["adjectives"].items():

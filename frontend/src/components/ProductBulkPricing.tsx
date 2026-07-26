@@ -232,6 +232,70 @@ function PromoForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
   )
 }
 
+// Bulk RENAME by naming recipe: recompose selected products' names (v3 composer) under a chosen style
+// (color/material/shape prefix vs suffix). Preview → apply; optionally save the style as the default.
+interface RenamePreview { count: number; changes: { article_id: number; old_name: string; new_name: string }[]; skipped: { name: string; reason: string }[] }
+function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
+  const [options, setOptions] = useState<Record<string, { default: string; variants: string[] }>>({})
+  const [style, setStyle] = useState<Record<string, string>>({})
+  const [prev, setPrev] = useState<RenamePreview | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  useEffect(() => { api.get<{ options: typeof options }>('/api/intake/recipe/options').then((d) => setOptions(d.options)).catch(() => { }) }, [])
+
+  const preview = async () => {
+    setBusy(true); setMsg('')
+    try { setPrev(await api.post<RenamePreview>('/api/catalog/bulk-rename', { article_ids: ids, style })) }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
+  }
+  const apply = async () => {
+    if (!window.confirm(`Преименуване на ${prev?.count} продукта в Barsy?`)) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await api.post<{ applied: number; skipped: unknown[] }>('/api/catalog/bulk-rename', { article_ids: ids, style, confirm: true })
+      setMsg(`Преименувани ${r.applied} продукта.`); onDone()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
+  }
+  const saveDefault = async () => {
+    try { await api.put('/api/intake/recipe', { style }); setMsg('Рецептата е запазена като глобална по подразбиране.') }
+    catch { setMsg('Грешка при запис на рецептата.') }
+  }
+
+  return (
+    <div style={{ marginTop: '.5rem', borderTop: '1px dashed var(--line)', paddingTop: '.5rem', display: 'grid', gap: '.4rem' }}>
+      <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)' }}>Рецепта — как се подреждат атрибутите в името:</span>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        {Object.entries(options).map(([attr, cfg]) => (
+          <label key={attr} style={{ display: 'grid', gap: '.1rem' }}>
+            <span className="font-type" style={{ fontSize: '.6rem', color: 'var(--pencil)' }}>{attr}</span>
+            <select className="input-paper" style={{ fontSize: '.74rem' }} value={style[attr] || ''} onChange={(e) => { setStyle((s) => ({ ...s, [attr]: e.target.value })); setPrev(null) }}>
+              <option value="">по подразбиране</option>
+              {cfg.variants.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn-paper" onClick={() => void preview()} disabled={busy}>Прегледай имената</button>
+        {prev && prev.count > 0 && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Преименувай {prev.count}</button>}
+        <button className="btn-paper" onClick={() => void saveDefault()} disabled={busy} title="важи за нови продукти">Запази рецептата глобално</button>
+      </div>
+      {msg && <div className="font-type" style={{ fontSize: '.78rem', color: msg.includes('Грешка') || msg.includes('провали') ? 'var(--red)' : 'var(--ready)' }}>{msg}</div>}
+      {prev && (
+        <div style={{ maxHeight: '15rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>
+          {prev.changes.slice(0, 60).map((c) => (
+            <div key={c.article_id} className="font-type" style={{ fontSize: '.75rem', borderBottom: '1px dashed var(--line)', padding: '.15rem 0' }}>
+              <span style={{ color: 'var(--pencil)', textDecoration: 'line-through' }}>{c.old_name}</span> → <b>{c.new_name}</b>
+            </div>
+          ))}
+          {prev.count === 0 && <span className="pencil" style={{ fontSize: '.75rem' }}>Няма промени (продуктите нямат Shopify категория или вече са с това име).</span>}
+          {prev.skipped.length > 0 && <span className="pencil" style={{ fontSize: '.72rem' }}>Пропуснати: {prev.skipped.length}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
   const [op, setOp] = useState<'mul' | 'div' | 'add' | 'sub' | 'set'>('mul')
   const [value, setValue] = useState('')
@@ -239,6 +303,7 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [showPromo, setShowPromo] = useState(false)
+  const [showRename, setShowRename] = useState(false)
   const ids = selected.map((s) => s.article_id)
   const OPS: [typeof op, string][] = [['mul', '× умножи'], ['div', '÷ раздели'], ['add', '+ добави'], ['sub', '− извади'], ['set', '= задай']]
 
@@ -273,8 +338,10 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
         {preview?.dry_run && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Приложи на {preview.count}</button>}
         <span style={{ color: 'var(--line)' }}>│</span>
         <button className="btn-paper" onClick={() => setShowPromo((s) => !s)}>🏷 Промоция за период</button>
+        <button className="btn-paper" onClick={() => setShowRename((s) => !s)}>🖊 Преименувай по рецепта</button>
       </div>
       {showPromo && <PromoForm ids={ids} onDone={() => { setShowPromo(false); onDone() }} />}
+      {showRename && <BulkRenameForm ids={ids} onDone={() => { setShowRename(false); onDone() }} />}
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: msg.includes('Приложено') ? 'var(--ready)' : 'var(--red)', marginTop: '.4rem' }}>{msg}</div>}
       {preview?.dry_run && preview.changes && (
         <div style={{ marginTop: '.6rem', maxHeight: '16rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>
