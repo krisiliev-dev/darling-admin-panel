@@ -26,6 +26,7 @@ interface NewEdit {
   category: string
   brand: string
   oversell: boolean
+  weight_kg: string
   description: string
   attributes: IntakeAttribute[]
   images: { name: string; url: string }[]
@@ -36,7 +37,7 @@ interface NewEdit {
 
 const blankEdit = (r: DeliveryRow): NewEdit => ({
   code: r.supplier_code, barcode: '', sale_price: '', unit: 'бр',
-  name: r.name, category: '', brand: '', oversell: false, description: '', attributes: [],
+  name: r.name, category: '', brand: '', oversell: false, weight_kg: '', description: '', attributes: [],
   images: [], enriching: false, ready: false, error: '',
 })
 
@@ -122,7 +123,7 @@ export function IntakeDelivery({ categories }: { categories: string[] }) {
             is_new: true, supplier_code: r.supplier_code, name: e.name, qty: r.qty,
             delivery_price: r.delivery_price, code: e.code, barcode: e.barcode,
             sale_price: e.sale_price, unit: e.unit, category: e.category, brand: e.brand,
-            oversell: e.oversell,
+            oversell: e.oversell, weight_kg: e.weight_kg,
             original_name: r.name,   // supplier's raw name → article alias (POS/search)
             description: e.description, attributes: e.attributes,
           }
@@ -332,6 +333,10 @@ function NewProductCard({
               onChange={(e) => onPatch({ oversell: e.target.checked })} style={{ marginTop: '.15rem' }} />
             <span>Може да се поръча без наличност (по заявка / дропшип)</span>
           </label>
+        </HdrField>
+        <HdrField label="Тегло (кг)">
+          <input className="input-paper" inputMode="decimal" placeholder="напр. 0.55"
+            value={edit.weight_kg} onChange={(e) => onPatch({ weight_kg: e.target.value })} />
         </HdrField>
         <HdrField label="Описание">
           <textarea className="input-paper" rows={3} value={edit.description}

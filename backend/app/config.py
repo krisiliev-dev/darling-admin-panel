@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     delivery_barsy_live: bool = False
     # Barsy depot the delivery loads into. 1 = 'Основен', can_load=1 (verified live).
     barsy_depot_id: int = 1
+    # Barsy currency for storeload/order prices. 1 = Евро/EUR (is_current on our install,
+    # Currencies_getlist live). Prices are entered in EUR, so this stays 1.
+    barsy_currency_id: int = 1
+    # Storeloads price_mode: 1 = the delivery unit prices we send are VAT-INCLUSIVE (our prices are).
+    # ⚠️ Barsy's docs don't state polarity; VERIFY LIVE with one test storeload (create price_mode=1,
+    # read the stored cost back) before launch — a backwards flag corrupts cost/margin by the VAT rate.
+    barsy_price_mode: int = 1
 
     # --- Заявки email sending (Gmail SMTP) ---------------------------------------------
     # The panel sends a заявка to a supplier via the business Gmail. Set GMAIL_USER +

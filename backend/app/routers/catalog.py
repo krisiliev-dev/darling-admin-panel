@@ -718,12 +718,15 @@ def list_articles(
 def get_article(article_id: int, user: User = Depends(current_active_user)):
     """Full product detail from Barsy."""
     with upstream("Barsy артикул"):
-        a = barsy.call("Articles_get", {"article_id": article_id})
+        # extra_data (SEO + weight_kg) is omitted by a default get — request it explicitly
+        a = barsy.call("Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
     if not isinstance(a, dict) or not a.get("article_id"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Артикулът не е намерен.")
     bc = a.get("barcode")
     if isinstance(bc, list):
         bc = bc[0] if bc else ""
+    _ed = a.get("extra_data")
+    extra = _ed if isinstance(_ed, dict) else {}
     return {
         "article_id": a.get("article_id"), "code": a.get("code") or "",
         "name": a.get("article_name") or "", "description": a.get("description") or "",
@@ -731,6 +734,7 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
         "unit": a.get("amount_type_name_short") or "",
         "category": a.get("master_cat") or (a.get("categories_names") or ""),
         "oversell": str(a.get("sale_below_zero") or "").upper() == "YES",
+        "weight_kg": str(extra.get("weight_kg") or ""),
     }
 
 
@@ -739,6 +743,7 @@ class ArticleEdit(BaseModel):
     description: str = ""
     barcode: str = ""
     oversell: bool = False        # orderable at <=0 stock (backorder / supplier dropship)
+    weight_kg: str = ""           # kg → merged into Barsy extra_data (preserving SEO)
 
 
 @router.post("/{article_id}")
@@ -760,6 +765,18 @@ async def update_article(
         article["barcode"] = req.barcode.strip()  # string, not array (Barsy create/update)
     # explicit YES/NO (not the DEF default) so the toggle can turn oversell back OFF on an edit
     article["sale_below_zero"] = "YES" if req.oversell else "NO"
+    # weight rides in the native extra_data object — MERGE, don't clobber (it also holds SEO). Read the
+    # current extra_data first so seo_title/seo_description/variant_codes survive the write.
+    w = req.weight_kg.strip()
+    if w:
+        try:
+            cur = await run_in_threadpool(
+                barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
+            extra = dict(cur.get("extra_data") or {}) if isinstance(cur, dict) else {}
+        except Exception:
+            extra = {}
+        extra["weight_kg"] = w
+        article["extra_data"] = extra
     if not barsy_write_live():
         return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
     with upstream("Barsy обновяване"):

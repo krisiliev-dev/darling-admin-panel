@@ -178,6 +178,7 @@ export interface IntakeDraft {
   meta_title?: string
   meta_description?: string
   oversell?: boolean          // orderable at <=0 stock (backorder / supplier dropship)
+  weight_kg?: string          // kg → Barsy extra_data.weight_kg
   model: string
   elapsed_ms: number
   // present on persisted drafts (from /drafts, /approve)
@@ -494,6 +495,7 @@ export interface ArticleDetail {
   unit: string
   category: string
   oversell?: boolean
+  weight_kg?: string
 }
 
 export interface StaffMember {

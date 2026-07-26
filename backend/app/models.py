@@ -58,6 +58,7 @@ class IntakeDraft(Base):
     brand: Mapped[str] = mapped_column(String(128), default="")   # canonical brand (→ Shopify vendor)
     # orderable at <=0 stock (backorder / supplier dropship, e.g. Mira-N) → Barsy sale_below_zero='YES'
     oversell: Mapped[bool] = mapped_column(default=False)
+    weight_kg: Mapped[str] = mapped_column(String(16), default="")  # kg, string → Barsy extra_data.weight_kg
     model: Mapped[str] = mapped_column(String(64), default="")
     # lifecycle. For delivery-sourced products: new_from_delivery → done_from_delivery (enriched,
     # stays checkmarked in the queue) → the whole delivery leaves together when it's finalised.

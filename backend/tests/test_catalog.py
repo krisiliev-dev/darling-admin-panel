@@ -123,6 +123,15 @@ async def test_update_sets_sale_below_zero_yes_when_oversell(staff_client, barsy
     assert barsy_recorder.body_for("Articles_update")["article"]["sale_below_zero"] == "YES"
 
 
+async def test_update_merges_weight_into_extra_data_preserving_seo(staff_client, barsy_recorder):
+    # existing article already has SEO in extra_data — the weight write must MERGE, not clobber it
+    barsy_recorder.set_return("Articles_get", {"article_id": 7, "extra_data": {"seo_title": "Старо"}})
+    r = await staff_client.post("/api/catalog/7", json={"name": "Тежък", "weight_kg": " 1.2 "})
+    assert r.status_code == 200, r.text
+    extra = barsy_recorder.body_for("Articles_update")["article"]["extra_data"]
+    assert extra == {"seo_title": "Старо", "weight_kg": "1.2"}   # SEO preserved, weight added
+
+
 async def test_update_empty_name_is_400(staff_client, barsy_recorder):
     r = await staff_client.post("/api/catalog/7", json={"name": "   "})
     assert r.status_code == 400

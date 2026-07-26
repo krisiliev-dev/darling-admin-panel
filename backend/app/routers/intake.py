@@ -333,6 +333,7 @@ class ApproveRequest(BaseModel):
     meta_description: str = ""
     model: str = ""
     oversell: bool = False        # orderable at <=0 stock (backorder / supplier dropship)
+    weight_kg: str = ""           # kg → Barsy extra_data.weight_kg
 
 
 class DraftOut(BaseModel):
@@ -350,6 +351,7 @@ class DraftOut(BaseModel):
     meta_title: str = ""
     meta_description: str = ""
     oversell: bool = False
+    weight_kg: str = ""
     status: str
     barsy_article_id: int | None
     approved_by: str
@@ -372,7 +374,7 @@ def _row_to_out(d: IntakeDraft, image_count: int = 0) -> DraftOut:
         description=d.description,
         attributes=[Attribute(**a) for a in json.loads(d.attributes_json or "[]")],
         meta_title=getattr(d, "meta_title", "") or "", meta_description=getattr(d, "meta_description", "") or "",
-        oversell=bool(getattr(d, "oversell", False)),
+        oversell=bool(getattr(d, "oversell", False)), weight_kg=getattr(d, "weight_kg", "") or "",
         status=d.status, barsy_article_id=d.barsy_article_id, approved_by=d.approved_by,
         delivery_line_id=d.delivery_line_id,
         completed=(d.status in _DONE_STATES or d.barsy_article_id is not None),
@@ -483,7 +485,7 @@ async def approve(
         description=req.description,
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
         meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
-        oversell=bool(req.oversell),
+        oversell=bool(req.oversell), weight_kg=req.weight_kg.strip(),
         model=req.model, status="approved", approved_by=actor.email)
     session.add(d)
     await session.commit()
@@ -567,6 +569,7 @@ async def update_draft(
     d.meta_title = req.meta_title.strip()
     d.meta_description = req.meta_description.strip()
     d.oversell = bool(req.oversell)
+    d.weight_kg = req.weight_kg.strip()
     d.model = req.model
     # A delivery-sourced draft stays linked to its delivery and remains in the Нов продукт queue
     # (checkmarked) until the whole delivery is finalised — so the batch disappears together, not
@@ -702,6 +705,8 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
         extra["seo_title"] = d.meta_title
     if d.meta_description:
         extra["seo_description"] = d.meta_description
+    if getattr(d, "weight_kg", ""):
+        extra["weight_kg"] = str(d.weight_kg).strip()   # kg as string (Barsy extra_data.weight_kg)
     if extra:
         art["extra_data"] = extra
     return {"article": art}

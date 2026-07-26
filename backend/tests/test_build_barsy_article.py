@@ -127,6 +127,23 @@ def test_no_sale_below_zero_when_not_oversell():
     assert "sale_below_zero" not in art          # leave Barsy's default (DEF)
 
 
+# --- weight → extra_data.weight_kg (native Barsy object; parity with barsy_push) ---
+def test_weight_written_to_extra_data():
+    art = _build_barsy_article(_draft(code="C", name="N", weight_kg="0.55"))["article"]
+    assert art["extra_data"]["weight_kg"] == "0.55"
+
+
+def test_weight_and_seo_coexist_in_extra_data():
+    d = _draft(code="C", name="N", weight_kg="1.2", meta_title="Заглавие")
+    art = _build_barsy_article(d)["article"]
+    assert art["extra_data"] == {"seo_title": "Заглавие", "weight_kg": "1.2"}
+
+
+def test_no_weight_key_when_blank():
+    art = _build_barsy_article(_draft(code="C", name="N"))["article"]
+    assert "extra_data" not in art
+
+
 # --- G6: Shopify leaf → Barsy cat_id resolution (set in _save_to_barsy, not the pure builder) ---
 def test_resolve_cat_id_builds_gid_from_suffix(monkeypatch):
     """The picker stores the leaf SUFFIX; the checkpoint is keyed by full gid — so the suffix must be

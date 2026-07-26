@@ -208,6 +208,7 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
   const [description, setDescription] = useState('')
   const [barcode, setBarcode] = useState('')
   const [oversell, setOversell] = useState(false)
+  const [weight, setWeight] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -216,7 +217,8 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
     setDetail(null); setMsg('')
     api.get<ArticleDetail>(`/api/catalog/${articleId}`).then((d) => {
       if (ignore) return
-      setDetail(d); setName(d.name); setDescription(d.description); setBarcode(d.barcode); setOversell(!!d.oversell)
+      setDetail(d); setName(d.name); setDescription(d.description); setBarcode(d.barcode)
+      setOversell(!!d.oversell); setWeight(d.weight_kg || '')
     }).catch(() => { if (!ignore) setMsg('Грешка при зареждане.') })
     return () => { ignore = true }
   }, [articleId])
@@ -224,7 +226,7 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
   const save = async () => {
     setBusy(true); setMsg('')
     try {
-      await api.post(`/api/catalog/${articleId}`, { name, description, barcode, oversell })
+      await api.post(`/api/catalog/${articleId}`, { name, description, barcode, oversell, weight_kg: weight })
       setMsg('Записано в Barsy.')
       onSaved()
     } catch (e) {
@@ -248,6 +250,7 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
           </div>
           <Field label="Име"><input className="input-paper" value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="Баркод"><input className="input-paper" value={barcode} onChange={(e) => setBarcode(e.target.value)} /></Field>
+          <Field label="Тегло (кг)"><input className="input-paper" inputMode="decimal" placeholder="напр. 0.55" value={weight} onChange={(e) => setWeight(e.target.value)} /></Field>
           <Field label="Описание (HTML)">
             <textarea className="input-paper" rows={10} value={description} onChange={(e) => setDescription(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
           </Field>

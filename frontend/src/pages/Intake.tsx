@@ -221,7 +221,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
           name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
           brand: d.brand || '', description: d.description || '', attributes: sized,
           meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
-          oversell: !!d.oversell,
+          oversell: !!d.oversell, weight_kg: d.weight_kg || '',
         })
       const b = r.barsy
       if (b && !b.live) setNote(b.note || 'Записано (проба).')
@@ -283,6 +283,10 @@ function ProductEditor({ draft, onDone, onCancel }: {
                 onChange={(e) => setD({ ...d, oversell: e.target.checked })} style={{ marginTop: '.2rem' }} />
               <span>Може да се поръча и без наличност (доставка по заявка / дропшип — клиентът се уведомява за по-дълъг срок).</span>
             </label>
+          </Field>
+          <Field label="Тегло (кг)">
+            <input className="input-paper" style={{ width: '8rem' }} inputMode="decimal" placeholder="напр. 0.55"
+              value={d.weight_kg || ''} onChange={(e) => setD({ ...d, weight_kg: e.target.value })} />
           </Field>
           <Field label="Категория (Shopify таксономия)">
             <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}

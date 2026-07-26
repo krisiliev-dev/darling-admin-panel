@@ -72,6 +72,12 @@ def test_new_article_body_oversell_sets_sale_below_zero():
     assert "sale_below_zero" not in intake_delivery._new_article_body(_line())["article"]
 
 
+def test_new_article_body_weight_in_extra_data():
+    art = intake_delivery._new_article_body(_line(weight_kg="0.55"))["article"]
+    assert art["extra_data"] == {"weight_kg": "0.55"}
+    assert "extra_data" not in intake_delivery._new_article_body(_line())["article"]
+
+
 def _upload(content: bytes, filename="dostavka.xlsx"):
     return {"file": (filename, content,
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
@@ -189,6 +195,8 @@ async def test_commit_dry_run_writes_nothing(owner_client, barsy_recorder):
     assert payload["store_load"]["depot_id"] == 1
     assert payload["store_load"]["operation_type"] == 1   # receipt (part of minimal validated shape)
     assert payload["store_load"]["doc_type_id"] == 1      # Фактура
+    assert payload["store_load"]["currency_id"] == 1      # EUR
+    assert payload["store_load"]["price_mode"] == 1       # delivery prices are VAT-inclusive
     arts = payload["articles"]
     assert len(arts) == 2
     assert arts[0]["article_id"] == 555 and arts[0]["amount"] == "5.0"
@@ -224,7 +232,7 @@ async def test_commit_requires_owner(staff_client):
 async def test_commit_live_creates_articles_then_one_storeload(owner_client, barsy_recorder, monkeypatch):
     # flip the gate ON for this test only
     monkeypatch.setattr(intake_delivery, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     barsy_recorder.set_return("Articles_create", {"article_id": 9001})
     barsy_recorder.set_return("Storeloads_create", {"storeload_id": 700})
 
@@ -245,7 +253,7 @@ async def test_commit_live_creates_articles_then_one_storeload(owner_client, bar
 @pytest.mark.asyncio
 async def test_commit_live_resolves_supplier_id_into_header(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(intake_delivery, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     barsy_recorder.set_return("Suppliers_getlist",
                               [{"supplier_id": 39, "supplier_name": "Тестов доставчик"}])
     barsy_recorder.set_return("Articles_create", {"article_id": 9001})
@@ -260,7 +268,7 @@ async def test_commit_live_resolves_supplier_id_into_header(owner_client, barsy_
 @pytest.mark.asyncio
 async def test_commit_live_needs_confirm(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(intake_delivery, "get_settings",
-                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1))
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1))
     body = _commit_body()
     body["confirm"] = False
     r = await owner_client.post("/api/intake/delivery/commit", json=body)

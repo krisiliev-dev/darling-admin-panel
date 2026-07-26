@@ -159,6 +159,7 @@ class CommitLine(BaseModel):
     brand: str = ""            # → "Марка" article detail (Barsy has no native brand field)
     original_name: str = ""    # supplier's raw row name → article alias (POS/search), create-only
     oversell: bool = False     # orderable at <=0 stock (backorder / supplier dropship) → sale_below_zero
+    weight_kg: str = ""        # kg → Barsy extra_data.weight_kg
     description: str = ""
     attributes: list[Attribute] = []
 
@@ -190,6 +191,8 @@ def _new_article_body(ln: CommitLine) -> dict:
     alias = (ln.original_name or "").strip()
     if alias and alias != (ln.name or "").strip():
         art["article_aliases"] = [alias]                # supplier's raw name as a POS/search synonym
+    if ln.weight_kg.strip():
+        art["extra_data"] = {"weight_kg": ln.weight_kg.strip()}   # kg (Barsy extra_data object)
     if ln.description:
         art["description_ml"] = {"bg_BG": ln.description}
     if ln.barcode:
@@ -224,12 +227,17 @@ def _storeload_payload(req: CommitRequest, line_article_ids: list[int | None]) -
             "amount": str(ln.qty),
             "current_price": str(ln.delivery_price),
         })
+    cfg = get_settings()
     header = {
-        "depot_id": get_settings().barsy_depot_id,
+        "depot_id": cfg.barsy_depot_id,
         "doc_date": req.date or time.strftime("%Y-%m-%d"),
         "doc_num": _doc_num(req),
         "operation_type": 1,   # 1 = receipt (goods-in); part of the minimal validated shape
         "doc_type_id": 1,      # 1 = Фактура (Storeloads_getdocumenttypes)
+        # prices are in EUR (barsy_currency_id=1) and VAT-INCLUSIVE (barsy_price_mode=1). Without these,
+        # Barsy assumed the system default (ex-VAT), understating cost/margin by the VAT rate.
+        "currency_id": cfg.barsy_currency_id,
+        "price_mode": cfg.barsy_price_mode,
     }
     # supplier_id makes the delivery attributable in Barsy purchase analytics. We only hold the
     # supplier NAME here; resolve it to an id via Suppliers_getlist at commit time (live path).
