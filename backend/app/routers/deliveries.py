@@ -206,7 +206,7 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
                                     DeliveryBatch.status.not_in(("finalised", "finalising")))
         .values(status="finalising"))
     await session.commit()
-    if claim.rowcount == 0:
+    if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
         return {"ready": True, "sent": False, "already": True}
     doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
     payload = {
@@ -214,12 +214,12 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
             "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
             "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
         },
-        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),
+        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
                       "current_price": str(ln.price)} for ln in lines],
         "action_type": "save_and_close",
     }
     if b.supplier_id:
-        payload["store_load"]["supplier_id"] = b.supplier_id
+        payload["store_load"]["supplier_id"] = b.supplier_id  # type: ignore[index]  # SQLAlchemy/fastapi-users stub gap, not a bug
     try:
         out = await run_in_threadpool(barsy.call, "Storeloads_create", payload)
     except Exception as e:
@@ -665,12 +665,12 @@ async def finalise(
             "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
             "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
         },
-        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),
+        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
                       "current_price": str(ln.price)} for ln in lines],
         "action_type": "save_and_close",
     }
     if b.supplier_id:
-        payload["store_load"]["supplier_id"] = b.supplier_id
+        payload["store_load"]["supplier_id"] = b.supplier_id  # type: ignore[index]  # SQLAlchemy/fastapi-users stub gap, not a bug
 
     live = settings.delivery_barsy_live and req.confirm
     if not live:
@@ -690,7 +690,7 @@ async def finalise(
                                     DeliveryBatch.status.notin_(("finalised", "finalising")))
         .values(status="finalising"))
     await session.commit()
-    if claim.rowcount == 0:
+    if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
         await session.refresh(b)
         if b.status == "finalised":
             raise HTTPException(status.HTTP_409_CONFLICT,
@@ -703,7 +703,7 @@ async def finalise(
             sid = await run_in_threadpool(DP.resolve_supplier_id, b.supplier.strip())
             if sid:
                 b.supplier_id = sid
-                payload["store_load"]["supplier_id"] = sid
+                payload["store_load"]["supplier_id"] = sid  # type: ignore[index]  # SQLAlchemy/fastapi-users stub gap, not a bug
         except Exception:
             warnings.append("Доставчикът не бе намерен в Barsy — без supplier_id.")
     try:

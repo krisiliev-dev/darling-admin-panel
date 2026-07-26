@@ -24,3 +24,10 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B", "E402"]  # tests do late imports after env setup (conftest sets env first)
 "conftest.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true   # darling_core / agent-pipeline / openpyxl etc. ship no stubs
+warn_return_any = false
+check_untyped_defs = false       # lenient start: check annotated code, not every untyped def
+exclude = "(darling_core/_vendor|migrations)"

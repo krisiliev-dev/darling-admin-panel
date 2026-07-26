@@ -55,7 +55,7 @@ async def insights(
     # geography + product affinity
     top_cities = [{"city": c, "orders": k} for c, k in
                   Counter(o.get("city") for o in orders if o.get("city")).most_common(8)]
-    prod = Counter()
+    prod: Counter = Counter()
     for o in orders:
         for it in (o.get("items") or []):
             if it.get("title"):

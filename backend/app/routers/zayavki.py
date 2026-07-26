@@ -27,7 +27,8 @@ from ..core import barsy, barsy_write_live
 from ..db import get_async_session
 from ..models import SupplierPref, User, Zayavka, ZayavkaLine
 from ..services.product_seed import products as _products
-from ..services.supplier_catalog import supplier_catalog, suppliers_for
+from ..services.supplier_catalog import supplier_catalog as _supplier_catalog
+from ..services.supplier_catalog import suppliers_for as _suppliers_for
 from ..services.text import norm as _norm
 from ..users import current_active_user, current_owner
 
@@ -35,9 +36,8 @@ router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
 
 _PERIOD_MONTHS = 54   # the historical seed spans ~2021-11 → 2026-07
 
-# supplier catalogue now lives in the service layer; keep the private aliases for the call sites here
-_supplier_catalog = supplier_catalog
-_suppliers_for = suppliers_for
+# supplier catalogue now lives in the service layer (imported above under the private aliases the
+# call sites here use; imported aliased so the route function `supplier_catalog` doesn't shadow it)
 
 
 @lru_cache(maxsize=1)
@@ -155,7 +155,7 @@ async def suppliers(user: User = Depends(current_active_user),
         min_order = pref.min_order if pref else 0.0
         out.append({"supplier": sup, "catalog_count": len(prods),
                     "open_id": z.id if z else None, "items": items, "total": total,
-                    "last_sent": sent.get(sup).isoformat() if sent.get(sup) else None,
+                    "last_sent": (_ls.isoformat() if (_ls := sent.get(sup)) else None),
                     "email": pref.email if pref else "", "min_order": min_order,
                     "lead_days": pref.lead_days if pref else 0,
                     "website": pref.website if pref else "", "phone": pref.phone if pref else "",
@@ -278,7 +278,7 @@ async def push_supplier_to_barsy(supplier: str, actor: User = Depends(current_ow
         action, sid = "update", p.barsy_supplier_id
     else:
         out = await run_in_threadpool(barsy.call, "Suppliers_create", {"supplier": data})
-        sid = int(out) if isinstance(out, int) or (isinstance(out, str) and out.isdigit()) else (
+        sid = int(out) if isinstance(out, int) or (isinstance(out, str) and out.isdigit()) else (  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
             out.get("supplier_id") if isinstance(out, dict) else None)
         if sid:
             p.barsy_supplier_id = int(sid)
@@ -393,6 +393,7 @@ async def edit_line(line_id: int, req: QtyPatch, actor: User = Depends(current_a
         ln.qty = new_qty
     await session.commit()
     z = await session.get(Zayavka, zid)
+    assert z is not None
     return await _detail(session, z)
 
 
@@ -406,6 +407,7 @@ async def remove_line(line_id: int, actor: User = Depends(current_active_user),
     await session.delete(ln)
     await session.commit()
     z = await session.get(Zayavka, zid)
+    assert z is not None
     return await _detail(session, z)
 
 

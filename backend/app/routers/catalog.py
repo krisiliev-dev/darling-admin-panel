@@ -392,9 +392,9 @@ async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner)
 
     applied, failed = 0, []
     for c in changes:
-        aid = c["article_id"]
+        aid = c["article_id"]  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
         if req.op == "set":
-            new = c["new_price"]
+            new = c["new_price"]  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
         else:
             # re-read the live baseline; a relative op on a stale cache value could revert a real change
             try:

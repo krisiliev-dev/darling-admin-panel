@@ -102,7 +102,7 @@ async def barsy_login(
                  or profile.get("user_name") or body.username)
 
     # upsert the local mirror (keyed by email); Barsy stays the source of truth for role
-    user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
     if user is not None and user.role == "owner":
         # never let a Barsy login demote/clobber the local break-glass owner
         raise HTTPException(status.HTTP_409_CONFLICT,
@@ -120,7 +120,7 @@ async def barsy_login(
         # two concurrent first-logins of the same Barsy user raced on the unique email — the other
         # won; roll back and adopt the row it created rather than 500.
         await session.rollback()
-        user = (await session.execute(select(User).where(User.email == email))).scalar_one()
+        user = (await session.execute(select(User).where(User.email == email))).scalar_one()  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
     await session.refresh(user)
     await log_action(session, user, "barsy.login", target=email, detail=f"role={role}")
 

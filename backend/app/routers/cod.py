@@ -8,6 +8,7 @@ cod_settlement table. Empty until the store is live, but the reconciliation logi
 import csv
 import io
 import re
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
@@ -150,7 +151,7 @@ async def cod_overview(
         select(CodSettlement))).scalars().all()}
 
     out = []
-    summ = {"in_transit_amount": 0.0, "awaiting_amount": 0.0, "settled_amount": 0.0,
+    summ: dict[str, Any] = {"in_transit_amount": 0.0, "awaiting_amount": 0.0, "settled_amount": 0.0,
             "in_transit_count": 0, "awaiting_count": 0, "settled_count": 0,
             "discrepancy_count": 0, "discrepancy_amount": 0.0}
     for oid, s in orders.items():
@@ -177,7 +178,7 @@ async def cod_overview(
             # a genuine 0.00 collection must count as 0, not fall back to expected
             summ["settled_amount"] += (collected if collected is not None else expected)
             summ["settled_count"] += 1
-        if discrepancy:
+        if discrepancy and st is not None:
             summ["discrepancy_count"] += 1
             summ["discrepancy_amount"] += abs(st.collected - st.expected)  # €, not just a count
     for k in ("in_transit_amount", "awaiting_amount", "settled_amount", "discrepancy_amount"):

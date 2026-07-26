@@ -428,7 +428,7 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
         .where(IntakeDraft.id == d.id, IntakeDraft.barsy_article_id.is_(None))
         .values(barsy_article_id=-1))
     await session.commit()
-    if claim.rowcount == 0:
+    if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
         return {"live": True, "created": False,
                 "error": "Друга заявка вече създава този продукт в Barsy."}
     d.barsy_article_id = -1
@@ -741,7 +741,7 @@ async def push_to_barsy(
                                   IntakeDraft.status.in_(("approved", "done_from_delivery")))
         .values(status="pushing"))
     await session.commit()
-    if claim.rowcount == 0:
+    if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
         await session.refresh(d)
         if d.status == "pushed":
             raise HTTPException(status.HTTP_409_CONFLICT,

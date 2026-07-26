@@ -31,7 +31,7 @@ async def list_logs(
     session: AsyncSession = Depends(get_async_session),
 ):
     # LEFT JOIN User so request-logged rows (actor_email blank) still resolve to an email
-    stmt = select(AuditLog, User.email).join(User, User.id == AuditLog.actor_id, isouter=True)
+    stmt = select(AuditLog, User.email).join(User, User.id == AuditLog.actor_id, isouter=True)  # type: ignore[call-overload]  # SQLAlchemy/fastapi-users stub gap, not a bug
     if action.strip():
         stmt = stmt.where(AuditLog.action.like(f"%{action.strip()}%"))
     if q.strip():

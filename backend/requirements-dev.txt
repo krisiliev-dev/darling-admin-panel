@@ -6,3 +6,4 @@ pytest-timeout
 ruff
 pytest-cov
 alembic
+mypy

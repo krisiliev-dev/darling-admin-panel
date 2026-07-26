@@ -77,7 +77,7 @@ def report(text: str, phone: str = "", first_name: str = "", last_name: str = ""
         return {"ok": False, "error": "no api key"}
     if not (text or "").strip():
         return {"ok": False, "error": "text required"}
-    payload = {"text": text.strip()}
+    payload: dict[str, object] = {"text": text.strip()}
     ph = normalize_phone(phone)
     if ph:
         payload["phone"] = "+" + ph if not ph.startswith("+") else ph

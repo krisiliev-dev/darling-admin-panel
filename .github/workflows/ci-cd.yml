@@ -54,6 +54,9 @@ jobs:
       - name: Lint (ruff)
         working-directory: backend
         run: python -m ruff check .
+      - name: Type check (mypy)
+        working-directory: backend
+        run: python -m mypy app
       - name: Tests + coverage gate
         working-directory: backend
         # darling_core falls back to darling_core/_vendor (no agent-pipeline sibling in CI);

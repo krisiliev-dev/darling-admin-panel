@@ -68,8 +68,8 @@ async def list_brands(q: str = "", limit: int = 20, user: User = Depends(current
     merged: dict[str, dict] = {}
     for b in _bundled():
         merged[b["name"].lower()] = b
-    for b in (await session.execute(select(Brand))).scalars().all():
-        merged[b.name.lower()] = _row(b)      # panel rows win (richer / edited)
+    for br in (await session.execute(select(Brand))).scalars().all():
+        merged[br.name.lower()] = _row(br)    # panel rows win (richer / edited)
     ql = q.strip().lower()
     items = []
     for b in merged.values():
