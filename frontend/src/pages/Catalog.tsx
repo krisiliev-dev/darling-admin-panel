@@ -1,30 +1,63 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '../lib/api'
-import type { ArticleDetail, CatalogItem, QualityAudit } from '../lib/api'
+import type { ArticleDetail, CacheFacets, CacheProduct, CacheSearchResp, QualityAudit } from '../lib/api'
 import { useHotkey, isTyping } from '../lib/useHotkey'
-import { Pager, usePager } from '../components/TableControls'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
 
-// Каталог — browse + edit products straight from Barsy, with live STOCK folded in (Наличности).
-// Price is read-only (Microinvest-sourced).
+const PER = 100
+
+// Каталог — browse + edit products from Barsy (live STOCK folded in). Runs off the local product
+// cache so filtering by name/код/доставчик/категория/цена/атрибут is instant. Price is read-only.
 export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
+  const [facets, setFacets] = useState<CacheFacets | null>(null)
   const [q, setQ] = useState('')
-  const [submitted, setSubmitted] = useState('')
+  const [supplier, setSupplier] = useState('')
+  const [category, setCategory] = useState('')
+  const [priceMin, setPriceMin] = useState('')
+  const [priceMax, setPriceMax] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
-  const [items, setItems] = useState<CatalogItem[] | null>(null)
+  const [attrs, setAttrs] = useState<Record<string, string>>({})
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState<CacheSearchResp | null>(null)
+  const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   useHotkey((e) => e.key === '/' && !isTyping(e), () => searchRef.current?.focus())
-  const pg = usePager(items || [], 50)  // a broad catalog search can return many — page it
+  const seqRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const search = () => {
-    setItems(null)
-    setSubmitted(q)
-    api.get<{ items: CatalogItem[] }>(`/api/catalog?q=${encodeURIComponent(q)}&low_only=${lowOnly}`)
-      .then((d) => setItems(d.items)).catch(() => setItems([]))
-  }
-  useEffect(() => { search() }, [lowOnly])  // eslint-disable-line
+  useEffect(() => { api.get<CacheFacets>('/api/catalog/facets').then(setFacets).catch(() => setFacets({ suppliers: [], categories: [], attributes: {} })) }, [])
+
+  const query = useMemo(() => {
+    const p = new URLSearchParams()
+    if (q.trim()) p.set('q', q.trim())
+    if (supplier) p.set('supplier', supplier)
+    if (category) p.set('category', category)
+    if (priceMin) p.set('price_min', priceMin)
+    if (priceMax) p.set('price_max', priceMax)
+    if (lowOnly) p.set('low_only', 'true')
+    Object.entries(attrs).forEach(([k, v]) => { if (v) p.append('attr', `${k}=${v}`) })
+    p.set('per_page', String(PER)); p.set('page', String(page))
+    return p.toString()
+  }, [q, supplier, category, priceMin, priceMax, lowOnly, attrs, page])
+
+  const load = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    const seq = ++seqRef.current
+    setLoading(true)
+    timerRef.current = setTimeout(() => {
+      api.get<CacheSearchResp>(`/api/catalog/search?${query}`)
+        .then((d) => { if (seq === seqRef.current) { setData(d); setLoading(false) } })
+        .catch(() => { if (seq === seqRef.current) { setData({ total: 0, page: 1, per_page: PER, items: [] }); setLoading(false) } })
+    }, 250)
+  }, [query])
+  useEffect(() => { load() }, [load])
+  useEffect(() => { setPage(1) }, [q, supplier, category, priceMin, priceMax, lowOnly, attrs])
+
+  const items = data?.items || []
+  const total = data?.total || 0
+  const pages = Math.max(1, Math.ceil(total / PER))
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
@@ -34,39 +67,76 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
 
       <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 1.2fr' : '1fr', gap: '1.1rem' }}>
         <Sheet clip="left">
-          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.7rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <input ref={searchRef} className="input-paper" style={{ flex: 1, minWidth: '12rem' }} placeholder="търси по име или код  ( / )" value={q}
-              onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') search() }} />
-            <button className="btn-paper" onClick={search}>Търси</button>
-            <label className="font-type" style={{ fontSize: '.76rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
-              <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> само ниска наличност
+          {/* filter bar */}
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input ref={searchRef} className="input-paper" style={{ width: '13rem' }} placeholder="търси име / код  ( / )" value={q} onChange={(e) => setQ(e.target.value)} />
+            <select className="input-paper" value={supplier} onChange={(e) => setSupplier(e.target.value)}>
+              <option value="">— доставчик —</option>
+              {facets?.suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select className="input-paper" value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">— категория —</option>
+              {facets?.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input className="input-paper" style={{ width: '6rem' }} inputMode="decimal" placeholder="цена ≥" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} />
+            <input className="input-paper" style={{ width: '6rem' }} inputMode="decimal" placeholder="цена ≤" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} />
+            <label className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
+              <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> ниска налич.
             </label>
           </div>
-          {!items ? <Loading /> : items.length === 0 ? (
-            <EmptyNote>{submitted || lowOnly ? 'Няма продукти за този филтър.' : 'Каталогът се пълни, щом одобрени продукти се качат в Barsy.'}</EmptyNote>
-          ) : (
-            <div style={{ display: 'grid', gap: '.2rem' }}>
-              {pg.slice.map((it) => (
-                <button key={it.article_id} onClick={() => setSelected(it.article_id)}
-                  style={{
-                    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '.6rem', textAlign: 'left', alignItems: 'center',
-                    border: 'none', borderLeft: `3px solid ${selected === it.article_id ? 'var(--red)' : it.low ? 'var(--blocked)' : 'transparent'}`,
-                    background: selected === it.article_id ? 'var(--paper2)' : 'transparent', cursor: 'pointer',
-                    padding: '.35rem .5rem', fontSize: '.82rem', borderBottom: '1px dashed var(--line)',
-                  }}>
-                  <Thumb articleId={it.article_id} hasImage={it.has_image} />
-                  <span>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></span>
-                  <span className="font-type" style={{ fontSize: '.76rem', color: it.low ? 'var(--blocked)' : 'var(--pencil)', whiteSpace: 'nowrap' }}
-                    title="наличност">{it.stock != null ? `${it.stock} бр${it.low ? ' ⚠' : ''}` : '—'}</span>
-                  <span className="font-type" style={{ color: 'var(--pencil)', whiteSpace: 'nowrap' }}>{it.price != null ? `${it.price} €` : ''}</span>
-                </button>
+          {facets && Object.keys(facets.attributes).length > 0 && (
+            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginTop: '.5rem' }}>
+              {Object.entries(facets.attributes).map(([k, vals]) => (
+                <select key={k} className="input-paper" style={{ fontSize: '.74rem' }} value={attrs[k] || ''}
+                  onChange={(e) => setAttrs((a) => ({ ...a, [k]: e.target.value }))}>
+                  <option value="">— {k} —</option>
+                  {vals.map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
               ))}
-              <Pager {...pg} />
+            </div>
+          )}
+          <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: '.5rem 0' }}>
+            {data ? `${total} продукта` : ''}
+          </div>
+
+          {loading && !data ? <Loading /> : items.length === 0 ? (
+            <EmptyNote>{q || supplier || category || lowOnly ? 'Няма продукти за този филтър.' : 'Каталогът се пълни, щом одобрени продукти се качат в Barsy.'}</EmptyNote>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
+                <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
+                  <th style={{ padding: '.3rem' }}></th><th style={{ padding: '.3rem' }}>ID</th>
+                  <th style={{ padding: '.3rem' }}>Продукт</th><th style={{ padding: '.3rem' }}>Доставчик</th>
+                  <th style={{ padding: '.3rem', textAlign: 'right' }}>Наличност</th><th style={{ padding: '.3rem', textAlign: 'right' }}>Цена</th>
+                </tr></thead>
+                <tbody>
+                  {items.map((it: CacheProduct) => (
+                    <tr key={it.article_id} onClick={() => setSelected(it.article_id)} style={{
+                      cursor: 'pointer', borderBottom: '1px dashed var(--line)',
+                      background: selected === it.article_id ? 'var(--paper2)' : 'transparent',
+                    }}>
+                      <td style={{ padding: '.3rem' }}><Thumb articleId={it.article_id} hasImage={it.has_image} /></td>
+                      <td style={{ padding: '.3rem', color: 'var(--pencil)', fontVariantNumeric: 'tabular-nums' }}>#{it.article_id}</td>
+                      <td style={{ padding: '.3rem' }}>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></td>
+                      <td style={{ padding: '.3rem', color: 'var(--pencil)' }}>{it.supplier || '—'}</td>
+                      <td style={{ padding: '.3rem', textAlign: 'right', color: it.low ? 'var(--blocked)' : 'var(--pencil)', whiteSpace: 'nowrap' }}>{it.stock != null ? `${it.stock} бр${it.low ? ' ⚠' : ''}` : '—'}</td>
+                      <td style={{ padding: '.3rem', textAlign: 'right', color: 'var(--pencil)', whiteSpace: 'nowrap' }}>{it.price != null ? `${it.price} €` : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {pages > 1 && (
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', justifyContent: 'center', marginTop: '.5rem' }}>
+                  <button className="btn-paper" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>←</button>
+                  <span className="font-type" style={{ fontSize: '.75rem', color: 'var(--pencil)' }}>стр. {page} / {pages}</span>
+                  <button className="btn-paper" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>→</button>
+                </div>
+              )}
             </div>
           )}
         </Sheet>
 
-        {selected && <ArticleEditor articleId={selected} onClose={() => setSelected(null)} onSaved={search} />}
+        {selected && <ArticleEditor articleId={selected} onClose={() => setSelected(null)} onSaved={load} />}
       </div>
     </div>
   )
