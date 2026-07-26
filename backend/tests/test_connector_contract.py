@@ -184,19 +184,22 @@ def test_customer_upsert_uses_createsmart_with_export_id(conn):
     }
 
 
-# ---------------------------------------------------- KNOWN GAP: COD booked as paid online ---
-@pytest.mark.xfail(strict=False, reason=(
-    "Money-path gap (2026-07-26 review): shopify_order_to_barsy books actual_paid_sum=total_price "
-    "as 'collected online' for EVERY order, ignoring financial_status. A COD order "
-    "(financial_status='pending') is therefore recorded in Barsy as fully paid online, so Barsy's "
-    "cash ledger double-counts COD that is actually collected on delivery. Desired contract: a "
-    "non-'paid' order should place the sale with NO online payment (or a COD paymethod), leaving "
-    "the cash to the COD reconciliation flow. Owner/connector decision pending."))
-def test_cod_pending_order_should_not_record_a_full_online_payment(conn):
+# -------------------------------------------- COD is NOT booked as an online payment (fixed) ---
+def test_cod_pending_order_records_no_online_payment(conn):
+    """A COD order (financial_status='pending') places the sale (draws stock) but books NO online
+    payment — the cash is collected on delivery and reconciled via the panel's COD flow. Booking
+    it here would double-count COD in Barsy's ledger (2026-07-26 review fix)."""
     cod = _order(financial_status="pending",
                  payment_gateway_names=["Cash on Delivery (COD)"])
-    connector.shopify_order_to_barsy(cod, mode="sale", do_write=True)
+    res = connector.shopify_order_to_barsy(cod, mode="sale", do_write=True)
     body = conn.body_for("Accounts_place")
-    # COD is collected on delivery, not online → no full online payment should be booked here
-    assert body.get("payments") == [], (
-        "COD order booked a full online payment in Barsy — see xfail reason")
+    assert body["payments"] == []                 # no online payment for COD
+    assert body["orders"]                          # but the sale/lines are still placed (stock draws)
+    assert res.get("paid_online") is False
+
+
+def test_paid_order_still_books_the_online_payment(conn):
+    res = connector.shopify_order_to_barsy(_order(financial_status="paid"), mode="sale", do_write=True)
+    body = conn.body_for("Accounts_place")
+    assert len(body["payments"]) == 1 and body["payments"][0]["actual_paid_sum"] == "24.30"
+    assert res.get("paid_online") is True
