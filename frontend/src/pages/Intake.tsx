@@ -132,9 +132,18 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const [images, setImages] = useState<DraftImageMeta[]>([])
   const [enriched, setEnriched] = useState<boolean>(!!draft.completed)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  // size is split into H×W×D + volume; parse any previously-saved values back into the boxes
   const initSize = (k: string) => (draft.attributes || []).find((a) => a.key === k)?.value || ''
-  const [capacity, setCapacity] = useState(initSize('Вместимост'))   // вместимост
-  const [dimensions, setDimensions] = useState(initSize('Размери'))  // размери
+  const dnums = (initSize('Размери').match(/\d+(?:[.,]\d+)?/g) || [])
+  const vm = initSize('Вместимост').match(/(\d+(?:[.,]\d+)?)\s*(мл|ml|л|l)?/i)
+  const [dimH, setDimH] = useState((dnums[0] || '').replace('.', ','))
+  const [dimW, setDimW] = useState((dnums[1] || '').replace('.', ','))
+  const [dimD, setDimD] = useState((dnums[2] || '').replace('.', ','))
+  const [vol, setVol] = useState((vm?.[1] || '').replace('.', ','))
+  const [volUnit, setVolUnit] = useState(/мл|ml/i.test(initSize('Вместимост')) ? 'мл' : 'л')
+  const dimsStr = [dimH, dimW, dimD].filter((x) => x.trim()).join(' x ')
+  const dimensions = dimsStr ? `${dimsStr} см` : ''
+  const capacity = vol.trim() ? `${vol} ${volUnit}` : ''
 
   const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
     .then((r) => setImages(r.images)).catch(() => setImages([]))
@@ -268,9 +277,22 @@ function ProductEditor({ draft, onDone, onCancel }: {
                 onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-            <Field label="Размери (напр. 24x24x8 см)"><input className="input-paper" value={dimensions} onChange={(e) => setDimensions(e.target.value)} /></Field>
-            <Field label="Вместимост (напр. 250 мл)"><input className="input-paper" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></Field>
+          <div>
+            <span className="font-type" style={eyebrow}>Размери</span>
+            <div style={{ display: 'flex', gap: '.6rem', marginTop: '.3rem', flexWrap: 'wrap', alignItems: 'end' }}>
+              <LabeledNumber caption="Височина" unit="см" value={dimH} onChange={setDimH} />
+              <LabeledNumber caption="Широчина" unit="см" value={dimW} onChange={setDimW} />
+              <LabeledNumber caption="Дълбочина" unit="см" value={dimD} onChange={setDimD} />
+              <label style={{ display: 'grid', gap: '.15rem' }}>
+                <span className="font-type" style={{ fontSize: '.6rem', color: 'var(--pencil)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Обем</span>
+                <span style={{ display: 'inline-flex', gap: '.3rem' }}>
+                  <NumberField value={vol} onChange={setVol} placeholder="обем" width="5rem" />
+                  <select className="input-paper" style={{ width: '4rem' }} value={volUnit} onChange={(e) => setVolUnit(e.target.value)}>
+                    <option value="мл">мл</option><option value="л">л</option>
+                  </select>
+                </span>
+              </label>
+            </div>
           </div>
           <Field label="Търговско име (съставя се автоматично — редактирай при нужда)">
             <input className="input-paper" style={pencil('name', d.name)} value={d.name}
@@ -287,7 +309,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
       {/* operational fields — price/unit are human; the CODE is assigned by Barsy on save */}
       <div className="font-type" style={eyebrow}>Оперативни данни</div>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
-        <Field label="Цена (€)"><input className="input-paper" inputMode="decimal" value={d.price || ''} onChange={(e) => setD({ ...d, price: e.target.value })} /></Field>
+        <Field label="Цена"><NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} /></Field>
         <Field label="Мярка">
           <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -363,6 +385,35 @@ function TaxonomyAttributes({ categoryId, value, onChange }: {
         </div>
       ))}
     </div>
+  )
+}
+
+// Standardised numeric input: digits + a SINGLE comma decimal only (dots become commas), with an
+// optional unit label pinned inside. Used for every measurement/price field so the catalogue is
+// written one way (BG comma-decimal, no stray text).
+export function toNumeric(s: string): string {
+  let v = s.replace(/\./g, ',').replace(/[^\d,]/g, '')
+  const i = v.indexOf(',')
+  if (i !== -1) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, '')
+  return v
+}
+function NumberField({ value, onChange, unit, placeholder, width = '5.5rem' }: {
+  value: string; onChange: (v: string) => void; unit?: string; placeholder?: string; width?: string
+}) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <input className="input-paper" inputMode="decimal" style={{ width, paddingRight: unit ? '2.1rem' : undefined }}
+        placeholder={placeholder} value={value} onChange={(e) => onChange(toNumeric(e.target.value))} />
+      {unit && <span style={{ position: 'absolute', right: '.45rem', color: 'var(--pencil)', fontSize: '.72rem', pointerEvents: 'none' }}>{unit}</span>}
+    </span>
+  )
+}
+function LabeledNumber({ caption, ...rest }: { caption: string; value: string; onChange: (v: string) => void; unit?: string; placeholder?: string }) {
+  return (
+    <label style={{ display: 'grid', gap: '.15rem' }}>
+      <span className="font-type" style={{ fontSize: '.6rem', color: 'var(--pencil)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{caption}</span>
+      <NumberField {...rest} />
+    </label>
   )
 }
 

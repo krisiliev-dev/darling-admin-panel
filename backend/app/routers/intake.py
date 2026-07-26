@@ -120,15 +120,32 @@ def _leaf_schema(cid: str) -> list:
     return out
 
 
+async def _vertical_weights(session: AsyncSession) -> dict:
+    """{vertical -> weight} biasing the category picker toward where our products already sit. Counts
+    the verticals of products' assigned Shopify categories (from the drafts) and seeds Home & Garden so
+    it leads pre-launch; shifts on its own as the product mix changes."""
+    weights = {"hg": 1}                      # Darling is home & garden → biased there by default
+    rows = (await session.execute(
+        select(IntakeDraft.shopify_category_id).where(IntakeDraft.shopify_category_id != ""))).all()
+    for (cid,) in rows:
+        v = (cid or "").split("-")[0]
+        if v:
+            weights[v] = weights.get(v, 0) + 1
+    return weights
+
+
 @router.get("/shopify-categories")
-def shopify_categories(q: str = "", limit: int = 40, user=Depends(current_active_user)):
-    """Search the Shopify product taxonomy by BG or EN name. Returns [{id, name, path, en}]. Empty q
+async def shopify_categories(q: str = "", limit: int = 40, user=Depends(current_active_user),
+                             session: AsyncSession = Depends(get_async_session)):
+    """Search the Shopify product taxonomy by BG or EN name. Returns [{id, name, path, en}], BIASED
+    toward the verticals most of our products fall into (dynamic — see _vertical_weights). Empty q
     returns the top-level verticals so the picker is never blank."""
     cats = _tax_categories()
     if not cats:
         return {"categories": [], "available": False}
     ql = q.strip().lower()
     lim = max(1, min(200, limit))
+    weights = await _vertical_weights(session)
     items = []
     for c in cats:
         if ql:
@@ -138,9 +155,8 @@ def shopify_categories(q: str = "", limit: int = 40, user=Depends(current_active
             continue
         bg = c.get("bg") or c.get("en") or ""
         items.append({"id": c["id"], "name": bg.split(" > ")[-1], "path": bg, "en": c.get("en", "")})
-        if len(items) >= lim and ql:
-            break
-    items.sort(key=lambda x: (len(x["path"]), x["path"]))
+    # heavier verticals first, then shallower/alphabetical
+    items.sort(key=lambda x: (-weights.get(x["id"].split("-")[0], 0), len(x["path"]), x["path"]))
     return {"categories": items[:lim], "available": True}
 
 
