@@ -78,7 +78,7 @@ export function CommandPalette() {
               }} />
             <div style={{ display: 'grid', gap: '.15rem', marginTop: '.5rem' }}>
               {results.map((c, i) => (
-                <button key={c.to} onClick={() => go(c)} onMouseEnter={() => setActive(i)}
+                <button key={c.label} onClick={() => go(c)} onMouseEnter={() => setActive(i)}
                   style={{
                     display: 'flex', gap: '.6rem', alignItems: 'baseline', textAlign: 'left',
                     padding: '.45rem .6rem', borderRadius: 2, cursor: 'pointer', border: 'none',

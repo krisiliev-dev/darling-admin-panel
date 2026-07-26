@@ -83,10 +83,12 @@ export function Home() {
           <div style={{ fontSize: '.7rem', color: 'var(--pencil)', marginTop: '.2rem' }}>за пакетиране · завършени</div>
         </div>
         <Stat label="Продадени артикули" value={k.units} instant hint="бройки за периода" />
-        <Link to="/purchasing" style={tileLink}>
+        {/* reorder items are acted on in Заявки (поръчки към доставчици), not the receiving screen */}
+        <Link to="/zayavki" style={tileLink}>
           <Stat label="За дозареждане" value={k.reorder_n} instant tone={k.reorder_n > 0 ? 'pending' : undefined} hint="под минимума" />
         </Link>
-        <Link to="/inventory" style={tileLink}>
+        {/* dead-stock detail lives in Анализи → Склад, not the product catalogue */}
+        <Link to="/analytics" style={tileLink}>
           <Stat label="Застояла стока" value={stale ?? '—'} money={stale != null} instant tone={stale && stale > 0 ? 'blocked' : undefined} hint="замразен капитал" />
         </Link>
         <Stat label="Най-продаван" value={k.top_product ? k.top_product.name.slice(0, 22) : '—'} instant hint={k.top_product ? `${k.top_product.units} бр за периода` : 'няма продажби още'} />
