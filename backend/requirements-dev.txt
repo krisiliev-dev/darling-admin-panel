@@ -5,5 +5,4 @@ pytest-asyncio
 pytest-timeout
 ruff
 pytest-cov
-alembic
 mypy

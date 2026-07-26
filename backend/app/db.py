@@ -49,12 +49,55 @@ def _backfill_columns(sync_conn):
             sync_conn.exec_driver_sql(ddl)
 
 
+def _alembic_migrate() -> None:
+    """Bring admin.db to the latest migration (the deterministic path).
+
+    - fresh DB (no tables)           → `upgrade head` builds the schema from the migrations
+    - existing DB from the old
+      create_all path (tables, but
+      no alembic_version)            → `stamp head` adopts it in place (schema already matches
+                                        the models, so nothing is altered — just versioned)
+    - already-versioned DB           → `upgrade head` applies any new migrations
+
+    Runs synchronously (Alembic drives its own sync engine via migrations/env.py); call in a thread.
+    """
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, inspect
+
+    sync_url = get_settings().admin_db_url.replace("+aiosqlite", "")
+    probe = create_engine(sync_url)
+    try:
+        with probe.connect() as conn:
+            tables = set(inspect(conn).get_table_names())
+    finally:
+        probe.dispose()
+
+    here = Path(__file__).resolve().parent.parent          # backend/  (alembic.ini + migrations/)
+    cfg = Config(str(here / "alembic.ini"))
+    cfg.set_main_option("script_location", str(here / "migrations"))
+    if "alembic_version" not in tables and tables:
+        command.stamp(cfg, "head")                         # adopt an existing create_all-built DB
+    else:
+        command.upgrade(cfg, "head")                       # fresh build, or apply new migrations
+
+
 async def create_db_and_tables() -> None:
-    # import models so they register on Base.metadata before create_all
-    from . import models  # noqa: F401
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(_backfill_columns)
+    import asyncio
+    import logging
+
+    from . import models  # noqa: F401  (register tables on Base.metadata for both paths below)
+    try:
+        await asyncio.to_thread(_alembic_migrate)
+    except Exception:
+        # never let a migration hiccup take the panel down on boot — fall back to the proven
+        # create_all + column-backfill path (idempotent). Alembic can be retried next deploy.
+        logging.getLogger(__name__).exception("alembic migrate failed; using create_all + backfill")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_backfill_columns)
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
