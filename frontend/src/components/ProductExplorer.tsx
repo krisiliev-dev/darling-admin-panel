@@ -94,7 +94,7 @@ export function ProductExplorer({ suppliers, focusSupplier }: { suppliers: strin
                   <td style={{ padding: '.25rem .35rem', color: 'var(--pencil)' }}>{p.last || '—'}</td>
                 </tr>
               ))}
-              {data && data.products.length === 0 && (
+              {data && (data.products?.length ?? 0) === 0 && (
                 <tr><td colSpan={COLS.length} style={{ padding: '.6rem', color: 'var(--pencil)' }}>Няма артикули за този филтър.</td></tr>
               )}
             </tbody>

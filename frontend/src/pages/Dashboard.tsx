@@ -11,7 +11,7 @@ import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
 import { ProductExplorer } from '../components/ProductExplorer'
 
-type Tab = 'overview' | 'inventory' | 'catalog' | 'online'
+type Tab = 'overview' | 'inventory' | 'catalog' | 'online' | 'archive'
 
 export function Dashboard() {
   const [tab, setTab] = useState<Tab>('overview')
@@ -25,7 +25,7 @@ export function Dashboard() {
 
       {/* file-folder tabs */}
       <div style={{ display: 'flex', gap: '.4rem' }}>
-        {([['overview', 'Преглед'], ['inventory', 'Склад'], ['catalog', 'Каталог'], ['online', 'Онлайн продажби']] as [Tab, string][]).map(([k, label]) => (
+        {([['overview', 'Преглед'], ['inventory', 'Склад'], ['catalog', 'Каталог'], ['online', 'Онлайн продажби'], ['archive', 'Архив — Микроинвест информация']] as [Tab, string][]).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
             className="font-type"
             style={{
@@ -47,9 +47,10 @@ export function Dashboard() {
         <motion.div key={tab}
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.25 }}>
-          {tab === 'overview' ? <HistoricalDiagnosis />
+          {tab === 'overview' ? <CurrentOverview />
             : tab === 'inventory' ? <LiveInventory />
-            : tab === 'catalog' ? <CatalogTab /> : <OnlineTab />}
+            : tab === 'catalog' ? <CatalogTab />
+            : tab === 'online' ? <OnlineTab /> : <HistoricalDiagnosis />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -374,10 +375,97 @@ function OnlineTab() {
     <div style={{ display: 'grid', gap: '1.3rem' }}>
       <div className="sticky-note" style={{ transform: 'rotate(-.5deg)', width: 'fit-content', maxWidth: '40rem' }}>
         🛒 Онлайн продажбите и клиентите се попълват след старта на магазина. Дотогава разчитай на
-        „Преглед“ (исторически данни от стария софтуер) и „Склад“ (живо от Barsy).
+        „Склад“ (живо от Barsy) и „Архив — Микроинвест информация“ (исторически данни от стария софтуер).
       </div>
       <SalesTab />
       <CustomersTab />
+    </div>
+  )
+}
+
+// ---- Преглед · текущи данни (Barsy) — our go-forward picture. Sales graphs mirror the archive's
+// layout but fill after launch; the inventory snapshot is real today. ----
+function CurrentOverview() {
+  const { data, error } = useApi<MetricsResponse>('/api/inventory-health/metrics')
+
+  const eur = (n: number) => n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+  const num = (v: number | null): number | string => (v == null ? '—' : v)
+
+  return (
+    <div style={{ display: 'grid', gap: '1.1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem' }}>
+        <span className="eyebrow">Преглед · текущи данни (Barsy)</span>
+        <span style={{ color: 'var(--pencil)', fontSize: '.72rem' }}>
+          продажбените графики се попълват след старта — историята е в „Архив“
+        </span>
+      </div>
+
+      {error ? (
+        <Sheet><p style={{ color: 'var(--red)' }}>Грешка при зареждане: {error}</p></Sheet>
+      ) : !data ? (
+        <Sheet><Loading /></Sheet>
+      ) : (
+        <>
+          {/* Real today: inventory snapshot from Barsy */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9rem, 1fr))', gap: '.8rem' }}>
+            <Stat label="Стойност склад" value={data.kpi.inv_value} money instant hint={`${data.kpi.skus} SKU`} />
+            <Stat label="Оборот на склада" value={num(data.kpi.turnover)} suffix={data.kpi.turnover == null ? '' : '×'} instant
+              tone={data.kpi.turnover != null && data.kpi.turnover < 2 ? 'blocked' : undefined} hint="пъти/год." />
+            <Stat label="Дни в склад (DSI)" value={num(data.kpi.dsi)} suffix={data.kpi.dsi == null ? '' : ' дни'} instant
+              tone={data.kpi.dsi != null && data.kpi.dsi > 180 ? 'blocked' : undefined} hint="до продажба" />
+            <Stat label="Застояла стока" value={data.kpi.dead_value} money instant tone={data.kpi.dead_n > 0 ? 'blocked' : undefined}
+              hint={`${data.kpi.dead_pct}% · ${data.kpi.dead_n} арт.`} />
+            <Stat label="За поръчка" value={data.kpi.reorder_n} tone={data.kpi.reorder_n > 0 ? 'pending' : undefined}
+              hint="под точката на презареждане" />
+          </div>
+
+          {/* Sales-derived views — mirror the archive, fill from Barsy after launch */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(19rem, 1fr))', gap: '1.1rem' }}>
+            <Sheet tilt="l">
+              <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Тенденция по месеци</h3>
+              <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .6rem' }}>приход, себестойност и покупки</p>
+              {data.has_sales ? (
+                <p className="pencil" style={{ fontSize: '.78rem' }}>Изгражда се от продажбите в Barsy…</p>
+              ) : (
+                <EmptyRow text="Ще светне с първите продажби от Barsy." />
+              )}
+            </Sheet>
+            <Sheet>
+              <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>ABC анализ</h3>
+              <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .6rem' }}>концентрация на приходите</p>
+              {data.has_sales ? (
+                <p className="pencil" style={{ fontSize: '.78rem' }}>Изгражда се от продажбите в Barsy…</p>
+              ) : (
+                <EmptyRow text="Нужни са продажби за ABC-класирането." />
+              )}
+            </Sheet>
+          </div>
+
+          {/* Actionable now: dead capital (real) */}
+          {data.dead.length > 0 ? (
+            <Sheet tilt="r">
+              <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Най-тежка застояла стока</h3>
+              <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .6rem' }}>
+                {eur(data.kpi.dead_value)} замразени в {data.kpi.dead_n} артикула — кандидати за отстъпка
+              </p>
+              <div style={{ display: 'grid', gap: '.25rem', fontSize: '.78rem' }}>
+                {data.dead.slice(0, 10).map((it) => (
+                  <div key={it.article_id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', borderBottom: '1px dashed var(--line)', paddingBottom: '.2rem', alignItems: 'baseline' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={it.name}>{it.name || `#${it.article_id}`}</span>
+                    <span style={{ color: 'var(--blocked)', fontVariantNumeric: 'tabular-nums' }}>{eur(it.value)}</span>
+                    <Link to={`/pricing?q=${encodeURIComponent(it.name || String(it.article_id))}`} className="font-type" style={{ color: 'var(--red)', textDecoration: 'none', fontSize: '.72rem', whiteSpace: 'nowrap' }}>Отстъпка →</Link>
+                  </div>
+                ))}
+              </div>
+            </Sheet>
+          ) : (
+            <div className="sticky-note" style={{ transform: 'rotate(-.6deg)', width: 'fit-content', maxWidth: '34rem' }}>
+              Щом Barsy напълни наличност и тръгнат продажби, тук ще светнат тенденция, ABC и застояла
+              стока — на живо. За детайли по склада виж „Склад“; за историята — „Архив“.
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -499,28 +587,8 @@ function HistoricalDiagnosis() {
         </Sheet>
       </div>
 
-      {/* Мъртва стока — worst dead products by frozen capital */}
-      <Sheet tilt="r">
-        <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Най-тежка мъртва стока</h3>
-        <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .6rem' }}>
-          замразен капитал, непродавани; водят за по-голяма отстъпка или разпродажба
-        </p>
-        <div style={{ display: 'grid', gap: '.25rem', fontSize: '.78rem' }}>
-          <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 5rem', gap: '.5rem', color: 'var(--pencil)', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>
-            <span>артикул</span><span>наличност</span><span>стойност</span><span>посл. продажба</span>
-          </div>
-          {(data.dead_products || []).slice(0, 25).map((p, idx) => (
-            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 5rem', gap: '.5rem', borderBottom: '1px dashed var(--line)', paddingBottom: '.2rem', alignItems: 'baseline' }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.name}>
-                {p.name}{p.supplier && <span style={{ color: 'var(--pencil)' }}> · {p.supplier}</span>}
-              </span>
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{p.stock}</span>
-              <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{eur(p.stockval)}</span>
-              <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--pencil)' }}>{p.last || '—'}</span>
-            </div>
-          ))}
-        </div>
-      </Sheet>
+      {/* Мъртва стока — worst dead products by frozen capital, with filters + totals footer */}
+      <DeadStockCard products={data.dead_products || []} eur={eur} />
 
       <Sheet>
         <div id="prod-explorer">
@@ -529,6 +597,72 @@ function HistoricalDiagnosis() {
         </div>
       </Sheet>
     </div>
+  )
+}
+
+// Dead-stock table with its own filter state (own component → the filter inputs keep focus across
+// keystrokes). Filters narrow the rows; the footer sums the whole filtered set (not just shown).
+type DeadProduct = { name: string; supplier: string; stock: number; stockval: number; last: string }
+function DeadStockCard({ products, eur }: { products: DeadProduct[]; eur: (n: number) => string }) {
+  const [q, setQ] = useState('')
+  const [minVal, setMinVal] = useState('')
+  const min = minVal.replace(',', '.').trim() === '' ? null : Number(minVal.replace(',', '.'))
+  const needle = q.trim().toLowerCase()
+  const filtered = products.filter((p) => {
+    if (needle && !(`${p.name} ${p.supplier || ''}`.toLowerCase().includes(needle))) return false
+    if (min != null && !Number.isNaN(min) && (p.stockval || 0) < min) return false
+    return true
+  })
+  const sumVal = filtered.reduce((s, p) => s + (p.stockval || 0), 0)
+  const sumStock = filtered.reduce((s, p) => s + (p.stock || 0), 0)
+  const shown = filtered.slice(0, 50)
+
+  return (
+    <Sheet tilt="r">
+      <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Най-тежка мъртва стока</h3>
+      <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .6rem' }}>
+        замразен капитал, непродавани; водят за по-голяма отстъпка или разпродажба
+      </p>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.6rem' }}>
+        <input className="input-paper" style={{ flex: '1 1 12rem', fontSize: '.8rem' }}
+          placeholder="търси артикул или доставчик" aria-label="филтър по артикул/доставчик"
+          value={q} onChange={(e) => setQ(e.target.value)} />
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>
+          <input className="input-paper" inputMode="decimal" style={{ width: '7rem', fontSize: '.8rem' }}
+            placeholder="мин. стойност" aria-label="минимална стойност"
+            value={minVal} onChange={(e) => setMinVal(e.target.value.replace(/[^\d.,]/g, ''))} />
+          <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>€</span>
+        </div>
+        {(q || minVal) && (
+          <button className="btn-paper" style={{ fontSize: '.72rem' }}
+            onClick={() => { setQ(''); setMinVal('') }}>изчисти</button>
+        )}
+      </div>
+      <div style={{ display: 'grid', gap: '.25rem', fontSize: '.78rem' }}>
+        <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 5rem', gap: '.5rem', color: 'var(--pencil)', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+          <span>артикул</span><span>наличност</span><span>стойност</span><span>посл. продажба</span>
+        </div>
+        {shown.length === 0 ? (
+          <EmptyRow text="Няма артикули за този филтър." />
+        ) : shown.map((p, idx) => (
+          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 5rem', gap: '.5rem', borderBottom: '1px dashed var(--line)', paddingBottom: '.2rem', alignItems: 'baseline' }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.name}>
+              {p.name}{p.supplier && <span style={{ color: 'var(--pencil)' }}> · {p.supplier}</span>}
+            </span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{p.stock}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{eur(p.stockval)}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--pencil)' }}>{p.last || '—'}</span>
+          </div>
+        ))}
+        {/* totals footer — sums over the filtered set (all matches, not just the shown slice) */}
+        <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 5rem', gap: '.5rem', marginTop: '.35rem', paddingTop: '.35rem', borderTop: '2px solid var(--ink)', fontWeight: 700, alignItems: 'baseline' }}>
+          <span>Общо · {filtered.length} арт.{filtered.length > shown.length ? ` (показани ${shown.length})` : ''}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{sumStock}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{eur(sumVal)}</span>
+          <span />
+        </div>
+      </div>
+    </Sheet>
   )
 }
 
