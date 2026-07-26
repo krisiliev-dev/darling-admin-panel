@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     # accuracy); 'sale' finalises + fiscalises immediately. Default review-first per the handoff.
     order_ingest_mode: str = "clientorder"
 
+    # MASTER SAFETY GATE for the DIRECT catalog/pricing writes (bulk price & rename, promo,
+    # single-article edits, pricing-rule apply, purchase-order create/close). False (default) =>
+    # these endpoints compute + return a DRY-RUN and write NOTHING to Barsy, so testing
+    # Ценообразуване or a bulk-rename pre-launch can't rewrite the real catalog. Flip to True
+    # (BARSY_WRITE_LIVE=1) at launch. Reads are never gated. Mirrors webhooks_live / delivery_barsy_live.
+    barsy_write_live: bool = False
+
     # --- Delivery intake (Приемане) -----------------------------------------------------
     # SAFETY GATE for the batch delivery→Barsy write (storeload create). False (default) =>
     # /intake/delivery/commit runs a DRY-RUN: it validates, creates nothing, and returns the exact

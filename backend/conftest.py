@@ -33,6 +33,10 @@ os.environ["COOKIE_SECURE"] = "0"
 # known webhook creds so the receiver-signature tests can forge valid HMAC / token.
 os.environ["SHOPIFY_WEBHOOK_SECRET"] = "test-shopify-secret"
 os.environ["BARSY_WEBHOOK_TOKEN"] = "test-barsy-token"
+# The catalog/pricing/purchasing write-gate defaults OFF (pre-launch safety); the suite exercises
+# the LIVE write bodies, so turn it on here. test_barsy_write_gate.py flips it off per-test to prove
+# the gate blocks writes.
+os.environ["BARSY_WRITE_LIVE"] = "1"
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402

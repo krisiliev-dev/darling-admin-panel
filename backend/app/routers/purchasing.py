@@ -15,7 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
-from ..core import barsy
+from ..core import barsy, barsy_write_live
+
+_GATED = "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — поръчката не е записана в ERP."
 from ..db import get_async_session
 from ..models import User
 from ..upstream import upstream
@@ -144,6 +146,9 @@ async def create_order(
              "amount": ln.amount, "current_price": ln.current_price} for ln in req.lines]
     body = {"store_load": header, "articles": rows,
             "action_type": "save_and_close" if req.close else "save"}
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED,
+                "would_write": {"lines": len(rows), "close": req.close}}
     with upstream("Barsy зареждане"):
         new_id = await run_in_threadpool(barsy.call, "Storeloads_create", body)
     await log_action(session, actor, "po.create", target=str(req.supplier_id),
@@ -158,6 +163,8 @@ async def close_order(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Finalize a draft storeload — quantities enter Barsy stock (доставката е получена)."""
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED, "status": "draft"}
     with upstream("Barsy приключване"):
         await run_in_threadpool(barsy.call, "Storeloads_close", {"id": storeload_id})
     await log_action(session, actor, "po.close", target=str(storeload_id), detail="received")

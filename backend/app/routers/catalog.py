@@ -12,7 +12,10 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
-from ..core import barsy
+from ..core import barsy, barsy_write_live
+
+# returned instead of touching Barsy when the master write-gate is off (pre-launch safety)
+_GATED = "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — нищо не е записано в ERP."
 from ..db import get_async_session
 from ..models import User
 from ..upstream import upstream
@@ -349,6 +352,9 @@ async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner)
                         "old_price": p.price, "new_price": new})
     if not req.confirm:
         return {"dry_run": True, "count": len(changes), "changes": changes, "skipped": skipped}
+    if not barsy_write_live():
+        return {"dry_run": True, "gated": True, "note": _GATED, "applied": 0, "failed": [],
+                "count": len(changes), "changes": changes, "skipped": skipped}
 
     applied, failed = 0, []
     for c in changes:
@@ -426,6 +432,9 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
     if not req.confirm:
         return {"dry_run": True, "count": len(req.article_ids), "period": period,
                 "name": req.name, "mode": req.mode, "value": req.value}
+    if not barsy_write_live():
+        return {"dry_run": True, "gated": True, "note": _GATED, "count": len(req.article_ids),
+                "period": period, "name": req.name, "mode": req.mode, "value": req.value}
 
     values = {
         "pricelist_name": req.name.strip(), "pricelist_type_id": 6, "pricelist_group_id": 1,
@@ -544,6 +553,8 @@ async def list_promos(actor: User = Depends(current_owner)):
 async def delete_promo(pid: int, actor: User = Depends(current_owner),
                        session: AsyncSession = Depends(get_async_session)):
     """Remove a promo rule (Pricelists_delete). Base prices are untouched (promos never wrote them)."""
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
     try:
         await run_in_threadpool(barsy.call, "Pricelists_delete", {"id": pid})
     except Exception as e:
@@ -591,6 +602,9 @@ async def bulk_rename(req: BulkRenameRequest, actor: User = Depends(current_owne
         changes.append({"article_id": aid, "code": p.code, "old_name": p.name, "new_name": new})
     if not req.confirm:
         return {"dry_run": True, "count": len(changes), "changes": changes, "skipped": skipped}
+    if not barsy_write_live():
+        return {"dry_run": True, "gated": True, "note": _GATED, "applied": 0, "failed": [],
+                "count": len(changes), "changes": changes, "skipped": skipped}
     applied, failed = 0, []
     for c in changes:
         try:
@@ -695,6 +709,8 @@ async def update_article(
         article["description_ml"] = {"bg_BG": req.description}
     if req.barcode.strip():
         article["barcode"] = req.barcode.strip()  # string, not array (Barsy create/update)
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
     with upstream("Barsy обновяване"):
         await run_in_threadpool(barsy.call, "Articles_update",
                                 {"article_id": article_id, "article": article})

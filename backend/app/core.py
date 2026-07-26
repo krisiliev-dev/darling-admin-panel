@@ -21,3 +21,13 @@ import shopify_orders  # noqa: E402,F401
 import barsy_shopify_connector as connector  # noqa: E402,F401
 
 health = darling_core.health
+
+from .config import get_settings  # noqa: E402
+
+
+def barsy_write_live() -> bool:
+    """MASTER GATE for the panel's direct MUTATING catalog/pricing/purchasing Barsy writes
+    (bulk price/rename, promo, single-article edit, pricing-rule apply, PO create/close).
+    Default OFF (pre-launch) so testing Ценообразуване / bulk-rename can't rewrite the live
+    catalog. Reads are NEVER gated; intake/delivery/webhooks keep their own separate gates."""
+    return get_settings().barsy_write_live

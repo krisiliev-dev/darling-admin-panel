@@ -20,7 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
-from ..core import barsy, db
+from ..core import barsy, db, barsy_write_live
+
+_GATED = "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — цената не е записана в ERP."
 from ..db import get_async_session
 from ..models import PricingGroupRule, PricingRule, User
 from ..upstream import upstream
@@ -208,6 +210,9 @@ async def apply(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма зададена надценка (нито за продукта, нито за доставчика).")
     old_retail = _num(a.get("actual_price"))
     new_retail = _propose(cost, markup)
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED, "article_id": body.article_id,
+                "old_retail": old_retail, "new_retail": new_retail, "markup_source": source}
     with upstream("Barsy обновяване"):
         await run_in_threadpool(barsy.call, "Articles_update",
                                 {"article_id": body.article_id, "article": {"actual_price": new_retail}})
@@ -283,6 +288,8 @@ async def apply_supplier(
     supplier_rules = await _group_rules(session, "supplier")
     if body.supplier not in supplier_rules:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма зададена надценка за този доставчик.")
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED, "applied": 0, "skipped": 0}
     supplier_map = await run_in_threadpool(_supplier_map)
     codes = {c for c, s in supplier_map.items() if s == body.supplier}
     if not codes:
