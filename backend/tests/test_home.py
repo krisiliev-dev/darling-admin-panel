@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Начало (/api/summary/home) — quick-glance KPIs + orders-to-pack. Sales come from Shopify
 orders (mocked here); profit uses a local cost map; op_status decides done vs to-pack."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import app.routers.home as home
 
@@ -20,7 +20,7 @@ async def test_home_empty_prelaunch(owner_client, monkeypatch):
 
 
 async def test_home_computes_kpis_and_cards(owner_client, monkeypatch):
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     orders = [
         {"id": "o1", "name": "#1", "created": now, "total": 30.0, "customer": "Иван",
          "city": "София", "items": [{"title": "Чаша", "qty": 2, "sku": "C1"}]},
@@ -49,7 +49,7 @@ async def test_home_computes_kpis_and_cards(owner_client, monkeypatch):
 
 
 async def test_home_period_window_excludes_old(owner_client, monkeypatch):
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     orders = [
         {"id": "new", "name": "#n", "created": now, "total": 5.0, "items": [{"title": "A", "qty": 1, "sku": "A"}]},
         {"id": "old", "name": "#o", "created": "2020-01-01T00:00:00+00:00", "total": 99.0,

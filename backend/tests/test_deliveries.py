@@ -83,7 +83,7 @@ async def test_create_splits_and_stages_new(owner_client):
 @pytest.mark.asyncio
 async def test_create_from_csv(owner_client):
     csv_bytes = ("Код;Наименование;Количество;Цена\n"
-                 f"{EXIST_REF};Закачалка;3;2,50\n").encode("utf-8")
+                 f"{EXIST_REF};Закачалка;3;2,50\n").encode()
     r = await owner_client.post("/api/deliveries", data={"supplier": SUP},
                                 files=_upload(csv_bytes, "d.csv", "text/csv"))
     assert r.status_code == 201, r.text
@@ -103,8 +103,7 @@ async def test_list_and_get(owner_client):
 @pytest.mark.asyncio
 async def test_scan_confirms_and_flags_mismatch(owner_client):
     b = await _create(owner_client)
-    line = next(l for l in b["lines"] if not l["is_new"])       # qty 3, barcode = EXIST_EAN
-    # scan the EAN twice → still short of 3 → mismatch
+    # the existing line has qty 3, barcode = EXIST_EAN. Scan the EAN twice → still short of 3 → mismatch
     for _ in range(2):
         r = await owner_client.post(f"/api/deliveries/{b['id']}/scan", json={"barcode": EXIST_EAN})
         assert r.json()["matched"] is True

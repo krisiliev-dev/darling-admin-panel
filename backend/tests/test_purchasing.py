@@ -6,10 +6,8 @@ barsy.call, so the assertion target is the Storeloads_create body: action_type t
 save / save_and_close, the header carries depot_id + supplier_id, and each article row carries
 article_id / amount / current_price.
 """
-import pytest
 
 import app.routers.purchasing as purchasing
-
 
 _LINES = [
     {"article_id": 101, "name": "Чаша", "amount": 12, "current_price": 3.40},

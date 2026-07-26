@@ -12,20 +12,15 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from starlette.concurrency import run_in_threadpool
 
 from .. import barsy_auth, ratelimit
-from ..config import get_settings
-from ..users import get_jwt_strategy
-
 from ..audit import log_action
+from ..config import get_settings
 from ..db import get_async_session
 from ..models import User
-from ..schemas import OwnerSetup, SetupStatus, UserRead
-from ..users import UserManager, current_owner, get_user_manager
-from ..schemas import UserCreate
-from ..models import ROLES
+from ..schemas import OwnerSetup, SetupStatus, UserCreate, UserRead
+from ..users import UserManager, current_owner, get_jwt_strategy, get_user_manager
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

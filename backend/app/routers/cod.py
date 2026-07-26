@@ -16,7 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
-from ..core import courier as courier_mod, shopify_orders
+from ..core import courier as courier_mod
+from ..core import shopify_orders
 from ..db import get_async_session
 from ..models import CodSettlement, User
 from ..users import current_active_user, require_roles

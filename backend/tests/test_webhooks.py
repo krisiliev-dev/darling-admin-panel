@@ -6,9 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
-import types
 
-import pytest
 import pytest_asyncio
 
 from app.routers import webhooks

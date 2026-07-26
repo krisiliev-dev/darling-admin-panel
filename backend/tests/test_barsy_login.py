@@ -6,11 +6,9 @@ Barsy (Users_getcurrent), mirrors the user locally with their mapped role, and i
 JWT cookie. We mock barsy_auth.verify so no real ERP call happens — verify's own transport is
 covered by its contract (None = bad creds, RuntimeError = Barsy down).
 """
-import pytest
 import pytest_asyncio
 
 import app.routers.auth_extra as auth_extra
-
 
 _PROFILE = {
     "user_id": 42, "role_name": "Мениджър", "email": "Boss@Barsy.Example",

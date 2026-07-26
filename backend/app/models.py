@@ -5,7 +5,7 @@ import datetime
 import uuid
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import String, DateTime, Text, Index, LargeBinary, UniqueConstraint, func, text
+from sqlalchemy import DateTime, Index, LargeBinary, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base

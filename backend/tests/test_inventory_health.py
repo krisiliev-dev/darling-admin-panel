@@ -12,7 +12,6 @@ import pytest
 import app.inventory_health as ih
 import app.routers.inventory_health as router
 
-
 TODAY = date(2026, 7, 22)
 
 

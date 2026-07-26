@@ -7,7 +7,6 @@ brief) plus courier_mod.available and the shopify_orders helpers. Label/manual-l
 irreversible actions, so the focus is their gating: confirm flag, role, double-label guard,
 and the 502 path when the courier raises.
 """
-import pytest
 
 import app.routers.orders as orders
 

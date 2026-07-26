@@ -8,17 +8,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import ratelimit
-
 from .config import get_settings
 from .core import health as core_health
 from .db import create_db_and_tables
-from .schemas import UserCreate, UserRead, UserUpdate
-from .users import auth_backend, fastapi_users
 from .routers import (
-    admin, assistant, auth_extra, brands, catalog, cod, dashboard, deliveries, gdpr, home, insights,
-    intake, intake_delivery, inventory,
-    inventory_health, logs, orders, pricing, products, purchasing, quality, risk, summary, webhooks,
-    zayavki)
+    admin,
+    assistant,
+    auth_extra,
+    brands,
+    catalog,
+    cod,
+    dashboard,
+    deliveries,
+    gdpr,
+    home,
+    insights,
+    intake,
+    intake_delivery,
+    inventory,
+    inventory_health,
+    logs,
+    orders,
+    pricing,
+    products,
+    purchasing,
+    quality,
+    risk,
+    summary,
+    webhooks,
+    zayavki,
+)
+from .schemas import UserRead, UserUpdate
+from .users import auth_backend, fastapi_users
 
 settings = get_settings()
 

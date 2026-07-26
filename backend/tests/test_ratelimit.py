@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Auth rate-limiting: per-(ip,user) failed-login lockout + per-ip cap. Brute-force defence."""
-import pytest
 import pytest_asyncio
 
 from app import ratelimit

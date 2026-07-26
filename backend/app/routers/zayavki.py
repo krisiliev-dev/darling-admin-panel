@@ -12,7 +12,6 @@ the historical sales seed (units/revenue/margin) for the insight cards.
 """
 import csv
 import io
-import json
 import os
 import re
 from functools import lru_cache
@@ -20,9 +19,8 @@ from functools import lru_cache
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
@@ -30,8 +28,8 @@ from ..core import barsy, barsy_write_live
 from ..db import get_async_session
 from ..models import SupplierPref, User, Zayavka, ZayavkaLine
 from ..users import current_active_user, current_owner
-from .inventory_health import _products
 from .intake_delivery import _norm, iter_jsonl
+from .inventory_health import _products
 
 router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
 
@@ -551,7 +549,7 @@ async def send_email(zid: int, req: SendRequest, actor: User = Depends(current_a
     """Email the заявка (with the Excel attached) to the supplier via Gmail SMTP. Sending is a real
     outbound action → needs confirm=true, and refuses if Gmail isn't configured."""
     from ..config import get_settings
-    from ..mailer import send_mail, mail_configured
+    from ..mailer import mail_configured, send_mail
     z = await session.get(Zayavka, zid)
     if not z:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
@@ -584,7 +582,7 @@ async def send_email(zid: int, req: SendRequest, actor: User = Depends(current_a
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Изпращането се провали: {str(e)[:160]}")
     import datetime as _dt
     z.status = "sent"
-    z.sent_at = _dt.datetime.now(_dt.timezone.utc)
+    z.sent_at = _dt.datetime.now(_dt.UTC)
     z.sent_via = "email"
     if req.to and not z.supplier_email:
         z.supplier_email = to

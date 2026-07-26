@@ -3,7 +3,7 @@
 attention strip, and the orders that still need packing. Everything degrades to empty/zero before
 the store launches. Sales come from Shopify orders; cost (for Приход = Оборот − себестойност) is a
 cheap LOCAL lookup from analytics.price_history; reorder count is a light Barsy call (guarded)."""
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from starlette.concurrency import run_in_threadpool
@@ -64,7 +64,7 @@ def _reorder_count() -> int:
 @router.get("/home")
 async def home(user=Depends(current_active_user), period: str = Query("today")):
     days = _PERIODS.get(period, 1)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     try:
         orders = await run_in_threadpool(shopify_orders.fetch_orders, 500)

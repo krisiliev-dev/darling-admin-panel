@@ -3,8 +3,8 @@
 plus a local .env, so Shopify/Barsy creds already present there are visible here too."""
 import os
 import secrets
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

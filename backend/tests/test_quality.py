@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Product-data quality: EAN check-digit, internal-prefix flag, per-article completeness, whole-
 catalog duplicate detection, and the /audit + /check endpoints."""
-import pytest
 
 from app import quality
 

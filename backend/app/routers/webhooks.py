@@ -25,8 +25,8 @@ from starlette.concurrency import run_in_threadpool
 
 from ..config import get_settings
 from ..core import connector
-from ..users import current_owner
 from ..models import User
+from ..users import current_owner
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 log = logging.getLogger("darling.webhooks")

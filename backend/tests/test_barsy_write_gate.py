@@ -21,8 +21,8 @@ def _gate_off(monkeypatch, module):
 async def test_bulk_price_gated_writes_nothing(owner_client, barsy_recorder, monkeypatch):
     _gate_off(monkeypatch, catalog)
     # seed a cache row so there is a real change to (not) write
-    from app.models import ProductCache
     from app.db import async_session_maker
+    from app.models import ProductCache
     async with async_session_maker() as s:
         s.add(ProductCache(article_id=1, code="C1", name="Чаша", price=10.0))
         await s.commit()
@@ -38,8 +38,8 @@ async def test_bulk_price_gated_writes_nothing(owner_client, barsy_recorder, mon
 @pytest.mark.asyncio
 async def test_bulk_rename_gated_writes_nothing(owner_client, barsy_recorder, monkeypatch):
     _gate_off(monkeypatch, catalog)
-    from app.models import ProductCache
     from app.db import async_session_maker
+    from app.models import ProductCache
     async with async_session_maker() as s:
         s.add(ProductCache(article_id=2, code="C2", name="Стара", price=3.0,
                            shopify_category_id=None))
@@ -69,8 +69,8 @@ async def test_pricing_apply_gated_writes_nothing(owner_client, barsy_recorder, 
                                                "delivery_price": "4.00", "actual_price": "8.00"})
     monkeypatch.setattr(pricing, "_supplier_for", lambda code: "АНИС")
     # a supplier markup so a price can be resolved
-    from app.models import PricingRule
     from app.db import async_session_maker
+    from app.models import PricingRule
     async with async_session_maker() as s:
         s.add(PricingRule(article_id=5, markup_pct=50.0))
         await s.commit()

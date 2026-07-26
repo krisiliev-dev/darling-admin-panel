@@ -11,7 +11,6 @@ Covered here:
 enrich/categories call the pipeline's guarded model chain via `import run_one`; we monkeypatch
 run_one so no real LLM/quota is touched.
 """
-import pytest
 
 import run_one
 

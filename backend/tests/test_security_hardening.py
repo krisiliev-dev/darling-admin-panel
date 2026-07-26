@@ -9,8 +9,8 @@ import types
 import pytest
 
 from app import ratelimit
+from app.routers.cod import SettleLine, SettleRequest
 from app.routers.orders import ManualShip
-from app.routers.cod import SettleRequest, SettleLine
 
 
 # --- H-1: privilege escalation via mass-assignment ----------------------------------

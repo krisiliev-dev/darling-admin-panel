@@ -9,8 +9,6 @@ three analytics calls.
 """
 import sqlite3
 
-import pytest
-
 import app.routers.dashboard as dashboard
 
 

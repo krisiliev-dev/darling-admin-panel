@@ -7,10 +7,10 @@ _local_snapshot; those are defensively wrapped (missing -> defaults), so the sna
 against the throwaway test DB. We assert: happy path + grounding snapshot present, the
 deterministic suggestion routing, 400 (empty question), 503 (all backends down), and auth.
 """
-import pytest
+
+import run_one
 
 import app.routers.assistant as assistant
-import run_one
 
 
 def _stub_llm(monkeypatch, answer_text="Имате 2 чернови за създаване."):

@@ -250,7 +250,7 @@ async def parse_delivery(
 
     out: list[DeliveryRow] = []
     for i, r in enumerate(data_rows):
-        def cell(field):
+        def cell(field, r=r):        # bind r per-iteration (closure is used within this iteration)
             j = cols.get(field)
             return r[j] if j is not None and j < len(r) else None
         nm = str(cell("name") or "").strip()

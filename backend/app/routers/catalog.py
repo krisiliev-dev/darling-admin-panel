@@ -16,11 +16,12 @@ from ..core import barsy, barsy_write_live
 
 # returned instead of touching Barsy when the master write-gate is off (pre-launch safety)
 _GATED = "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — нищо не е записано в ERP."
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..db import get_async_session
 from ..models import User
 from ..upstream import upstream
 from ..users import current_active_user, current_owner, require_roles
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
@@ -125,7 +126,7 @@ def _stock_map() -> dict:
 # the low-tier Barsy per keystroke — and so attribute filters + bulk ops work over a selected set.
 import datetime as _dt
 import json as _json
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import Float, cast, select
 
@@ -202,7 +203,7 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
     Articles_getlist + one Store_amounts, then upsert. Write-through keeps it fresh between syncs."""
     data = await run_in_threadpool(_sync_fetch)
     existing = {p.article_id: p for p in (await session.execute(select(ProductCache))).scalars().all()}
-    now = _dt.datetime.now(_dt.timezone.utc)
+    now = _dt.datetime.now(_dt.UTC)
     for d in data:
         p = existing.get(d["article_id"]) or ProductCache(article_id=d["article_id"])
         p.code, p.name, p.barcode = d["code"], d["name"], d["barcode"]
@@ -527,7 +528,7 @@ async def refresh_cache_for_code(code: str) -> bool:
         p.has_image = f["has_image"]
         p.attributes_json = _json.dumps(f["attributes"], ensure_ascii=False)
         p.search_lc, p.attr_lc = f["search_lc"], f["attr_lc"]
-        p.updated_at = _dt.datetime.now(_dt.timezone.utc)
+        p.updated_at = _dt.datetime.now(_dt.UTC)
         session.add(p)
         await session.commit()
     return True
@@ -575,8 +576,8 @@ async def bulk_rename(req: BulkRenameRequest, actor: User = Depends(current_owne
     """Recompose the NAME of the selected products via the v3 naming recipe (leaf + attributes + brand),
     optionally under a chosen style override. Preview first (confirm=false); confirm=true writes each
     via Articles_update. Products with no resolvable Shopify leaf are reported as `skipped`."""
-    from . import intake as I
     from .. import naming
+    from . import intake as I
     cats = {c["id"]: c for c in I._tax_categories()}
     rows = {p.article_id: p for p in (await session.execute(
         select(ProductCache).where(ProductCache.article_id.in_(req.article_ids)))).scalars().all()}

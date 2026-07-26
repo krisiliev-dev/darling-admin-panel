@@ -6,7 +6,6 @@ Here: /articles (PO picker, code-vs-name filter), /reorder (below-min suggestion
 suggested_qty math), /orders (storeload list mapping), the 502 upstream path when Barsy
 raises, and auth gating on the reads.
 """
-import pytest
 
 import app.routers.purchasing as purchasing
 

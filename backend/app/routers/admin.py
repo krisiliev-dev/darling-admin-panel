@@ -14,7 +14,7 @@ from ..core import barsy
 from ..db import get_async_session
 from ..models import AuditLog, User
 from ..upstream import upstream
-from ..users import current_active_user, current_owner
+from ..users import current_owner
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 

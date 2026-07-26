@@ -20,7 +20,7 @@ def _bound(s: str, end: bool = False) -> dt.datetime | None:
         d = dt.date.fromisoformat(s)
     except (ValueError, TypeError):
         return None
-    return dt.datetime.combine(d, dt.time(23, 59, 59) if end else dt.time.min, tzinfo=dt.timezone.utc)
+    return dt.datetime.combine(d, dt.time(23, 59, 59) if end else dt.time.min, tzinfo=dt.UTC)
 
 
 @router.get("")

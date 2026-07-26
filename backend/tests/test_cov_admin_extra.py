@@ -5,10 +5,8 @@ test_admin_staff.py (which covers the happy-path Users_create/getlist + Roles ma
 Here: the 502 upstream path when Barsy raises (staff/roles), owner-only gating on roles &
 create, 401 on the reads, the audit limit validation, and audit ordering (newest first).
 """
-import pytest
 
 import app.routers.admin as admin
-
 
 _NEW_STAFF = {"username": "u1", "first_name": "И", "last_name": "П",
               "email": "u1@example.com", "role_id": 4}

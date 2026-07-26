@@ -10,7 +10,6 @@ import pytest
 
 import app.routers.inventory as inventory
 
-
 _ROWS = {
     "total": 3,
     "rows": [

@@ -4,7 +4,6 @@ reads (Users_getlist) and creates (Users_create) them there. All of staff/roles/
 owner-only. We mock the shared barsy.call — Barsy generates + emails the password
 (reset_password=1); the panel never sets or sees it.
 """
-import pytest
 
 
 _NEW_STAFF = {

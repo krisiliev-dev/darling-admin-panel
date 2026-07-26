@@ -4,6 +4,7 @@ import pytest
 
 from app.routers import cod
 
+
 # --- parser unit tests --------------------------------------------------------------
 def test_parse_comma_with_bg_headers():
     text = "Товарителница,Наложен платеж\n1234567890,25.50\n9999,10\n"
@@ -58,7 +59,7 @@ def fake_state(monkeypatch):
 
 async def test_import_payout_matches_and_flags(owner_client, fake_state):
     # file settles #1001 exactly, reports an unknown tracking, and omits #1002 (delivered-not-paid)
-    csv_bytes = "Товарителница,Наложен платеж\n1234567890,25.50\n8887776,12.00\n".encode("utf-8")
+    csv_bytes = "Товарителница,Наложен платеж\n1234567890,25.50\n8887776,12.00\n".encode()
     r = await owner_client.post("/api/cod/import-payout",
                                 files={"file": ("speedy_payout.csv", csv_bytes, "text/csv")})
     assert r.status_code == 200, r.text
@@ -124,7 +125,7 @@ async def test_reconcile_auto_requires_staff(client):
 
 
 async def test_import_payout_flags_discrepancy(owner_client, fake_state):
-    csv_bytes = "awb;cod\n1234567890;20.00\n".encode("utf-8")  # 20 collected vs 25.50 expected
+    csv_bytes = b"awb;cod\n1234567890;20.00\n"  # 20 collected vs 25.50 expected
     r = await owner_client.post("/api/cod/import-payout",
                                 files={"file": ("p.csv", csv_bytes, "text/csv")})
     assert r.status_code == 200

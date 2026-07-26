@@ -12,7 +12,8 @@ missing columns after create_all. These tests drive it directly against a THROWA
   * it does nothing when the table is already current
   * it skips tables that don't exist yet (create_all's job, not the backfill's)
 """
-from sqlalchemy import create_engine, inspect as sa_inspect
+from sqlalchemy import create_engine
+from sqlalchemy import inspect as sa_inspect
 
 from app.db import _backfill_columns, _lit_default
 from app.models import CodSettlement, PricingGroupRule

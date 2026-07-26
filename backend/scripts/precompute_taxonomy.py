@@ -12,7 +12,10 @@ Outputs (OUT):
 
 Usage: python precompute_taxonomy.py <pipeline-v3 dir> <out dir>
 """
-import json, os, re, sys
+import json
+import os
+import re
+import sys
 
 SRC = sys.argv[1]   # pipeline-v3
 OUT = sys.argv[2]   # backend/app/data/shopify_taxonomy

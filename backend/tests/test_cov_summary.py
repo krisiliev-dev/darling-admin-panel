@@ -9,8 +9,6 @@ at a throwaway temp DB so the counts are deterministic and no real pipeline.db i
 """
 import sqlite3
 
-import pytest
-
 import app.routers.summary as summary
 
 

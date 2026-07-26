@@ -92,7 +92,7 @@ def _parse_rows(rows: list[list], supplier: str) -> list[dict]:
         data_rows = rows[1:]
     out = []
     for r in data_rows:
-        def cell(field):
+        def cell(field, r=r):        # bind r per-iteration (closure is used within this iteration)
             j = cols.get(field)
             return r[j] if j is not None and j < len(r) else None
         nm = str(cell("name") or "").strip()
@@ -227,7 +227,7 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
         return {"ready": True, "sent": False, "error": str(e)[:160]}
     b.storeload_id = D._article_id(out)
     b.status = "finalised"
-    b.finalised_at = _dt.datetime.now(_dt.timezone.utc)
+    b.finalised_at = _dt.datetime.now(_dt.UTC)
     await session.commit()
     await log_action(session, actor, "delivery.autofinalise", target=b.supplier or b.reference,
                      detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
@@ -713,7 +713,7 @@ async def finalise(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (доставка): {str(e)[:180]}")
     b.storeload_id = D._article_id(out)
     b.status = "finalised"
-    b.finalised_at = _dt.datetime.now(_dt.timezone.utc)
+    b.finalised_at = _dt.datetime.now(_dt.UTC)
     await session.commit()
     await log_action(session, actor, "delivery.finalise", target=b.supplier or b.reference,
                      detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")

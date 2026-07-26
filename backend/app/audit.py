@@ -30,6 +30,7 @@ async def record_request(request, status: int) -> None:
     """Log one mutating request. Actor is decoded from the auth cookie (no DB hit); email is resolved
     on read via the User join. Best-effort — auditing must never break a request."""
     from fastapi_users.jwt import decode_jwt
+
     from .config import get_settings
     from .db import async_session_maker
 

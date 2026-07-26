@@ -3,3 +3,5 @@
 pytest
 pytest-asyncio
 pytest-timeout
+ruff
+pytest-cov

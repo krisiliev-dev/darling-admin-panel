@@ -23,6 +23,9 @@ jobs:
       - name: Install
         working-directory: frontend
         run: npm ci
+      - name: Lint (oxlint)
+        working-directory: frontend
+        run: npm run lint
       - name: Typecheck + build (tsc -b && vite build)
         working-directory: frontend
         run: npm run build
@@ -48,11 +51,15 @@ jobs:
       - name: Install
         working-directory: backend
         run: pip install -r requirements-dev.txt
-      - name: Tests
+      - name: Lint (ruff)
+        working-directory: backend
+        run: python -m ruff check .
+      - name: Tests + coverage gate
         working-directory: backend
         # darling_core falls back to darling_core/_vendor (no agent-pipeline sibling in CI);
-        # --timeout guards against a hang (no creds on the runner → external calls fail fast)
-        run: python -m pytest -q --timeout=120
+        # --timeout guards against a hang (no creds on the runner → external calls fail fast).
+        # --cov-fail-under floors coverage so a change can't silently drop it.
+        run: python -m pytest -q --timeout=120 --cov=app --cov-report=term-missing --cov-fail-under=70
 
   deploy:
     needs: [frontend-ci, backend-ci]

@@ -1,0 +1,26 @@
+# Backend tooling config. Ruff = linter (+ import sort). Kept pragmatic: catch real problems
+# (bugs, unused code, undefined names) without a massive reformat of the existing style.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["darling_core/_vendor"]  # vendored snapshot mirrors agent-pipeline; not ours to lint
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes (unused/undefined — the bug-catchers), I import order,
+# UP pyupgrade, B bugbear (likely bugs), C4 comprehensions.
+select = ["E", "W", "F", "I", "UP", "B", "C4"]
+ignore = [
+  "E501",   # line length is enforced by line-length above; don't double-flag long strings
+  "B008",   # FastAPI's Depends() in defaults is the framework idiom, not a bug
+  "UP009",  # the `# -*- coding: utf-8 -*-` headers are a deliberate convention (Cyrillic files)
+  "E402",   # core.py deliberately manipulates sys.path before importing darling_core
+  "E702",   # compact `a; b` one-liners are an intentional house style here
+  "E741",   # single-letter loop vars (l/i) are pervasive; not worth a churny rename
+  "B904",   # raise-from inside except — a traceback-quality nicety, tracked for later
+  "B905",   # zip strict= — low value on our fixed-length zips
+  "C402", "C416",  # comprehension micro-simplifications — style, not bugs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "E402"]  # tests do late imports after env setup (conftest sets env first)
+"conftest.py" = ["E402"]

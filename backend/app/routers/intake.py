@@ -7,20 +7,19 @@ Enrichment reuses the pipeline's FREE-QUOTA, guarded model chain (generate_with_
 run_direct, which honours the NEVER_CALL blocklist, exhausted-model list and DashScope
 opt-in). It does NOT touch the live fleet's task/shard/telemetry-mutation machinery — it's a
 single, isolated, low-volume call per product."""
+import datetime as _dt
 import json
 import os
-import re
 import time
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import delete, func as safunc, select, update
+from sqlalchemy import func as safunc
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
-
-import datetime as _dt
 
 from ..audit import log_action
 from ..config import get_settings
@@ -265,7 +264,7 @@ async def put_recipe(req: RecipeIn, leaf: str = "", actor: User = Depends(curren
         row = NameRecipe(leaf_id=leaf)
         session.add(row)
     row.style_json = json.dumps(style, ensure_ascii=False)
-    row.updated_at = _dt.datetime.now(_dt.timezone.utc)
+    row.updated_at = _dt.datetime.now(_dt.UTC)
     await session.commit()
     await log_action(session, actor, "intake.recipe", target=leaf or "global", detail=json.dumps(style))
     return {"ok": True, "leaf": leaf, "style": style}
@@ -429,7 +428,7 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     d.barsy_article_id = aid
     d.code = d.code or _extract_code(out)          # Barsy assigns + returns the SKU
     d.status = "pushed"
-    d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
+    d.pushed_at = _dt.datetime.now(_dt.UTC)
     up = await _upload_pending_images(session, d.id, aid)
     note = {"live": True, "created": True, "article_id": aid, "code": d.code, "images_uploaded": up}
     if d.delivery_line_id:                                    # write id back + try auto-finalise
@@ -753,7 +752,7 @@ async def push_to_barsy(
     d.status = "pushed"
     d.barsy_article_id = new_id
     d.code = d.code or _extract_code(out)          # Barsy-assigned SKU
-    d.pushed_at = _dt.datetime.now(_dt.timezone.utc)
+    d.pushed_at = _dt.datetime.now(_dt.UTC)
     # if this product arrived on a delivery, reconcile its line so the delivery's finalise gate can
     # clear. Mark it existing + carry our code as match_code EVEN IF new_id couldn't be parsed —
     # the article WAS created in Barsy, so finalise can resolve it by code instead of stranding the

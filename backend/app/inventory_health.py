@@ -13,8 +13,8 @@ Barsy fetch + field mapping lives in routers/inventory_health.py and hands norma
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import Iterable, Optional
 
 # Ageing buckets by days-in-warehouse (receipt → today). Order matters (first match wins upward).
 # 365+ is the clearest "dead / overflowing warehouse" signal; 180+ is the default alert threshold.
@@ -39,7 +39,7 @@ def markdown_for(days: int) -> int:
     return 0
 
 
-def parse_date(v) -> Optional[date]:
+def parse_date(v) -> date | None:
     """Barsy dates arrive as 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' (or already a date). Be lenient."""
     if v is None or v == "":
         return None
@@ -69,7 +69,7 @@ def _bucket_key(days: int) -> str:
 
 def aging_report(
     lots: Iterable[dict],
-    today: Optional[date] = None,
+    today: date | None = None,
     stale_days: int = DEFAULT_STALE_DAYS,
     top: int = 100,
 ) -> dict:
@@ -165,7 +165,7 @@ def aging_report(
     }
 
 
-def _num(v) -> Optional[float]:
+def _num(v) -> float | None:
     try:
         f = float(v)
         return f

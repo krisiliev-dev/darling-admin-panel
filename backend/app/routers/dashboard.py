@@ -5,7 +5,7 @@
 Both read the catalog DB read-only through darling_core."""
 from fastapi import APIRouter, Depends
 
-from ..core import db, analytics
+from ..core import analytics, db
 from ..users import current_active_user
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])

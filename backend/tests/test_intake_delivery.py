@@ -57,6 +57,7 @@ async def test_parse_splits_new_vs_existing(owner_client):
 async def test_parse_matches_by_supplier_code_mapping(owner_client):
     """The strongest key: supplier + their own article code → our code (from supplier_codes.jsonl)."""
     import json
+
     from app.routers.intake_delivery import _SUPPLIER_CODES_PATH
     with open(_SUPPLIER_CODES_PATH, encoding="utf-8") as f:
         row = json.loads(f.readline())            # a real (supplier, ref, code) triple

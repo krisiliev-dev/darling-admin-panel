@@ -16,8 +16,8 @@ Two REAL bugs are pinned with @pytest.mark.xfail (source left untouched):
 """
 import pytest
 
+from app import nekorekten, quality
 from app.routers import cod, orders, pricing
-from app import quality, nekorekten
 
 
 # =====================================================================================
@@ -117,10 +117,10 @@ class TestNormTracking:
 # =====================================================================================
 class TestDecode:
     def test_plain_utf8(self):
-        assert cod._decode("hello,42".encode("utf-8")) == "hello,42"
+        assert cod._decode(b"hello,42") == "hello,42"
 
     def test_utf8_bom_stripped(self):
-        raw = b"\xef\xbb\xbf" + "Товарителница,Сума".encode("utf-8")
+        raw = b"\xef\xbb\xbf" + "Товарителница,Сума".encode()
         out = cod._decode(raw)
         assert out.startswith("Товарителница")
         assert "﻿" not in out  # BOM removed by utf-8-sig

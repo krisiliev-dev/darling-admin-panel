@@ -17,8 +17,8 @@ Pure + I/O-free so it's unit-tested directly; the Barsy fetch + field mapping li
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from datetime import date
-from typing import Iterable, Optional
 
 DEFAULT_WINDOW = 365      # days of sales history to measure velocity over
 DEFAULT_LEAD_DAYS = 14    # supplier lead time (reorder point horizon) — overridable per call
@@ -26,7 +26,7 @@ DEFAULT_SAFETY_DAYS = 7   # safety-stock buffer on top of lead time
 DEFAULT_COVERAGE_DAYS = 30  # how many days of supply a reorder should top the shelf up TO
 
 
-def _num(v) -> Optional[float]:
+def _num(v) -> float | None:
     try:
         return float(v)
     except (TypeError, ValueError):
@@ -40,7 +40,7 @@ def compute(
     lead_days: int = DEFAULT_LEAD_DAYS,
     safety_days: int = DEFAULT_SAFETY_DAYS,
     coverage_days: int = DEFAULT_COVERAGE_DAYS,
-    today: Optional[date] = None,
+    today: date | None = None,
     top: int = 50,
 ) -> dict:
     """sales rows: {article_id, name, units, revenue, cogs}; stock rows: {article_id, name, stock,

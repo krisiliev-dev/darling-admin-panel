@@ -136,7 +136,7 @@ async def test_supplier_website_normalised_and_history(owner_client):
                                    json={"website": "javascript:alert(1)"})
     assert bad.json()["website"] == ""
     # the website surfaces on the suppliers list
-    r2 = await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}", json={"website": "https://anis.bg"})
+    await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}", json={"website": "https://anis.bg"})
     row = next(s for s in (await owner_client.get("/api/zayavki/suppliers")).json()["suppliers"]
                if s["supplier"] == SUP)
     assert row["website"] == "https://anis.bg"
@@ -230,7 +230,6 @@ def test_supplier_data_falls_back_to_display_name():
 
 @pytest.mark.asyncio
 async def test_push_supplier_gated_dry_run(owner_client, monkeypatch):
-    from app.routers import zayavki
     monkeypatch.setattr(zayavki, "barsy_write_live", lambda: False)
     await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}",
                              json={"official_name": f"{SUP} ЕООД", "bulstat": "123"})
@@ -243,7 +242,6 @@ async def test_push_supplier_gated_dry_run(owner_client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_push_supplier_create_then_update(owner_client, barsy_recorder, monkeypatch):
-    from app.routers import zayavki
     monkeypatch.setattr(zayavki, "barsy_write_live", lambda: True)
     barsy_recorder.set_return("Suppliers_create", 42)   # Barsy returns the new supplier_id
     await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}", json={"bulstat": "999"})

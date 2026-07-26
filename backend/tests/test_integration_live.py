@@ -38,8 +38,8 @@ pytestmark = [
 
 # Import the REAL core (no monkeypatching here — that is the whole point). `app.core`
 # re-exports the battle-tested darling_core modules that talk to the live services.
-from app.core import barsy, courier  # noqa: E402
 from app import nekorekten  # noqa: E402
+from app.core import barsy, courier  # noqa: E402
 
 
 # ======================================================================================

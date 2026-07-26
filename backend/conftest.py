@@ -43,11 +43,11 @@ import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport  # noqa: E402
 
+import app.routers.intake as intake_module  # noqa: E402
 from app import ratelimit  # noqa: E402
 from app.db import Base, async_session_maker, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import IntakeDraft  # noqa: E402
-import app.routers.intake as intake_module  # noqa: E402
 
 # safety net: the temp URL must actually be in force, or we'd risk the real admin.db
 assert "admin_panel_tests_" in str(engine.url), (

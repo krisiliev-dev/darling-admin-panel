@@ -1,0 +1,27 @@
+# Local guardrails that mirror CI (see .github/workflows/ci-cd.yml).
+# Install once:  pip install pre-commit && pre-commit install
+# Run on all files:  pre-commit run --all-files
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
+    hooks:
+      - id: ruff                       # lint the backend (config in backend/pyproject.toml)
+        args: [--fix]
+        files: ^backend/
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+  - repo: local
+    hooks:
+      - id: oxlint                     # lint the frontend with the same linter CI runs
+        name: oxlint (frontend)
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: ^frontend/src/
+        pass_filenames: false

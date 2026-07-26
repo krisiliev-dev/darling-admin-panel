@@ -6,7 +6,6 @@ The load-bearing contract under test is the Articles_update body mapping: name �
 + article_name_ml, description → description_ml, barcode as a STRING (Barsy rejects the array
 form), and price is NEVER written from here (price policy — Microinvest is the source).
 """
-import pytest
 
 
 # --- read paths: any authenticated user may browse ---------------------------------

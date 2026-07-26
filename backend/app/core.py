@@ -2,6 +2,9 @@
 """Bridge to the shared business-core. Every route reaches the catalog / Barsy / Shopify /
 couriers / analytics THROUGH here — never by importing agent-pipeline modules directly.
 Reads of pipeline.db go through darling_core.db; the panel never writes it in Phase 1."""
+# ruff: noqa: I001  — import ORDER is load-bearing here (path setup → darling_core → its siblings);
+# do NOT let the import-sorter alphabetise these or the sibling imports fail (agent-pipeline is only
+# on sys.path AFTER darling_core is imported).
 import os
 import sys
 
@@ -11,14 +14,12 @@ if _ADMIN_PANEL not in sys.path:
     sys.path.insert(0, _ADMIN_PANEL)
 
 import darling_core  # noqa: E402
-from darling_core import db, barsy, shopify, courier, analytics  # noqa: E402,F401
+from darling_core import analytics, barsy, courier, db, shopify  # noqa: E402,F401
 
-# order reader + fulfillment-state store (prototype in agent-pipeline; wrapped for the panel)
-import shopify_orders  # noqa: E402,F401
-
-# Barsy⇄Shopify connector LOGIC (translation fns); the HTTP hosting layer lives in routers/webhooks.py.
-# darling_core already put agent-pipeline/ on sys.path, so this sibling module resolves.
+# Barsy⇄Shopify connector LOGIC + order reader — siblings in agent-pipeline, which darling_core just
+# put on sys.path. The HTTP hosting layer for the connector lives in routers/webhooks.py.
 import barsy_shopify_connector as connector  # noqa: E402,F401
+import shopify_orders  # noqa: E402,F401
 
 health = darling_core.health
 
