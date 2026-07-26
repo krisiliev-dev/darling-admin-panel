@@ -44,8 +44,13 @@ def _cost(row: dict):
 
 
 def _propose(cost: float, markup_pct: float) -> float:
-    # money must round half-UP, not Python's banker's rounding — a shelf price a cent off looks wrong
-    return float(Decimal(str(cost * (1 + markup_pct))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    # Do the arithmetic in Decimal, THEN quantize half-UP. The old code multiplied in float first
+    # (`cost * (1 + markup)`) and only wrapped the RESULT in Decimal — but that float can already be
+    # a hair below an .xx5 boundary (e.g. 4.35×1.5 = 6.524999… not 6.525), so ROUND_HALF_UP rounded
+    # the wrong way and shelf prices landed a cent low.
+    val = (Decimal(str(cost)) * (Decimal("1") + Decimal(str(markup_pct)))).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return float(val)
 
 
 _SUPPLIER_SQL = "json_extract(record_json,'$.fields.\"Доставчик\"')"

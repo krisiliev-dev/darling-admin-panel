@@ -63,15 +63,26 @@ async def erase(
     rows = (await session.execute(
         select(OrderOutcome).where(OrderOutcome.phone_norm == ph))).scalars().all()
     retracted = 0
+    failed = []
+    erased = 0
     for r in rows:
         if r.nekorekten_report_id:
             res = await run_in_threadpool(nekorekten.delete_report, r.nekorekten_report_id)
-            if res.get("ok"):
-                retracted += 1
+            if not res.get("ok"):
+                # KEEP the row — it holds the report id we need to retry the retraction. Deleting it
+                # would orphan the published PII on nekorekten with no way to withdraw it.
+                failed.append(r.order_name or str(r.id))
+                continue
+            retracted += 1
         await session.delete(r)
-    if rows:
+        erased += 1
+    if erased:
         await session.commit()
     await log_action(session, actor, "gdpr.erase", target=ph,
-                     detail=f"erased={len(rows)} reports_retracted={retracted}")
-    return {"ok": True, "phone": ph, "erased": len(rows), "reports_retracted": retracted,
-            "note": "Изтрито от панела. Изтрий данните на клиента и в Shopify (система на записа)."}
+                     detail=f"erased={erased} reports_retracted={retracted} retraction_failed={len(failed)}")
+    note = "Изтрито от панела. Изтрий данните на клиента и в Shopify (система на записа)."
+    if failed:
+        note = (f"Внимание: {len(failed)} сигнал(а) в НЕкоректен не бяха оттеглени — записите са запазени, "
+                f"за да опиташ пак. " + note)
+    return {"ok": True, "phone": ph, "erased": erased, "reports_retracted": retracted,
+            "retraction_failed": failed, "note": note}

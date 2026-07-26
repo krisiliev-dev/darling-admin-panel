@@ -66,6 +66,17 @@ async def test_rule_rejects_absurd_markup(owner_client, barsy_recorder):
 from app.routers import pricing as pricing_mod  # noqa: E402
 
 
+def test_propose_rounds_half_up_in_decimal_not_float():
+    """Regression: _propose must compute the markup in Decimal, then ROUND_HALF_UP. The old
+    float-first form (`cost*(1+markup)`) yielded 4.35×1.5 = 6.524999… and rounded DOWN to 6.52;
+    the correct half-up of the exact 6.525 is 6.53 (analytics/pricing review 2026-07-26)."""
+    assert pricing_mod._propose(4.35, 0.5) == 6.53
+    # a clean case is unaffected
+    assert pricing_mod._propose(10.0, 0.2) == 12.00
+    # half-up on an exact boundary rounds up
+    assert pricing_mod._propose(2.505, 0.0) == 2.51
+
+
 @pytest.fixture
 def mock_supplier(monkeypatch):
     def _apply(code_to_supplier):
