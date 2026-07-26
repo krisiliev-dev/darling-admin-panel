@@ -2,10 +2,9 @@
 """Каталог — browse + edit products straight from BARSY (the system of record). Approved
 products auto-push to Barsy, so the panel requests them here. Price stays read-only (Microinvest-
 sourced, never edited here — price policy). Editable: name, description, barcode."""
-import base64
-import urllib.request
 from urllib.parse import urlsplit
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -35,14 +34,6 @@ def _barsy_host() -> tuple[str, str, str]:
     return base.split("/endpoints/")[0], user, pw
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    # never follow redirects — a redirect off the Barsy URL would chase it WITH the Basic creds,
-    # a credential-leak / SSRF vector.
-    def redirect_request(self, *a, **k):
-        return None
-
-
-_IMG_OPENER = urllib.request.build_opener(_NoRedirect)
 _IMG_CACHE: dict = {}                     # article_id -> (bytes, ctype); THUMBS ONLY, successes only
 _IMG_CACHE_MAX = 200                      # bound resident memory (thumbs are ~small)
 
@@ -66,11 +57,12 @@ def _fetch_image(article_id: int, size: str):
     # SSRF guard: the resolved URL must still point at the Barsy host (rel comes from Barsy's response)
     if urlsplit(url).hostname != urlsplit(host).hostname:
         return None
-    tok = base64.b64encode(f"{user}:{pw}".encode()).decode("ascii")
-    req = urllib.request.Request(url)
-    req.add_header("Authorization", "Basic " + tok)
-    with _IMG_OPENER.open(req, timeout=20) as r:
-        result = (r.read(), (f.get("type") or "image/png"))
+    # follow_redirects=False (httpx default) is the SSRF guard: a redirect off the Barsy host must
+    # never be chased with the Basic creds. A 3xx/4xx therefore yields no image.
+    r = httpx.get(url, auth=(user, pw), follow_redirects=False, timeout=20)
+    if r.status_code != 200:
+        return None
+    result = (r.content, (f.get("type") or "image/png"))
     if size == "thumb":
         if len(_IMG_CACHE) >= _IMG_CACHE_MAX:
             _IMG_CACHE.pop(next(iter(_IMG_CACHE)))    # evict oldest (dict is insertion-ordered)

@@ -22,13 +22,12 @@ Config (env / ~/.hermes/.env), all optional:
 
 Swapping models = editing config (or ~/.hermes/config.yaml for the Hermes chain). No code change."""
 import glob
-import json
 import os
 import subprocess
-import urllib.error
-import urllib.request
 from functools import lru_cache
 from pathlib import Path
+
+import httpx
 
 _HOME = Path.home()
 _ENV_FILE = _HOME / ".hermes" / ".env"
@@ -106,15 +105,14 @@ def _anthropic(system: str, prompt: str) -> tuple[str, str]:
     model = _cfg("ASSISTANT_ANTHROPIC_MODEL", "claude-haiku-4-5")
     body = {"model": model, "max_tokens": 800, "system": system,
             "messages": [{"role": "user", "content": prompt}]}
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages", data=json.dumps(body).encode("utf-8"),
-        headers={"content-type": "application/json", "x-api-key": key,
-                 "anthropic-version": "2023-06-01"})
     try:
-        with urllib.request.urlopen(req, timeout=45) as r:
-            out = json.loads(r.read().decode("utf-8", "replace"))
-    except urllib.error.HTTPError as e:
-        raise RuntimeError(f"anthropic HTTP {e.code}: {e.read().decode('utf-8','replace')[:120]}")
+        r = httpx.post("https://api.anthropic.com/v1/messages", json=body,
+                       headers={"x-api-key": key, "anthropic-version": "2023-06-01"}, timeout=45)
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"anthropic: {str(e)[:120]}")
+    if r.status_code >= 400:
+        raise RuntimeError(f"anthropic HTTP {r.status_code}: {r.text[:120]}")
+    out = r.json()
     text = "".join(b.get("text", "") for b in (out.get("content") or []) if b.get("type") == "text")
     if not text.strip():
         raise RuntimeError("anthropic върна празен отговор")

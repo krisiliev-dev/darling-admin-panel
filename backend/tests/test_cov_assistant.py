@@ -83,3 +83,37 @@ async def test_backends_lists_config(staff_client, monkeypatch):
 async def test_backends_requires_auth(client):
     r = await client.get("/api/assistant/backends")
     assert r.status_code == 401
+
+
+# --- _anthropic backend now uses httpx (transport tests; it was never covered) ---
+def test_anthropic_backend_parses_text(monkeypatch):
+    import httpx
+
+    from app import assistant_llm as al
+    monkeypatch.setattr(al, "_cfg", lambda k, d="": "sk-test" if "KEY" in k else d)
+
+    class _R:
+        status_code = 200
+        text = ""
+        def json(self):
+            return {"content": [{"type": "text", "text": "Здравей"}]}
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _R())
+    text, label = al._anthropic("sys", "hi")
+    assert text == "Здравей" and "anthropic" in label
+
+
+def test_anthropic_backend_raises_on_http_error(monkeypatch):
+    import httpx
+    import pytest as _pt
+
+    from app import assistant_llm as al
+    monkeypatch.setattr(al, "_cfg", lambda k, d="": "sk-test" if "KEY" in k else d)
+
+    class _R:
+        status_code = 429
+        text = "rate limited"
+        def json(self):
+            return {}
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _R())
+    with _pt.raises(RuntimeError):
+        al._anthropic("sys", "hi")
