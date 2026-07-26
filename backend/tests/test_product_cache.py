@@ -121,6 +121,37 @@ async def test_bulk_price_preview_then_apply(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_bulk_price_large_batch_runs_as_background_job(owner_client, barsy_recorder):
+    """G4c: a batch over the sync cap returns {async, job_id} and runs off-request; polling the job
+    endpoint shows it finish, and every article is still written + the cache updated."""
+    import asyncio
+    arts = [{"article_id": i, "code": f"C{i}", "article_name": f"Art{i}", "actual_price": "10.00"}
+            for i in range(1, 36)]                                   # 35 > _SYNC_CAP (30)
+    await _sync(owner_client, barsy_recorder, arts)
+    ids = [a["article_id"] for a in arts]
+    r = (await owner_client.post("/api/catalog/bulk-price",
+         json={"article_ids": ids, "op": "mul", "value": 1.1, "confirm": True})).json()
+    assert r["async"] is True and r["job_id"]                        # not applied inline
+    job_id = r["job_id"]
+    for _ in range(150):                                             # pacing ~0.12s/item → a few seconds
+        j = (await owner_client.get(f"/api/catalog/bulk-jobs/{job_id}")).json()
+        if j["status"] != "running":
+            break
+        await asyncio.sleep(0.2)
+    assert j["status"] == "done", j
+    assert j["applied"] == 35 and j["total"] == 35 and j["done"] == 35
+    assert barsy_recorder.operations.count("Articles_update") == 35
+    # cache write-through happened in the background session
+    a1 = (await owner_client.get("/api/catalog/search?q=Art1&per_page=1")).json()["items"][0]
+    assert a1["price"] == 11.0
+
+
+@pytest.mark.asyncio
+async def test_bulk_job_404_for_unknown_id(owner_client):
+    assert (await owner_client.get("/api/catalog/bulk-jobs/nope")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_naming_recipe_roundtrip(owner_client):
     opts = (await owner_client.get("/api/intake/recipe/options")).json()["options"]
     assert "Color" in opts and "suffix" in opts["Color"]["variants"]        # recipe knobs available

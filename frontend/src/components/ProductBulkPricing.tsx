@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { api, ApiError } from '../lib/api'
-import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview } from '../lib/api'
+import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview, BulkJob } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
+
+// G4c: poll a background bulk job until it finishes, reporting progress. Large bulk-price/rename
+// runs return {async, job_id} instead of blocking the request for minutes.
+async function pollBulkJob(jobId: string, onProgress: (j: BulkJob) => void): Promise<BulkJob> {
+  for (;;) {
+    const j = await api.get<BulkJob>(`/api/catalog/bulk-jobs/${jobId}`)
+    onProgress(j)
+    if (j.status !== 'running') return j
+    await new Promise((res) => setTimeout(res, 1000))
+  }
+}
 
 // Filterable + selectable product table with bulk price operations. Runs entirely off the local
 // product cache (instant), so filtering by name/supplier/category/price/attribute doesn't hit Barsy.
@@ -241,6 +252,7 @@ function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) 
   const [prev, setPrev] = useState<RenamePreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [progress, setProgress] = useState<BulkJob | null>(null)
   useEffect(() => { api.get<{ options: typeof options }>('/api/intake/recipe/options').then((d) => setOptions(d.options)).catch(() => { }) }, [])
 
   const preview = async () => {
@@ -250,10 +262,17 @@ function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) 
   }
   const apply = async () => {
     if (!window.confirm(`Преименуване на ${prev?.count} продукта в Barsy?`)) return
-    setBusy(true); setMsg('')
+    setBusy(true); setMsg(''); setProgress(null)
     try {
-      const r = await api.post<{ applied: number; skipped: unknown[] }>('/api/catalog/bulk-rename', { article_ids: ids, style, confirm: true })
-      setMsg(`Преименувани ${r.applied} продукта.`); onDone()
+      const r = await api.post<{ applied?: number; skipped: unknown[]; async?: boolean; job_id?: string }>('/api/catalog/bulk-rename', { article_ids: ids, style, confirm: true })
+      if (r.async && r.job_id) {
+        const job = await pollBulkJob(r.job_id, setProgress)
+        setMsg(job.status === 'error' ? `Грешка: ${job.note}` : `Преименувани ${job.applied} продукта${job.failed.length ? ` (неуспешни: ${job.failed.length})` : ''}.`)
+        setProgress(null)
+      } else {
+        setMsg(`Преименувани ${r.applied} продукта.`)
+      }
+      onDone()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
   const saveDefault = async () => {
@@ -280,6 +299,7 @@ function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) 
         {prev && prev.count > 0 && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Преименувай {prev.count}</button>}
         <button className="btn-paper" onClick={() => void saveDefault()} disabled={busy} title="важи за нови продукти">Запази рецептата глобално</button>
       </div>
+      {progress && <div className="font-type" style={{ fontSize: '.78rem', color: 'var(--pencil)' }}>Обработени {progress.done}/{progress.total}… (върви във фонов режим)</div>}
       {msg && <div className="font-type" style={{ fontSize: '.78rem', color: msg.includes('Грешка') || msg.includes('провали') ? 'var(--red)' : 'var(--ready)' }}>{msg}</div>}
       {prev && (
         <div style={{ maxHeight: '15rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>
@@ -302,6 +322,7 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   const [preview, setPreview] = useState<BulkPricePreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [progress, setProgress] = useState<BulkJob | null>(null)
   const [showPromo, setShowPromo] = useState(false)
   const [showRename, setShowRename] = useState(false)
   const ids = selected.map((s) => s.article_id)
@@ -316,11 +337,18 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   }
   const apply = async () => {
     if (!window.confirm(`Прилагане на новата цена върху ${ids.length} продукта в Barsy?`)) return
-    setBusy(true); setMsg('')
+    setBusy(true); setMsg(''); setProgress(null)
     try {
       const r = await api.post<BulkPricePreview>('/api/catalog/bulk-price', { article_ids: ids, op, value: Number(value), confirm: true })
-      const extra = [r.failed && r.failed.length ? `неуспешни: ${r.failed.length}` : '', r.skipped && r.skipped.length ? `пропуснати: ${r.skipped.length}` : ''].filter(Boolean).join(', ')
-      setMsg(`Приложено на ${r.applied} продукта${extra ? ` (${extra})` : ''}.`)
+      if (r.async && r.job_id) {   // large batch → background job; poll for progress
+        const job = await pollBulkJob(r.job_id, setProgress)
+        const extra = job.failed.length ? `неуспешни: ${job.failed.length}` : ''
+        setMsg(job.status === 'error' ? `Грешка: ${job.note}` : `Приложено на ${job.applied} продукта${extra ? ` (${extra})` : ''}.`)
+        setProgress(null)
+      } else {
+        const extra = [r.failed && r.failed.length ? `неуспешни: ${r.failed.length}` : '', r.skipped && r.skipped.length ? `пропуснати: ${r.skipped.length}` : ''].filter(Boolean).join(', ')
+        setMsg(`Приложено на ${r.applied} продукта${extra ? ` (${extra})` : ''}.`)
+      }
       setPreview(null); onDone()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
@@ -342,6 +370,11 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
       </div>
       {showPromo && <PromoForm ids={ids} onDone={() => { setShowPromo(false); onDone() }} />}
       {showRename && <BulkRenameForm ids={ids} onDone={() => { setShowRename(false); onDone() }} />}
+      {progress && (
+        <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--pencil)', marginTop: '.4rem' }}>
+          Обработени {progress.done}/{progress.total}… (голяма партида върви във фонов режим)
+        </div>
+      )}
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: msg.includes('Приложено') ? 'var(--ready)' : 'var(--red)', marginTop: '.4rem' }}>{msg}</div>}
       {preview?.dry_run && preview.changes && (
         <div style={{ marginTop: '.6rem', maxHeight: '16rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>

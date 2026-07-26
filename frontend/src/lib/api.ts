@@ -237,7 +237,9 @@ export interface CacheSearchResp { total: number; page: number; per_page: number
 export interface CacheFacets { suppliers: string[]; categories: string[]; brands?: string[]; attributes: Record<string, string[]> }
 export interface BulkPriceChange { article_id: number; code: string; name: string; old_price: number | null; new_price: number }
 export interface BulkPriceSkip { article_id: number; code: string; name: string; old_price: number | null; reason: string }
-export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; skipped?: BulkPriceSkip[]; applied?: number; failed?: string[] }
+export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; skipped?: BulkPriceSkip[]; applied?: number; failed?: string[]; async?: boolean; job_id?: string }
+// G4c: progress of a background bulk op (large bulk-price / bulk-rename runs)
+export interface BulkJob { id: string; op: string; total: number; done: number; applied: number; skipped: number; failed: string[]; status: 'running' | 'done' | 'error'; note: string }
 
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {

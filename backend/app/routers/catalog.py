@@ -2,6 +2,8 @@
 """Каталог — browse + edit products straight from BARSY (the system of record). Approved
 products auto-push to Barsy, so the panel requests them here. Price stays read-only (Microinvest-
 sourced, never edited here — price policy). Editable: name, description, barcode."""
+import asyncio
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import httpx
@@ -10,6 +12,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from .. import bulkjobs
 from ..audit import log_action
 from ..core import barsy, barsy_write_live
 
@@ -333,6 +336,7 @@ async def search_cache(
 
 
 _BULK_MAX = 2000                 # cap the selection — each apply is a serial, blocking Barsy write
+_SYNC_CAP = 30                   # ≤ this runs inline in the request; more → a background job (G4c)
 
 
 class BulkPriceRequest(BaseModel):
@@ -356,6 +360,71 @@ def _apply_op(old: float | None, op: str, value: float, rd: int) -> float | None
     if n <= 0:
         return None                                       # never write a free/negative price
     return float(n)
+
+
+async def _bulk_price_apply(session, changes: list, op: str, value: float, rd: int,
+                            base_by_id: dict, job_id: str | None = None):
+    """Serial, paced Articles_update over `changes` (write actual_price + write-through the cache).
+    Shared by the inline and background paths; reports per-item progress to bulkjobs when job_id set.
+    Returns (applied, failed_codes)."""
+    ids = [c["article_id"] for c in changes]
+    cache = {p.article_id: p for p in (await session.execute(
+        select(ProductCache).where(ProductCache.article_id.in_(ids)))).scalars().all()}
+    applied, failed = 0, []
+    for i, c in enumerate(changes):
+        aid = c["article_id"]
+        if op == "set":
+            new = c["new_price"]
+        else:
+            base = base_by_id.get(aid)
+            if base is None:
+                base = cache[aid].price if aid in cache else None
+            new = _apply_op(base, op, value, rd)
+            if new is None:
+                failed.append(c["code"])
+                if job_id:
+                    bulkjobs.bump(job_id, failed_code=c["code"])
+                continue
+        if i:
+            await _bulk.pace()                            # smooth the write burst (low-tier Barsy throttles)
+        try:
+            await run_in_threadpool(barsy.call, "Articles_update",
+                                    {"article_id": aid, "article": {"actual_price": str(new)}})
+        except Exception:
+            failed.append(c["code"])
+            if job_id:
+                bulkjobs.bump(job_id, failed_code=c["code"])
+            continue
+        if aid in cache:
+            cache[aid].price = new                        # write-through to the cache
+        c["new_price"] = new
+        applied += 1
+        if job_id:
+            bulkjobs.bump(job_id, applied=1)
+    await session.commit()
+    return applied, failed
+
+
+async def _bulk_price_bg(job_id, changes, op, value, rd, base_by_id, actor):
+    """Run a large bulk-price apply off the request, in its own DB session, updating the job."""
+    from ..db import async_session_maker
+    try:
+        async with async_session_maker() as session:
+            applied, failed = await _bulk_price_apply(session, changes, op, value, rd, base_by_id, job_id)
+            await log_action(session, actor, "catalog.bulk_price",
+                             detail=f"op={op} value={value} applied={applied} failed={len(failed)} (bg)")
+        bulkjobs.finish(job_id)
+    except Exception as e:                                # never leave the job stuck 'running'
+        bulkjobs.finish(job_id, status="error", note=str(e)[:180])
+
+
+@router.get("/bulk-jobs/{job_id}")
+async def bulk_job(job_id: str, user: User = Depends(current_active_user)):
+    """Progress of a background bulk op (G4c): {op,total,done,applied,skipped,failed[],status}."""
+    j = bulkjobs.get(job_id)
+    if not j:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава задача.")
+    return j
 
 
 @router.post("/bulk-price")
@@ -396,31 +465,15 @@ async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner)
     live_base: dict = {}
     if req.op != "set":
         live_base = await run_in_threadpool(_bulk.price_baselines, [c["article_id"] for c in changes])
-    applied, failed = 0, []
-    for i, c in enumerate(changes):
-        aid = c["article_id"]  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
-        if req.op == "set":
-            new = c["new_price"]  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
-        else:
-            base = live_base.get(aid)
-            if base is None:
-                base = rows[aid].price                    # fall back to the cache baseline
-            new = _apply_op(base, req.op, req.value, rd)
-            if new is None:
-                failed.append(c["code"])
-                continue
-        if i:
-            await _bulk.pace()                            # smooth the write burst (low-tier Barsy throttles)
-        try:
-            await run_in_threadpool(barsy.call, "Articles_update",
-                                    {"article_id": aid, "article": {"actual_price": str(new)}})
-        except Exception:
-            failed.append(c["code"])
-            continue
-        rows[aid].price = new                             # write-through to the cache
-        c["new_price"] = new                              # reflect what was actually applied
-        applied += 1
-    await session.commit()
+    # G4c: a big batch is a minutes-long paced write chain — past an HTTP request's patience. Above the
+    # cap, run it as a background job and return a job_id the client polls (GET /bulk-jobs/{id}).
+    if len(changes) > _SYNC_CAP:
+        job_id = bulkjobs.create("bulk_price", len(changes))
+        actor_lite = SimpleNamespace(id=actor.id, email=actor.email)
+        asyncio.create_task(_bulk_price_bg(job_id, changes, req.op, req.value, rd, live_base, actor_lite))
+        return {"async": True, "job_id": job_id, "count": len(changes),
+                "changes": changes, "skipped": skipped}
+    applied, failed = await _bulk_price_apply(session, changes, req.op, req.value, rd, live_base)
     await log_action(session, actor, "catalog.bulk_price",
                      detail=f"op={req.op} value={req.value} applied={applied} failed={len(failed)}")
     return {"dry_run": False, "count": len(changes), "applied": applied,
@@ -614,6 +667,45 @@ class BulkRenameRequest(BaseModel):
     confirm: bool = False
 
 
+async def _bulk_rename_apply(session, changes: list, job_id: str | None = None):
+    """Serial, paced Articles_update renaming `changes` (write-through the cache). Shared by the inline
+    and background paths; reports progress to bulkjobs when job_id set. Returns (applied, failed_codes)."""
+    ids = [c["article_id"] for c in changes]
+    cache = {p.article_id: p for p in (await session.execute(
+        select(ProductCache).where(ProductCache.article_id.in_(ids)))).scalars().all()}
+    applied, failed = 0, []
+    for i, c in enumerate(changes):
+        if i:
+            await _bulk.pace()
+        try:
+            await run_in_threadpool(barsy.call, "Articles_update", {"article_id": c["article_id"],
+                "article": {"article_name": c["new_name"], "article_name_ml": {"bg_BG": c["new_name"]}}})
+        except Exception:
+            failed.append(c["code"])
+            if job_id:
+                bulkjobs.bump(job_id, failed_code=c["code"])
+            continue
+        if c["article_id"] in cache:
+            cache[c["article_id"]].name = c["new_name"]      # write-through
+        applied += 1
+        if job_id:
+            bulkjobs.bump(job_id, applied=1)
+    await session.commit()
+    return applied, failed
+
+
+async def _bulk_rename_bg(job_id, changes, actor):
+    from ..db import async_session_maker
+    try:
+        async with async_session_maker() as session:
+            applied, failed = await _bulk_rename_apply(session, changes, job_id)
+            await log_action(session, actor, "catalog.bulk_rename",
+                             detail=f"applied={applied} failed={len(failed)} (bg)")
+        bulkjobs.finish(job_id)
+    except Exception as e:
+        bulkjobs.finish(job_id, status="error", note=str(e)[:180])
+
+
 @router.post("/bulk-rename")
 async def bulk_rename(req: BulkRenameRequest, actor: User = Depends(current_owner),
                       session: AsyncSession = Depends(get_async_session)):
@@ -650,19 +742,13 @@ async def bulk_rename(req: BulkRenameRequest, actor: User = Depends(current_owne
     if not barsy_write_live():
         return {"dry_run": True, "gated": True, "note": _GATED, "applied": 0, "failed": [],
                 "count": len(changes), "changes": changes, "skipped": skipped}
-    applied, failed = 0, []
-    for i, c in enumerate(changes):
-        if i:
-            await _bulk.pace()                               # smooth the write burst (low-tier Barsy throttles)
-        try:
-            await run_in_threadpool(barsy.call, "Articles_update", {"article_id": c["article_id"],
-                "article": {"article_name": c["new_name"], "article_name_ml": {"bg_BG": c["new_name"]}}})
-        except Exception:
-            failed.append(c["code"])
-            continue
-        rows[c["article_id"]].name = c["new_name"]           # write-through
-        applied += 1
-    await session.commit()
+    if len(changes) > _SYNC_CAP:                              # G4c: large rename → background job
+        job_id = bulkjobs.create("bulk_rename", len(changes))
+        actor_lite = SimpleNamespace(id=actor.id, email=actor.email)
+        asyncio.create_task(_bulk_rename_bg(job_id, changes, actor_lite))
+        return {"async": True, "job_id": job_id, "count": len(changes),
+                "changes": changes, "skipped": skipped}
+    applied, failed = await _bulk_rename_apply(session, changes)
     await log_action(session, actor, "catalog.bulk_rename",
                      detail=f"applied={applied} failed={len(failed)} skipped={len(skipped)}")
     return {"dry_run": False, "count": len(changes), "applied": applied, "failed": failed, "skipped": skipped}
