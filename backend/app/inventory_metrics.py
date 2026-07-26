@@ -98,12 +98,15 @@ def compute(
             "value": round(value, 2), "revenue": round(s.get("revenue", 0.0), 2),
         })
 
-    # annualise COGS to a 365-day basis so turnover/DSI are comparable regardless of the window
+    # annualise to a 365-day basis so turnover / DSI / GMROI are comparable regardless of the window
     annual_cogs = total_cogs * 365.0 / window_days
     turnover = (annual_cogs / inv_value) if inv_value > 0 else None
     dsi = (365.0 / turnover) if turnover else None
-    gross_margin = total_rev - total_cogs
-    gmroi = (gross_margin / inv_value) if inv_value > 0 else None
+    # GMROI must be annualised on the SAME basis as turnover — dividing the raw window-cumulative
+    # gross margin by inventory overstates it by window/365 on any non-365-day window (up to ~3× at
+    # the 1095-day max). Annualise the margin so a 90-day and a 730-day window agree.
+    annual_margin = (total_rev - total_cogs) * 365.0 / window_days
+    gmroi = (annual_margin / inv_value) if inv_value > 0 else None
     dead_items = [x for x in items if x["is_dead"]]
     dead_value = sum(x["value"] for x in dead_items)
 

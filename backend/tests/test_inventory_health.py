@@ -260,8 +260,24 @@ def test_metrics_portfolio_turnover_dsi_gmroi():
     assert k["inv_value"] == pytest.approx(70.0)
     assert k["turnover"] == pytest.approx(26.07, abs=0.05)
     assert k["dsi"] == pytest.approx(14, abs=1)            # 365 ÷ 26.07
-    # GMROI = (rev - cogs) / inv = (3650-1825)/70
+    # GMROI = (rev - cogs) / inv = (3650-1825)/70  (window==365 → annual factor 1)
     assert k["gmroi"] == pytest.approx((3650 - 1825) / 70, abs=0.05)
+
+
+def test_gmroi_is_annualised_like_turnover():
+    """GMROI must be on the same annual basis as turnover — the raw window margin, not annualised,
+    over-/under-states GMROI by window/365 (analytics-math audit 2026-07-26)."""
+    sales = [{"article_id": 1, "units": 100, "revenue": 1000, "cogs": 600}]
+    stock = [{"article_id": 1, "stock": 10, "unit_cost": 5}]  # inv_value = 50
+    # a 730-day window: annual margin = (1000-600)*365/730 = 200 → GMROI = 200/50 = 4.0
+    # (the old bug returned the raw 400/50 = 8.0, doubled)
+    k730 = im.compute(sales, stock, window_days=730, today=TODAY)["kpi"]
+    assert k730["gmroi"] == pytest.approx(4.0, abs=0.01)
+    # a 90-day window on the same margin annualises UP, not down
+    k90 = im.compute(sales, stock, window_days=90, today=TODAY)["kpi"]
+    assert k90["gmroi"] == pytest.approx((400 * 365 / 90) / 50, abs=0.05)
+    # GMROI and turnover now move together (both annualised): GMROI/turnover == margin/COGS
+    assert k730["gmroi"] / k730["turnover"] == pytest.approx((1000 - 600) / 600, abs=0.01)
 
 
 def test_metrics_empty_inputs_are_safe():
