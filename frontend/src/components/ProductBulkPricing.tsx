@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api'
 import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview, BulkJob } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
-import { printLabel } from '../lib/label'
+import { printLabel, printLabels } from '../lib/label'
 
 // G4c: poll a background bulk job until it finishes, reporting progress. Large bulk-price/rename
 // runs return {async, job_id} instead of blocking the request for minutes.
@@ -329,10 +329,22 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState<BulkJob | null>(null)
+  const [labelList, setLabelList] = useState<{ name: string; price: number | null; barcode: string; code: string }[] | null>(null)
   const [showPromo, setShowPromo] = useState(false)
   const [showRename, setShowRename] = useState(false)
   const ids = selected.map((s) => s.article_id)
   const OPS: [typeof op, string][] = [['mul', '× умножи'], ['div', '÷ раздели'], ['add', '+ добави'], ['sub', '− извади'], ['set', '= задай']]
+
+  // The new price a product will carry after the op — for the "print new-price labels" prompt. We are
+  // legally required to show the changed price on the shop floor, so after a price change we offer to
+  // print a fresh tag for every affected product.
+  const newPriceOf = (old: number | null): number | null => {
+    const v = Number(value)
+    if (op === 'set') return v
+    if (old == null) return null
+    const n = op === 'mul' ? old * v : op === 'div' ? (v ? old / v : old) : op === 'add' ? old + v : old - v
+    return Math.round(n * 100) / 100
+  }
 
   const runPreview = async () => {
     const v = Number(value)
@@ -343,18 +355,26 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   }
   const apply = async () => {
     if (!window.confirm(`Прилагане на новата цена върху ${ids.length} продукта в Barsy?`)) return
-    setBusy(true); setMsg(''); setProgress(null)
+    setBusy(true); setMsg(''); setProgress(null); setLabelList(null)
+    // capture the affected products + their NEW price BEFORE onDone() clears the selection
+    const affected = selected
+      .map((s) => ({ name: s.name, price: newPriceOf(s.price), barcode: s.barcode, code: s.code }))
+      .filter((x) => x.price != null)
     try {
       const r = await api.post<BulkPricePreview>('/api/catalog/bulk-price', { article_ids: ids, op, value: Number(value), confirm: true })
+      let applied = 0
       if (r.async && r.job_id) {   // large batch → background job; poll for progress
         const job = await pollBulkJob(r.job_id, setProgress)
+        applied = job.applied
         const extra = job.failed.length ? `неуспешни: ${job.failed.length}` : ''
         setMsg(job.status === 'error' ? `Грешка: ${job.note}` : `Приложено на ${job.applied} продукта${extra ? ` (${extra})` : ''}.`)
         setProgress(null)
       } else {
+        applied = r.applied || 0
         const extra = [r.failed && r.failed.length ? `неуспешни: ${r.failed.length}` : '', r.skipped && r.skipped.length ? `пропуснати: ${r.skipped.length}` : ''].filter(Boolean).join(', ')
         setMsg(`Приложено на ${r.applied} продукта${extra ? ` (${extra})` : ''}.`)
       }
+      if (applied > 0 && affected.length) setLabelList(affected)   // offer new-price tags for the shop floor
       setPreview(null); onDone()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
@@ -382,6 +402,17 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
         </div>
       )}
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: msg.includes('Приложено') ? 'var(--ready)' : 'var(--red)', marginTop: '.4rem' }}>{msg}</div>}
+      {labelList && labelList.length > 0 && (
+        <div style={{ marginTop: '.5rem', border: '1px dashed var(--red)', borderRadius: 3, padding: '.55rem .7rem', background: 'var(--paper2)', display: 'flex', gap: '.7rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="font-type" style={{ fontSize: '.8rem' }}>
+            🏷 Цените са сменени — по закон новата цена трябва да е на етикета в магазина.
+          </span>
+          <button className="btn-paper btn-red" onClick={() => printLabels(labelList.map((x) => ({ ...x, copies: 1 })))}>
+            Печат на {labelList.length} нови етикета
+          </button>
+          <button className="btn-paper" onClick={() => setLabelList(null)}>По-късно</button>
+        </div>
+      )}
       {preview?.dry_run && preview.changes && (
         <div style={{ marginTop: '.6rem', maxHeight: '16rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>
           {preview.changes.slice(0, 100).map((c) => (

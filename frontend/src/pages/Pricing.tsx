@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api'
 import type { PricingItem, SupplierRule } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { useHotkey, isTyping } from '../lib/useHotkey'
+import { printLabels } from '../lib/label'
 import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { Pager, usePager } from '../components/TableControls'
@@ -187,8 +188,12 @@ function SupplierRow({ s, onChanged }: { s: SupplierRule; onChanged: (m: string)
     if (!window.confirm(`Приложи ${pct}% надценка към ВСИЧКИ продукти на „${s.name}“ (${s.product_count} бр.)?\nТова презаписва продажните им цени в Barsy (продуктите със собствена надценка запазват своята).`)) return
     setBusy('apply')
     try {
-      const r = await api.post<{ applied: number; skipped: number }>('/api/pricing/apply-supplier', { supplier: s.name, confirm: true })
+      const r = await api.post<{ applied: number; skipped: number; changed?: { name: string; price: number | null; barcode: string; code: string }[] }>('/api/pricing/apply-supplier', { supplier: s.name, confirm: true })
       onChanged(`„${s.name}“: обновени ${r.applied}, пропуснати ${r.skipped}.`)
+      // legal: the new price must be on the shelf tag — offer to print fresh labels for the shop floor
+      if (r.changed && r.changed.length && window.confirm(`Цените са сменени. Отпечатай ${r.changed.length} нови етикета за магазина?`)) {
+        printLabels(r.changed.map((x) => ({ ...x, copies: 1 })))
+      }
     } catch (e) { onChanged(e instanceof ApiError ? e.message : 'Грешка при прилагане.') } finally { setBusy('') }
   }
 

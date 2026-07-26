@@ -30,36 +30,54 @@ function barcodeSvg(value: string): string {
   return new XMLSerializer().serializeToString(svg)
 }
 
-// Pure: the full self-contained 58 mm label document for a product (barcode of barcode||code, name,
-// price). Split out from printLabel so it's unit-testable without a real window.
-export function labelHtml(p: LabelProduct): string {
+// One label's inner markup (name + barcode + price) — a printable block for the batch document.
+function labelBlock(p: LabelProduct): string {
   const value = ((p.barcode || '').trim()) || (p.code || '').trim()
   const svg = value ? barcodeSvg(value) : ''
   const price = p.price != null
     ? p.price.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
     : ''
-  return (
-    '<!doctype html><html><head><meta charset="utf-8"><title>Етикет</title><style>' +
-    '@page { size: 58mm auto; margin: 2mm }' +
-    'html,body { margin:0 }' +
-    'body { width: 54mm; font-family: system-ui, "Segoe UI", sans-serif; text-align:center }' +
-    '.nm { font-size: 11px; font-weight:600; line-height:1.15; margin: 1mm 0; word-break:break-word }' +
-    '.pr { font-size: 17px; font-weight:800; margin: 1mm 0 }' +
-    'svg { max-width: 100% }' +
-    '.no { font-size: 10px; color:#555 }' +
-    '</style></head><body>' +
+  return '<div class="lbl">' +
     '<div class="nm">' + esc((p.name || '').slice(0, 70)) + '</div>' +
     (svg || '<div class="no">без баркод/код</div>') +
     (price ? '<div class="pr">' + esc(price) + '</div>' : '') +
-    '</body></html>')
+    '</div>'
+}
+
+const LABEL_CSS =
+  '@page { size: 58mm auto; margin: 2mm }' +
+  'html,body { margin:0 }' +
+  'body { width: 54mm; font-family: system-ui, "Segoe UI", sans-serif; text-align:center }' +
+  '.lbl { break-after: page; page-break-after: always }' +
+  '.lbl:last-child { break-after: auto; page-break-after: auto }' +
+  '.nm { font-size: 11px; font-weight:600; line-height:1.15; margin: 1mm 0; word-break:break-word }' +
+  '.pr { font-size: 17px; font-weight:800; margin: 1mm 0 }' +
+  'svg { max-width: 100% }' +
+  '.no { font-size: 10px; color:#555 }'
+
+export function labelHtml(p: LabelProduct): string {
+  return '<!doctype html><html><head><meta charset="utf-8"><title>Етикет</title><style>' +
+    LABEL_CSS + '</style></head><body>' + labelBlock(p) + '</body></html>'
+}
+
+// Batch: one 58 mm page per label. `items` may carry a per-item `copies` (default 1) so a price
+// change can print exactly enough tags to re-label every affected unit on the shop floor.
+export function printLabels(items: (LabelProduct & { copies?: number })[]): void {
+  const blocks: string[] = []
+  for (const it of items) {
+    const n = Math.max(1, Math.min(99, Math.floor(it.copies ?? 1)))
+    for (let i = 0; i < n; i++) blocks.push(labelBlock(it))
+  }
+  if (!blocks.length) return
+  const html = '<!doctype html><html><head><meta charset="utf-8"><title>Етикети</title><style>' +
+    LABEL_CSS + '</style></head><body>' + blocks.join('') + '</body></html>'
+  const w = window.open('', '_blank', 'width=420,height=520')
+  if (!w) return
+  w.document.write(html)
+  w.document.close()
+  setTimeout(() => { try { w.focus(); w.print() } catch { /* user closed it */ } }, 300)
 }
 
 export function printLabel(p: LabelProduct): void {
-  const w = window.open('', '_blank', 'width=380,height=320')
-  if (!w) return   // popup blocked — nothing to do (the click that called us should have allowed it)
-  w.document.write(labelHtml(p))
-  w.document.close()
-  // trigger printing from the opener (no inline script in the child → CSP-safe); give the barcode a
-  // moment to lay out, then print and close.
-  setTimeout(() => { try { w.focus(); w.print() } catch { /* user closed it */ } }, 250)
+  printLabels([p])
 }

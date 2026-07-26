@@ -310,6 +310,7 @@ async def apply_supplier(
     uncovered = len(codes) - len(seen_codes)
 
     applied = skipped = 0
+    changed: list[dict] = []          # affected products → the panel offers new-price shop-floor labels
     for a in (rows or []):
         if str(a.get("code") or "") not in codes:
             continue
@@ -336,11 +337,14 @@ async def apply_supplier(
         r = rules.get(aid)
         if r is not None:
             r.last_cost = cost
+        bc = a.get("barcode")
+        changed.append({"name": a.get("article_name") or "", "code": str(a.get("code") or ""),
+                        "barcode": (bc[0] if isinstance(bc, list) else bc) or "", "price": new_retail})
         applied += 1
     await session.commit()
     skipped += uncovered
     await log_action(session, actor, "pricing.apply_supplier", target=body.supplier,
                      detail=f"applied={applied} skipped={skipped} uncovered={uncovered}")
     return {"ok": True, "supplier": body.supplier, "total": len(codes),
-            "applied": applied, "skipped": skipped, "uncovered": uncovered,
+            "applied": applied, "skipped": skipped, "uncovered": uncovered, "changed": changed,
             "complete": uncovered == 0}

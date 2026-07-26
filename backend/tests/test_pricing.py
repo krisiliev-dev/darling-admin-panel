@@ -119,9 +119,13 @@ async def test_apply_supplier_bulk_writes_all(owner_client, barsy_recorder, mock
         {"article_id": 2, "code": "BB", "delivery_price": 4.0, "actual_price": 4.0}])
     r = await owner_client.post("/api/pricing/apply-supplier", json={"supplier": "Мира-Н", "confirm": True})
     assert r.status_code == 200
-    assert r.json()["applied"] == 2
+    body = r.json()
+    assert body["applied"] == 2
     updates = [op for op in barsy_recorder.operations if op == "Articles_update"]
     assert len(updates) == 2
+    # the affected products come back so the panel can offer new-price shop-floor labels
+    changed = {c["code"]: c["price"] for c in body["changed"]}
+    assert changed == {"AA": 3.0, "BB": 6.0}       # cost ×1.5 markup
 
 
 async def test_suppliers_list_includes_markup(owner_client, mock_supplier):
