@@ -49,6 +49,23 @@ def test_new_article_body_brand_not_duplicated_if_attr_has_marka():
     assert len(marka) == 1 and marka[0]["detail_value"] == "ВЕЧЕ"
 
 
+def test_new_article_body_sets_ref_num_from_supplier_code():
+    art = intake_delivery._new_article_body(_line(supplier_code="CAT-500"))["article"]
+    assert art["ref_num"] == "CAT-500"
+
+
+def test_new_article_body_alias_from_original_name_when_renamed():
+    ln = _line(name="Чиста керамична купа", original_name="КУПА КЕР. 0191500")
+    art = intake_delivery._new_article_body(ln)["article"]
+    assert art["article_aliases"] == ["КУПА КЕР. 0191500"]
+
+
+def test_new_article_body_no_alias_when_name_unchanged():
+    ln = _line(name="Купа", original_name="Купа")
+    art = intake_delivery._new_article_body(ln)["article"]
+    assert "article_aliases" not in art          # identical → no redundant synonym
+
+
 def _upload(content: bytes, filename="dostavka.xlsx"):
     return {"file": (filename, content,
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}

@@ -157,6 +157,7 @@ class CommitLine(BaseModel):
     unit: str = "бр"
     category: str = ""
     brand: str = ""            # → "Марка" article detail (Barsy has no native brand field)
+    original_name: str = ""    # supplier's raw row name → article alias (POS/search), create-only
     description: str = ""
     attributes: list[Attribute] = []
 
@@ -171,7 +172,9 @@ class CommitRequest(BaseModel):
 
 
 def _new_article_body(ln: CommitLine) -> dict:
-    """Articles_create body for a NEW product in the delivery (same contract as intake.push)."""
+    """Articles_create body for a NEW product in the delivery (same contract as intake.push). This is
+    a CREATE-only path (existing products are matched by id, never rebuilt here), so create-only fields
+    (article_aliases) are safe to set — they'd 501 on re-send to an already-attached article."""
     art: dict = {
         "code": ln.code or ln.supplier_code,
         "article_name": ln.name,
@@ -179,6 +182,11 @@ def _new_article_body(ln: CommitLine) -> dict:
         "amount_type_id": _UNIT_ID.get(ln.unit, 1),
         "is_public": 1, "is_for_sale": 1,
     }
+    if ln.supplier_code:
+        art["ref_num"] = ln.supplier_code               # supplier catalog number — traceability (parity w/ barsy_push)
+    alias = (ln.original_name or "").strip()
+    if alias and alias != (ln.name or "").strip():
+        art["article_aliases"] = [alias]                # supplier's raw name as a POS/search synonym
     if ln.description:
         art["description_ml"] = {"bg_BG": ln.description}
     if ln.barcode:

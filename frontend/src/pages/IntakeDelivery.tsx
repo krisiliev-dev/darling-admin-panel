@@ -121,6 +121,7 @@ export function IntakeDelivery({ categories }: { categories: string[] }) {
             is_new: true, supplier_code: r.supplier_code, name: e.name, qty: r.qty,
             delivery_price: r.delivery_price, code: e.code, barcode: e.barcode,
             sale_price: e.sale_price, unit: e.unit, category: e.category, brand: e.brand,
+            original_name: r.name,   // supplier's raw name → article alias (POS/search)
             description: e.description, attributes: e.attributes,
           }
         }
