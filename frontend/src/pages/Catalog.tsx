@@ -4,6 +4,7 @@ import type { ArticleDetail, CacheFacets, CacheProduct, CacheSearchResp, Quality
 import { useHotkey, isTyping } from '../lib/useHotkey'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
+import { BulkBar } from '../components/ProductBulkPricing'
 
 const PER = 100
 
@@ -22,6 +23,7 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   const [data, setData] = useState<CacheSearchResp | null>(null)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<number | null>(null)
+  const [sel, setSel] = useState<Map<number, CacheProduct>>(new Map())   // selection persists across pages
   const searchRef = useRef<HTMLInputElement>(null)
   useHotkey((e) => e.key === '/' && !isTyping(e), () => searchRef.current?.focus())
   const seqRef = useRef(0)
@@ -58,6 +60,14 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   const items = data?.items || []
   const total = data?.total || 0
   const pages = Math.max(1, Math.ceil(total / PER))
+  const toggle = (p: CacheProduct) => setSel((m) => { const n = new Map(m); n.has(p.article_id) ? n.delete(p.article_id) : n.set(p.article_id, p); return n })
+  const pageAllSel = items.length > 0 && items.every((i) => sel.has(i.article_id))
+  const togglePage = () => setSel((m) => {
+    const n = new Map(m)
+    if (items.every((i) => n.has(i.article_id))) items.forEach((i) => n.delete(i.article_id))
+    else items.forEach((i) => n.set(i.article_id, i))
+    return n
+  })
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
@@ -95,9 +105,12 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
               ))}
             </div>
           )}
-          <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: '.5rem 0' }}>
-            {data ? `${total} продукта` : ''}
+          <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: '.5rem 0', display: 'flex', gap: '.7rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span>{data ? `${total} продукта` : ''}</span>
+            {sel.size > 0 && <span style={{ color: 'var(--red)' }}>· {sel.size} избрани <button className="btn-paper" style={{ fontSize: '.68rem', padding: '.05rem .3rem' }} onClick={() => setSel(new Map())}>изчисти</button></span>}
           </div>
+
+          {sel.size > 0 && <div style={{ marginBottom: '.6rem' }}><BulkBar selected={[...sel.values()]} onDone={() => { setSel(new Map()); load() }} /></div>}
 
           {loading && !data ? <Loading /> : items.length === 0 ? (
             <EmptyNote>{q || supplier || category || lowOnly ? 'Няма продукти за този филтър.' : 'Каталогът се пълни, щом одобрени продукти се качат в Barsy.'}</EmptyNote>
@@ -105,6 +118,7 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
             <div style={{ overflowX: 'auto' }}>
               <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
                 <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
+                  <th style={{ padding: '.3rem' }}><input type="checkbox" checked={pageAllSel} onChange={togglePage} title="избери страницата" /></th>
                   <th style={{ padding: '.3rem' }}></th><th style={{ padding: '.3rem' }}>ID</th>
                   <th style={{ padding: '.3rem' }}>Продукт</th><th style={{ padding: '.3rem' }}>Доставчик</th>
                   <th style={{ padding: '.3rem', textAlign: 'right' }}>Наличност</th><th style={{ padding: '.3rem', textAlign: 'right' }}>Цена</th>
@@ -113,8 +127,11 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
                   {items.map((it: CacheProduct) => (
                     <tr key={it.article_id} onClick={() => setSelected(it.article_id)} style={{
                       cursor: 'pointer', borderBottom: '1px dashed var(--line)',
-                      background: selected === it.article_id ? 'var(--paper2)' : 'transparent',
+                      background: sel.has(it.article_id) ? 'var(--paper)' : selected === it.article_id ? 'var(--paper2)' : 'transparent',
                     }}>
+                      <td style={{ padding: '.3rem' }} onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={sel.has(it.article_id)} onChange={() => toggle(it)} />
+                      </td>
                       <td style={{ padding: '.3rem' }}><Thumb articleId={it.article_id} hasImage={it.has_image} /></td>
                       <td style={{ padding: '.3rem', color: 'var(--pencil)', fontVariantNumeric: 'tabular-nums' }}>#{it.article_id}</td>
                       <td style={{ padding: '.3rem' }}>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></td>

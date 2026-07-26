@@ -34,4 +34,20 @@ test.describe('Продукти — Каталог filters', () => {
     await expect(page.getByText('Тиган 24см')).toBeVisible()
     await expect(page.getByText('Чиния бяла')).toHaveCount(0)
   })
+
+  test('selecting products reveals the bulk-operations bar', async ({ page }) => {
+    const search = catalogRoute()
+    await mockApi(page)
+    await page.route('**/api/catalog/facets', (r) => r.fulfill({ json: { suppliers: [], categories: [], attributes: {} } }))
+    await page.route('**/api/catalog/search**', (r) => r.fulfill({ json: search(r.request().url()) }))
+    await page.goto('/products')
+
+    await expect(page.getByText('Тиган 24см')).toBeVisible()
+    // no bulk bar until something is selected
+    await expect(page.getByText(/избрани · нова цена/)).toHaveCount(0)
+    // select the first product row → bulk bar appears
+    await page.getByRole('row').filter({ hasText: 'Тиган 24см' }).getByRole('checkbox').check()
+    await expect(page.getByText(/избрани/).first()).toBeVisible()
+    await expect(page.getByText(/нова цена/)).toBeVisible()   // bulk price op controls
+  })
 })

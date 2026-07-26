@@ -232,7 +232,7 @@ function PromoForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
   )
 }
 
-function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
+export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
   const [op, setOp] = useState<'mul' | 'div' | 'add' | 'sub' | 'set'>('mul')
   const [value, setValue] = useState('')
   const [preview, setPreview] = useState<BulkPricePreview | null>(null)
