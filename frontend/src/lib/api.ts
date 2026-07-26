@@ -228,11 +228,11 @@ export interface DeliveryCommitResponse {
 export interface ProductAttr { key: string; value: string; key_id?: number; value_id?: number }
 export interface CacheProduct {
   article_id: number; code: string; name: string; barcode: string
-  category: string; supplier: string; price: number | null; stock: number | null
+  category: string; supplier: string; brand?: string; price: number | null; stock: number | null
   low: boolean; has_image: boolean; attributes: ProductAttr[]
 }
 export interface CacheSearchResp { total: number; page: number; per_page: number; items: CacheProduct[] }
-export interface CacheFacets { suppliers: string[]; categories: string[]; attributes: Record<string, string[]> }
+export interface CacheFacets { suppliers: string[]; categories: string[]; brands?: string[]; attributes: Record<string, string[]> }
 export interface BulkPriceChange { article_id: number; code: string; name: string; old_price: number | null; new_price: number }
 export interface BulkPriceSkip { article_id: number; code: string; name: string; old_price: number | null; reason: string }
 export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; skipped?: BulkPriceSkip[]; applied?: number; failed?: string[] }

@@ -177,11 +177,14 @@ def _sync_fetch() -> list[dict]:
         st = stock.get(aid, {})
         sups = list((by_code.get(code) or {}).keys())
         bc = a.get("barcode")
+        dml = a.get("description_ml")
         out.append({
             "article_id": aid, "code": code, "name": a.get("article_name") or "",
             "barcode": (bc if isinstance(bc, str) else (bc[0] if isinstance(bc, list) and bc else "")) or "",
             "category": a.get("category_name") or a.get("category") or "",
             "supplier": sups[0] if sups else "",
+            "brand": str(a.get("brand") or a.get("vendor") or a.get("producer") or ""),
+            "description": a.get("description") or (dml.get("bg_BG") if isinstance(dml, dict) else "") or "",
             "price": _numf(a.get("actual_price")), "stock": st.get("amount"), "min_stock": st.get("min"),
             "low": bool(st.get("low")), "has_image": bool(a.get("picture_url")),
             "attributes": _parse_attributes(a),
@@ -201,13 +204,14 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
         p = existing.get(d["article_id"]) or ProductCache(article_id=d["article_id"])
         p.code, p.name, p.barcode = d["code"], d["name"], d["barcode"]
         p.category, p.supplier = d["category"], d["supplier"]
+        p.brand, p.desc_lc = d.get("brand", ""), str(d.get("description", "")).lower()
         p.price, p.stock, p.min_stock, p.low = d["price"], d["stock"], d["min_stock"], d["low"]
         p.has_image = d["has_image"]
         p.attributes_json = _json.dumps(d["attributes"], ensure_ascii=False)
-        # universal free-text key — name, code, barcode, supplier AND price (Hermes: keep the cache
-        # as search source; just widen the index, incl. price at 2dp so "19.90" or "19.9" both match)
+        # universal free-text key — name, code, barcode, supplier, brand AND price (widen the index,
+        # incl. price at 2dp so "19.90" or "19.9" both match)
         price_s = f"{d['price']:.2f}" if d["price"] is not None else ""
-        p.search_lc = f"{d['name']} {d['code']} {d['barcode']} {d['supplier']} {price_s}".lower()
+        p.search_lc = f"{d['name']} {d['code']} {d['barcode']} {d['supplier']} {d.get('brand','')} {price_s}".lower()
         p.attr_lc = "|".join(f"{x['key']}={x['value']}" for x in d["attributes"]).lower()
         p.updated_at = now
         session.add(p)
@@ -229,14 +233,20 @@ async def cache_status(user: User = Depends(current_active_user),
 async def search_cache(
     user: User = Depends(current_active_user),
     q: str = Query(""), supplier: str = Query(""), category: str = Query(""),
+    brand: str = Query(""), desc: str = Query(""),
     price_min: float | None = Query(None), price_max: float | None = Query(None),
-    low_only: bool = Query(False), attr: list[str] = Query([]),
+    stock_min: float | None = Query(None), stock_max: float | None = Query(None),
+    low_only: bool = Query(False),
+    has_image: bool | None = Query(None), has_barcode: bool | None = Query(None),
+    has_category: bool | None = Query(None), has_price: bool | None = Query(None),
+    attr: list[str] = Query([]),
     sort: str = Query("name"), order: str = Query("asc"),
     page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """INSTANT filtered search over the local cache (no Barsy round-trip). `attr` repeats as
-    "Ключ=Стойност" (e.g. attr=Цвят=Червен&attr=Материал=Стъкло) — combined with AND."""
+    """INSTANT filtered search over the local cache (no Barsy round-trip). Granular: text, supplier,
+    category, brand, description-contains, price/stock ranges, low-stock, missing-image/barcode/
+    category/price, and repeated attr="Ключ=Стойност" (AND)."""
     stmt = select(ProductCache)
     if q.strip():
         stmt = stmt.where(ProductCache.search_lc.like(f"%{q.strip().lower()}%"))  # Cyrillic-safe
@@ -244,26 +254,43 @@ async def search_cache(
         stmt = stmt.where(ProductCache.supplier == supplier)
     if category:
         stmt = stmt.where(ProductCache.category == category)
+    if brand:
+        stmt = stmt.where(ProductCache.brand == brand)
+    if desc.strip():
+        stmt = stmt.where(ProductCache.desc_lc.like(f"%{desc.strip().lower()}%"))
     if price_min is not None:
         stmt = stmt.where(cast(ProductCache.price, Float) >= price_min)
     if price_max is not None:
         stmt = stmt.where(cast(ProductCache.price, Float) <= price_max)
+    if stock_min is not None:
+        stmt = stmt.where(ProductCache.stock >= stock_min)
+    if stock_max is not None:
+        stmt = stmt.where(ProductCache.stock <= stock_max)
     if low_only:
         stmt = stmt.where(ProductCache.low.is_(True))
+    if has_image is not None:
+        stmt = stmt.where(ProductCache.has_image.is_(has_image))
+    if has_barcode is not None:
+        stmt = stmt.where(ProductCache.barcode != "" if has_barcode else ProductCache.barcode == "")
+    if has_category is not None:
+        stmt = stmt.where(ProductCache.category != "" if has_category else ProductCache.category == "")
+    if has_price is not None:
+        stmt = stmt.where(ProductCache.price.is_not(None) if has_price else ProductCache.price.is_(None))
     for a in attr:                                   # each "key=value" narrows further (AND)
         if a.strip():
             stmt = stmt.where(ProductCache.attr_lc.like(f"%{a.strip().lower()}%"))
     from sqlalchemy import func as _func
     total = (await session.execute(select(_func.count()).select_from(stmt.subquery()))).scalar() or 0
     col = {"name": ProductCache.name, "code": ProductCache.code, "price": ProductCache.price,
-           "stock": ProductCache.stock, "supplier": ProductCache.supplier}.get(sort, ProductCache.name)
+           "stock": ProductCache.stock, "supplier": ProductCache.supplier,
+           "brand": ProductCache.brand}.get(sort, ProductCache.name)
     stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
     stmt = stmt.offset((page - 1) * per_page).limit(per_page)
     rows = (await session.execute(stmt)).scalars().all()
     return {"total": total, "page": page, "per_page": per_page, "items": [
         {"article_id": p.article_id, "code": p.code, "name": p.name, "barcode": p.barcode,
-         "category": p.category, "supplier": p.supplier, "price": p.price, "stock": p.stock,
-         "low": p.low, "has_image": p.has_image,
+         "category": p.category, "supplier": p.supplier, "brand": p.brand, "price": p.price,
+         "stock": p.stock, "low": p.low, "has_image": p.has_image,
          "attributes": _json.loads(p.attributes_json or "[]")} for p in rows]}
 
 
@@ -454,10 +481,14 @@ def _cache_fields(a: dict) -> dict:
     name = a.get("article_name") or ""
     barcode = (bc if isinstance(bc, str) else (bc[0] if isinstance(bc, list) and bc else "")) or ""
     supplier = sups[0] if sups else ""
+    brand = str(a.get("brand") or a.get("vendor") or a.get("producer") or "")
+    dml = a.get("description_ml")
+    description = a.get("description") or (dml.get("bg_BG") if isinstance(dml, dict) else "") or ""
     return {"code": code, "name": name, "barcode": barcode,
             "category": a.get("category_name") or a.get("category") or "", "supplier": supplier,
+            "brand": brand, "desc_lc": str(description).lower(),
             "price": price, "has_image": bool(a.get("picture_url")), "attributes": attrs,
-            "search_lc": f"{name} {code} {barcode} {supplier} {price_s}".lower(),
+            "search_lc": f"{name} {code} {barcode} {supplier} {brand} {price_s}".lower(),
             "attr_lc": "|".join(f"{x['key']}={x['value']}" for x in attrs).lower()}
 
 
@@ -483,6 +514,7 @@ async def refresh_cache_for_code(code: str) -> bool:
         p = await session.get(ProductCache, a["article_id"]) or ProductCache(article_id=a["article_id"])
         p.code, p.name, p.barcode = f["code"], f["name"], f["barcode"]
         p.category, p.supplier, p.price = f["category"], (f["supplier"] or p.supplier), f["price"]
+        p.brand, p.desc_lc = f["brand"], f["desc_lc"]
         p.has_image = f["has_image"]
         p.attributes_json = _json.dumps(f["attributes"], ensure_ascii=False)
         p.search_lc, p.attr_lc = f["search_lc"], f["attr_lc"]
@@ -523,18 +555,20 @@ async def delete_promo(pid: int, actor: User = Depends(current_owner),
 @router.get("/facets")
 async def facets(user: User = Depends(current_active_user),
                  session: AsyncSession = Depends(get_async_session)):
-    """Distinct suppliers + categories for the filter dropdowns (from the cache)."""
+    """Distinct suppliers + categories + brands for the filter dropdowns (from the cache)."""
     sups = [s for (s,) in (await session.execute(
         select(ProductCache.supplier).distinct())).all() if s]
     cats = [c for (c,) in (await session.execute(
         select(ProductCache.category).distinct())).all() if c]
+    brands = [b for (b,) in (await session.execute(
+        select(ProductCache.brand).distinct())).all() if b]
     # attribute key → sorted distinct values, for the attribute-filter dropdowns
     attrs: dict[str, set] = {}
     for (aj,) in (await session.execute(select(ProductCache.attributes_json))).all():
         for x in _json.loads(aj or "[]"):
             if x.get("key") and x.get("value"):
                 attrs.setdefault(x["key"], set()).add(x["value"])
-    return {"suppliers": sorted(sups), "categories": sorted(cats),
+    return {"suppliers": sorted(sups), "categories": sorted(cats), "brands": sorted(brands),
             "attributes": {k: sorted(v) for k, v in sorted(attrs.items())}}
 
 

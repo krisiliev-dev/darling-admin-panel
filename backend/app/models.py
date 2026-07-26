@@ -142,6 +142,8 @@ class ProductCache(Base):
     barcode: Mapped[str] = mapped_column(String(64), default="", index=True)
     category: Mapped[str] = mapped_column(String(255), default="", index=True)
     supplier: Mapped[str] = mapped_column(String(255), default="", index=True)
+    brand: Mapped[str] = mapped_column(String(128), default="", index=True)
+    desc_lc: Mapped[str] = mapped_column(Text, default="")            # lowercased description, for "contains" filter
     price: Mapped[float | None] = mapped_column(default=None)          # actual_price (€)
     stock: Mapped[float | None] = mapped_column(default=None)
     min_stock: Mapped[float | None] = mapped_column(default=None)

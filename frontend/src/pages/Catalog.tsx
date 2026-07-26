@@ -19,6 +19,14 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   const [priceMax, setPriceMax] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
   const [attrs, setAttrs] = useState<Record<string, string>>({})
+  const [brand, setBrand] = useState('')
+  const [desc, setDesc] = useState('')
+  const [stockMin, setStockMin] = useState('')
+  const [stockMax, setStockMax] = useState('')
+  const [flags, setFlags] = useState<Record<string, string>>({})   // has_image/has_barcode/has_category/has_price → ''|'true'|'false'
+  const [sort, setSort] = useState('name')
+  const [order, setOrder] = useState('asc')
+  const [showAdv, setShowAdv] = useState(false)
   const [page, setPage] = useState(1)
   const [data, setData] = useState<CacheSearchResp | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,13 +44,19 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
     if (q.trim()) p.set('q', q.trim())
     if (supplier) p.set('supplier', supplier)
     if (category) p.set('category', category)
+    if (brand) p.set('brand', brand)
+    if (desc.trim()) p.set('desc', desc.trim())
     if (priceMin) p.set('price_min', priceMin)
     if (priceMax) p.set('price_max', priceMax)
+    if (stockMin) p.set('stock_min', stockMin)
+    if (stockMax) p.set('stock_max', stockMax)
     if (lowOnly) p.set('low_only', 'true')
+    Object.entries(flags).forEach(([k, v]) => { if (v) p.set(k, v) })
     Object.entries(attrs).forEach(([k, v]) => { if (v) p.append('attr', `${k}=${v}`) })
+    p.set('sort', sort); p.set('order', order)
     p.set('per_page', String(PER)); p.set('page', String(page))
     return p.toString()
-  }, [q, supplier, category, priceMin, priceMax, lowOnly, attrs, page])
+  }, [q, supplier, category, brand, desc, priceMin, priceMax, stockMin, stockMax, lowOnly, flags, attrs, sort, order, page])
 
   const load = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -55,7 +69,7 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
     }, 250)
   }, [query])
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [q, supplier, category, priceMin, priceMax, lowOnly, attrs])
+  useEffect(() => { setPage(1) }, [q, supplier, category, brand, desc, priceMin, priceMax, stockMin, stockMax, lowOnly, flags, attrs, sort, order])
 
   const items = data?.items || []
   const total = data?.total || 0
@@ -88,11 +102,18 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
               <option value="">— категория —</option>
               {facets?.categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+            {facets?.brands && facets.brands.length > 0 && (
+              <select className="input-paper" value={brand} onChange={(e) => setBrand(e.target.value)}>
+                <option value="">— бранд —</option>
+                {facets.brands.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            )}
             <input className="input-paper" style={{ width: '6rem' }} inputMode="decimal" placeholder="цена ≥" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} />
             <input className="input-paper" style={{ width: '6rem' }} inputMode="decimal" placeholder="цена ≤" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} />
             <label className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
               <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> ниска налич.
             </label>
+            <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => setShowAdv((s) => !s)}>{showAdv ? 'по-малко филтри ▴' : 'още филтри ▾'}</button>
           </div>
           {facets && Object.keys(facets.attributes).length > 0 && (
             <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginTop: '.5rem' }}>
@@ -103,6 +124,28 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
                   {vals.map((v) => <option key={v} value={v}>{v}</option>)}
                 </select>
               ))}
+            </div>
+          )}
+          {showAdv && (
+            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginTop: '.5rem', alignItems: 'center', borderTop: '1px dashed var(--line)', paddingTop: '.5rem' }}>
+              <input className="input-paper" style={{ width: '13rem' }} placeholder="дума в описанието…" value={desc} onChange={(e) => setDesc(e.target.value)} />
+              <input className="input-paper" style={{ width: '6rem' }} inputMode="numeric" placeholder="налич. ≥" value={stockMin} onChange={(e) => setStockMin(e.target.value)} />
+              <input className="input-paper" style={{ width: '6rem' }} inputMode="numeric" placeholder="налич. ≤" value={stockMax} onChange={(e) => setStockMax(e.target.value)} />
+              {([['has_image', 'снимка'], ['has_barcode', 'баркод'], ['has_category', 'категория'], ['has_price', 'цена']] as [string, string][]).map(([k, lbl]) => (
+                <select key={k} className="input-paper" style={{ fontSize: '.72rem' }} value={flags[k] || ''} onChange={(e) => setFlags((f) => ({ ...f, [k]: e.target.value }))}>
+                  <option value="">{lbl}: всички</option>
+                  <option value="true">с {lbl}</option>
+                  <option value="false">без {lbl}</option>
+                </select>
+              ))}
+              <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>подредба:</span>
+              <select className="input-paper" style={{ fontSize: '.72rem' }} value={sort} onChange={(e) => setSort(e.target.value)}>
+                {([['name', 'име'], ['code', 'код'], ['price', 'цена'], ['stock', 'наличност'], ['supplier', 'доставчик'], ['brand', 'бранд']] as [string, string][]).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <select className="input-paper" style={{ fontSize: '.72rem' }} value={order} onChange={(e) => setOrder(e.target.value)}>
+                <option value="asc">възходящо</option><option value="desc">низходящо</option>
+              </select>
+              <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => { setQ(''); setSupplier(''); setCategory(''); setBrand(''); setDesc(''); setPriceMin(''); setPriceMax(''); setStockMin(''); setStockMax(''); setLowOnly(false); setFlags({}); setAttrs({}); setSort('name'); setOrder('asc') }}>изчисти филтрите</button>
             </div>
           )}
           <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: '.5rem 0', display: 'flex', gap: '.7rem', alignItems: 'center', flexWrap: 'wrap' }}>

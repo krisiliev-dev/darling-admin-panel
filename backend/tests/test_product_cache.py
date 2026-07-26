@@ -48,6 +48,28 @@ async def test_sync_then_search_filters(owner_client, barsy_recorder):
 
 
 @pytest.mark.asyncio
+async def test_granular_filters(owner_client, barsy_recorder):
+    """The catalogue search supports brand / description-contains / stock-range / missing-data filters
+    over the cache, and facets expose brands."""
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Тиган", "actual_price": "20",
+         "brand": "Tefal", "description": "Тефлоново покритие", "picture_url": "/x.png", "barcode": "111"},
+        {"article_id": 2, "code": "B", "article_name": "Чиния", "actual_price": "5",
+         "brand": "Luminarc", "description": "Стъклена чиния"},
+    ], stock_rows=[{"article_id": 1, "store_amount": "10", "min_amount": "3"},
+                   {"article_id": 2, "store_amount": "0", "min_amount": "1", "below_min": 1}])
+    async def ids(qs):
+        return [i["article_id"] for i in (await owner_client.get(f"/api/catalog/search?{qs}")).json()["items"]]
+    assert await ids("brand=Tefal") == [1]
+    assert await ids("desc=стъклена") == [2]                 # description contains (Cyrillic-safe)
+    assert await ids("has_image=false") == [2]               # no picture
+    assert await ids("has_barcode=false") == [2]             # no barcode
+    assert await ids("stock_min=5") == [1]                   # stock range
+    f = (await owner_client.get("/api/catalog/facets")).json()
+    assert set(f["brands"]) == {"Tefal", "Luminarc"}
+
+
+@pytest.mark.asyncio
 async def test_attribute_filter_and_facets(owner_client, barsy_recorder):
     await _sync(owner_client, barsy_recorder, [
         {"article_id": 1, "code": "A", "article_name": "Ваза червена", "actual_price": "9",
