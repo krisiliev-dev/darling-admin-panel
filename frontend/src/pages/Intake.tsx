@@ -124,8 +124,9 @@ function ProductEditor({ draft, onDone, onCancel }: {
 }) {
   // size lives in its own fields (below), not in the attribute list — strip it out of the loaded draft
   const [d, setD] = useState<IntakeDraft>(() => ({
-    ...draft, attributes: (draft.attributes || []).filter((a) => a.key !== 'Размери' && a.key !== 'Вместимост'),
+    ...draft, attributes: (draft.attributes || []).filter((a) => !isSizeAttr(a.key)),
   }))
+  const [schema, setSchema] = useState<TaxAttribute[]>([])   // the leaf's attribute schema (shared w/ save)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
@@ -148,6 +149,11 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
     .then((r) => setImages(r.images)).catch(() => setImages([]))
   useEffect(() => { void loadImages() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!d.shopify_category_id) { setSchema([]); return }
+    api.get<{ attributes: TaxAttribute[] }>(`/api/intake/shopify-categories/${d.shopify_category_id}/attributes`)
+      .then((r) => setSchema(r.attributes)).catch(() => setSchema([]))
+  }, [d.shopify_category_id])
 
   const addImages = async (files: FileList | null) => {
     if (!files?.length) return
@@ -199,12 +205,15 @@ function ProductEditor({ draft, onDone, onCancel }: {
     if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
     setBusy(true); setError(''); setNote('')
     try {
-      // fold the standardized size fields into the saved attributes (they also feed the name composer)
-      const sized = [
-        ...attrs.filter((a) => a.key.trim() && a.key !== 'Размери' && a.key !== 'Вместимост'),
-        ...(dimensions.trim() ? [{ key: 'Размери', value: dimensions.trim() }] : []),
-        ...(capacity.trim() ? [{ key: 'Вместимост', value: capacity.trim() }] : []),
-      ]
+      // write the standardized size back into the leaf's size/volume attribute(s) (e.g. "Размер/Обем"),
+      // so there's no duplicate raw box; fall back to Размери/Вместимост when the leaf has none.
+      const sizeAttrs = schema.filter((a) => isSizeAttr(a.name))
+      const sizeValue = (name: string) => [wantsDim(name) ? dimensions.trim() : '', wantsVolume(name) ? capacity.trim() : ''].filter(Boolean).join(', ')
+      const sizeRows = (sizeAttrs.length
+        ? sizeAttrs.map((a) => ({ key: a.name, value: sizeValue(a.name) }))
+        : [{ key: 'Размери', value: dimensions.trim() }, { key: 'Вместимост', value: capacity.trim() }]
+      ).filter((r) => r.value)
+      const sized = [...attrs.filter((a) => a.key.trim() && !isSizeAttr(a.key)), ...sizeRows]
       const r = await api.put<{ barsy?: { live: boolean; created: boolean; note?: string; error?: string; delivery?: { sent: boolean } } }>(
         `/api/intake/drafts/${draft.id}`, {
           code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
@@ -273,7 +282,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
           <div>
             <span className="font-type" style={eyebrow}>Атрибути</span>
             <div style={{ marginTop: '.3rem' }}>
-              <TaxonomyAttributes categoryId={d.shopify_category_id || ''} value={attrs}
+              <TaxonomyAttributes categoryId={d.shopify_category_id || ''} schema={schema} value={attrs}
                 onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
             </div>
           </div>
@@ -337,31 +346,22 @@ function ProductEditor({ draft, onDone, onCancel }: {
 // Taxonomy-driven attribute fields: they change with the selected category. Picklist attributes
 // (Цвят, Материал…) render as dropdowns of the taxonomy's allowed BG values; free-text attributes
 // (dimensions, volume…) render as text inputs. Values are stored as {key: attr name, value}.
-function TaxonomyAttributes({ categoryId, value, onChange }: {
-  categoryId: string; value: IntakeAttribute[]; onChange: (a: IntakeAttribute[]) => void
+function TaxonomyAttributes({ categoryId, schema, value, onChange }: {
+  categoryId: string; schema: TaxAttribute[]; value: IntakeAttribute[]; onChange: (a: IntakeAttribute[]) => void
 }) {
-  const [schema, setSchema] = useState<TaxAttribute[]>([])
-  const [loading, setLoading] = useState(false)
-  useEffect(() => {
-    if (!categoryId) { setSchema([]); return }
-    setLoading(true)
-    api.get<{ attributes: TaxAttribute[] }>(`/api/intake/shopify-categories/${categoryId}/attributes`)
-      .then((r) => setSchema(r.attributes)).catch(() => setSchema([])).finally(() => setLoading(false))
-  }, [categoryId])
-
+  const visible = schema.filter((a) => !isSizeAttr(a.name))   // size/volume handled by the standardised section
   const valueFor = (name: string) => value.find((a) => a.key === name)?.value || ''
   const setValue = (name: string, v: string) => {
     const rest = value.filter((a) => a.key !== name)
     onChange(v ? [...rest, { key: name, value: v }] : rest)
   }
   const schemaNames = new Set(schema.map((s) => s.name))
-  const extras = value.filter((a) => a.key && !schemaNames.has(a.key))   // AI/legacy attrs not in schema — kept
+  const extras = value.filter((a) => a.key && !schemaNames.has(a.key) && !isSizeAttr(a.key))
 
   if (!categoryId) return <p className="pencil" style={{ fontSize: '.76rem' }}>избери категория, за да се появят атрибутите</p>
   return (
     <div style={{ display: 'grid', gap: '.35rem' }}>
-      {loading && <span className="pencil" style={{ fontSize: '.74rem' }}>зарежда атрибути…</span>}
-      {schema.map((a) => (
+      {visible.map((a) => (
         <div key={a.handle} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
           <span className="font-type" style={{ flex: '0 0 12rem', fontSize: '.76rem' }}>{a.name}</span>
           {a.free ? (
@@ -387,6 +387,15 @@ function TaxonomyAttributes({ categoryId, value, onChange }: {
     </div>
   )
 }
+
+// Some taxonomy attributes are size/volume free-text (e.g. "Размер/Обем", "Обем", "Размери") — we
+// don't render those raw; the standardised size section (H×W×D + volume) covers them and writes back
+// into them on save, so there's ONE formatted place for size instead of a duplicate unformatted box.
+const _SIZE_WORDS = ['размер', 'обем', 'вместимост', 'капацитет', 'диаметър', 'височин', 'широчин',
+  'дълбочин', 'дължин', 'size', 'volume', 'capacity', 'dimension', 'height', 'width', 'depth', 'length', 'diameter']
+const isSizeAttr = (name: string) => { const s = (name || '').toLowerCase(); return _SIZE_WORDS.some((w) => s.includes(w)) }
+const wantsVolume = (name: string) => /обем|вместимост|капацитет|volume|capacity/i.test(name || '')
+const wantsDim = (name: string) => /размер|размери|dimension|size|височин|широчин|дълбочин|дължин|диаметър|height|width|depth|length|diameter/i.test(name || '')
 
 // Standardised numeric input: digits + a SINGLE comma decimal only (dots become commas), with an
 // optional unit label pinned inside. Used for every measurement/price field so the catalogue is
