@@ -75,3 +75,42 @@ def test_fixed_flags_present():
     assert art["is_public"] == 1
     assert art["is_for_sale"] == 1
     assert art["code"] == "C"
+
+
+# --- brand → "Марка" detail (Barsy has no native brand field; parity with barsy_push._details) ---
+def test_brand_written_as_marka_detail():
+    art = _build_barsy_article(_draft(code="C", name="N", brand="Luminarc"))["article"]
+    assert {"detail_name": "Марка", "detail_value": "Luminarc"} in art["details"]
+
+
+def test_brand_marka_is_prepended_before_attributes():
+    attrs = [{"key": "Материал", "value": "стъкло"}]
+    d = _draft(code="C", name="N", brand="Bormioli", attributes_json=json.dumps(attrs, ensure_ascii=False))
+    art = _build_barsy_article(d)["article"]
+    assert art["details"][0] == {"detail_name": "Марка", "detail_value": "Bormioli"}
+    assert art["details"][1] == {"detail_name": "Материал", "detail_value": "стъкло"}
+
+
+def test_no_marka_detail_when_brand_empty():
+    art = _build_barsy_article(_draft(code="C", name="N", brand=""))["article"]
+    assert "details" not in art
+
+
+def test_brand_not_duplicated_if_attributes_already_carry_marka():
+    attrs = [{"key": "Марка", "value": "ВЕЧЕ"}]
+    d = _draft(code="C", name="N", brand="Друга", attributes_json=json.dumps(attrs, ensure_ascii=False))
+    art = _build_barsy_article(d)["article"]
+    marka = [x for x in art["details"] if x["detail_name"] == "Марка"]
+    assert len(marka) == 1                       # no duplicate Марка row
+
+
+# --- SEO meta → extra_data (native Barsy object; parity with barsy_push) ---
+def test_seo_meta_written_to_extra_data():
+    d = _draft(code="C", name="N", meta_title="Купа за салата", meta_description="Голяма керамична купа")
+    art = _build_barsy_article(d)["article"]
+    assert art["extra_data"] == {"seo_title": "Купа за салата", "seo_description": "Голяма керамична купа"}
+
+
+def test_no_extra_data_when_no_meta():
+    art = _build_barsy_article(_draft(code="C", name="N"))["article"]
+    assert "extra_data" not in art

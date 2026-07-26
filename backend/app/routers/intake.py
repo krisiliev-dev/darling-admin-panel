@@ -658,9 +658,23 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
     if d.price:
         art["actual_price"] = str(d.price)  # euros; staff-entered, never AI (price policy)
     attrs = json.loads(d.attributes_json or "[]")
-    if attrs:
-        art["details"] = [{"detail_name": a["key"], "detail_value": a["value"]}
-                          for a in attrs if a.get("key")]
+    details = [{"detail_name": a["key"], "detail_value": a["value"]}
+               for a in attrs if a.get("key")]
+    # Brand has no native Barsy field — it is the "Марка" article detail (parity with
+    # barsy_push._details). Prepend it, unless the attributes already carry a Марка row.
+    if d.brand and not any(x["detail_name"] == "Марка" for x in details):
+        details.insert(0, {"detail_name": "Марка", "detail_value": d.brand.strip()})
+    if details:
+        art["details"] = details
+    # SEO meta rides in the native per-article `extra_data` object (Barsy has no SEO fields);
+    # matches barsy_push so panel-created products carry SEO without a later pipeline backfill.
+    extra: dict = {}
+    if d.meta_title:
+        extra["seo_title"] = d.meta_title
+    if d.meta_description:
+        extra["seo_description"] = d.meta_description
+    if extra:
+        art["extra_data"] = extra
     return {"article": art}
 
 
