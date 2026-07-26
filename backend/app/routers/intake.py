@@ -174,6 +174,7 @@ def _role_for_handle(handle: str, en: str) -> str:
 
 class ComposeNameRequest(BaseModel):
     category_id: str = ""
+    brand: str = ""                     # prepended verbatim (proper noun) if present
     attributes: dict[str, str] = {}    # {BG attribute name: BG value} as filled in the editor
     capacity: str = ""                  # вместимост
     dimensions: str = ""                # размери
@@ -196,7 +197,7 @@ def compose_name(req: ComposeNameRequest, user=Depends(current_active_user)):
         val = req.attributes.get(g["name"])           # BG value the user picked (keyed by BG attr name)
         if val:
             canonical[role] = val                      # BG value — the composer resolves it via aliases
-    facts = {"leaf_bg": cat.get("bg") or "", "attributes": canonical,
+    facts = {"leaf_bg": cat.get("bg") or "", "brand": req.brand.strip(), "attributes": canonical,
              "вместимост": req.capacity, "размери": req.dimensions}
     return {"name": naming.build(facts), "available": True}
 

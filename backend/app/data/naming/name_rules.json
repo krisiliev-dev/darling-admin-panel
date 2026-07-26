@@ -5,6 +5,9 @@
   "pre_order":  ["Color", "Material", "Shape"],
   "post_order": ["Color", "Material", "Shape", "Feature"],
 
+  "_brand_doc": "Brand leads the name as a VERBATIM proper-noun token (no gender inflection), placed before everything and OUTSIDE sentence-casing so the descriptor's first word still capitalizes -> 'Luminarc Бяла керамична купа'. Source: facts['brand'] (canonical) else facts['attributes'][one of `from`]. Dropped if an override lists 'Brand' in drop.",
+  "brand": {"from": ["brand", "Brand", "Бранд"], "zone": "lead", "case": "verbatim", "inflect": false},
+
   "attributes": {
     "Material": {
       "kind": "adj", "from": ["Material", "материал"], "default": "prefix",

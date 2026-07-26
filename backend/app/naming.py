@@ -140,5 +140,12 @@ def build(facts, style=None):
     pieces += [t for _, t in _order("post", "post_order")]
     pieces.append(_size_str(facts))
 
-    name = re.sub(r"\s+", " ", " ".join(p for p in pieces if p)).strip()
-    return name[:1].upper() + name[1:] if name else name
+    descriptor = re.sub(r"\s+", " ", " ".join(p for p in pieces if p)).strip()
+    descriptor = descriptor[:1].upper() + descriptor[1:] if descriptor else descriptor
+    # brand (v3): prepended VERBATIM (proper noun — not inflected, not re-cased) and OUTSIDE the
+    # sentence-casing, so the descriptor's first word still capitalizes: "Luminarc Бяла керамична…".
+    bcfg = rules.get("brand") or {"from": ["brand", "Brand", "Бранд"]}
+    brand = (facts.get("brand") or _get_attr(attrs, bcfg.get("from", ["Brand"])) or "").strip()
+    if brand and "Brand" not in drop:
+        return f"{brand} {descriptor}".strip()
+    return descriptor

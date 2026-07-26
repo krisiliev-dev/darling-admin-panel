@@ -477,9 +477,11 @@ async def test_compose_name_v3(owner_client):
             break
     assert cid, "expected a bowl leaf with a Material=Керамика attribute in the HG taxonomy"
     r = await owner_client.post("/api/intake/compose-name", json={
-        "category_id": cid, "attributes": {matname: "Керамика"}, "dimensions": "24 x 24 x 8 cm"})
+        "category_id": cid, "brand": "Luminarc", "attributes": {matname: "Керамика"},
+        "dimensions": "24 x 24 x 8 cm"})
     assert r.status_code == 200, r.text
     name = r.json()["name"]
+    assert name.startswith("Luminarc ")             # brand prepended verbatim (proper noun)
     assert "керамичн" in name.lower()               # gender-agreed material adjective rendered
     assert "24х24х8см" in name.replace(" ", "")
 
