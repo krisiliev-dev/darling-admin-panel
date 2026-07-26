@@ -30,23 +30,16 @@ from pathlib import Path
 import httpx
 
 _HOME = Path.home()
-_ENV_FILE = _HOME / ".hermes" / ".env"
-
-
-@lru_cache(maxsize=1)
-def _env_file_vals():
-    vals = {}
-    if _ENV_FILE.exists():
-        for ln in _ENV_FILE.read_text(encoding="utf-8").splitlines():
-            ln = ln.strip()
-            if ln and not ln.startswith("#") and "=" in ln:
-                k, v = ln.split("=", 1)
-                vals[k.strip()] = v.strip()
-    return vals
 
 
 def _cfg(key: str, default: str = "") -> str:
-    return os.environ.get(key) or _env_file_vals().get(key, default)
+    """One config surface: a live env var wins (runtime override), else the centralized Settings
+    (which itself reads ~/.hermes/.env via pydantic-settings). No second hand-rolled .env parser."""
+    v = os.environ.get(key)
+    if v:
+        return v
+    from .config import get_settings
+    return getattr(get_settings(), key.lower(), None) or default
 
 
 @lru_cache(maxsize=1)

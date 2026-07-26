@@ -78,6 +78,17 @@ class Settings(BaseSettings):
     # display name + reply-to on the outbound заявка mail (defaults to gmail_user)
     order_from_name: str = "Дарлинг 7"
 
+    # --- Assistant LLM backends (see assistant_llm.py) — all optional, read via _cfg() -----
+    # Centralised here (pydantic-settings already reads ~/.hermes/.env) so there is ONE config
+    # surface, not a second hand-rolled .env parser.
+    assistant_backends: str = "free"       # comma list = try order
+    claude_cli_path: str = ""
+    assistant_claude_model: str = ""
+    hermes_exe: str = ""
+    anthropic_api_key: str = ""
+    assistant_anthropic_key: str = ""
+    assistant_anthropic_model: str = "claude-haiku-4-5"
+
     # nekorekten.com risky-customer lookup (COD refuser defense). Server-side API key (keep it in
     # env, never the browser); the whitelisted IP on nekorekten's side must be THIS server's egress
     # IP. Empty => the panel falls back to a manual deep-link lookup only, no API calls.
