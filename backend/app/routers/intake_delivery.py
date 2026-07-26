@@ -16,11 +16,8 @@ isolated behind clearly-marked seams:
   * `_storeload_payload` / commit — the storeload create body shape. Guarded by the
     DELIVERY_BARSY_LIVE gate (default OFF => dry-run returns the payload, writes nothing).
 """
-import io
-import os
 import re
 import time
-from functools import lru_cache
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -32,139 +29,15 @@ from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
 from ..models import User
-from ..services.jsonl import iter_jsonl
-from ..services.product_seed import products as _products
-from ..services.text import norm as _norm
+from ..services.delivery_parse import _SUPPLIER_CODES_PATH  # noqa: F401  re-export (tests reference it)
+from ..services.delivery_parse import detect_columns as _detect_columns
+from ..services.delivery_parse import match_existing as _match_existing
+from ..services.delivery_parse import read_rows as _read_rows
+from ..services.delivery_parse import resolve_supplier_id as _resolve_supplier_id
+from ..services.delivery_parse import to_float as _to_float
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake/delivery", tags=["intake"])
-
-# ------------------------------------------------------------------ column detection ---
-# Supplier sheets are hand-made and inconsistent. Detect each column by header keyword;
-# fall back to positional order [code, name, qty, price] when no header is recognised.
-_HEADERS = {
-    "code": ("код", "code", "каталог", "catalog", "sku", "арт", "номер", "no", "№"),
-    "name": ("наименование", "име", "name", "продукт", "стока", "описание", "артикул"),
-    "qty": ("количество", "к-во", "кол", "брой", "бр", "qty", "quantity", "count"),
-    "price": ("цена", "price", "доставна", "ед.цена", "ед. цена", "стойност", "ст-ст", "cost"),
-}
-
-
-def _detect_columns(header: list) -> dict:
-    """Map each logical field to a 0-based column index using header keywords. 'name' is required
-    when a header row exists; the rest are best-effort. Returns {} to signal 'no header — positional'."""
-    cells = [_norm(c) for c in header]
-    found: dict[str, int] = {}
-    for field, keys in _HEADERS.items():
-        for idx, cell in enumerate(cells):
-            if not cell or idx in found.values():
-                continue
-            if any(cell == _norm(k) or cell.startswith(_norm(k)) for k in keys):
-                found[field] = idx
-                break
-    return found if "name" in found else {}
-
-
-def _to_float(v) -> float:
-    if v is None:
-        return 0.0
-    if isinstance(v, (int, float)):
-        return float(v)
-    s = str(v).strip().replace(" ", "").replace(" ", "").replace(",", ".")
-    m = re.search(r"-?\d+(\.\d+)?", s)
-    return float(m.group()) if m else 0.0
-
-
-# ------------------------------------------------------------------ new-vs-existing ---
-# The authoritative match key is (supplier, the supplier's own article code). It lives in
-# supplier_codes.jsonl — 22,807 rows of {code(=OUR code), supplier, ref(=their code),
-# rname(=their name for it), dprice} sourced from Barsy's suppliers_details / the ERP export.
-_SUPPLIER_CODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                    "data", "supplier_codes.jsonl")
-
-
-@lru_cache(maxsize=1)
-def _supplier_index() -> dict:
-    """Load the supplier-code mapping into fast lookup tables. Keys are normalised.
-    Falls back to an empty index if the file is absent (then only the seed-catalogue nets apply)."""
-    by_sup_ref: dict[tuple, dict] = {}   # (supplier, their code) -> row   [strongest]
-    by_ref: dict[str, dict] = {}         # their code alone        -> row   [medium]
-    by_sup_name: dict[tuple, dict] = {}  # (supplier, their name)  -> row   [medium]
-    by_name: dict[str, dict] = {}        # their name alone        -> row   [low]
-    for r in iter_jsonl(_SUPPLIER_CODES_PATH):
-        sup, ref, rname = _norm(r.get("supplier")), _norm(r.get("ref")), _norm(r.get("rname"))
-        if ref:
-            by_sup_ref.setdefault((sup, ref), r)
-            by_ref.setdefault(ref, r)
-        if rname:
-            by_sup_name.setdefault((sup, rname), r)
-            by_name.setdefault(rname, r)
-    return {"by_sup_ref": by_sup_ref, "by_ref": by_ref,
-            "by_sup_name": by_sup_name, "by_name": by_name}
-
-
-_BARCODES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "barcodes.jsonl")
-
-
-@lru_cache(maxsize=1)
-def _barcode_index() -> dict:
-    """Two maps from the catalogue's known EANs: ean→our code, and our code→[eans]. Lets the
-    delivery scanner resolve a scanned barcode to a product even when the sheet had no barcode."""
-    ean_to_code: dict[str, str] = {}
-    code_to_eans: dict[str, list] = {}
-    for r in iter_jsonl(_BARCODES_PATH):
-        code, ean = str(r.get("code", "")).strip(), str(r.get("ean", "")).strip()
-        if code and ean:
-            ean_to_code.setdefault(ean, code)
-            code_to_eans.setdefault(code, []).append(ean)
-    return {"ean_to_code": ean_to_code, "code_to_eans": code_to_eans}
-
-
-@lru_cache(maxsize=1)
-def _seed_by_code() -> dict:
-    """Our own catalogue keyed by our code — a secondary net when a sheet already uses our codes."""
-    out: dict[str, dict] = {}
-    for p in _products():
-        code = str(p.get("code") or "").strip()
-        if code:
-            out.setdefault(code, p)
-    return out
-
-
-def _match_existing(supplier: str, supplier_code: str, name: str) -> dict | None:
-    """THE new-vs-existing decision (single seam). Returns a match dict (with our `code`) or None.
-
-    Priority, strongest first:
-      1. (supplier, their code)      → high
-      2. their code, any supplier    → medium   (codes can collide across suppliers)
-      3. (supplier, their name)      → high
-      4. their name, any supplier    → low
-      5. their code == one of OUR codes (sheet already uses our codes) → high
-    `method`/`confidence` are surfaced so staff see *why* a row was called existing and can override.
-    """
-    idx = _supplier_index()
-    sup, ref, nm = _norm(supplier), _norm(supplier_code), _norm(name)
-
-    def _hit(row, method, conf):
-        return {"code": str(row.get("code", "")), "name": row.get("rname") or name,
-                "method": method, "confidence": conf,
-                "delivery_price": row.get("dprice")}
-
-    if sup and ref and (sup, ref) in idx["by_sup_ref"]:
-        return _hit(idx["by_sup_ref"][(sup, ref)], "code", "high")
-    if ref and ref in idx["by_ref"]:
-        return _hit(idx["by_ref"][ref], "code", "medium")
-    if sup and nm and (sup, nm) in idx["by_sup_name"]:
-        return _hit(idx["by_sup_name"][(sup, nm)], "name", "high")
-    if nm and nm in idx["by_name"]:
-        return _hit(idx["by_name"][nm], "name", "low")
-    code = (supplier_code or "").strip()
-    if code and code in _seed_by_code():
-        p = _seed_by_code()[code]
-        return {"code": p["code"], "name": p["name"], "method": "code", "confidence": "high",
-                "delivery_price": None}
-    return None
-
 
 # ------------------------------------------------------------------ schemas ---
 class DeliveryRow(BaseModel):
@@ -259,19 +132,6 @@ async def parse_delivery(
     )
 
 
-def _read_rows(raw: bytes) -> list[list]:
-    """Load the first worksheet as a list of value-rows (values-only, fast)."""
-    import openpyxl
-    wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
-    ws = wb.active
-    rows = [list(r) for r in ws.iter_rows(values_only=True)]
-    wb.close()
-    # drop fully-empty trailing rows
-    while rows and all(c is None or str(c).strip() == "" for c in rows[-1]):
-        rows.pop()
-    return rows
-
-
 # ------------------------------------------------------------------ commit → Barsy storeload ---
 _UNIT_ID = {"бр": 1, "л": 2, "кг": 3, "ч": 4, "д": 5, "км": 6, "м": 7, "мин": 8,
             "м2": 11, "м3": 16}
@@ -327,20 +187,6 @@ def _new_article_body(ln: CommitLine) -> dict:
     if ln.attributes:
         art["details"] = [{"detail_name": a.key, "detail_value": a.value} for a in ln.attributes if a.key]
     return {"article": art}
-
-
-def _resolve_supplier_id(name: str) -> int | None:
-    """Map a supplier NAME to its Barsy supplier_id (Suppliers_getlist). Exact normalised match;
-    None if not found. Called only on the live commit path."""
-    rows = barsy.call("Suppliers_getlist", {"extra_properties": ["min"]}) or []
-    target = _norm(name)
-    for r in rows:
-        if r.get("delete_flag"):
-            continue
-        if _norm(r.get("supplier_name")) == target:
-            sid = r.get("supplier_id")
-            return int(sid) if sid is not None else None
-    return None
 
 
 def _doc_num(req: CommitRequest) -> str:

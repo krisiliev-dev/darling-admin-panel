@@ -23,12 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
+from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
 from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, User
+from ..services import delivery_parse as DP
 from ..users import current_active_user, current_owner
-from . import intake_delivery as D
 
 router = APIRouter(prefix="/api/deliveries", tags=["deliveries"])
 
@@ -48,7 +49,7 @@ def _check_size(raw: bytes) -> None:
 def _rows_from_upload(filename: str, raw: bytes) -> list[list]:
     name = (filename or "").lower()
     if name.endswith((".xlsx", ".xlsm")):
-        return D._read_rows(raw)
+        return DP.read_rows(raw)
     if name.endswith(".csv"):
         text = raw.decode("utf-8-sig", errors="replace")
         # sniff delimiter (BG exports use ; or ,)
@@ -64,12 +65,12 @@ def _rows_from_upload(filename: str, raw: bytes) -> list[list]:
 def _match_row(supplier: str, code: str, name: str, qty: float, price: float, barcode: str = "") -> dict:
     """Match one raw row against the catalogue → a normalised line dict (existing vs new).
     Shared by the sheet parser, the edited-rows path and OCR."""
-    m = D._match_existing(supplier, code, name)
+    m = DP.match_existing(supplier, code, name)
     if price <= 0 and m and m.get("delivery_price"):
-        price = D._to_float(m["delivery_price"])
+        price = DP.to_float(m["delivery_price"])
     if not barcode and m:
         # a known EAN for an existing product lets the scanner confirm it even if the doc had none
-        eans = D._barcode_index()["code_to_eans"].get(m["code"]) or []
+        eans = DP.barcode_index()["code_to_eans"].get(m["code"]) or []
         barcode = eans[0] if eans else ""
     return {
         "supplier_code": code, "name": (m["name"] if m else name), "qty": qty, "price": price,
@@ -84,7 +85,7 @@ def _parse_rows(rows: list[list], supplier: str) -> list[dict]:
     if not rows:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове в таблицата.")
     header = rows[0]
-    cols = D._detect_columns(header)
+    cols = DP.detect_columns(header)
     if not cols:
         cols = {"code": 0, "name": 1, "qty": 2, "price": 3}
         data_rows = rows
@@ -99,7 +100,7 @@ def _parse_rows(rows: list[list], supplier: str) -> list[dict]:
         code = str(cell("code") or "").strip()
         if not nm and not code:
             continue
-        out.append(_match_row(supplier, code, nm, D._to_float(cell("qty")), D._to_float(cell("price"))))
+        out.append(_match_row(supplier, code, nm, DP.to_float(cell("qty")), DP.to_float(cell("price"))))
     return out
 
 
@@ -225,7 +226,7 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
         b.status = "ready"                           # release the claim so it can be retried
         await session.commit()
         return {"ready": True, "sent": False, "error": str(e)[:160]}
-    b.storeload_id = D._article_id(out)
+    b.storeload_id = extract_id(out, ("article_id", "storeload_id", "id"))
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
     await session.commit()
@@ -383,7 +384,7 @@ def _ocr_extract(image_bytes: bytes) -> tuple[list[dict], str]:
             if not cells:
                 continue
             # heuristic: first alphanumeric-ish = code, longest = name, numerics = qty/price
-            nums = [D._to_float(c) for c in cells if any(ch.isdigit() for ch in c)]
+            nums = [DP.to_float(c) for c in cells if any(ch.isdigit() for ch in c)]
             name = max(cells, key=len)
             code = next((c for c in cells if c != name and any(ch.isalnum() for ch in c)), "")
             qty = nums[0] if nums else 0.0
@@ -496,7 +497,7 @@ async def scan(
     ln = next((x for x in lines if x.barcode and x.barcode == code), None)
     # 2) resolve the EAN → our code → the line matched to that code
     if ln is None:
-        our = D._barcode_index()["ean_to_code"].get(code)
+        our = DP.barcode_index()["ean_to_code"].get(code)
         if our:
             ln = next((x for x in lines if x.match_code and x.match_code == our), None)
 
@@ -699,7 +700,7 @@ async def finalise(
     # resolve supplier_id if we only have the name, then one storeload
     if b.supplier_id is None and b.supplier.strip():
         try:
-            sid = await run_in_threadpool(D._resolve_supplier_id, b.supplier.strip())
+            sid = await run_in_threadpool(DP.resolve_supplier_id, b.supplier.strip())
             if sid:
                 b.supplier_id = sid
                 payload["store_load"]["supplier_id"] = sid
@@ -711,7 +712,7 @@ async def finalise(
         b.status = "ready"            # release the claim so it can be retried
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (доставка): {str(e)[:180]}")
-    b.storeload_id = D._article_id(out)
+    b.storeload_id = extract_id(out, ("article_id", "storeload_id", "id"))
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
     await session.commit()
