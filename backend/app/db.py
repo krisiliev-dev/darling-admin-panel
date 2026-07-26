@@ -24,6 +24,8 @@ def _lit_default(col):
     d = getattr(col.default, "arg", None)
     if d is None or callable(d):
         return None
+    if isinstance(d, bool):                 # bool is an int subclass — check first; SQLite wants 0/1
+        return "1" if d else "0"
     return repr(d) if isinstance(d, str) else str(d)
 
 

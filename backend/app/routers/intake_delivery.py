@@ -158,6 +158,7 @@ class CommitLine(BaseModel):
     category: str = ""
     brand: str = ""            # → "Марка" article detail (Barsy has no native brand field)
     original_name: str = ""    # supplier's raw row name → article alias (POS/search), create-only
+    oversell: bool = False     # orderable at <=0 stock (backorder / supplier dropship) → sale_below_zero
     description: str = ""
     attributes: list[Attribute] = []
 
@@ -182,6 +183,8 @@ def _new_article_body(ln: CommitLine) -> dict:
         "amount_type_id": _UNIT_ID.get(ln.unit, 1),
         "is_public": 1, "is_for_sale": 1,
     }
+    if ln.oversell:
+        art["sale_below_zero"] = "YES"                  # orderable at <=0 stock (backorder / dropship)
     if ln.supplier_code:
         art["ref_num"] = ln.supplier_code               # supplier catalog number — traceability (parity w/ barsy_push)
     alias = (ln.original_name or "").strip()

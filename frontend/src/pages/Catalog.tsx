@@ -207,6 +207,7 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [barcode, setBarcode] = useState('')
+  const [oversell, setOversell] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -215,7 +216,7 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
     setDetail(null); setMsg('')
     api.get<ArticleDetail>(`/api/catalog/${articleId}`).then((d) => {
       if (ignore) return
-      setDetail(d); setName(d.name); setDescription(d.description); setBarcode(d.barcode)
+      setDetail(d); setName(d.name); setDescription(d.description); setBarcode(d.barcode); setOversell(!!d.oversell)
     }).catch(() => { if (!ignore) setMsg('Грешка при зареждане.') })
     return () => { ignore = true }
   }, [articleId])
@@ -223,7 +224,7 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
   const save = async () => {
     setBusy(true); setMsg('')
     try {
-      await api.post(`/api/catalog/${articleId}`, { name, description, barcode })
+      await api.post(`/api/catalog/${articleId}`, { name, description, barcode, oversell })
       setMsg('Записано в Barsy.')
       onSaved()
     } catch (e) {
@@ -250,6 +251,10 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
           <Field label="Описание (HTML)">
             <textarea className="input-paper" rows={10} value={description} onChange={(e) => setDescription(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
           </Field>
+          <label style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', fontSize: '.82rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={oversell} onChange={(e) => setOversell(e.target.checked)} style={{ marginTop: '.2rem' }} />
+            <span>Може да се поръча и без наличност (доставка по заявка / дропшип — клиентът се уведомява за по-дълъг срок).</span>
+          </label>
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
             <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>{busy ? 'записва…' : 'Запиши в Barsy'}</button>
             {msg && <span className="font-type" style={{ fontSize: '.8rem', color: 'var(--pencil)' }}>{msg}</span>}

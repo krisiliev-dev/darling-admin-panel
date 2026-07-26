@@ -66,6 +66,12 @@ def test_new_article_body_no_alias_when_name_unchanged():
     assert "article_aliases" not in art          # identical → no redundant synonym
 
 
+def test_new_article_body_oversell_sets_sale_below_zero():
+    art = intake_delivery._new_article_body(_line(oversell=True))["article"]
+    assert art["sale_below_zero"] == "YES"
+    assert "sale_below_zero" not in intake_delivery._new_article_body(_line())["article"]
+
+
 def _upload(content: bytes, filename="dostavka.xlsx"):
     return {"file": (filename, content,
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}

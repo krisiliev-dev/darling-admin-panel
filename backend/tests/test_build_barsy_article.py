@@ -116,6 +116,17 @@ def test_no_extra_data_when_no_meta():
     assert "extra_data" not in art
 
 
+# --- oversell → sale_below_zero (backorder / supplier dropship) ---
+def test_oversell_sets_sale_below_zero_yes():
+    art = _build_barsy_article(_draft(code="C", name="N", oversell=True))["article"]
+    assert art["sale_below_zero"] == "YES"
+
+
+def test_no_sale_below_zero_when_not_oversell():
+    art = _build_barsy_article(_draft(code="C", name="N"))["article"]
+    assert "sale_below_zero" not in art          # leave Barsy's default (DEF)
+
+
 # --- G6: Shopify leaf → Barsy cat_id resolution (set in _save_to_barsy, not the pure builder) ---
 def test_resolve_cat_id_builds_gid_from_suffix(monkeypatch):
     """The picker stores the leaf SUFFIX; the checkpoint is keyed by full gid — so the suffix must be

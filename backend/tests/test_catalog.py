@@ -114,6 +114,13 @@ async def test_update_omits_optional_fields_when_blank(staff_client, barsy_recor
     assert art["article_name"] == "Само име"
     assert "description_ml" not in art
     assert "barcode" not in art
+    assert art["sale_below_zero"] == "NO"          # explicit NO by default (toggle off)
+
+
+async def test_update_sets_sale_below_zero_yes_when_oversell(staff_client, barsy_recorder):
+    r = await staff_client.post("/api/catalog/7", json={"name": "Дропшип", "oversell": True})
+    assert r.status_code == 200, r.text
+    assert barsy_recorder.body_for("Articles_update")["article"]["sale_below_zero"] == "YES"
 
 
 async def test_update_empty_name_is_400(staff_client, barsy_recorder):

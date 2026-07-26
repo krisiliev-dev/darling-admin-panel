@@ -177,6 +177,7 @@ export interface IntakeDraft {
   description: string
   meta_title?: string
   meta_description?: string
+  oversell?: boolean          // orderable at <=0 stock (backorder / supplier dropship)
   model: string
   elapsed_ms: number
   // present on persisted drafts (from /drafts, /approve)
@@ -492,6 +493,7 @@ export interface ArticleDetail {
   barcode: string
   unit: string
   category: string
+  oversell?: boolean
 }
 
 export interface StaffMember {

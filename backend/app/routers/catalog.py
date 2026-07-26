@@ -730,6 +730,7 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
         "price": a.get("actual_price"), "barcode": bc or "",
         "unit": a.get("amount_type_name_short") or "",
         "category": a.get("master_cat") or (a.get("categories_names") or ""),
+        "oversell": str(a.get("sale_below_zero") or "").upper() == "YES",
     }
 
 
@@ -737,6 +738,7 @@ class ArticleEdit(BaseModel):
     name: str
     description: str = ""
     barcode: str = ""
+    oversell: bool = False        # orderable at <=0 stock (backorder / supplier dropship)
 
 
 @router.post("/{article_id}")
@@ -756,6 +758,8 @@ async def update_article(
         article["description_ml"] = {"bg_BG": req.description}
     if req.barcode.strip():
         article["barcode"] = req.barcode.strip()  # string, not array (Barsy create/update)
+    # explicit YES/NO (not the DEF default) so the toggle can turn oversell back OFF on an edit
+    article["sale_below_zero"] = "YES" if req.oversell else "NO"
     if not barsy_write_live():
         return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
     with upstream("Barsy обновяване"):

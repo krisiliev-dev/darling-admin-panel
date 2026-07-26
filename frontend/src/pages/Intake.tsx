@@ -221,6 +221,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
           name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
           brand: d.brand || '', description: d.description || '', attributes: sized,
           meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
+          oversell: !!d.oversell,
         })
       const b = r.barsy
       if (b && !b.live) setNote(b.note || 'Записано (проба).')
@@ -275,6 +276,13 @@ function ProductEditor({ draft, onDone, onCancel }: {
           <div className="font-type" style={eyebrow}>2 · Предложения — прегледай и коригирай</div>
           <Field label="Бранд">
             <BrandPicker value={d.brand || ''} onPick={(b) => setD({ ...d, brand: b })} />
+          </Field>
+          <Field label="Наличност">
+            <label style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', fontSize: '.82rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!d.oversell}
+                onChange={(e) => setD({ ...d, oversell: e.target.checked })} style={{ marginTop: '.2rem' }} />
+              <span>Може да се поръча и без наличност (доставка по заявка / дропшип — клиентът се уведомява за по-дълъг срок).</span>
+            </label>
           </Field>
           <Field label="Категория (Shopify таксономия)">
             <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}
