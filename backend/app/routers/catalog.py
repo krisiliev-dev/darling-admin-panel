@@ -153,6 +153,44 @@ def _parse_attributes(a: dict) -> list[dict]:
     return out
 
 
+def _leaf_from_gid(gid: str) -> str:
+    """'gid://shopify/TaxonomyCategory/hg-11-2' → 'hg-11-2' (our taxonomy leaf id). '' if absent."""
+    return gid.rsplit("/", 1)[-1] if gid else ""
+
+
+def _leaf_map() -> dict:
+    """{code → Shopify taxonomy leaf id} for every ENRICHED product, built in ONE pipeline-db pass
+    so a full sync doesn't open a connection per product. Codes not yet enriched are absent (then
+    bulk-rename can't recompose a name for them — reported as skipped, not silently wrong)."""
+    out: dict = {}
+    try:
+        from ..core import db as _pdb
+        con = _pdb.connect()
+        try:
+            for code, rj in con.execute("SELECT code, record_json FROM products"):
+                try:
+                    gid = ((_json.loads(rj) or {}).get("meta") or {}).get("leaf_gid") or ""
+                except Exception:
+                    gid = ""
+                if gid:
+                    out[str(code)] = _leaf_from_gid(gid)
+        finally:
+            con.close()
+    except Exception:
+        pass
+    return out
+
+
+def _leaf_for(code: str) -> str:
+    """One product's Shopify leaf id from its enriched record (single-refresh path)."""
+    try:
+        from ..core import db as _pdb
+        rec = _pdb.get_record(code) or {}
+        return _leaf_from_gid(((rec.get("meta") or {}).get("leaf_gid")) or "")
+    except Exception:
+        return ""
+
+
 def _sync_fetch() -> list[dict]:
     """Blocking: pull ALL articles + their attributes/stock/picture from Barsy in ONE bulk call
     (extra_properties), enriching supplier from the local code map as a fallback. Paginated to keep
@@ -172,6 +210,7 @@ def _sync_fetch() -> list[dict]:
             break
         page += 1
     stock = _stock_map()
+    leaves = _leaf_map()                                 # one pass → {code: shopify leaf id}
     out = []
     for a in rows:
         aid = a.get("article_id")
@@ -184,6 +223,7 @@ def _sync_fetch() -> list[dict]:
         dml = a.get("description_ml")
         out.append({
             "article_id": aid, "code": code, "name": a.get("article_name") or "",
+            "shopify_category_id": leaves.get(code, ""),
             "barcode": (bc if isinstance(bc, str) else (bc[0] if isinstance(bc, list) and bc else "")) or "",
             "category": a.get("category_name") or a.get("category") or "",
             "supplier": sups[0] if sups else "",
@@ -209,6 +249,7 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
         p.code, p.name, p.barcode = d["code"], d["name"], d["barcode"]
         p.category, p.supplier = d["category"], d["supplier"]
         p.brand, p.desc_lc = d.get("brand", ""), str(d.get("description", "")).lower()
+        p.shopify_category_id = d.get("shopify_category_id", "") or p.shopify_category_id
         p.price, p.stock, p.min_stock, p.low = d["price"], d["stock"], d["min_stock"], d["low"]
         p.has_image = d["has_image"]
         p.attributes_json = _json.dumps(d["attributes"], ensure_ascii=False)
@@ -496,6 +537,7 @@ def _cache_fields(a: dict) -> dict:
     description = a.get("description") or (dml.get("bg_BG") if isinstance(dml, dict) else "") or ""
     return {"code": code, "name": name, "barcode": barcode,
             "category": a.get("category_name") or a.get("category") or "", "supplier": supplier,
+            "shopify_category_id": _leaf_for(code),
             "brand": brand, "desc_lc": str(description).lower(),
             "price": price, "has_image": bool(a.get("picture_url")), "attributes": attrs,
             "search_lc": f"{name} {code} {barcode} {supplier} {brand} {price_s}".lower(),
@@ -525,6 +567,7 @@ async def refresh_cache_for_code(code: str) -> bool:
         p.code, p.name, p.barcode = f["code"], f["name"], f["barcode"]
         p.category, p.supplier, p.price = f["category"], (f["supplier"] or p.supplier), f["price"]
         p.brand, p.desc_lc = f["brand"], f["desc_lc"]
+        p.shopify_category_id = f.get("shopify_category_id", "") or p.shopify_category_id
         p.has_image = f["has_image"]
         p.attributes_json = _json.dumps(f["attributes"], ensure_ascii=False)
         p.search_lc, p.attr_lc = f["search_lc"], f["attr_lc"]

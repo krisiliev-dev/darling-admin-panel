@@ -282,3 +282,27 @@ async def test_search_requires_auth(client):
 async def test_sync_requires_staff(packer_client):
     # packer is below staff — the sync (write) is gated
     assert (await packer_client.post("/api/catalog/sync")).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_sync_populates_shopify_leaf_from_pipeline(owner_client, barsy_recorder, monkeypatch):
+    """Regression: the cache sync must populate ProductCache.shopify_category_id from the enriched
+    pipeline record's leaf — without it, bulk-rename skipped EVERY product as "no category"
+    (review 2026-07-26). Here we stub the one-pass leaf map."""
+    from app.db import async_session_maker
+    from app.models import ProductCache
+    from app.routers import catalog
+    monkeypatch.setattr(catalog, "_leaf_map", lambda: {"К-9": "hg-1-15"})
+    art = {"article_id": 9, "code": "К-9", "article_name": "Стъклена купа", "actual_price": "5.00",
+           "brand": "Luminarc",
+           "article_details": [{"detail_name": "Материал", "detail_value": "стъкло"}]}
+    await _sync(owner_client, barsy_recorder, [art])
+    async with async_session_maker() as s:
+        p = await s.get(ProductCache, 9)
+        assert p is not None and p.shopify_category_id == "hg-1-15"   # leaf carried onto the cache row
+
+
+def test_leaf_from_gid_extracts_taxonomy_id():
+    from app.routers.catalog import _leaf_from_gid
+    assert _leaf_from_gid("gid://shopify/TaxonomyCategory/hg-11-2") == "hg-11-2"
+    assert _leaf_from_gid("") == ""
