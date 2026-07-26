@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
+import { clickable } from '../lib/a11y'
 import type {
   ZayavkaCard, ZayavkaProduct, ZayavkaSupplier, ZayavkaDetailResp, SupplierCatalogItem,
 } from '../lib/api'
@@ -179,7 +180,8 @@ function SupplierList({ onOpen }: { onOpen: (s: string) => void }) {
           </tr></thead>
           <tbody>
             {rows.map((s) => (
-              <tr key={s.supplier} style={{ borderBottom: '1px dashed var(--line)', cursor: 'pointer' }} onClick={() => onOpen(s.supplier)}>
+              <tr key={s.supplier} style={{ borderBottom: '1px dashed var(--line)', cursor: 'pointer' }}
+                aria-label={`Отвори ${s.supplier}`} {...clickable(() => onOpen(s.supplier))}>
                 <td style={{ padding: '.3rem', fontWeight: 700 }}>{s.supplier || '—'}</td>
                 <td style={{ padding: '.3rem', textAlign: 'right', color: 'var(--pencil)' }}>{s.catalog_count}</td>
                 <td style={{ padding: '.3rem', textAlign: 'right', color: s.items ? 'var(--ink)' : 'var(--pencil)', fontWeight: s.items ? 700 : 400 }}>{s.items || '—'}</td>

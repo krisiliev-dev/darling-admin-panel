@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useApi } from '../lib/useApi'
 import type { ProductsResponse } from '../lib/api'
 import { Loading } from './PageHeader'
+import { clickable } from '../lib/a11y'
 
 const eur = (n: number) => n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const COLS: { key: string; label: string; num?: boolean }[] = [
@@ -68,7 +69,8 @@ export function ProductExplorer({ suppliers, focusSupplier }: { suppliers: strin
             <thead>
               <tr style={{ borderBottom: '1px solid var(--line)' }}>
                 {COLS.map((c) => (
-                  <th key={c.key} onClick={() => clickSort(c.key)} style={{ ...th, textAlign: c.num ? 'right' : 'left' }} title="сортирай">
+                  <th key={c.key} {...clickable(() => clickSort(c.key))} aria-label={`Сортирай по ${c.label}`}
+                    style={{ ...th, textAlign: c.num ? 'right' : 'left' }} title="сортирай">
                     {c.label}{sort === c.key ? (order === 'asc' ? ' ▲' : ' ▼') : ''}
                   </th>
                 ))}
