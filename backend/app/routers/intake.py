@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
+from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
@@ -699,17 +700,8 @@ class PushRequest(BaseModel):
 
 
 def _extract_article_id(out):
-    """Articles_create may return a bare int OR a dict with article_id/id (mirrors
-    barsy_push.py). Returns the id, or None if the response can't be parsed."""
-    def _as_int(v):
-        if isinstance(v, int):
-            return v
-        if isinstance(v, str) and v.strip().isdigit():
-            return int(v.strip())
-        return None
-    if isinstance(out, dict):
-        return _as_int(out.get("article_id")) or _as_int(out.get("id"))
-    return _as_int(out)
+    """Articles_create may return a bare int OR a dict with article_id/id. Shared parser."""
+    return extract_id(out)
 
 
 def _extract_code(out) -> str:

@@ -29,6 +29,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
+from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
@@ -492,16 +493,5 @@ async def commit_delivery(
 
 
 def _article_id(out):
-    """Barsy create may return a bare int or a dict with id/article_id/storeload_id."""
-    if isinstance(out, int):
-        return out
-    if isinstance(out, str) and out.strip().isdigit():
-        return int(out.strip())
-    if isinstance(out, dict):
-        for k in ("article_id", "storeload_id", "id"):
-            v = out.get(k)
-            if isinstance(v, int):
-                return v
-            if isinstance(v, str) and v.strip().isdigit():
-                return int(v.strip())
-    return None
+    """Barsy create may return a bare int or a dict with id/article_id/storeload_id. Shared parser."""
+    return extract_id(out, ("article_id", "storeload_id", "id"))
