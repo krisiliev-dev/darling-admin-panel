@@ -3,7 +3,7 @@
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["darling_core/_vendor"]  # vendored snapshot mirrors agent-pipeline; not ours to lint
+extend-exclude = ["darling_core/_vendor", "migrations"]  # vendored snapshot mirrors agent-pipeline; not ours to lint
 
 [tool.ruff.lint]
 # E/W pycodestyle, F pyflakes (unused/undefined — the bug-catchers), I import order,
