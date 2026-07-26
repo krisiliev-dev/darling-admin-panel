@@ -128,7 +128,11 @@ def compute(
             "dead_pct": round(dead_value / inv_value * 100, 1) if inv_value > 0 else 0.0,
             "dead_n": len(dead_items),
             "reorder_n": len(reorder),
-            "revenue": round(total_rev, 2), "units": round(sum(x["units_sold"] for x in items), 2),
+            # units mirrors revenue: total sold in the window across ALL sales rows (incl. now
+            # sold-out SKUs), not just what's currently stocked — else the two KPIs use different
+            # populations and a SKU that sold-out drops from units but not revenue.
+            "revenue": round(total_rev, 2),
+            "units": round(sum(s["units"] for s in s_by_id.values()), 2),
             "skus": len(items),
         },
         "reorder": reorder[:top],

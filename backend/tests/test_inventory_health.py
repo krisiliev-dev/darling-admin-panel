@@ -263,6 +263,20 @@ def test_metrics_portfolio_turnover_dsi_gmroi():
     assert k["gmroi"] == pytest.approx((3650 - 1825) / 70, abs=0.05)
 
 
+def test_units_kpi_spans_all_sales_like_revenue():
+    """units KPI mirrors revenue's population — total sold in the window incl. now sold-out SKUs,
+    not just what's currently stocked (analytics-math audit 3.4). Before the fix a SKU that sold then
+    went to zero stock counted toward revenue but not units."""
+    sales = [
+        {"article_id": 1, "units": 30, "revenue": 300, "cogs": 150},   # still stocked
+        {"article_id": 9, "units": 70, "revenue": 700, "cogs": 350},   # SOLD OUT — no stock row
+    ]
+    stock = [{"article_id": 1, "stock": 5, "unit_cost": 5}]
+    k = im.compute(sales, stock, window_days=365, today=TODAY)["kpi"]
+    assert k["units"] == pytest.approx(100.0)      # 30 + 70 — the sold-out SKU is included
+    assert k["revenue"] == pytest.approx(1000.0)   # same population as units
+
+
 def test_gmroi_is_annualised_like_turnover():
     """GMROI must be on the same annual basis as turnover — the raw window margin, not annualised,
     over-/under-states GMROI by window/365 (analytics-math audit 2026-07-26)."""

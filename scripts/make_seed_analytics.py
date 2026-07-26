@@ -49,7 +49,9 @@ seed = {
     "kpi": {
         "rev": num(kpi["rev"]), "gm": kpi["gm"], "inv": num(kpi["inv"]),
         "turnover": kpi["turnover"], "gmroi": kpi["gmroi"], "dsi": kpi["dsi"],
-        "dead_val": num(kpi["dead_val"]), "dead_pct": kpi["dead_pct"], "dead_n": kpi["dead_n"],
+        # dead_n = our own recount (same stockval>0 filter as dead_total / the dead list), not the
+        # upstream KPI's black-box count — keeps the displayed count consistent with the dead basis.
+        "dead_val": num(kpi["dead_val"]), "dead_pct": kpi["dead_pct"], "dead_n": len(dead),
         "active": kpi["active"], "reorder": kpi["reorder"], "units": kpi["units"],
     },
     "rev_year": {y: num(v) for y, v in d["rev_year"].items()},

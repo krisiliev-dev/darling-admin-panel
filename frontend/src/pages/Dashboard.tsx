@@ -292,13 +292,13 @@ function LiveInventory() {
       {/* KPI tiles — turnover/DSI/GMROI show '—' until sales accrue */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9rem, 1fr))', gap: '.8rem' }}>
         <Stat label="Оборот на склада" value={num(k.turnover)} suffix={k.turnover == null ? '' : '×'} instant
-          tone={k.turnover != null && k.turnover < 2 ? 'blocked' : undefined} hint="пъти/год. (здравословно 2–6×)" />
+          tone={k.turnover != null && k.turnover < 2 ? 'blocked' : undefined} hint="спрямо текуща наличност · 2–6×/год." />
         <Stat label="Дни в склад (DSI)" value={num(k.dsi)} suffix={k.dsi == null ? '' : ' дни'} instant
           tone={k.dsi != null && k.dsi > 180 ? 'blocked' : undefined} hint="до продажба" />
         <Stat label="GMROI" value={num(k.gmroi)} instant
           tone={k.gmroi != null && k.gmroi < 1 ? 'blocked' : undefined} hint="€ марж на € в склада" />
         <Stat label="Застояла стока" value={k.dead_value} money instant tone={k.dead_n > 0 ? 'blocked' : undefined}
-          hint={`${k.dead_pct}% · ${k.dead_n} арт. без продажба`} />
+          hint={`${k.dead_pct}% от стойността · ${k.dead_n} арт. без продажба`} />
         <Stat label="Стойност склад" value={k.inv_value} money instant hint={`${k.skus} SKU`} />
         <Stat label="За поръчка" value={k.reorder_n} tone={k.reorder_n > 0 ? 'pending' : undefined}
           hint="под точката на презареждане" />
@@ -391,11 +391,11 @@ function CurrentOverview() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9rem, 1fr))', gap: '.8rem' }}>
             <Stat label="Стойност склад" value={data.kpi.inv_value} money instant hint={`${data.kpi.skus} SKU`} />
             <Stat label="Оборот на склада" value={num(data.kpi.turnover)} suffix={data.kpi.turnover == null ? '' : '×'} instant
-              tone={data.kpi.turnover != null && data.kpi.turnover < 2 ? 'blocked' : undefined} hint="пъти/год." />
+              tone={data.kpi.turnover != null && data.kpi.turnover < 2 ? 'blocked' : undefined} hint="спрямо текуща наличност · /год." />
             <Stat label="Дни в склад (DSI)" value={num(data.kpi.dsi)} suffix={data.kpi.dsi == null ? '' : ' дни'} instant
               tone={data.kpi.dsi != null && data.kpi.dsi > 180 ? 'blocked' : undefined} hint="до продажба" />
             <Stat label="Застояла стока" value={data.kpi.dead_value} money instant tone={data.kpi.dead_n > 0 ? 'blocked' : undefined}
-              hint={`${data.kpi.dead_pct}% · ${data.kpi.dead_n} арт.`} />
+              hint={`${data.kpi.dead_pct}% от стойността · ${data.kpi.dead_n} арт.`} />
             <Stat label="За поръчка" value={data.kpi.reorder_n} tone={data.kpi.reorder_n > 0 ? 'pending' : undefined}
               hint="под точката на презареждане" />
           </div>
@@ -499,7 +499,7 @@ function HistoricalDiagnosis() {
           <Stat label="GMROI" value={k.gmroi} instant
             tone={k.gmroi < 1 ? 'blocked' : undefined} hint="€ марж на € в склада (>1 добре)" />
           <Stat label="Мъртва стока" value={k.dead_val} money instant tone="blocked"
-            hint={`${k.dead_pct}% от склада · ${k.dead_n} арт.`} />
+            hint={`${k.dead_pct}% от стойността · ${k.dead_n} арт.`} />
           <Stat label="Стойност склад" value={k.inv} money instant hint="по доставна цена" />
           <Stat label="Активни SKU" value={k.active} instant hint={`${k.reorder} за поръчка`} />
         </div>
@@ -509,7 +509,8 @@ function HistoricalDiagnosis() {
       <Sheet tilt="l">
         <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Тенденция по месеци</h3>
         <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .6rem' }}>
-          приход, себестойност и покупки — виждат се презапасяванията (покупки над приход)
+          приход, себестойност и покупки по месеци — виждат се презапасяванията (покупки над приход).
+          Месечните суми са по документи и може да се различават леко от годишните/по-артикул справки.
         </p>
         <Line
           data={{
