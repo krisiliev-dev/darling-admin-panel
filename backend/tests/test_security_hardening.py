@@ -32,6 +32,27 @@ async def test_self_service_can_still_edit_full_name(packer_client):
     assert r.json()["role"] == "packer"  # editing profile doesn't touch privilege
 
 
+# --- H-3: the superuser CRUD-by-id user routes are unmounted (no manager→owner takeover) ---
+async def test_admin_user_crud_by_id_routes_are_unmounted(owner_client):
+    """The FastAPI-Users superuser CRUD-by-id routes (/api/users/{id} GET/PATCH/DELETE) are dropped.
+    Because Barsy MANAGERS are is_superuser=True, those routes let a manager PATCH the break-glass
+    owner's credentials. Removing them applies to EVERY superuser, so even the owner (also a
+    superuser) now gets 404 by-id — proving the surface is gone — while self-service /me still works."""
+    me = await owner_client.get("/api/users/me")
+    assert me.status_code == 200
+    uid = me.json()["id"]
+
+    # by-id routes must no longer exist → 404 (route removed), never 200
+    r = await owner_client.patch(f"/api/users/{uid}", json={"password": "hijacked-pw-123456"})
+    assert r.status_code == 404, r.text
+    r = await owner_client.get(f"/api/users/{uid}")
+    assert r.status_code == 404, r.text
+    r = await owner_client.delete(f"/api/users/{uid}")
+    assert r.status_code == 404, r.text
+    # self-service /me is unaffected
+    assert (await owner_client.get("/api/users/me")).status_code == 200
+
+
 # --- H-2: X-Forwarded-For must not be trusted by default ----------------------------
 def _fake_request(xff=None, host="203.0.113.9"):
     headers = {}

@@ -75,9 +75,13 @@ async def _audit_mutations(request, call_next):
 # --- auth: cookie login/logout, current-user, first-run setup ------------------------
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"])
-app.include_router(
-    fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="/api/users", tags=["users"])  # owner-only CRUD (superuser-guarded)
+# Self-service /me only. We DROP the FastAPI-Users superuser CRUD-by-id routes (/{id} GET/PATCH/
+# DELETE): the panel UI never uses them, and because Barsy MANAGERS are is_superuser=True they were
+# an escalation surface — a manager could PATCH the break-glass owner's credentials and take over.
+# Staff accounts are managed via auth_extra → Barsy, not this router.
+_users_router = fastapi_users.get_users_router(UserRead, UserUpdate)
+_users_router.routes = [r for r in _users_router.routes if "{id}" not in getattr(r, "path", "")]
+app.include_router(_users_router, prefix="/api/users", tags=["users"])
 # NOTE: the built-in open register router is deliberately NOT mounted — staff accounts
 # are created only by the owner, via auth_extra's guarded endpoint.
 app.include_router(auth_extra.router)
