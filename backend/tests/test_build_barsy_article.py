@@ -7,7 +7,7 @@ so a regression here would silently corrupt every product pushed to the ERP.
 import json
 
 from app.models import IntakeDraft
-from app.routers.intake import _build_barsy_article
+from app.routers.intake import _build_barsy_article, _resolve_cat_id
 
 
 def _draft(**kw) -> IntakeDraft:
@@ -114,3 +114,59 @@ def test_seo_meta_written_to_extra_data():
 def test_no_extra_data_when_no_meta():
     art = _build_barsy_article(_draft(code="C", name="N"))["article"]
     assert "extra_data" not in art
+
+
+# --- G6: Shopify leaf → Barsy cat_id resolution (set in _save_to_barsy, not the pure builder) ---
+def test_resolve_cat_id_builds_gid_from_suffix(monkeypatch):
+    """The picker stores the leaf SUFFIX; the checkpoint is keyed by full gid — so the suffix must be
+    expanded to gid://shopify/TaxonomyCategory/<suffix> before lookup."""
+    import barsy_push as bp
+    seen = {}
+
+    def fake(meta, ensure=False):
+        seen["gid"] = meta["leaf_gid"]
+        return 3803
+
+    monkeypatch.setattr(bp, "_cat_id_for", fake)
+    assert _resolve_cat_id("hg-1-2") == 3803
+    assert seen["gid"] == "gid://shopify/TaxonomyCategory/hg-1-2"
+
+
+def test_resolve_cat_id_passes_full_gid_through(monkeypatch):
+    import barsy_push as bp
+    got = {}
+
+    def fake(meta, ensure=False):
+        got["gid"] = meta["leaf_gid"]
+        return 7
+
+    monkeypatch.setattr(bp, "_cat_id_for", fake)
+    _resolve_cat_id("gid://shopify/TaxonomyCategory/ap")
+    assert got["gid"] == "gid://shopify/TaxonomyCategory/ap"
+
+
+def test_resolve_cat_id_is_read_only(monkeypatch):
+    """A product save must never create categories as a side effect (ensure must be False)."""
+    import barsy_push as bp
+    calls = {}
+
+    def fake(meta, ensure=False):
+        calls["ensure"] = ensure
+        return 1
+
+    monkeypatch.setattr(bp, "_cat_id_for", fake)
+    _resolve_cat_id("ap")
+    assert calls["ensure"] is False
+
+
+def test_resolve_cat_id_empty_is_none():
+    assert _resolve_cat_id("") is None
+    assert _resolve_cat_id("   ") is None
+
+
+def test_resolve_cat_id_never_raises(monkeypatch):
+    import barsy_push as bp
+    def boom(*a, **k):
+        raise RuntimeError("checkpoint missing")
+    monkeypatch.setattr(bp, "_cat_id_for", boom)
+    assert _resolve_cat_id("ap") is None          # unknown/absent → uncategorised, not an error

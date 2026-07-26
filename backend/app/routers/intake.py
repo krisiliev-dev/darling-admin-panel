@@ -412,6 +412,10 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
                 "note": "Проба — не е записано в Barsy (ще се активира при пускане)."}
     from sqlalchemy import update as _sa_update
     art_body = _build_barsy_article(d)                       # {"article": {...}}
+    cat_id = await run_in_threadpool(_resolve_cat_id, d.shopify_category_id)  # Shopify leaf → Barsy cat
+    if cat_id:
+        art_body["article"]["cat_id"] = cat_id
+        art_body["article"]["master_cat_id"] = cat_id
     if d.barsy_article_id and d.barsy_article_id > 0:        # re-edit → update + upload any new images
         try:
             await run_in_threadpool(barsy.call, "Articles_update",
@@ -666,8 +670,9 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
     }
     if d.code:
         art["code"] = d.code
-    # NOTE: shopify_category_id is NOT sent to Barsy (unknown field) — it rides to Shopify via the
-    # connector/metafields at mirror time; it's persisted on the draft.
+    # NOTE: shopify_category_id (the leaf) isn't a native article field — it's resolved to Barsy
+    # cat_id/master_cat_id in _save_to_barsy (the I/O path) so this builder stays pure, and it also
+    # rides to Shopify via the connector/metafields at mirror time.
     if d.description:
         art["description_ml"] = {"bg_BG": d.description}
     if d.barcode:
@@ -702,6 +707,24 @@ class PushRequest(BaseModel):
 def _extract_article_id(out):
     """Articles_create may return a bare int OR a dict with article_id/id. Shared parser."""
     return extract_id(out)
+
+
+def _resolve_cat_id(shopify_category_id: str):
+    """Barsy cat_id for a product's Shopify taxonomy leaf, mirroring barsy_push so panel- and
+    pipeline-created products categorise identically (Barsy audit G6). The picker stores the leaf
+    SUFFIX (e.g. 'hg-1-2'); the taxonomy checkpoint is keyed by full gid. READ-ONLY — the full
+    category tree is built ahead of launch by the taxonomy job, so we only look it up here, never
+    create categories as a side effect of a product save. Returns None (→ leave uncategorised, exactly
+    today's behaviour) when the checkpoint is absent (e.g. CI) or the leaf is unknown — never raises."""
+    sid = (shopify_category_id or "").strip()
+    if not sid:
+        return None
+    gid = sid if sid.startswith("gid://") else f"gid://shopify/TaxonomyCategory/{sid}"
+    try:
+        import barsy_push as bp  # vendored; reads barsy_cat_map.json (prod) or {} (CI)
+        return bp._cat_id_for({"leaf_gid": gid}, ensure=False)
+    except Exception:
+        return None
 
 
 def _extract_code(out) -> str:

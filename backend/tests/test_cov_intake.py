@@ -177,3 +177,36 @@ async def test_save_to_barsy_creates_once_and_claims(make_draft, monkeypatch, mo
         res = await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
     assert res["created"] is True and res["article_id"] == 12345       # mock_barsy returns 12345
     assert [op for op, _ in mock_barsy].count("Articles_create") == 1  # created exactly once
+
+
+# --- G6: a resolved Shopify leaf sets cat_id/master_cat_id on the Barsy create body ---
+async def test_save_to_barsy_sets_category_from_leaf(make_draft, monkeypatch, mock_barsy):
+    from types import SimpleNamespace
+
+    import app.routers.intake as intake
+    from app.db import async_session_maker
+    from app.models import IntakeDraft
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "_resolve_cat_id", lambda sid: 3803 if sid else None)
+    did = await make_draft(code="Z", name="С категория", status="approved", shopify_category_id="hg-1-2")
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
+    body = next(b for op, b in mock_barsy if op == "Articles_create")["article"]
+    assert body["cat_id"] == 3803 and body["master_cat_id"] == 3803
+
+
+async def test_save_to_barsy_omits_category_when_unresolved(make_draft, monkeypatch, mock_barsy):
+    from types import SimpleNamespace
+
+    import app.routers.intake as intake
+    from app.db import async_session_maker
+    from app.models import IntakeDraft
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    monkeypatch.setattr(intake, "_resolve_cat_id", lambda sid: None)   # unknown leaf / absent checkpoint
+    did = await make_draft(code="Z2", name="Без категория", status="approved", shopify_category_id="zzz")
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
+    body = next(b for op, b in mock_barsy if op == "Articles_create")["article"]
+    assert "cat_id" not in body and "master_cat_id" not in body       # uncategorised, not junk
