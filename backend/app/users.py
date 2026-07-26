@@ -39,6 +39,17 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         if user.role == "owner" and not user.is_superuser:
             await self.user_db.update(user, {"is_superuser": True})
 
+    async def on_after_login(self, user: User, request=None, response=None):
+        # audit WHO logged in — the login request carries no cookie yet, so the middleware can't
+        # attribute it; this captures the identity. (Failed logins are logged by the middleware.)
+        from .audit import log_action
+        from .db import async_session_maker
+        try:
+            async with async_session_maker() as s:
+                await log_action(s, user, "auth.login", target=user.email)
+        except Exception:
+            pass
+
 
 async def get_user_manager(
     user_db: SQLAlchemyUserDatabase = Depends(get_user_db),

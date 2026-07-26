@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { api, ApiError } from '../lib/api'
-import type { AssistantBackend, AuditEntry, CourierReadiness, StaffMember } from '../lib/api'
+import type { AssistantBackend, CourierReadiness, StaffMember } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { CourierBadge } from '../components/CourierBadge'
+import { Logs } from './Logs'
 
 interface BarsyRole { role_id: number; role_name: string; weight: number | null; privileged?: boolean }
 
-// Настройки — staff (from Barsy), the panel audit trail, and system status. Owner/manager only.
+// Настройки — staff (from Barsy), system status, GDPR, and the full audit trail (Дневник tab).
+// Owner/manager only.
 export function Settings() {
   const { me } = useAuth()
+  const [tab, setTab] = useState<'main' | 'logs'>('main')
   const { data: staff, reload: reloadStaff } = useApi<{ staff: StaffMember[] }>('/api/admin/staff')
   const { data: roles } = useApi<{ roles: BarsyRole[] }>('/api/admin/roles')
   // managers may create only non-privileged roles; the owner sees all (backend enforces too)
@@ -21,8 +24,19 @@ export function Settings() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Настройки" subtitle="екип, дневник и състояние" />
+      <PageHeader title="Настройки" subtitle="екип, състояние и дневник" right={
+        <div style={{ display: 'flex', gap: '.3rem' }}>
+          {([['main', 'Настройки'], ['logs', 'Дневник']] as ['main' | 'logs', string][]).map(([k, l]) => (
+            <button key={k} className="font-type" onClick={() => setTab(k)} style={{
+              padding: '.3rem .7rem', fontSize: '.72rem', cursor: 'pointer', borderRadius: 2,
+              border: '1px solid var(--line)', background: tab === k ? 'var(--red)' : 'var(--paper2)',
+              color: tab === k ? '#fff' : 'var(--pencil)',
+            }}>{l}</button>
+          ))}
+        </div>
+      } />
 
+      {tab === 'logs' ? <Logs embedded /> : <>
       <Sheet clip="left" tilt="l">
         <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Екип (Barsy)</h3>
         {!staff ? <Loading /> : (
@@ -79,7 +93,7 @@ export function Settings() {
       </div>
 
       <GdprPanel />
-      <AuditPanel />
+      </>}
     </div>
   )
 }
@@ -181,24 +195,3 @@ function NewStaffForm({ roles, onCreated }: { roles: BarsyRole[]; onCreated: () 
   )
 }
 
-function AuditPanel() {
-  const { data: audit } = useApi<{ entries: AuditEntry[] }>('/api/admin/audit')
-  return (
-      <Sheet clip="right">
-        <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Дневник (одит)</h3>
-        {!audit ? <Loading /> : audit.entries.length === 0 ? (
-          <p className="pencil" style={{ fontSize: '.82rem' }}>Няма записи още.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: '.2rem', maxHeight: '22rem', overflowY: 'auto' }}>
-            {audit.entries.map((e, i) => (
-              <div key={i} className="font-type" style={{ display: 'grid', gridTemplateColumns: '9rem 1fr 1.4fr', gap: '.5rem', fontSize: '.72rem', padding: '.2rem 0', borderBottom: '1px dashed var(--line)' }}>
-                <span style={{ color: 'var(--pencil)' }}>{e.ts.replace('T', ' ').slice(0, 19)}</span>
-                <span style={{ color: 'var(--red)' }}>{e.action}</span>
-                <span>{[e.actor, e.target, e.detail].filter(Boolean).join(' · ')}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Sheet>
-  )
-}

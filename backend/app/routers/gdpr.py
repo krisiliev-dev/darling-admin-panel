@@ -29,6 +29,8 @@ async def lookup(
     ph = nekorekten.normalize_phone(phone)
     rows = (await session.execute(
         select(OrderOutcome).where(OrderOutcome.phone_norm == ph).order_by(OrderOutcome.id.desc()))).scalars().all()
+    # a READ of personal data — audit it (GDPR: access to PII must be traceable)
+    await log_action(session, actor, "gdpr.lookup", target=ph, detail=f"count={len(rows)}")
     return {
         "phone": ph,
         "outcomes": [{

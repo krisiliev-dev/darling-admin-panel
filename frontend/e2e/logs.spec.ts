@@ -4,6 +4,10 @@ import { mockApi } from './helpers'
 test.describe('Дневник — audit trail', () => {
   test('renders the log with filters', async ({ page }) => {
     await mockApi(page, {
+      '/api/admin/staff': { staff: [] },
+      '/api/admin/roles': { roles: [] },
+      '/api/orders/couriers': { couriers: [] },
+      '/api/assistant/backends': { backends: [] },
       '/api/logs/actions': { actions: ['brand.add', 'http:POST', 'intake.approve'] },
       '/api/logs': {
         total: 2, page: 1, per_page: 100, items: [
@@ -12,8 +16,8 @@ test.describe('Дневник — audit trail', () => {
         ],
       },
     })
-    await page.goto('/logs')
-    await expect(page.getByText(/одитна следа/)).toBeVisible()   // the page subtitle (unique)
+    await page.goto('/settings')          // the audit trail lives under Настройки → Дневник
+    await page.getByRole('button', { name: 'Дневник' }).click()
     await expect(page.getByRole('cell', { name: 'brand.add' })).toBeVisible()
     await expect(page.getByRole('cell', { name: 'http:POST' })).toBeVisible()
     await expect(page.getByRole('cell', { name: '/api/brands' })).toBeVisible()

@@ -8,7 +8,7 @@ import { PageHeader, Loading } from '../components/PageHeader'
 interface LogRow { id: number; ts: string; actor: string; action: string; target: string; detail: string }
 const PER = 100
 
-export function Logs() {
+export function Logs({ embedded = false }: { embedded?: boolean } = {}) {
   const [actions, setActions] = useState<string[]>([])
   const [actor, setActor] = useState('')
   const [action, setAction] = useState('')
@@ -46,7 +46,7 @@ export function Logs() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Дневник" subtitle="одитна следа — кой какво е правил в панела" />
+      {!embedded && <PageHeader title="Дневник" subtitle="одитна следа — кой какво е правил в панела" />}
       <Sheet clip="left">
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.6rem' }}>
           <input className="input-paper" style={{ width: '12rem' }} placeholder="потребител (имейл)…" value={actor} onChange={(e) => setActor(e.target.value)} />

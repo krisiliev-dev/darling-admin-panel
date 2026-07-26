@@ -413,6 +413,7 @@ async def export_zayavka(zid: int, fmt: str = Query("xlsx"),
     build, ctype, ext = _EXPORTERS[fmt]
     data = build(z, await _lines(session, zid))
     fname = f"zayavka-{zid}.{ext}"   # ASCII only — HTTP headers can't carry Cyrillic
+    await log_action(session, user, "zayavki.export", target=f"zayavka-{zid}", detail=fmt)  # data leaving → audit
     return StreamingResponse(io.BytesIO(data), media_type=ctype,
                              headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
