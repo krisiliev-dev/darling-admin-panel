@@ -163,11 +163,17 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         aid = b.call("Clientorders_create", {"client_order": account, "rows": rows})
         _record_order(oid, aid, len(rows), "clientorder")
         return {**plan, "clientorder_id": aid, "written": True}
-    payments = [{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
-                 "transaction_id": oid, "description": "Shopify (collected online)"}]
+    # Only record a payment that Shopify actually COLLECTED. A COD order arrives with
+    # financial_status='pending' (cash collected on delivery, reconciled via the panel's COD
+    # flow) — booking its total as "collected online" here would double-count the cash in Barsy's
+    # ledger. So attach the online payment only for a genuinely paid (prepaid) order.
+    paid_online = str(order.get("financial_status") or "").lower() == "paid"
+    payments = ([{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
+                  "transaction_id": oid, "description": "Shopify (collected online)"}]
+                if paid_online else [])
     aid = b.call("Accounts_place", {"account": account, "orders": rows, "payments": payments})
     _record_order(oid, aid, len(rows), "sale")
-    return {**plan, "account_id": aid, "written": True}
+    return {**plan, "account_id": aid, "paid_online": paid_online, "written": True}
 
 
 def shopify_order_cancellation_to_barsy(order, do_write=False):
