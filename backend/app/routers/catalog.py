@@ -480,18 +480,24 @@ async def create_promo(req: PromoRequest, actor: User = Depends(current_owner),
         "modificator_round_type": 0, "price_change_groups": [1], "total_period": "current",
         "price_type": 1,
     }
-    # 1) create the rule, then resolve its id
+    # 1) create the rule, then resolve its id. Pricelists_edit(save) doesn't return the new id on this
+    #    install, so we snapshot the existing pricelist ids BEFORE the save and pick the row that
+    #    appeared AFTER — unambiguous even if a promo with the same name already exists (a plain
+    #    name-scan can't tell an old same-named promo from the new one). active_struct_id is a string
+    #    here though edit.rst types it int — install-specific, verified in the live pilot.
+    def _pricelist_rows():
+        idx = barsy.call("Pricelists_index", {"action_type": "values"}) or {}
+        return (idx.get("rows", idx) if isinstance(idx, dict) else idx) or []
     try:
+        before_ids = {r.get("pricelist_id") for r in await run_in_threadpool(_pricelist_rows)}
         await run_in_threadpool(barsy.call, "Pricelists_edit",
                                 {"action_type": "save", "active_struct_id": "eStructForm_1", "values": values})
-        idx = await run_in_threadpool(barsy.call, "Pricelists_index", {"action_type": "values"}) or {}
-        rows = idx.get("rows", idx) if isinstance(idx, dict) else idx
         pid = None
-        for r in (rows or []):
+        for r in await run_in_threadpool(_pricelist_rows):
+            rid = r.get("pricelist_id")
+            if rid is None or rid in before_ids:      # only rows that did NOT exist before the save
+                continue
             if str(r.get("pricelist_name")) == req.name.strip():
-                rid = r.get("pricelist_id")
-                if rid is None:                       # guard: max(pid, None) would TypeError
-                    continue
                 pid = rid if pid is None else max(pid, rid)
         if pid is None:
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Промоцията е създадена, но ID не се разчете — провери в Barsy.")

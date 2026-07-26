@@ -206,7 +206,14 @@ async def test_promo_creates_pricelist_and_attaches(owner_client, barsy_recorder
         {"article_id": 2, "code": "B", "article_name": "Две", "actual_price": "20"},
     ])
     barsy_recorder.set_return("Pricelists_edit", 1)
-    barsy_recorder.set_return("Pricelists_index", {"rows": [{"pricelist_id": 42, "pricelist_name": "Коледа"}]})
+    # the id is resolved by diffing the pricelist index before vs after the save: empty before,
+    # the new promo (42) after — so it's picked as the genuinely-new row.
+    idx_calls = {"n": 0}
+
+    def _idx(_body):
+        idx_calls["n"] += 1
+        return {"rows": []} if idx_calls["n"] == 1 else {"rows": [{"pricelist_id": 42, "pricelist_name": "Коледа"}]}
+    barsy_recorder.set_return("Pricelists_index", _idx)
     barsy_recorder.set_return("Pricelists_save_articles", 1)
     # preview
     prev = (await owner_client.post("/api/catalog/promo", json={
@@ -223,6 +230,29 @@ async def test_promo_creates_pricelist_and_attaches(owner_client, barsy_recorder
     assert body["values"]["modificator_type"] == 2 and body["values"]["periods_date"] == "15.12-31.12"
     attach = barsy_recorder.body_for("Pricelists_save_articles")
     assert {row["article_id"] for row in attach["rows"]} == {1, 2}
+
+
+@pytest.mark.asyncio
+async def test_promo_id_resolves_new_row_when_name_duplicated(owner_client, barsy_recorder):
+    """G7: an OLD promo with the same name already exists — the id must resolve to the NEW row
+    (99), not the pre-existing 42, via the before/after index diff."""
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10"}])
+    barsy_recorder.set_return("Pricelists_edit", 1)
+    barsy_recorder.set_return("Pricelists_save_articles", 1)
+    old = {"pricelist_id": 42, "pricelist_name": "Коледа"}
+    new = {"pricelist_id": 99, "pricelist_name": "Коледа"}
+    idx_calls = {"n": 0}
+
+    def _idx(_body):
+        idx_calls["n"] += 1
+        return {"rows": [old]} if idx_calls["n"] == 1 else {"rows": [old, new]}   # 99 appeared after save
+    barsy_recorder.set_return("Pricelists_index", _idx)
+    r = (await owner_client.post("/api/catalog/promo", json={
+        "article_ids": [1], "name": "Коледа", "mode": "discount_pct", "value": 20,
+        "date_from": "2026-12-15", "date_to": "2026-12-31", "confirm": True})).json()
+    assert r["pricelist_id"] == 99                       # the freshly-created row, not the old 42
+    assert barsy_recorder.body_for("Pricelists_save_articles")["id"] == 99
 
 
 @pytest.mark.asyncio
