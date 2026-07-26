@@ -409,8 +409,9 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     if not getattr(get_settings(), "delivery_barsy_live", False):
         return {"live": False, "created": False,
                 "note": "Проба — не е записано в Barsy (ще се активира при пускане)."}
+    from sqlalchemy import update as _sa_update
     art_body = _build_barsy_article(d)                       # {"article": {...}}
-    if d.barsy_article_id:                                    # re-edit → update + upload any new images
+    if d.barsy_article_id and d.barsy_article_id > 0:        # re-edit → update + upload any new images
         try:
             await run_in_threadpool(barsy.call, "Articles_update",
                                     {"article_id": d.barsy_article_id, "article": art_body["article"]})
@@ -418,12 +419,28 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
             return {"live": True, "created": True, "error": f"Barsy update: {str(e)[:140]}"}
         up = await _upload_pending_images(session, d.id, d.barsy_article_id)
         return {"live": True, "created": True, "article_id": d.barsy_article_id, "images_uploaded": up}
-    try:                                                     # first save → create the article
+    # First save → CREATE. Atomic claim first: flip barsy_article_id NULL → -1 (a "creating"
+    # sentinel) in ONE conditional UPDATE. If it changes 0 rows, a concurrent save already claimed it
+    # → don't create a duplicate article in Barsy. (A double-submit is otherwise a duplicate product.)
+    claim = await session.execute(
+        _sa_update(IntakeDraft)
+        .where(IntakeDraft.id == d.id, IntakeDraft.barsy_article_id.is_(None))
+        .values(barsy_article_id=-1))
+    await session.commit()
+    if claim.rowcount == 0:
+        return {"live": True, "created": False,
+                "error": "Друга заявка вече създава този продукт в Barsy."}
+    d.barsy_article_id = -1
+    try:                                                     # holder of the claim creates the article
         out = await run_in_threadpool(barsy.call, "Articles_create", art_body)
     except Exception as e:
+        d.barsy_article_id = None                            # release the claim → retriable
+        await session.commit()
         return {"live": True, "created": False, "error": f"Barsy create: {str(e)[:140]}"}
     aid = _extract_article_id(out)
     if aid is None:
+        d.barsy_article_id = None                            # release the claim → retriable
+        await session.commit()
         return {"live": True, "created": False, "error": "Barsy не върна article_id."}
     d.barsy_article_id = aid
     d.code = d.code or _extract_code(out)          # Barsy assigns + returns the SKU

@@ -145,3 +145,35 @@ async def test_drafts_empty_then_populated(owner_client, make_draft):
 async def test_drafts_requires_auth(client):
     r = await client.get("/api/intake/drafts")
     assert r.status_code == 401
+
+
+# --- _save_to_barsy atomic claim: a double-submit must not create two Barsy articles ---
+async def test_save_to_barsy_claim_blocks_concurrent_create(make_draft, monkeypatch, mock_barsy):
+    from types import SimpleNamespace
+
+    import app.routers.intake as intake
+    from app.db import async_session_maker
+    from app.models import IntakeDraft
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    # a draft mid-creation: barsy_article_id = -1 (the claim sentinel a concurrent save holds)
+    did = await make_draft(code="X", name="Дубликат", barsy_article_id=-1, status="approved")
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        res = await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
+    assert res["created"] is False and "вече създава" in res["error"]
+    assert "Articles_create" not in [op for op, _ in mock_barsy]   # no duplicate create
+
+
+async def test_save_to_barsy_creates_once_and_claims(make_draft, monkeypatch, mock_barsy):
+    from types import SimpleNamespace
+
+    import app.routers.intake as intake
+    from app.db import async_session_maker
+    from app.models import IntakeDraft
+    monkeypatch.setattr(intake, "get_settings", lambda: SimpleNamespace(delivery_barsy_live=True))
+    did = await make_draft(code="Y", name="Нов", status="approved")     # barsy_article_id NULL
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        res = await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
+    assert res["created"] is True and res["article_id"] == 12345       # mock_barsy returns 12345
+    assert [op for op, _ in mock_barsy].count("Articles_create") == 1  # created exactly once
