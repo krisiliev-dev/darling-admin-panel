@@ -125,6 +125,28 @@ async def test_supplier_prefs_persist_and_flag_below_min(owner_client):
 
 
 @pytest.mark.asyncio
+async def test_supplier_website_normalised_and_history(owner_client):
+    # a bare domain is normalised to https://; a non-http scheme is rejected to ""
+    r = await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}",
+                                 json={"website": "anis.bg", "phone": "0888 123 456"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["website"] == "https://anis.bg" and body["phone"] == "0888 123 456"
+    bad = await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}",
+                                   json={"website": "javascript:alert(1)"})
+    assert bad.json()["website"] == ""
+    # the website surfaces on the suppliers list
+    r2 = await owner_client.patch(f"/api/zayavki/supplier-prefs/{SUP}", json={"website": "https://anis.bg"})
+    row = next(s for s in (await owner_client.get("/api/zayavki/suppliers")).json()["suppliers"]
+               if s["supplier"] == SUP)
+    assert row["website"] == "https://anis.bg"
+    # history endpoint responds with a (possibly empty) list for the supplier
+    h = await owner_client.get(f"/api/zayavki/supplier/{SUP}/history")
+    assert h.status_code == 200, h.text
+    assert h.json()["supplier"] == SUP and isinstance(h.json()["zayavki"], list)
+
+
+@pytest.mark.asyncio
 async def test_no_supplier_nudge(owner_client):
     r = await owner_client.get("/api/zayavki/no-supplier")
     assert r.status_code == 200, r.text

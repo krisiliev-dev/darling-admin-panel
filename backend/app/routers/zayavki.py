@@ -14,6 +14,7 @@ import csv
 import io
 import json
 import os
+import re
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -179,6 +180,7 @@ async def suppliers(user: User = Depends(current_active_user),
                     "last_sent": sent.get(sup).isoformat() if sent.get(sup) else None,
                     "email": pref.email if pref else "", "min_order": min_order,
                     "lead_days": pref.lead_days if pref else 0,
+                    "website": pref.website if pref else "", "phone": pref.phone if pref else "",
                     "below_min": bool(min_order and total and total < min_order)})
     out.sort(key=lambda s: (-s["items"], -s["catalog_count"]))
     return {"suppliers": out}
@@ -188,13 +190,31 @@ class PrefPatch(BaseModel):
     email: str | None = None
     min_order: float | None = None
     lead_days: int | None = None
+    website: str | None = None
+    phone: str | None = None
     notes: str | None = None
+
+
+def _norm_url(u: str) -> str:
+    """Normalise a supplier website to an http(s) URL, or "" if it can't be. Guards the
+    open-in-new-tab button against javascript:/file:/other schemes."""
+    u = (u or "").strip()
+    if not u:
+        return ""
+    low = u.lower()
+    if low.startswith(("http://", "https://")):
+        return u
+    # any explicit scheme (scheme:… — incl. javascript:, file:, data:) is rejected; only bare
+    # host/path input gets an https:// prefix
+    if re.match(r"^[a-z][a-z0-9+.\-]*:", low):
+        return ""
+    return "https://" + u
 
 
 @router.patch("/supplier-prefs/{supplier}")
 async def set_pref(supplier: str, req: PrefPatch, actor: User = Depends(current_active_user),
                    session: AsyncSession = Depends(get_async_session)):
-    """Persist a supplier's email / minimum-order / lead time (survives across заявки)."""
+    """Persist a supplier's email / minimum-order / lead time / website / phone (survives across заявки)."""
     p = await session.get(SupplierPref, supplier)
     if not p:
         p = SupplierPref(supplier=supplier)
@@ -205,11 +225,32 @@ async def set_pref(supplier: str, req: PrefPatch, actor: User = Depends(current_
         p.min_order = max(0.0, req.min_order)
     if req.lead_days is not None:
         p.lead_days = max(0, req.lead_days)
+    if req.website is not None:
+        p.website = _norm_url(req.website)
+    if req.phone is not None:
+        p.phone = req.phone.strip()[:64]
     if req.notes is not None:
         p.notes = req.notes
     await session.commit()
     return {"supplier": supplier, "email": p.email, "min_order": p.min_order,
-            "lead_days": p.lead_days, "notes": p.notes}
+            "lead_days": p.lead_days, "website": p.website, "phone": p.phone, "notes": p.notes}
+
+
+@router.get("/supplier/{supplier}/history")
+async def supplier_history(supplier: str, user: User = Depends(current_active_user),
+                           session: AsyncSession = Depends(get_async_session)):
+    """Previous (sent) заявки for one supplier — for the detail view's „предишни заявки“ button."""
+    rows = (await session.execute(
+        select(Zayavka).where(Zayavka.supplier == supplier, Zayavka.status == "sent")
+        .order_by(Zayavka.sent_at.desc()).limit(50))).scalars().all()
+    out = []
+    for z in rows:
+        lines = await _lines(session, z.id)
+        out.append({"id": z.id, "items": len(lines),
+                    "total": round(sum(ln.qty * ln.delivery_price for ln in lines), 2),
+                    "sent_at": z.sent_at.isoformat() if z.sent_at else None,
+                    "sent_via": z.sent_via or ""})
+    return {"supplier": supplier, "zayavki": out}
 
 
 @router.get("/supplier/{supplier}/catalog")

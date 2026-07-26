@@ -238,6 +238,7 @@ function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => v
           <span className="font-type" style={{ fontSize: '.85rem' }}>{z.items} артикула · <b>{eur(z.total)}</b>
             {z.status === 'sent' && <span style={{ color: 'var(--ready)', marginLeft: '.5rem' }}>· изпратена</span>}</span>
         </div>
+        <SupplierDetailBar supplier={supplier} pref={pref} />
       </Sheet>
 
       <SupplierSearch supplier={supplier} onAdd={(p) => add({ code: p.code, name: p.name, suppliers: [supplier] }, 1, supplier)} />
@@ -276,6 +277,78 @@ function ZayavkaDetail({ supplier, onBack }: { supplier: string; onBack: () => v
 
       {z.id > 0 && z.lines.length > 0 && <SendPanel z={z} pref={pref} onSent={() => void load()} />}
       {dialog}
+    </div>
+  )
+}
+
+// Quick supplier context inside the заявка: contact shortcuts (website / phone / email) and a
+// „предишни заявки“ toggle that lists past sent orders to this supplier.
+function SupplierDetailBar({ supplier, pref }: { supplier: string; pref: ZayavkaSupplier | null }) {
+  const [showHist, setShowHist] = useState(false)
+  const [hist, setHist] = useState<{ id: number; items: number; total: number; sent_at: string | null; sent_via: string }[] | null>(null)
+  const [edit, setEdit] = useState(false)
+  const [website, setWebsite] = useState(pref?.website || '')
+  const [phone, setPhone] = useState(pref?.phone || '')
+  const [saved, setSaved] = useState<{ website: string; phone: string }>({ website: pref?.website || '', phone: pref?.phone || '' })
+  const email = pref?.email || ''
+
+  const saveContacts = async () => {
+    try {
+      const r = await api.patch<{ website: string; phone: string }>(
+        `/api/zayavki/supplier-prefs/${encodeURIComponent(supplier)}`, { website, phone })
+      setSaved({ website: r.website, phone: r.phone })
+      setWebsite(r.website); setPhone(r.phone)   // reflect server normalisation (e.g. https:// prefix)
+      setEdit(false)
+    } catch { /* keep the form open on error */ }
+  }
+
+  const toggleHist = async () => {
+    const next = !showHist
+    setShowHist(next)
+    if (next && hist === null) {
+      try {
+        const r = await api.get<{ zayavki: typeof hist }>(`/api/zayavki/supplier/${encodeURIComponent(supplier)}/history`)
+        setHist(r.zayavki || [])
+      } catch { setHist([]) }
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '.6rem', borderTop: '1px dashed var(--line)', paddingTop: '.6rem', display: 'grid', gap: '.5rem' }}>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        {saved.website
+          ? <a className="btn-paper" href={saved.website} target="_blank" rel="noopener noreferrer" title={saved.website}>🌐 Сайт на доставчика</a>
+          : <span className="pencil" style={{ fontSize: '.74rem' }}>Няма зададен сайт</span>}
+        {saved.phone && <a className="btn-paper" href={`tel:${saved.phone}`}>☎ {saved.phone}</a>}
+        {email && <a className="btn-paper" href={`mailto:${email}`}>✉ {email}</a>}
+        <button className="btn-paper" onClick={() => void toggleHist()} aria-expanded={showHist}>
+          🕘 Предишни заявки{showHist ? ' ▲' : ' ▼'}
+        </button>
+        <button className="btn-paper" onClick={() => setEdit((v) => !v)} style={{ fontSize: '.72rem' }}>
+          {edit ? 'откажи' : '✎ контакти'}
+        </button>
+      </div>
+      {edit && (
+        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input className="input-paper" style={{ width: '16rem' }} placeholder="сайт (напр. anis.bg)"
+            aria-label="сайт на доставчика" value={website} onChange={(e) => setWebsite(e.target.value)} />
+          <input className="input-paper" style={{ width: '10rem' }} placeholder="телефон"
+            aria-label="телефон на доставчика" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <button className="btn-paper btn-red" onClick={() => void saveContacts()}>Запази</button>
+        </div>
+      )}
+      {showHist && (
+        <div style={{ display: 'grid', gap: '.25rem' }}>
+          {hist === null ? <span className="pencil" style={{ fontSize: '.78rem' }}>зарежда…</span>
+            : hist.length === 0 ? <span className="pencil" style={{ fontSize: '.78rem' }}>Няма изпратени заявки към този доставчик.</span>
+            : hist.map((h) => (
+              <div key={h.id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0' }}>
+                <span>№ {h.id} · {h.items} арт.{h.sent_via ? ` · ${h.sent_via}` : ''}</span>
+                <span style={{ color: 'var(--pencil)' }}>{eur(h.total)} · {h.sent_at ? h.sent_at.slice(0, 10) : ''}</span>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   )
 }

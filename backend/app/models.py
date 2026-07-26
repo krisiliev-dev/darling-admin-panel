@@ -169,6 +169,8 @@ class SupplierPref(Base):
     email: Mapped[str] = mapped_column(String(255), default="")
     min_order: Mapped[float] = mapped_column(default=0.0)   # € below which a заявка isn't worth sending
     lead_days: Mapped[int] = mapped_column(default=0)       # typical days from order to delivery
+    website: Mapped[str] = mapped_column(String(500), default="")  # supplier's order/catalogue site
+    phone: Mapped[str] = mapped_column(String(64), default="")     # contact phone
     notes: Mapped[str] = mapped_column(Text, default="")
 
 

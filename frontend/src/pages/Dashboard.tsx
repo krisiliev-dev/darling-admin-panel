@@ -5,7 +5,7 @@ import { Bar, Line } from 'react-chartjs-2'
 import { cssVar } from '../lib/charts'
 import { api } from '../lib/api'
 import { useApi } from '../lib/useApi'
-import type { CatalogDashboard, SalesDashboard, InsightsResponse, DiagnosisResponse, MetricsResponse } from '../lib/api'
+import type { CatalogDashboard, SalesDashboard, InsightsResponse, DiagnosisResponse, MetricsResponse, MetricsItem } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
@@ -304,27 +304,8 @@ function LiveInventory() {
           hint="под точката на презареждане" />
       </div>
 
-      {/* Reorder alert → PO builder */}
-      {data.reorder.length > 0 && (
-        <section>
-          <div className="eyebrow" style={{ marginBottom: '.4rem' }}>Пред изчерпване — за поръчка</div>
-          <div style={{ background: 'var(--paper2)', border: '1px solid var(--pending)', borderLeft: '4px solid var(--pending)', borderRadius: 3, padding: '.9rem 1.1rem' }}>
-            <div style={{ fontSize: '.85rem', marginBottom: '.6rem' }}>
-              <strong>{k.reorder_n}</strong> бързи артикула падат под точката на презареждане.
-              <Link to="/purchasing" className="font-type" style={{ marginLeft: '.6rem', color: 'var(--red)', textDecoration: 'none', fontSize: '.78rem' }}>Създай заявка →</Link>
-            </div>
-            <div style={{ display: 'grid', gap: '.25rem' }}>
-              {data.reorder.slice(0, 6).map((it) => (
-                <div key={it.article_id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', fontSize: '.78rem', borderTop: '1px dashed var(--line)', paddingTop: '.25rem', alignItems: 'baseline' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={it.name}>{it.name || `#${it.article_id}`}</span>
-                  <span style={{ color: 'var(--pending)', fontVariantNumeric: 'tabular-nums' }} title={`налични ${it.stock} бр`}>{it.days_of_cover ?? '—'} дни</span>
-                  <span style={{ color: 'var(--ready)', fontVariantNumeric: 'tabular-nums' }} title="предложено количество за поръчка">поръчай {it.suggested_qty}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+      {/* Reorder alert → PO builder (expandable, most-valuable first) */}
+      {data.reorder.length > 0 && <ReorderCard items={data.reorder} count={k.reorder_n} eur={eur} />}
 
       {/* Live dead-stock (no sales in window) → repricing */}
       {data.dead.length > 0 && (
@@ -597,6 +578,50 @@ function HistoricalDiagnosis() {
         </div>
       </Sheet>
     </div>
+  )
+}
+
+// "За поръчка" card — items below their reorder point, most-valuable first (frozen order value =
+// suggested_qty × unit cost). Collapsed to the top few; expand to see all. Each row offers a fast
+// route into Заявки (the working supplier-resolution + fast-add lives there).
+function ReorderCard({ items, count, eur }: { items: MetricsItem[]; count: number; eur: (n: number) => string }) {
+  const [open, setOpen] = useState(false)
+  const ranked = [...items].sort((a, b) => (b.suggested_qty * b.unit_cost) - (a.suggested_qty * a.unit_cost))
+  const shown = open ? ranked : ranked.slice(0, 6)
+  const totalValue = ranked.reduce((s, it) => s + it.suggested_qty * it.unit_cost, 0)
+  return (
+    <section>
+      <div className="eyebrow" style={{ marginBottom: '.4rem' }}>Пред изчерпване — за поръчка</div>
+      <div style={{ background: 'var(--paper2)', border: '1px solid var(--pending)', borderLeft: '4px solid var(--pending)', borderRadius: 3, padding: '.9rem 1.1rem' }}>
+        <div style={{ fontSize: '.85rem', marginBottom: '.6rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem', alignItems: 'baseline' }}>
+          <span style={{ flex: 1 }}>
+            <strong>{count}</strong> артикула под точката на презареждане · ~<strong>{eur(totalValue)}</strong> предложена поръчка
+          </span>
+          <Link to="/zayavki" className="font-type" style={{ color: 'var(--red)', textDecoration: 'none', fontSize: '.78rem' }}>Създай заявка →</Link>
+        </div>
+        <div style={{ display: 'grid', gap: '.25rem' }}>
+          <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 6rem', gap: '.6rem', fontSize: '.66rem', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--pencil)' }}>
+            <span>артикул</span><span style={{ textAlign: 'right' }}>покритие</span><span style={{ textAlign: 'right' }}>поръчай</span><span style={{ textAlign: 'right' }}>стойност</span>
+          </div>
+          {shown.map((it) => (
+            <div key={it.article_id} style={{ display: 'grid', gridTemplateColumns: '1fr 5rem 5rem 6rem', gap: '.6rem', fontSize: '.78rem', borderTop: '1px dashed var(--line)', paddingTop: '.25rem', alignItems: 'baseline' }}>
+              <Link to="/zayavki" title={`${it.name} — към Заявки`}
+                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink)', textDecoration: 'none' }}>
+                {it.name || `#${it.article_id}`}
+              </Link>
+              <span style={{ color: 'var(--pending)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }} title={`налични ${it.stock} бр`}>{it.days_of_cover ?? '—'} дни</span>
+              <span style={{ color: 'var(--ready)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }} title="предложено количество">{it.suggested_qty}</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{eur(it.suggested_qty * it.unit_cost)}</span>
+            </div>
+          ))}
+        </div>
+        {ranked.length > 6 && (
+          <button className="btn-paper" style={{ marginTop: '.6rem', fontSize: '.74rem' }} onClick={() => setOpen((v) => !v)}>
+            {open ? '▲ скрий' : `▼ виж всички (${ranked.length})`}
+          </button>
+        )}
+      </div>
+    </section>
   )
 }
 

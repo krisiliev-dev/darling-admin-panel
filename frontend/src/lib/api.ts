@@ -247,6 +247,7 @@ export interface ZayavkaSupplier {
   supplier: string; catalog_count: number; open_id: number | null
   items: number; total: number; last_sent: string | null
   email: string; min_order: number; lead_days: number; below_min: boolean
+  website?: string; phone?: string
 }
 export interface ZayavkaLineRow {
   id: number; code: string; supplier_code: string; name: string
