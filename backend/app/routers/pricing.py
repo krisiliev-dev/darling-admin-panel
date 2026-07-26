@@ -25,6 +25,7 @@ from ..core import barsy, barsy_write_live, db
 _GATED = "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — цената не е записана в ERP."
 from ..db import get_async_session
 from ..models import PricingGroupRule, PricingRule, User
+from ..services import barsy_bulk as _bulk
 from ..upstream import upstream
 from ..users import current_active_user, current_owner, require_roles
 
@@ -324,6 +325,8 @@ async def apply_supplier(
         if retail is not None and abs(retail - new_retail) <= 0.01:
             skipped += 1  # already in line
             continue
+        if applied:
+            await _bulk.pace()                            # smooth the write burst (low-tier Barsy throttles)
         try:
             await run_in_threadpool(barsy.call, "Articles_update",
                                     {"article_id": aid, "article": {"actual_price": new_retail}})

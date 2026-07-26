@@ -62,7 +62,8 @@ def call(method, body=None, bid=None, timeout=60):
     tok = base64.b64encode(f"{user}:{pw}".encode("utf-8")).decode("ascii")
     # Retry transient failures — the low-tier Barsy server throws read-timeouts and
     # "сървъра е зает" (busy) blips under load. Retry those a few times with backoff;
-    # real HTTP/API errors raise immediately.
+    # real HTTP/API errors raise immediately. 501 is what the low tier returns on write
+    # bursts (its body doesn't always carry the busy-text), so treat it as transient too.
     import time as _time
     payload = None
     last = None
@@ -76,7 +77,7 @@ def call(method, body=None, bid=None, timeout=60):
             break
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")[:500]
-            if ("зает" in detail or e.code in (502, 503, 504)) and attempt < 3:
+            if ("зает" in detail or e.code in (501, 502, 503, 504)) and attempt < 3:
                 last = f"HTTP {e.code}: {detail[:120]}"
                 _time.sleep(1.5 * (attempt + 1))
                 continue

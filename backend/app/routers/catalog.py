@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_session
 from ..models import User
+from ..services import barsy_bulk as _bulk
 from ..upstream import upstream
 from ..users import current_active_user, current_owner, require_roles
 
@@ -390,24 +391,26 @@ async def bulk_price(req: BulkPriceRequest, actor: User = Depends(current_owner)
         return {"dry_run": True, "gated": True, "note": _GATED, "applied": 0, "failed": [],
                 "count": len(changes), "changes": changes, "skipped": skipped}
 
+    # relative ops need the live baseline (a stale cache value could revert a real change). Fetch all
+    # baselines in a few Articles_getlist pages instead of one Articles_get per item (was a 2N N+1).
+    live_base: dict = {}
+    if req.op != "set":
+        live_base = await run_in_threadpool(_bulk.price_baselines, [c["article_id"] for c in changes])
     applied, failed = 0, []
-    for c in changes:
+    for i, c in enumerate(changes):
         aid = c["article_id"]  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
         if req.op == "set":
             new = c["new_price"]  # type: ignore[assignment]  # SQLAlchemy/fastapi-users stub gap, not a bug
         else:
-            # re-read the live baseline; a relative op on a stale cache value could revert a real change
-            try:
-                fresh = await run_in_threadpool(barsy.call, "Articles_get", {"article_id": aid})
-                base = _numf((fresh or {}).get("actual_price"))
-            except Exception:
-                base = None
+            base = live_base.get(aid)
             if base is None:
                 base = rows[aid].price                    # fall back to the cache baseline
             new = _apply_op(base, req.op, req.value, rd)
             if new is None:
                 failed.append(c["code"])
                 continue
+        if i:
+            await _bulk.pace()                            # smooth the write burst (low-tier Barsy throttles)
         try:
             await run_in_threadpool(barsy.call, "Articles_update",
                                     {"article_id": aid, "article": {"actual_price": str(new)}})
@@ -642,7 +645,9 @@ async def bulk_rename(req: BulkRenameRequest, actor: User = Depends(current_owne
         return {"dry_run": True, "gated": True, "note": _GATED, "applied": 0, "failed": [],
                 "count": len(changes), "changes": changes, "skipped": skipped}
     applied, failed = 0, []
-    for c in changes:
+    for i, c in enumerate(changes):
+        if i:
+            await _bulk.pace()                               # smooth the write burst (low-tier Barsy throttles)
         try:
             await run_in_threadpool(barsy.call, "Articles_update", {"article_id": c["article_id"],
                 "article": {"article_name": c["new_name"], "article_name_ml": {"bg_BG": c["new_name"]}}})
