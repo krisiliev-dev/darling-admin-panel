@@ -31,3 +31,12 @@ ignore_missing_imports = true   # darling_core / agent-pipeline / openpyxl etc. 
 warn_return_any = false
 check_untyped_defs = false       # lenient start: check annotated code, not every untyped def
 exclude = "(darling_core/_vendor|migrations)"
+
+# Ratchet: the money-touching modules are checked more strictly (every def, annotated or not) —
+# a type slip in price/cost/COD math is a real financial bug, so these earn tighter scrutiny.
+[[tool.mypy.overrides]]
+module = [
+    "app.inventory_metrics", "app.barsy_ids", "app.bulkjobs",
+    "app.routers.cod", "app.routers.pricing", "app.routers.catalog",
+]
+check_untyped_defs = true
