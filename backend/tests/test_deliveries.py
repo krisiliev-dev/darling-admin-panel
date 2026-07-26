@@ -519,3 +519,26 @@ async def test_ocr_endpoint_degrades_gracefully_when_deps_absent(owner_client):
     assert r.status_code in (503, 422)      # 503 = deps absent (expected here); 422 if present but unreadable
     if r.status_code == 503:
         assert "OCR" in r.json()["detail"]
+
+
+# --- scan-confirm status: fractional-unit lines must be confirmable (review fix 2026-07-26) ---
+def _line(scanned, qty):
+    ln = SimpleNamespace(scanned_qty=scanned, qty=qty, status=None)
+    deliveries._set_line_status(ln)
+    return ln.status
+
+
+def test_scan_status_piece_goods_exact_and_mismatch():
+    assert _line(0, 3) == "pending"
+    assert _line(3, 3) == "confirmed"          # exact
+    assert _line(3, 3.0) == "confirmed"         # float repr of a whole qty
+    assert _line(2, 3) == "mismatch"            # under-count
+    assert _line(4, 3) == "mismatch"            # over-count
+
+
+def test_scan_status_fractional_line_confirms_and_never_blocks():
+    # 2.5 kg loose goods: integer scans can never == 2.5; a scan of >= the whole part confirms
+    assert _line(0, 2.5) == "pending"
+    assert _line(2, 2.5) == "confirmed"
+    assert _line(3, 2.5) == "confirmed"
+    assert _line(1, 2.5) == "mismatch"          # fewer than the whole-number part → still flagged

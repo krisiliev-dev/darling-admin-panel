@@ -13,6 +13,7 @@ The storeload write reuses the verified helpers + the DELIVERY_BARSY_LIVE gate f
 import csv
 import datetime as _dt
 import io
+import math
 import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -451,12 +452,18 @@ class ScanRequest(BaseModel):
 
 
 def _set_line_status(ln: DeliveryLine) -> None:
+    q = ln.qty or 0
     if ln.scanned_qty == 0:
         ln.status = "pending"
-    elif ln.scanned_qty == ln.qty:
+    elif math.isclose(ln.scanned_qty, q, abs_tol=1e-9):
+        ln.status = "confirmed"
+    elif q != int(q) and ln.scanned_qty >= math.floor(q):
+        # a fractional-unit line (e.g. 2.5 kg loose goods) can't be piece-scanned to an exact count,
+        # so an integer scan count would never equal q and the line would block finalise forever.
+        # A scan of at least the whole-number part confirms receipt of such a line.
         ln.status = "confirmed"
     else:
-        ln.status = "mismatch"       # over- or under-count
+        ln.status = "mismatch"       # over- or under-count on a piece-goods line
 
 
 async def _guard_not_finalised(session: AsyncSession, batch_id: int) -> None:
