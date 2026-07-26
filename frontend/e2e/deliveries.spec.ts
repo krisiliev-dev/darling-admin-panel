@@ -29,4 +29,24 @@ test.describe('Доставки — receiving list', () => {
     await expect(page.getByText('АНИС', { exact: true })).toHaveCount(0)
     await expect(page.getByText('БЕТА ООД', { exact: true })).toBeVisible()
   })
+
+  test('date from–to range filters the deliveries', async ({ page }) => {
+    await mockApi(page, {
+      '/api/deliveries': {
+        deliveries: [
+          { id: 1, supplier: 'АНИС', reference: 'INV-1', doc_date: '2026-07-10', source: 'excel',
+            status: 'awaiting_products', storeload_id: null, created_at: '2026-07-10', total: 4, new: 1 },
+          { id: 2, supplier: 'БЕТА ООД', reference: 'INV-2', doc_date: '2026-07-25', source: 'excel',
+            status: 'finalised', storeload_id: 9, created_at: '2026-07-25', total: 2, new: 0 },
+        ],
+      },
+    })
+    await page.goto('/purchasing')
+    await expect(page.getByText('АНИС', { exact: true })).toBeVisible()
+    await expect(page.getByText('БЕТА ООД', { exact: true })).toBeVisible()
+    // from 2026-07-20 → only the 07-25 delivery remains
+    await page.getByTitle('от дата').fill('2026-07-20')
+    await expect(page.getByText('АНИС', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('БЕТА ООД', { exact: true })).toBeVisible()
+  })
 })

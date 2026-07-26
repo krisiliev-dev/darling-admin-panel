@@ -51,19 +51,27 @@ function DeliveryList({ onNew, onOpen }: { onNew: () => void; onOpen: (id: numbe
   const [all, setAll] = useState<DeliveryListItem[] | null>(null)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   useEffect(() => { api.get<{ deliveries: DeliveryListItem[] }>('/api/deliveries').then((d) => setAll(d.deliveries)).catch(() => setAll([])) }, [])
+  const dateOf = (d: DeliveryListItem) => d.doc_date || (d.created_at || '').slice(0, 10)   // YYYY-MM-DD, comparable as string
   const rows = (all || []).filter((d) =>
     (!q.trim() || (d.supplier + ' ' + d.reference).toLowerCase().includes(q.trim().toLowerCase())) &&
-    (!status || d.status === status))
+    (!status || d.status === status) &&
+    (!from || dateOf(d) >= from) && (!to || dateOf(d) <= to))
   return (
     <div style={{ display: 'grid', gap: '.8rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <input className="input-paper" style={{ width: '13rem' }} placeholder="търси доставчик / №…" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className="input-paper" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">— всички статуси —</option>
             {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}
           </select>
+          <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>период:</span>
+          <input className="input-paper" type="date" value={from} onChange={(e) => setFrom(e.target.value)} title="от дата" />
+          <input className="input-paper" type="date" value={to} onChange={(e) => setTo(e.target.value)} title="до дата" />
+          {(from || to || q || status) && <button className="btn-paper" style={{ fontSize: '.7rem' }} onClick={() => { setQ(''); setStatus(''); setFrom(''); setTo('') }}>изчисти</button>}
         </div>
         <button className="btn-paper btn-red" onClick={onNew}>+ Обработи нова доставка</button>
       </div>
