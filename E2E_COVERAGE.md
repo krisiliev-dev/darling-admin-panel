@@ -65,7 +65,7 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 |---|---|---|---|
 | `Deliveries.tsx` (Доставки: receiving hub, upload/scan/finalise) | `/purchasing` | `deliveries.spec.ts` | ✅ (+ `Deliveries.test.tsx`) |
 | `Zayavki.tsx` (Заявки: per-supplier carts, email/export) | `/zayavki` | `zayavki.spec.ts` | ✅ (+ `Zayavki.test.tsx`) |
-| `Sklad.tsx` (Склад: stock, "за поръчка", owner-gated) | `/sklad` | `sklad.spec.ts` | ⬜ renders for owner; **redirects a manager to `/`**; "за поръчка" expand |
+| `Sklad.tsx` (Склад: stock, "за поръчка", owner-gated) | `/sklad` | `access-control.spec.ts` (gate ✅) · `sklad.spec.ts` (content ⬜) | 🟡 gate done (owner renders / manager redirected); still ⬜ tab content + "за поръчка" expand |
 | `TableControls.tsx` (shared filter/sort/paginate) | list pages | `TableControls.test.tsx` | ✅ (unit) |
 
 ## Flow 8 — Analytics
@@ -88,7 +88,7 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 ## Flow 11 — Admin / settings
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
-| `Settings.tsx` (Настройки: couriers, users, owner-gated) | `/settings` | `settings.spec.ts` | ⬜ renders for owner; **manager redirected**; courier tab lists offices; create-user form validates |
+| `Settings.tsx` (Настройки: couriers, users, owner-gated) | `/settings` | `access-control.spec.ts` (gate ✅) · `settings.spec.ts` (content ⬜) | 🟡 gate done (owner renders / manager redirected); still ⬜ courier tab, create-user validation, Дневник tab |
 | `Logs.tsx` (audit logs) | via Settings/Logs | `logs.spec.ts` | ✅ |
 
 ## Cross-cutting
@@ -107,6 +107,13 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 4. **`intake.spec.ts`** — Нов продукт enrich-gate + mandatory-images guard + save-to-Barsy button states.
 5. **`assistant.spec.ts`** — Q&A answer render + gated-action confirm step.
 6. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
+
+## Findings surfaced while writing specs
+- **Nav/route role mismatch** (owner decision pending): `Shell.tsx` lists `/sklad` + `/settings` under
+  `roles: ['owner','manager']` so a **manager sees the nav links**, but `App.tsx` gates the routes on
+  `me.is_superuser` (owner only) and **redirects the manager to `/`**. Either the nav should hide them
+  (`roles: ['owner']`) or the routes should admit managers. This is the open owner-vs-manager decision
+  from the security audit — `access-control.spec.ts` locks the current *route* behaviour either way.
 
 ## Live-flow tests (separate from mock e2e)
 The mock-e2e above never touches Barsy/Shopify. The **live** order journey (Shopify checkout → webhook →
