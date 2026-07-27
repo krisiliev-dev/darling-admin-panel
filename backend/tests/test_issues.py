@@ -34,6 +34,20 @@ async def test_clean_result_records_nothing(owner_client):
     assert (await owner_client.get("/api/issues")).json()["open_count"] == 0
 
 
+async def test_partial_warning_on_booked_order(owner_client):
+    # the order booked, but a best-effort step (image push) failed → a WARNING, not a refusal
+    result = {"status": "ok", "account_id": 9, "warnings": [{"kind": "image_push", "reason": "Files_upload 500"}]}
+    assert await note_shopify_result("orders/create", {"name": "#7"}, result) is True
+    iss = (await owner_client.get("/api/issues")).json()["issues"][0]
+    assert iss["kind"] == "image_push" and iss["severity"] == "warning" and iss["order_ref"] == "#7"
+
+
+async def test_duplicate_skip_records_nothing(owner_client):
+    # idempotency no-op (already booked) must NOT create an issue
+    assert await note_shopify_result("orders/updated", {"name": "#8"}, {"skipped": "already seen #8"}) is False
+    assert (await owner_client.get("/api/issues")).json()["open_count"] == 0
+
+
 async def test_needs_review_and_unhandled_topic(owner_client):
     await note_shopify_result("orders/create", {"name": "#3"}, {"status": "needs_review", "reason": "нужен преглед"})
     await note_shopify_result("orders/weird", {"name": "#4"}, {"skipped": "unhandled topic orders/weird"})

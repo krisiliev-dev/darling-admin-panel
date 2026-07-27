@@ -88,6 +88,20 @@ async def note_shopify_result(topic: str, payload: dict, result: dict | None) ->
             detail={"result": {k: v for k, v in result.items() if k != "lines"}, "topic": topic})
         return True
 
+    # partial warnings on an otherwise-booked order — a best-effort step failed (image push, metafield
+    # upsert…) but the sale itself went through. Record each as a WARNING (not a refusal), keyed by kind.
+    warnings = result.get("warnings")
+    if isinstance(warnings, list) and warnings:
+        for w in warnings:
+            if not isinstance(w, dict):
+                continue
+            wkind = str(w.get("kind") or "warning")[:48]
+            await record_issue(
+                source="shopify", topic=topic, order_ref=ref, severity="warning", kind=wkind,
+                summary=f"{ref or 'Поръчка'}: {w.get('reason') or wkind}",
+                detail={"warning": w, "topic": topic})
+        return True
+
     # a topic we received but don't translate — worth surfacing (a subscription we don't handle)
     skipped = str(result.get("skipped") or "")
     if skipped.startswith("unhandled topic"):
