@@ -1,15 +1,12 @@
 import { test, expect } from '@playwright/test'
 import { mockApi } from './helpers'
 
-// Access control — the two owner-gated routes (App.tsx gates `/sklad` + `/settings` on `me.is_superuser`,
-// redirecting everyone else to `/`). This is a real regression risk: a broken gate would silently expose
-// store-ops write tools + staff/courier config to a manager. We assert BOTH sides — the owner renders the
-// page, a manager is bounced to Home.
-//
-// NB there's a known nav/route mismatch (Shell lists these under roles:['owner','manager'] so a manager
-// still SEES the links, but the route redirects them). That's the open owner-vs-manager decision; this
-// spec locks the *route* behaviour as it stands today.
+// Access control — the two management routes. App.tsx admits owner + manager to `/sklad` + `/settings`
+// (matching the nav's roles:['owner','manager']) and redirects everyone else (staff/packer) to `/`. The
+// backend still enforces the finer per-action limits. Real regression risk both ways: too loose exposes
+// store-ops + config to staff; too tight locks managers out of their own tools. We assert all three roles.
 const MANAGER = { id: 'u2', email: 'manager@darling.bg', full_name: 'Мениджър', role: 'manager', is_superuser: false }
+const STAFF = { id: 'u3', email: 'staff@darling.bg', full_name: 'Служител', role: 'staff', is_superuser: false }
 
 // enough of Home's data that it renders (not crashes) after a redirect lands there
 const HOME_OK = {
@@ -17,12 +14,14 @@ const HOME_OK = {
   '/api/inventory-health/aging': { stale: { value: 0 } },
 }
 
-test.describe('Access control — owner-gated pages', () => {
+const MGMT_MOCKS = {
+  '/api/admin/staff': { staff: [] }, '/api/admin/roles': { roles: [] },
+  '/api/orders/couriers': { couriers: [] }, '/api/assistant/backends': { backends: [] },
+}
+
+test.describe('Access control — management pages', () => {
   test('owner can open Склад and Настройки', async ({ page }) => {
-    await mockApi(page, {
-      '/api/admin/staff': { staff: [] }, '/api/admin/roles': { roles: [] },
-      '/api/orders/couriers': { couriers: [] }, '/api/assistant/backends': { backends: [] },
-    })
+    await mockApi(page, MGMT_MOCKS)
     await page.goto('/sklad')
     await expect(page).toHaveURL(/\/sklad$/)
     await expect(page.getByRole('main').getByText('Склад').first()).toBeVisible()
@@ -33,8 +32,19 @@ test.describe('Access control — owner-gated pages', () => {
     await expect(page.getByText('Екип (Barsy)')).toBeVisible()
   })
 
-  test('manager is redirected from Склад and Настройки to Home', async ({ page }) => {
-    await mockApi(page, { '/api/users/me': MANAGER, ...HOME_OK })
+  test('manager can also open Склад and Настройки', async ({ page }) => {
+    await mockApi(page, { '/api/users/me': MANAGER, ...MGMT_MOCKS })
+    await page.goto('/sklad')
+    await expect(page).toHaveURL(/\/sklad$/)
+    await expect(page.getByRole('main').getByText('Склад').first()).toBeVisible()
+
+    await page.goto('/settings')
+    await expect(page).toHaveURL(/\/settings$/)
+    await expect(page.getByText('Екип (Barsy)')).toBeVisible()
+  })
+
+  test('staff is redirected from Склад and Настройки to Home', async ({ page }) => {
+    await mockApi(page, { '/api/users/me': STAFF, ...HOME_OK })
 
     await page.goto('/sklad')
     await expect(page).toHaveURL(/localhost:\d+\/$/)          // bounced to Home

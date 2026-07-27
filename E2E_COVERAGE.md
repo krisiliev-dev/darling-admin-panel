@@ -112,11 +112,12 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 6. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
 
 ## Findings surfaced while writing specs
-- **Nav/route role mismatch** (owner decision pending): `Shell.tsx` lists `/sklad` + `/settings` under
-  `roles: ['owner','manager']` so a **manager sees the nav links**, but `App.tsx` gates the routes on
-  `me.is_superuser` (owner only) and **redirects the manager to `/`**. Either the nav should hide them
-  (`roles: ['owner']`) or the routes should admit managers. This is the open owner-vs-manager decision
-  from the security audit — `access-control.spec.ts` locks the current *route* behaviour either way.
+- **Nav/route role mismatch** — ✅ RESOLVED. `Shell.tsx` listed `/sklad` + `/settings` under
+  `roles: ['owner','manager']` (manager sees the links) but `App.tsx` gated the routes on
+  `me.is_superuser` (owner only), bouncing managers. Owner decided to **admit managers to the routes**;
+  App.tsx now gates on `role ∈ {owner, manager}` (matches the nav), staff/packer redirected. Backend
+  still enforces finer per-action limits (couriers owner-only, managers create only non-privileged roles).
+  `access-control.spec.ts` now asserts all three roles (owner ✅, manager ✅, staff redirected).
 
 ## Live-flow tests (separate from mock e2e)
 The mock-e2e above never touches Barsy/Shopify. The **live** order journey (Shopify checkout → webhook →

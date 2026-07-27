@@ -32,6 +32,11 @@ export default function App() {
 
   if (!me) return <Login />
 
+  // Склад + Настройки are for management, matching the nav (roles: owner + manager). Staff/packer are
+  // redirected. The backend still enforces the finer per-action limits (e.g. only owner manages couriers,
+  // managers create only non-privileged roles).
+  const canManage = me.role === 'owner' || me.role === 'manager'
+
   return (
     <ErrorBoundary>
     <Routes>
@@ -49,11 +54,11 @@ export default function App() {
         <Route path="pricing" element={<Products />} />
         <Route path="purchasing" element={<Deliveries />} />
         <Route path="zayavki" element={<Zayavki />} />
-        <Route path="sklad" element={me.is_superuser ? <Sklad /> : <Navigate to="/" replace />} />
+        <Route path="sklad" element={canManage ? <Sklad /> : <Navigate to="/" replace />} />
         <Route path="brands" element={<Brands />} />
         <Route path="kancelaria" element={<Kancelaria />} />
         <Route path="assistant" element={<Assistant />} />
-        <Route path="settings" element={me.is_superuser ? <Settings /> : <Navigate to="/" replace />} />
+        <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
