@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
-from ..core import barsy, db, shopify_orders
+from ..config import get_settings
+from ..core import barsy, connector, db, shopify_orders
 from ..core import courier as courier_mod
 from ..db import get_async_session
 from ..models import User
@@ -310,3 +311,62 @@ async def set_status(
     shopify_orders.set_state(body.order_id, body.order_name, status=body.status)
     await log_action(session, actor, "order.status", target=body.order_name, detail=body.status)
     return {"ok": True, "status": body.status}
+
+
+# --------------------------------------------------- review → finalise / refuse (Barsy) ---
+# The owner's clientorder model: an online order books as a Barsy CLIENTORDER (no decrement) awaiting
+# staff review. Staff then FINALISE it (→ closed sale, decrement, fiscal:0) or REFUSE it (→ void the
+# clientorder + cancel the Shopify order; nothing decremented — the nekorekten-fake-customer path).
+# The connector owns the Barsy/Shopify write shapes (finalise_order / refuse_order); this router owns
+# the gate (BARSY_WRITE_LIVE → dry-run when off), the confirm flag, the role check, and the audit line.
+class OrderAction(BaseModel):
+    confirm: bool = False
+
+
+@router.post("/{order_id}/finalise")
+async def finalise(
+    order_id: str, body: OrderAction,
+    actor: User = Depends(require_roles("owner", "manager", "staff")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Convert the order's Barsy clientorder into a CLOSED SALE (Accounts_createfromclientorder,
+    flag_close_account:1, print_shipment:0 → decrement + fiscal:0). Gated + confirm + role + audit."""
+    if not body.confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Финализирането е реален запис в Barsy — потвърди с confirm=true.")
+    o = await run_in_threadpool(_order_or_404, order_id)
+    do_write = get_settings().barsy_write_live
+    try:
+        result = await run_in_threadpool(connector.finalise_order, o["id"], do_write)
+    except AttributeError:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Финализирането не е налично (connector.finalise_order липсва).")
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
+    await log_action(session, actor, "order.finalise", target=o["name"], detail=str(result)[:300])
+    return result
+
+
+@router.post("/{order_id}/refuse")
+async def refuse(
+    order_id: str, body: OrderAction,
+    actor: User = Depends(require_roles("owner", "manager", "staff")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Refuse an online order (e.g. a nekorekten fake customer): cancel the Shopify order (releases the
+    reservation) + void/storno the Barsy side via the connector. Clientorder-stage → VOID (nothing
+    decremented); finalised sale → STORNO (needs the fiscal УНП). Gated + confirm + role + audit."""
+    if not body.confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Отказът е реално действие — потвърди с confirm=true.")
+    o = await run_in_threadpool(_order_or_404, order_id)
+    do_write = get_settings().barsy_write_live
+    try:
+        result = await run_in_threadpool(connector.refuse_order, o["id"], do_write)
+    except AttributeError:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Отказът не е наличен (connector.refuse_order липсва).")
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
+    await log_action(session, actor, "order.refuse", target=o["name"], detail=str(result)[:300])
+    return result

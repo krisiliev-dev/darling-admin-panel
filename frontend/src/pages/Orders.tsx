@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
@@ -29,11 +29,14 @@ export function Orders() {
   const [showCreate, setShowCreate] = useState(false)
   const [tab, setTab] = useState<OrdersTab>('todo')
 
+  const loadOrders = useCallback(() => {
+    api.get<OrdersResponse>('/api/orders?limit=100').then(setData).catch(() => setData({ orders: [], statuses: {} }))
+  }, [])
   useEffect(() => {
     api.get<{ couriers: CourierReadiness[] }>('/api/orders/couriers')
       .then((d) => setCouriers(d.couriers)).catch(() => setCouriers([]))
-    api.get<OrdersResponse>('/api/orders?limit=100').then(setData).catch(() => setData({ orders: [], statuses: {} }))
-  }, [])
+    loadOrders()
+  }, [loadOrders])
 
   // "Етикет" on an order opens the create-flow prefilled; the version bump re-applies the prefill
   const labelFromOrder = (o: Order) => {
@@ -88,7 +91,7 @@ export function Orders() {
       </div>
 
       {tab === 'cod' ? <Cod embedded />
-        : <OrderQueue data={data} mode={tab} onLabel={labelFromOrder} />}
+        : <OrderQueue data={data} mode={tab} onLabel={labelFromOrder} onChange={loadOrders} />}
     </div>
   )
 }
@@ -96,8 +99,30 @@ export function Orders() {
 // --------------------------------------------------------------------- order queue ---
 type OrderFilter = 'all' | 'late' | 'cod'
 
-function OrderQueue({ data, mode, onLabel }: { data: OrdersResponse | null; mode: 'todo' | 'done'; onLabel: (o: Order) => void }) {
+function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | null; mode: 'todo' | 'done'; onLabel: (o: Order) => void; onChange: () => void }) {
   const [filter, setFilter] = useState<OrderFilter>('all')
+  const confirm = useConfirm()
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
+  // Review actions: FINALISE (clientorder → closed sale, decrement, fiscal:0) or REFUSE (void +
+  // cancel the Shopify order; nothing decremented). Both are real Barsy writes → confirm + gated backend.
+  const act = async (o: Order, kind: 'finalise' | 'refuse') => {
+    const q = kind === 'finalise'
+      ? { title: 'Финализирай поръчката', confirmLabel: 'Финализирай',
+          message: `Осчетоводяване на ${o.name} в Barsy — продажба + изписване на наличността.` }
+      : { title: 'Откажи поръчката', confirmLabel: 'Откажи', danger: true,
+          message: `Отказ на ${o.name} — количката се освобождава и нищо не се осчетоводява. (Използвай при съмнителен клиент.)` }
+    if (!(await confirm(q))) return
+    setBusy(o.id + kind); setMsg('')
+    try {
+      const r = await api.post<{ status?: string; dry_run?: boolean; reason?: string }>(`/api/orders/${o.id}/${kind}`, { confirm: true })
+      const bg = kind === 'finalise' ? 'финализирана' : 'отказана'
+      setMsg(r.dry_run ? `${o.name}: проба — Barsy запис е изключен (нищо не е записано).`
+        : r.status === 'needs_review' ? `${o.name}: нужен преглед (${r.reason || '—'}) — виж Проблеми.`
+        : `${o.name} ${bg}.`)
+      onChange()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy('') }
+  }
   // todo = still needs a label; done = already shipped (has tracking)
   const base = (data?.orders || []).filter((o) => (mode === 'todo' ? !o.tracking : !!o.tracking))
   const isLate = (o: Order) => !o.tracking && hoursSince(o.created) > SLA_HOURS
@@ -141,6 +166,7 @@ function OrderQueue({ data, mode, onLabel }: { data: OrdersResponse | null; mode
       ) : (
         <>
         <div style={{ marginBottom: '.5rem' }}><FilterChips options={chips} value={filter} onChange={setFilter} /></div>
+        {msg && <div className="font-type" style={{ fontSize: '.8rem', marginBottom: '.5rem', color: msg.includes('Грешка') ? 'var(--red)' : 'var(--ink)' }}>{msg}</div>}
         <div style={{ display: 'grid', gap: '.4rem' }}>
           {pg.slice.map((o) => {
             const needsLabel = !o.tracking  // no label yet → still on our clock
@@ -166,7 +192,15 @@ function OrderQueue({ data, mode, onLabel }: { data: OrdersResponse | null; mode
                     {late ? '⚠ ' : warn ? '⏳ ' : ''}{timeSinceBg(o.created)}
                   </span>
                 </span>
-                {needsLabel && <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => onLabel(o)}>Етикет</button>}
+                {needsLabel && (
+                  <span style={{ display: 'flex', gap: '.3rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button className="btn-paper btn-red" style={{ fontSize: '.72rem' }}
+                      disabled={busy === o.id + 'finalise'} onClick={() => act(o, 'finalise')}>Финализирай</button>
+                    <button className="btn-paper" style={{ fontSize: '.72rem' }}
+                      disabled={busy === o.id + 'refuse'} onClick={() => act(o, 'refuse')}>Откажи</button>
+                    <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => onLabel(o)}>Етикет</button>
+                  </span>
+                )}
               </div>
             )
           })}
