@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api'
 import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview, BulkJob, OnlinePricePreview } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
+import { useConfirm } from '../components/Confirm'
 import { printLabel, printLabels } from '../lib/label'
 
 // G4c: poll a background bulk job until it finishes, reporting progress. Large bulk-price/rename
@@ -179,10 +180,11 @@ function CacheSync({ onSynced }: { onSynced: () => void }) {
 // active Barsy price rules (promotions) — view + archive
 function PromoList() {
   const [promos, setPromos] = useState<{ id: number; name: string; period: string; active: boolean }[] | null>(null)
+  const confirm = useConfirm()
   const load = () => api.get<{ promos: typeof promos }>('/api/catalog/promos').then((d) => setPromos(d.promos || [])).catch(() => setPromos([]))
   useEffect(() => { load() }, [])
   const del = async (id: number) => {
-    if (!window.confirm('Премахване на тази промоция?')) return
+    if (!(await confirm('Премахване на тази промоция?'))) return
     try { await api.post(`/api/catalog/promos/${id}/delete`, {}); await load() } catch { /* ignore */ }
   }
   if (!promos) return null
@@ -209,6 +211,7 @@ function PromoList() {
 // native Barsy timed promotion (Pricelists) on the selected products — % / € discount or exact
 // promo price, active over a date window; auto-reverts, base price untouched.
 function PromoForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
+  const confirm = useConfirm()
   const [name, setName] = useState('')
   const [mode, setMode] = useState<'discount_pct' | 'discount_eur' | 'exact'>('discount_pct')
   const [value, setValue] = useState('')
@@ -219,7 +222,7 @@ function PromoForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
 
   const create = async () => {
     if (!name.trim() || !value || !from || !to) { setMsg('Попълни име, стойност и период.'); return }
-    if (!window.confirm(`Създаване на промоция „${name}“ за ${ids.length} продукта (${from} → ${to})?`)) return
+    if (!(await confirm(`Създаване на промоция „${name}“ за ${ids.length} продукта (${from} → ${to})?`))) return
     setBusy(true); setMsg('')
     try {
       const r = await api.post<{ pricelist_id: number; period: string; count: number }>('/api/catalog/promo', {
@@ -253,6 +256,7 @@ function PromoForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
 // (color/material/shape prefix vs suffix). Preview → apply; optionally save the style as the default.
 interface RenamePreview { count: number; changes: { article_id: number; old_name: string; new_name: string }[]; skipped: { name: string; reason: string }[] }
 function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
+  const confirm = useConfirm()
   const [options, setOptions] = useState<Record<string, { default: string; variants: string[] }>>({})
   const [style, setStyle] = useState<Record<string, string>>({})
   const [prev, setPrev] = useState<RenamePreview | null>(null)
@@ -267,7 +271,7 @@ function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) 
     catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
   }
   const apply = async () => {
-    if (!window.confirm(`Преименуване на ${prev?.count} продукта в Barsy?`)) return
+    if (!(await confirm(`Преименуване на ${prev?.count} продукта в Barsy?`))) return
     setBusy(true); setMsg(''); setProgress(null)
     try {
       const r = await api.post<{ applied?: number; skipped: unknown[]; async?: boolean; job_id?: string }>('/api/catalog/bulk-rename', { article_ids: ids, style, confirm: true })
@@ -333,6 +337,7 @@ function OnlinePriceForm({ selected, onDone }: { selected: CacheProduct[]; onDon
   const [msg, setMsg] = useState('')
   const ids = selected.map((s) => s.article_id)
   const nameOf = useMemo(() => new Map(selected.map((s) => [s.article_id, s.name])), [selected])
+  const confirm = useConfirm()
   const MODES: [typeof mode, string][] = [
     ['exact', '= точна цена €'], ['pct', '% спрямо магазина'],
     ['fixed', '± спрямо магазина €'], ['clear', '⌫ изчисти (= магазина)']]
@@ -344,7 +349,7 @@ function OnlinePriceForm({ selected, onDone }: { selected: CacheProduct[]; onDon
     catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
   }
   const apply = async () => {
-    if (!window.confirm(`Прилагане на онлайн цена върху ${ids.length} продукта?`)) return
+    if (!(await confirm(`Прилагане на онлайн цена върху ${ids.length} продукта?`))) return
     setBusy(true); setMsg('')
     try {
       const r = await api.post<{ gated?: boolean; applied?: number; uncovered?: number[]; total_online?: number; note?: string }>(
@@ -398,6 +403,7 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   const [showRename, setShowRename] = useState(false)
   const [showOnline, setShowOnline] = useState(false)
   const ids = selected.map((s) => s.article_id)
+  const confirm = useConfirm()
   const OPS: [typeof op, string][] = [['mul', '× умножи'], ['div', '÷ раздели'], ['add', '+ добави'], ['sub', '− извади'], ['set', '= задай']]
 
   // The new price a product will carry after the op — for the "print new-price labels" prompt. We are
@@ -419,7 +425,7 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
     catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
   }
   const apply = async () => {
-    if (!window.confirm(`Прилагане на новата цена върху ${ids.length} продукта в Barsy?`)) return
+    if (!(await confirm(`Прилагане на новата цена върху ${ids.length} продукта в Barsy?`))) return
     setBusy(true); setMsg(''); setProgress(null); setLabelList(null)
     // capture the affected products + their NEW price BEFORE onDone() clears the selection
     const affected = selected

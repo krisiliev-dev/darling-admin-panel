@@ -156,8 +156,9 @@ class Courier:
         raise NotImplementedError
 
     def payout_report(self, date_from, date_to) -> list:
-        """COD payout report for a date window → [{waybill, collected, fee, payout_date, status}].
-        Overridden per courier in the full adapter; [] here."""
+        """COD payout report for a date window (YYYY-MM-DD) →
+        [{waybill, collected, fee, payout_date, status}]. Overridden per courier; [] if unsupported.
+        Read-only. (Speedy/Econt shapes to validate live once shipments exist at launch.)"""
         return []
 
 
@@ -386,9 +387,10 @@ class Speedy(Courier):
                 for o in (out.get("offices") or [])]
 
     def payout_report(self, date_from, date_to):
-        """Speedy COD payout report (Payments Service). POST /payments with fromDate/toDate +
-        includeDetails → payouts[], each carrying details[] keyed by shipmentId = waybill. Flatten to
-        per-waybill rows; fall back to payout-level rows if details are absent. Validate live at launch."""
+        """Speedy COD payout report (Payments Service). Verified shape: POST /payments with
+        fromDate/toDate + includeDetails → `payouts[]`, each Payout carrying `details[]`
+        (PayoutDetails) keyed by `shipmentId` = waybill. We flatten to per-waybill rows. Falls back to
+        payout-level rows if details are absent. VALIDATE LIVE at launch (no shipments pre-launch)."""
         out = self._post("/payments", {"fromDate": date_from, "toDate": date_to,
                                         "includeDetails": True, "language": "BG"})
         payouts = out.get("payouts") or out.get("payments") or out.get("rows") or []
@@ -592,16 +594,21 @@ class Econt(Courier):
         if city:
             cl = city.lower()
             offices = [o for o in offices if cl in (o.get("address", {}).get("city", {}).get("name", "") or "").lower()]
+        # Return the FULL nomenclature (no [:400] cap): callers fetch with city=None and filter by
+        # city in-process, and a 400-cap sliced the list alphabetically so most cities (incl. most of
+        # София) were cut off before the filter (the ?city=София→1 bug). The office endpoint caches
+        # per-TTL and caps the RESPONSE, so the wire payload stays bounded.
         return [{"id": o.get("code"), "name": o.get("name"),
                  "address": o.get("address", {}).get("fullAddress", ""),
                  "city": o.get("address", {}).get("city", {}).get("name", "")}
-                for o in offices[:400]]
+                for o in offices]
 
     def payout_report(self, date_from, date_to):
-        """Econt COD payout report (PaymentReportService.PaymentReport). Rows (PaymentReportRow):
-        num=waybill, amount, payDate, payType. Validate live at launch (no shipments pre-launch)."""
+        """Econt COD payout report for a period (наложен платеж / CD). Endpoint/field shape per Econt
+        docs — VALIDATE LIVE at launch (no shipments pre-launch)."""
         out = self._post("/Shipments/PaymentReportService.PaymentReport.json",
                          {"dateFrom": date_from, "dateTo": date_to})
+        # verified: PaymentReport → rows (PaymentReportRow) with num=waybill, amount, payDate, payType
         rows = (out.get("paymentReport") or out.get("rows") or out.get("elements")
                 or out.get("shipments") or [])
         norm = []

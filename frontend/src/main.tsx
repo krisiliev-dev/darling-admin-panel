@@ -8,6 +8,7 @@ import '@fontsource/nunito/700.css'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './lib/auth'
+import { ConfirmProvider } from './components/Confirm'
 
 // Apply the saved theme at the root before first paint, so the Login screen (which lives
 // outside the Shell where useTheme runs) honours the persisted light/dark preference.
@@ -21,7 +22,9 @@ createRoot(document.getElementById('root')!).render(
     <div className="grain" />
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <ConfirmProvider>
+          <App />
+        </ConfirmProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
