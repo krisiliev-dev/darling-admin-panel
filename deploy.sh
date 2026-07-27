@@ -17,6 +17,13 @@ npm --prefix frontend run build
 
 echo "[deploy] rebuilding + restarting containers…"
 docker compose up -d --build
+# The panel's Python is bind-mounted (..:/app), NOT baked into the image, and uvicorn runs without
+# --reload. So when requirements are unchanged the built image is cache-identical and `up` leaves the
+# OLD container — and old code — running: the deploy looks healthy but never loaded the new code.
+# Force-recreate the panel service so the new bind-mounted code is actually picked up. Caddy is left
+# alone (--no-deps → no needless TLS-proxy bounce); the SPA is already live from the dist rebuild above,
+# which Caddy serves straight from disk.
+docker compose up -d --force-recreate --no-deps panel
 docker image prune -f >/dev/null 2>&1 || true
 
 echo "[deploy] health check…"
