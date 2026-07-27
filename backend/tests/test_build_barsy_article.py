@@ -144,6 +144,25 @@ def test_no_weight_key_when_blank():
     assert "extra_data" not in art
 
 
+# --- online_price → extra_data.online_price (channel/per-POS pricing; see CHANNEL_PRICING.md) ---
+def test_online_price_written_to_extra_data():
+    art = _build_barsy_article(_draft(code="C", name="N", price="10.00", online_price="12.90"))["article"]
+    assert art["actual_price"] == "10.00"                 # physical/base price untouched
+    assert art["extra_data"]["online_price"] == "12.90"   # online overlay rides in extra_data
+
+
+def test_online_price_omitted_when_blank():
+    # empty online price → no overlay → connector falls back to actual_price (no divergence)
+    art = _build_barsy_article(_draft(code="C", name="N", price="10.00", online_price=""))["article"]
+    assert "extra_data" not in art
+
+
+def test_online_price_coexists_with_weight_and_seo():
+    d = _draft(code="C", name="N", weight_kg="1.2", meta_title="Заглавие", online_price="9.99")
+    art = _build_barsy_article(d)["article"]
+    assert art["extra_data"] == {"seo_title": "Заглавие", "weight_kg": "1.2", "online_price": "9.99"}
+
+
 # --- G6: Shopify leaf → Barsy cat_id resolution (set in _save_to_barsy, not the pure builder) ---
 def test_resolve_cat_id_builds_gid_from_suffix(monkeypatch):
     """The picker stores the leaf SUFFIX; the checkpoint is keyed by full gid — so the suffix must be

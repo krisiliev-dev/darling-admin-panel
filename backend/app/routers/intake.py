@@ -334,6 +334,7 @@ class ApproveRequest(BaseModel):
     model: str = ""
     oversell: bool = False        # orderable at <=0 stock (backorder / supplier dropship)
     weight_kg: str = ""           # kg → Barsy extra_data.weight_kg
+    online_price: str = ""        # EUR online price → extra_data.online_price; empty = use physical price (see CHANNEL_PRICING.md)
 
 
 class DraftOut(BaseModel):
@@ -352,6 +353,7 @@ class DraftOut(BaseModel):
     meta_description: str = ""
     oversell: bool = False
     weight_kg: str = ""
+    online_price: str = ""
     status: str
     barsy_article_id: int | None
     approved_by: str
@@ -375,6 +377,7 @@ def _row_to_out(d: IntakeDraft, image_count: int = 0) -> DraftOut:
         attributes=[Attribute(**a) for a in json.loads(d.attributes_json or "[]")],
         meta_title=getattr(d, "meta_title", "") or "", meta_description=getattr(d, "meta_description", "") or "",
         oversell=bool(getattr(d, "oversell", False)), weight_kg=getattr(d, "weight_kg", "") or "",
+        online_price=getattr(d, "online_price", "") or "",
         status=d.status, barsy_article_id=d.barsy_article_id, approved_by=d.approved_by,
         delivery_line_id=d.delivery_line_id,
         completed=(d.status in _DONE_STATES or d.barsy_article_id is not None),
@@ -499,6 +502,7 @@ async def approve(
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
         meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
         oversell=bool(req.oversell), weight_kg=req.weight_kg.strip(),
+        online_price=req.online_price.strip(),
         model=req.model, status="approved", approved_by=actor.email)
     session.add(d)
     await session.commit()
@@ -583,6 +587,7 @@ async def update_draft(
     d.meta_description = req.meta_description.strip()
     d.oversell = bool(req.oversell)
     d.weight_kg = req.weight_kg.strip()
+    d.online_price = req.online_price.strip()
     d.model = req.model
     # A delivery-sourced draft stays linked to its delivery and remains in the Нов продукт queue
     # (checkmarked) until the whole delivery is finalised — so the batch disappears together, not
@@ -720,6 +725,10 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
         extra["seo_description"] = d.meta_description
     if getattr(d, "weight_kg", ""):
         extra["weight_kg"] = str(d.weight_kg).strip()   # kg as string (Barsy extra_data.weight_kg)
+    # Online/channel price overlay (physical POS keeps actual_price; connector pushes this to Shopify
+    # when present, else falls back to actual_price). Human-set, never AI. See CHANNEL_PRICING.md.
+    if getattr(d, "online_price", ""):
+        extra["online_price"] = str(d.online_price).strip()
     if extra:
         art["extra_data"] = extra
     return {"article": art}

@@ -59,6 +59,7 @@ class IntakeDraft(Base):
     # orderable at <=0 stock (backorder / supplier dropship, e.g. Mira-N) → Barsy sale_below_zero='YES'
     oversell: Mapped[bool] = mapped_column(default=False)
     weight_kg: Mapped[str] = mapped_column(String(16), default="")  # kg, string → Barsy extra_data.weight_kg
+    online_price: Mapped[str] = mapped_column(String(32), default="")  # EUR online/channel price → extra_data.online_price; empty = use actual_price (physical)
     model: Mapped[str] = mapped_column(String(64), default="")
     # lifecycle. For delivery-sourced products: new_from_delivery → done_from_delivery (enriched,
     # stays checkmarked in the queue) → the whole delivery leaves together when it's finalised.

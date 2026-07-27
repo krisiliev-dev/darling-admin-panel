@@ -179,6 +179,7 @@ export interface IntakeDraft {
   meta_description?: string
   oversell?: boolean          // orderable at <=0 stock (backorder / supplier dropship)
   weight_kg?: string          // kg → Barsy extra_data.weight_kg
+  online_price?: string       // EUR online price → extra_data.online_price; empty = physical price
   model: string
   elapsed_ms: number
   // present on persisted drafts (from /drafts, /approve)
@@ -498,6 +499,7 @@ export interface ArticleDetail {
   category: string
   oversell?: boolean
   weight_kg?: string
+  online_price?: string
 }
 
 export interface StaffMember {

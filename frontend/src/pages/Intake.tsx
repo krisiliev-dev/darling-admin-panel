@@ -221,7 +221,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
           name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
           brand: d.brand || '', description: d.description || '', attributes: sized,
           meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
-          oversell: !!d.oversell, weight_kg: d.weight_kg || '',
+          oversell: !!d.oversell, weight_kg: d.weight_kg || '', online_price: d.online_price || '',
         })
       const b = r.barsy
       if (b && !b.live) setNote(b.note || 'Записано (проба).')
@@ -331,7 +331,8 @@ function ProductEditor({ draft, onDone, onCancel }: {
       {/* operational fields — price/unit are human; the CODE is assigned by Barsy on save */}
       <div className="font-type" style={eyebrow}>Оперативни данни</div>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
-        <Field label="Цена"><NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} /></Field>
+        <Field label="Цена (магазин)"><NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} /></Field>
+        <Field label="Онлайн цена"><NumberField value={d.online_price || ''} unit="€" onChange={(v) => setD({ ...d, online_price: v })} /></Field>
         <Field label="Мярка">
           <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -339,6 +340,9 @@ function ProductEditor({ draft, onDone, onCancel }: {
         </Field>
         <span className="pencil" style={{ fontSize: '.74rem', paddingBottom: '.3rem' }}>
           {d.code ? `Код (Barsy): ${d.code}` : 'Кодът се присвоява автоматично от Barsy при създаване.'}
+        </span>
+        <span className="pencil" style={{ fontSize: '.72rem', paddingBottom: '.3rem', flexBasis: '100%' }}>
+          ✎ „Онлайн цена" е цената в онлайн магазина (Shopify). Празно = същата като магазинната.
         </span>
       </div>
 
