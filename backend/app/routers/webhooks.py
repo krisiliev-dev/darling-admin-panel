@@ -23,6 +23,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from starlette.concurrency import run_in_threadpool
 
+from ..audit import log_action
 from ..config import get_settings
 from ..core import connector
 from ..models import User
@@ -48,22 +49,66 @@ def _verify_shopify(raw: bytes, header_hmac: str | None) -> bool:
 
 
 def _dispatch_shopify(topic: str, payload: dict, live: bool):
-    """Route a Shopify topic to the matching connector translation. Returns the plan/result dict."""
+    """Route a Shopify topic to the matching connector translation. Returns the plan/result dict.
+    (GDPR topics are handled separately/async in _process_shopify — they never reach here.)"""
     mode = get_settings().order_ingest_mode
-    if topic in ("orders/paid", "orders/create"):
+    # orders/updated → re-run the order mapping; the connector's _seen_order dedupe makes it a no-op
+    # for an already-booked order, and a catch-up if we somehow missed create/paid.
+    if topic in ("orders/paid", "orders/create", "orders/updated"):
         return connector.shopify_order_to_barsy(payload, mode=mode, do_write=live)
     if topic == "orders/cancelled":
         return connector.shopify_order_cancellation_to_barsy(payload, do_write=live)
     if topic == "refunds/create":
         return connector.shopify_refund_to_barsy(payload, do_write=live)
-    if topic == "fulfillments/create":
+    if topic in ("fulfillments/create", "fulfillments/update"):
         return connector.shopify_fulfillment_to_barsy(payload, do_write=live)
     if topic in ("customers/create", "customers/update"):
         return connector.shopify_customer_to_barsy(payload, do_write=live)
     return {"skipped": f"unhandled topic {topic}"}
 
 
+# Shopify's mandatory GDPR/compliance topics. Handled panel-side (our PII footprint = the phone-keyed
+# OrderOutcome refusal history + any nekorekten reports); Shopify remains the customer system of record.
+# These act on OUR OWN data as a legal duty, so they are NOT behind the webhooks_live write-gate.
+_GDPR_TOPICS = {"customers/data_request", "customers/redact", "shop/redact"}
+
+
+def _shopify_customer_phone(payload: dict) -> str:
+    c = payload.get("customer") if isinstance(payload, dict) else None
+    return (c or {}).get("phone") or ""
+
+
+async def _process_gdpr(topic: str, payload: dict):
+    """Honour a Shopify GDPR webhook against the panel's own data. data_request → compile + audit (owner
+    fulfils); customers/redact → erase our PII + retract nekorekten; shop/redact → audit (single-merchant)."""
+    from ..db import async_session_maker
+    from .gdpr import collect_customer_data, erase_customer_data
+    phone = _shopify_customer_phone(payload)
+    async with async_session_maker() as session:
+        if topic == "customers/redact":
+            if phone:
+                res = await erase_customer_data(session, phone, actor=None)
+                log.info("GDPR customers/redact %s -> %s", phone, res)
+            else:
+                await log_action(session, None, "gdpr.redact.no_phone",
+                                 detail=str((payload.get("customer") or {}).get("id")))
+        elif topic == "customers/data_request":
+            data = await collect_customer_data(session, phone) if phone else {"count": 0}
+            await log_action(session, None, "gdpr.data_request", target=phone,
+                             detail=f"records={data.get('count', 0)}")
+            log.info("GDPR customers/data_request %s -> %s records (owner fulfils)", phone, data.get("count"))
+        elif topic == "shop/redact":
+            await log_action(session, None, "gdpr.shop_redact", detail=str(payload.get("shop_domain")))
+
+
 async def _process_shopify(topic: str, payload: dict, live: bool):
+    # GDPR/compliance topics act on our OWN data (legal duty) — handled async here, never gated.
+    if topic in _GDPR_TOPICS:
+        try:
+            await _process_gdpr(topic, payload)
+        except Exception as e:  # noqa: BLE001 — already 200'd; never let a handler crash propagate
+            log.exception("GDPR %s handler failed: %s", topic, e)
+        return
     try:
         result = await run_in_threadpool(_dispatch_shopify, topic, payload, live)
         # surface unmatched SKUs loudly — the handoff says never drop them silently

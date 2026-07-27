@@ -84,7 +84,9 @@ async def test_shopify_topic_routing(client, spy, monkeypatch):
         "orders/cancelled": "shopify_order_cancellation_to_barsy",
         "refunds/create": "shopify_refund_to_barsy",
         "fulfillments/create": "shopify_fulfillment_to_barsy",
+        "fulfillments/update": "shopify_fulfillment_to_barsy",   # tracking updates
         "customers/create": "shopify_customer_to_barsy",
+        "orders/updated": "shopify_order_to_barsy",              # order edits (idempotent re-sync)
     }
     for topic, expected_fn in cases.items():
         spy.clear()
@@ -130,3 +132,36 @@ def test_barsy_code_extraction_variants():
 async def test_reconcile_requires_owner(client):
     r = await client.post("/webhooks/reconcile")
     assert r.status_code in (401, 403)
+
+
+# --- GDPR / compliance webhooks (handled panel-side, NOT dispatched to the connector) ---
+async def test_gdpr_topics_return_200_and_skip_connector(client, spy, monkeypatch):
+    _set_live(monkeypatch, False)
+    for topic in ("customers/data_request", "customers/redact", "shop/redact"):
+        spy.clear()
+        raw = json.dumps({"shop_domain": "x.myshopify.com", "customer": {"id": 7}}).encode()
+        r = await client.post("/webhooks/shopify/orders", content=raw,
+                              headers={"x-shopify-hmac-sha256": _sign(raw), "x-shopify-topic": topic})
+        assert r.status_code == 200, f"{topic}: {r.text}"
+        assert not spy, f"{topic} must not hit the connector, saw {spy}"
+
+
+async def test_gdpr_customers_redact_erases_panel_data(client, spy):
+    from sqlalchemy import select
+
+    from app import nekorekten
+    from app.db import async_session_maker
+    from app.models import OrderOutcome
+    ph = nekorekten.normalize_phone("0888123456")
+    async with async_session_maker() as s:
+        s.add(OrderOutcome(phone_norm=ph, outcome="refused", order_name="#GDPR-T"))
+        await s.commit()
+    raw = json.dumps({"shop_domain": "x.myshopify.com",
+                      "customer": {"id": 7, "phone": "0888123456"}}).encode()
+    r = await client.post("/webhooks/shopify/orders", content=raw,
+                          headers={"x-shopify-hmac-sha256": _sign(raw), "x-shopify-topic": "customers/redact"})
+    assert r.status_code == 200
+    # the background GDPR handler erased our phone-keyed record
+    async with async_session_maker() as s:
+        rows = (await s.execute(select(OrderOutcome).where(OrderOutcome.phone_norm == ph))).scalars().all()
+    assert rows == []
