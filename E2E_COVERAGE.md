@@ -35,7 +35,7 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 |---|---|---|---|
 | `Products.tsx` + `ProductExplorer.tsx` (Каталог: filters, selection, bulk bar) | `/products` | `products.spec.ts` | ✅ (+ `ProductExplorer.test.tsx` unit) |
 | `Catalog.tsx` | (legacy → Products) | `products.spec.ts` | ✅ |
-| `Intake.tsx` (Нов продукт: barcode+images editor) | `/intake` | `intake.spec.ts` | ⬜ barcode entry → enrich gate → save-to-Barsy button state; mandatory-images guard |
+| `Intake.tsx` (Нов продукт: barcode+images editor) | `/intake` | `intake.spec.ts` | ✅ empty list + add; editor renders; **enrich gated on barcode**; **Save blocked w/o images** |
 
 ## Flow 4 — Pricing (store + channel)
 | Page/Component | Route | e2e spec | Status |
@@ -79,10 +79,11 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 | `Brands.tsx` (Брандове) | `/brands` | `brands.spec.ts` | ✅ |
 | `BrandPicker.tsx` | intake/brands | `brands.spec.ts` / `intake.spec.ts` | 🟡 |
 
-## Flow 10 — Assistant (Канцелария)
+## Flow 10 — Back-office (Канцелария) + Assistant
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
-| `Kancelaria.tsx` / `Assistant.tsx` (in-panel BG Q&A + gated actions) | `/kancelaria`, `/assistant` | `assistant.spec.ts` | ⬜ ask a question → answer renders; a gated action shows the human-confirm step |
+| `Kancelaria.tsx` (label-print desk: search → queue → print) | `/kancelaria` | `kancelaria.spec.ts` | ✅ search → queue → copies → clear (print action not driven) |
+| `Assistant.tsx` (in-panel BG Q&A + gated actions) | `/assistant` | `assistant.spec.ts` | ⬜ ask → answer renders; a gated action shows the human-confirm step |
 | `FloatingAssistant.tsx` | global | `assistant.spec.ts` | ⬜ open/close the floating widget |
 
 ## Flow 11 — Admin / settings
@@ -107,9 +108,17 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 3. ~~`nav.spec.ts`~~ ✅ done — nav items + hrefs, client-side nav, command palette. Still ⬜: **ErrorBoundary**
    fallback (a thrown render error shows the fallback, not a white screen) — hard to trigger via API mock;
    needs a forced-throw hook.
-4. **`intake.spec.ts`** — Нов продукт enrich-gate + mandatory-images guard + save-to-Barsy button states.
-5. **`assistant.spec.ts`** — Q&A answer render + gated-action confirm step.
-6. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
+4. ~~`intake.spec.ts`~~ ✅ done — enrich-gate + mandatory-images guard. ~~`kancelaria.spec.ts`~~ ✅ done.
+5. **`assistant.spec.ts`** — Q&A answer render + gated-action confirm step (needs the model-chain mocked).
+6. **`settings.spec.ts` / `sklad.spec.ts` content** — courier tab lists offices, create-user validation,
+   Дневник tab; Sklad tab bodies + "за поръчка" expand.
+7. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
+
+## Follow-up fix flagged (not a test gap)
+- **Leftover `window.confirm`** — the in-app `Confirm` modal replaced `window.confirm` in
+  `ProductBulkPricing.tsx`, but `Intake.tsx` (`ApprovedDrafts` push-to-Barsy, ~line 492) still calls the
+  native `window.confirm`. The owner asked for the in-app modal everywhere; a sweep of the remaining
+  files (Intake, and any others — Catalog/Sklad/Pricing) should convert them to `useConfirm()`.
 
 ## Findings surfaced while writing specs
 - **Nav/route role mismatch** — ✅ RESOLVED. `Shell.tsx` listed `/sklad` + `/settings` under
