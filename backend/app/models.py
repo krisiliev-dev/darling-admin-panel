@@ -373,6 +373,35 @@ class OrderOutcome(Base):
         DateTime(timezone=True), server_default=func.now())
 
 
+class ProcessingIssue(Base):
+    """A connector/webhook anomaly that must NOT be silently swallowed (owner 2026-07-27). When the
+    Barsy⇄Shopify connector refuses or fails to process an inbound webhook — a line item whose SKU
+    matches no Barsy article, a missing/bad-shape field, an unhandled topic, or a thrown exception — the
+    receiver records a row here so staff SEE it in the panel (nav badge + Home strip + Проблеми page)
+    instead of it vanishing into logs. `resolved` is a manual acknowledgement (once the data is fixed and
+    the order re-fired). Panel-owned (admin.db); read-only mirror of processing health, never touches
+    Barsy. Deduped by (source, kind, order_ref) so a Shopify retry storm doesn't create N identical rows."""
+    __tablename__ = "processing_issue"
+    __table_args__ = (Index("ix_issue_open", "resolved", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+    source: Mapped[str] = mapped_column(String(16), default="shopify")   # shopify | barsy | connector
+    topic: Mapped[str] = mapped_column(String(64), default="")           # e.g. orders/create
+    order_ref: Mapped[str] = mapped_column(String(64), default="", index=True)  # #1001 / article code
+    severity: Mapped[str] = mapped_column(String(16), default="warning")  # warning | error
+    kind: Mapped[str] = mapped_column(String(48), default="")            # unmatched_sku | needs_review | exception…
+    summary: Mapped[str] = mapped_column(String(500), default="")        # human BG one-liner
+    detail: Mapped[str] = mapped_column(Text, default="{}")              # JSON: offending fields/skus/excerpt
+    count: Mapped[int] = mapped_column(default=1)                        # times this (deduped) issue recurred
+    last_seen: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    resolved: Mapped[bool] = mapped_column(default=False, index=True)
+    resolved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str] = mapped_column(String(255), default="")
+
+
 class AuditLog(Base):
     """Who did what. Appended on side-effectful actions (login, user create, later:
     labels printed, POs generated, stock edits). A packer is not the owner — this is

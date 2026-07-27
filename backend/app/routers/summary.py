@@ -8,7 +8,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..core import db
 from ..db import get_async_session
-from ..models import IntakeDraft, User
+from ..models import IntakeDraft, ProcessingIssue, User
 from ..users import current_active_user
 
 router = APIRouter(prefix="/api/summary", tags=["summary"])
@@ -41,6 +41,9 @@ async def badges(
     drafts = (await session.execute(
         select(func.count()).select_from(IntakeDraft)
         .where(IntakeDraft.status == "approved"))).scalar_one()
+    open_issues = (await session.execute(
+        select(func.count()).select_from(ProcessingIssue)
+        .where(ProcessingIssue.resolved.is_(False)))).scalar_one()
     orders_todo, cod_awaiting = await run_in_threadpool(_fulfillment_counts)
     # keyed by nav path so the Shell can map directly
-    return {"/intake": drafts, "/orders": orders_todo, "/cod": cod_awaiting}
+    return {"/intake": drafts, "/orders": orders_todo, "/cod": cod_awaiting, "/issues": open_issues}

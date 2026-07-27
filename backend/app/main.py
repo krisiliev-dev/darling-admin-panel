@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Дарлинг admin panel — FastAPI service. Wraps darling_core as a clean API and serves
 the auth surface for the React front end."""
+import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -8,6 +10,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import ratelimit
+
+
+def _configure_logging() -> None:
+    """Send the app's INFO logs to stdout so `docker logs darling-panel` shows them. Without this the
+    container only surfaces uvicorn's own lines (root logger defaults to WARNING with no stdout handler),
+    so webhook processing — including the connector's 'unmatched SKU' refusals and 'processed' lines —
+    was invisible server-side (we could see the Caddy 200 but not what the handler did with it). Covers
+    every app logger (`app.*`) plus the connector's `darling.*`. Idempotent; noisy libs stay at WARNING."""
+    root = logging.getLogger()
+    if any(getattr(h, "_darling_stdout", False) for h in root.handlers):
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler._darling_stdout = True  # type: ignore[attr-defined]  # marker so we don't double-add on reload
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    # keep the chatty libraries from drowning the signal
+    for noisy in ("sqlalchemy.engine", "aiosqlite", "httpx", "httpcore", "multipart"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+_configure_logging()
 from .config import get_settings
 from .core import health as core_health
 from .db import create_db_and_tables
@@ -28,6 +52,7 @@ from .routers import (
     intake_delivery,
     inventory,
     inventory_health,
+    issues,
     logs,
     online_pricing,
     orders,
@@ -131,6 +156,7 @@ app.include_router(admin.router)
 app.include_router(logs.router)
 app.include_router(gdpr.router)
 app.include_router(insights.router)
+app.include_router(issues.router)
 app.include_router(pricing.router)
 app.include_router(online_pricing.router)
 app.include_router(public_couriers.router)

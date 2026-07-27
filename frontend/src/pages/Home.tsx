@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApi } from '../lib/useApi'
-import type { HomeResponse, AgingResponse } from '../lib/api'
+import type { HomeResponse, AgingResponse, IssuesResp } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
@@ -16,6 +16,7 @@ export function Home() {
   const [period, setPeriod] = useState('today')
   const { data, error } = useApi<HomeResponse>(`/api/summary/home?period=${period}`, [period])
   const { data: aging } = useApi<AgingResponse>('/api/inventory-health/aging')
+  const { data: issues } = useApi<IssuesResp>('/api/issues?resolved=false')
 
   if (error) return <Sheet><p style={{ color: 'var(--red)' }}>Грешка при зареждане: {error}</p></Sheet>
   if (!data) return <Sheet><Loading /></Sheet>
@@ -25,8 +26,10 @@ export function Home() {
   const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9.5rem, 1fr))', gap: '.8rem' } as const
   const tileLink = { textDecoration: 'none', color: 'inherit', display: 'block' } as const
 
-  // combine server attention with the stale-stock signal (from the aging endpoint)
+  // combine server attention with the stale-stock signal + any open sync issues (loudest first)
+  const openIssues = issues?.open_count ?? 0
   const attention = [
+    ...(openIssues > 0 ? [{ tone: 'blocked', text: `${openIssues} нерешен${openIssues === 1 ? '' : 'и'} проблем${openIssues === 1 ? '' : 'а'} със синхронизацията Barsy ⇄ Shopify`, to: '/issues' }] : []),
     ...data.attention,
     ...(stale && stale > 0 ? [{ tone: 'blocked', text: `${eur(stale)} замразени в застояла стока`, to: '/inventory' }] : []),
   ]

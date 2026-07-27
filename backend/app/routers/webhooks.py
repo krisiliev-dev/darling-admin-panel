@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import log_action
 from ..config import get_settings
 from ..core import connector
+from ..issues import note_exception, note_shopify_result
 from ..models import User
 from ..users import current_owner
 
@@ -158,14 +159,14 @@ async def _process_shopify(topic: str, payload: dict, live: bool):
         return
     try:
         result = await run_in_threadpool(_dispatch_shopify, topic, payload, live)
-        # surface unmatched SKUs loudly — the handoff says never drop them silently
-        missing = (result or {}).get("missing_skus")
-        if missing:
-            log.warning("Shopify %s: unmatched SKUs %s", topic, missing)
-        log.info("Shopify %s processed (live=%s): %s", topic, live,
+        # NEVER silently swallow a refusal/anomaly — persist it as a panel ProcessingIssue (nav badge +
+        # Home strip + Проблеми page) so staff see it. A clean result records nothing.
+        recorded = await note_shopify_result(topic, payload, result)
+        log.info("Shopify %s processed (live=%s, issue=%s): %s", topic, live, recorded,
                  {k: v for k, v in (result or {}).items() if k != "lines"})
     except Exception as e:  # never let a handler crash take down anything; we already 200'd
         log.exception("Shopify %s handler failed: %s", topic, e)
+        await note_exception("shopify", topic, payload, e)
 
 
 @router.post("/shopify/orders")

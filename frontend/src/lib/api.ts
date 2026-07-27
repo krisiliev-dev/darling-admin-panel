@@ -247,6 +247,15 @@ export interface OnlinePriceItem { article_id: number; online_price: string; mod
 export interface CartItem { token: string; email: string; phone: string; name: string; total_price: string; currency: string; item_count: number; updated_at: string | null }
 export interface CartsResp { active: CartItem[]; abandoned: CartItem[]; active_count: number; abandoned_count: number }
 
+export interface ProcessingIssue {
+  id: number; created_at: string | null; last_seen: string | null
+  source: string; topic: string; order_ref: string
+  severity: 'warning' | 'error'; kind: string; summary: string
+  detail: Record<string, unknown>; count: number
+  resolved: boolean; resolved_at: string | null; resolved_by: string
+}
+export interface IssuesResp { issues: ProcessingIssue[]; open_count: number }
+
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {
   code: string; name: string; supplier: string; suppliers: string[]

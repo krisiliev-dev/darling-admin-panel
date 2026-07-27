@@ -9,6 +9,7 @@ import { Home } from './pages/Home'
 import { Orders } from './pages/Orders'
 import { Carts } from './pages/Carts'
 import { Cod } from './pages/Cod'
+import { Issues } from './pages/Issues'
 import { Intake } from './pages/Intake'
 import { Products } from './pages/Products'
 import { Deliveries } from './pages/Deliveries'
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="orders" element={<Orders />} />
         <Route path="carts" element={<Carts />} />
         <Route path="cod" element={<Cod />} />
+        <Route path="issues" element={<Issues />} />
         <Route path="products" element={<Products />} />
         {/* old paths keep working (bookmarks / deep-links) → unified Продукти */}
         <Route path="inventory" element={<Products />} />
