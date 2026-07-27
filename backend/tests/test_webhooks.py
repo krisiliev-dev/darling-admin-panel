@@ -165,3 +165,12 @@ async def test_gdpr_customers_redact_erases_panel_data(client, spy):
     async with async_session_maker() as s:
         rows = (await s.execute(select(OrderOutcome).where(OrderOutcome.phone_norm == ph))).scalars().all()
     assert rows == []
+
+
+async def test_barsy_head_probe_is_clean_empty_200(client):
+    # Barsy registers with a HEAD probe; the response must be self-consistent (empty body,
+    # Content-Length 0) or strict clients fail with "transfer closed with N bytes remaining".
+    r = await client.request("HEAD", "/webhooks/barsy/article")
+    assert r.status_code == 200
+    assert r.content == b""
+    assert r.headers.get("content-length") in (None, "0")

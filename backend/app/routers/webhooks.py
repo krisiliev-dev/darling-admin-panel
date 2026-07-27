@@ -20,7 +20,7 @@ import hashlib
 import hmac
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import log_action
@@ -179,6 +179,16 @@ async def _process_barsy_article(code: str, live: bool):
         log.info("Barsy article %s -> Shopify (live=%s): %s", code, live, result)
     except Exception as e:
         log.exception("Barsy article %s Shopify mirror failed: %s", code, e)
+
+
+@router.head("/barsy/article")
+async def barsy_article_probe() -> Response:
+    """Barsy's webhook-registration probe sends an HTTP HEAD and accepts 200–299/401/403/405/500/501.
+    Starlette's default 405 for HEAD-on-a-POST-route sets Content-Length to the JSON error body's size
+    but (correctly) sends no body on HEAD → the length/body mismatch makes strict clients (Barsy) fail
+    with 'transfer closed with N bytes remaining'. An explicit empty 200 gives a clean, self-consistent
+    response (Content-Length: 0) that the probe validates."""
+    return Response(status_code=200)
 
 
 @router.post("/barsy/article")
