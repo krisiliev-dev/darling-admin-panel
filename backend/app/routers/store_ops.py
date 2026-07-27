@@ -206,7 +206,9 @@ async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
     the audit defence. Reasons come from /writeoff-reasons."""
     depot = req.depot_id or get_settings().barsy_depot_id
     body = {
-        "action_type": "save",
+        # save_and_close POSTS the document → decrements stock (verified live: 10→9). Plain "save" is
+        # a draft (status0) that does NOT move stock; "save_and_close" (status1) is the actual write-off.
+        "action_type": "save_and_close",
         "values": {
             "depot_id": str(depot),
             "type_id": "-1",                     # Глобален (the only write-off type on this install)

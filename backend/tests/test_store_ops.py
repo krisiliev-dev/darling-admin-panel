@@ -66,6 +66,7 @@ async def test_writeoff_dry_run_matches_captured_envelope(owner_client, barsy_re
     body = r.json()
     assert body["dry_run"] is True and body["method"] == "Storeouts_save"
     # envelope confirmed from the Barsy UI capture: flat `values` (strings) + sibling `rows`
+    assert body["barsy_body"]["action_type"] == "save_and_close"   # posts → decrements stock
     vals = body["barsy_body"]["values"]
     assert vals["type_id"] == "-1" and vals["depot_id"] == "1"     # depot flat, string
     row = body["barsy_body"]["rows"][0]
