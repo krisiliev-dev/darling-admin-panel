@@ -159,3 +159,51 @@ async def test_revision_post_dry_run_shape(owner_client, barsy_recorder):
 async def test_revision_requires_owner(staff_client):
     r = await staff_client.post("/api/store-ops/revision", json={"lines": [{"article_id": 5, "counted": 1}]})
     assert r.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------- live-gate: correct method+body sent ---
+async def test_writeoff_live_sends_storeouts_save(owner_client, barsy_recorder, monkeypatch):
+    monkeypatch.setattr(store_ops, "get_settings", _live_settings)
+    barsy_recorder.set_return("Storeouts_save", 5)
+    r = await owner_client.post("/api/store-ops/writeoff", json={
+        "lines": [{"article_id": 7, "amount": 1}], "reason_id": 1})
+    assert r.status_code == 200 and r.json()["dry_run"] is False
+    body = barsy_recorder.body_for("Storeouts_save")
+    assert body["action_type"] == "save_and_close" and body["values"]["depot_id"] == "1"
+    assert body["rows"][0]["article_id"] == "7"
+
+
+async def test_transfer_live_sends_storemoves_create(owner_client, barsy_recorder, monkeypatch):
+    monkeypatch.setattr(store_ops, "get_settings", _live_settings)
+    barsy_recorder.set_return("Depots_getlist", [{"depot_id": 1}, {"depot_id": 2}])
+    barsy_recorder.set_return("Storemoves_create", 7)
+    r = await owner_client.post("/api/store-ops/transfer", json={
+        "lines": [{"article_id": 5, "amount": 2}], "depot_from": 1, "depot_to": 2})
+    assert r.status_code == 200 and r.json()["dry_run"] is False
+    sm = barsy_recorder.body_for("Storemoves_create")["storemove"]
+    assert sm["depot_id_left"] == 1 and sm["depot_id_right"] == 2
+
+
+async def test_revision_live_sends_revisions_save(owner_client, barsy_recorder, monkeypatch):
+    monkeypatch.setattr(store_ops, "get_settings", _live_settings)
+    barsy_recorder.set_return("Revisions_save", 3)
+    r = await owner_client.post("/api/store-ops/revision", json={
+        "lines": [{"article_id": 5, "counted": 8}], "depot_id": 1})
+    assert r.status_code == 200 and r.json()["dry_run"] is False
+    body = barsy_recorder.body_for("Revisions_save")
+    assert body["action_type"] == "save_and_close" and body["rows"][0]["amount"] == "8"
+
+
+# ---------------------------------------------------------------- storno error edges ---
+async def test_storno_rejects_when_original_has_no_rows(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Storeloads_get", {"depot_id": 1})   # no articles/rows
+    r = await owner_client.post("/api/store-ops/storno", json={"storeload_id": 9})
+    assert r.status_code == 400
+
+
+async def test_storno_404_when_original_missing(owner_client, barsy_recorder):
+    def _boom(_body):
+        raise RuntimeError("Няма зареждане")
+    barsy_recorder.set_return("Storeloads_get", _boom)
+    r = await owner_client.post("/api/store-ops/storno", json={"storeload_id": 999})
+    assert r.status_code == 404

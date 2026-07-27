@@ -81,6 +81,7 @@ async def test_shopify_live_gate_passes_do_write_true(client, spy, monkeypatch):
 async def test_shopify_topic_routing(client, spy, monkeypatch):
     _set_live(monkeypatch, False)
     cases = {
+        "orders/create": "shopify_order_to_barsy",              # COD orders (pending → no orders/paid)
         "orders/cancelled": "shopify_order_cancellation_to_barsy",
         "refunds/create": "shopify_refund_to_barsy",
         "fulfillments/create": "shopify_fulfillment_to_barsy",
