@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # Barsy doesn't sign payloads, so we gate its receiver on a shared token embedded in the
     # registered URL (?token=…). Empty => Barsy receiver refuses. Generate a long random value.
     barsy_webhook_token: str = ""
+    # Shared secret for the PUBLIC courier office-lookup (/api/public/couriers/{key}/offices), which
+    # the storefront's Cloudflare Worker calls to populate the checkout office picker. The caller
+    # presents it as the X-Office-Token header; courier API creds stay server-side and are never
+    # exposed. Empty (default) => the endpoint is DISABLED (403). Set OFFICE_LOOKUP_TOKEN to a long
+    # random value and hand it to the storefront directly. Read-only, so low-risk if it ever leaks.
+    office_lookup_token: str = ""
     # MASTER SAFETY GATE. False (default) => receivers verify + log a dry-run PLAN but write NOTHING
     # to Barsy/Shopify. Flip to True (WEBHOOKS_LIVE=1) ONLY at store launch, after the fiscal POS is
     # configured and stock quantities are loaded. Until then real orders would mis-fiscalise.

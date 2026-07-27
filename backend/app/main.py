@@ -32,6 +32,7 @@ from .routers import (
     orders,
     pricing,
     products,
+    public_couriers,
     purchasing,
     quality,
     risk,
@@ -130,6 +131,7 @@ app.include_router(gdpr.router)
 app.include_router(insights.router)
 app.include_router(pricing.router)
 app.include_router(online_pricing.router)
+app.include_router(public_couriers.router)
 app.include_router(quality.router)
 app.include_router(risk.router)
 app.include_router(summary.router)
