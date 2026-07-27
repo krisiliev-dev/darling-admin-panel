@@ -42,8 +42,16 @@ LANG = "bg_BG"
 
 
 def _catalog():
-    """Live {code: article} map of everything currently in Barsy (by business code)."""
-    arts = b.call("Articles_getlist", {"filters": {}})
+    """Live {code: article} map of everything currently in Barsy (by business code).
+
+    Fetched under the ONLINE delivery channel ("address") with current_price requested, so each
+    article carries BOTH `actual_price` (base) and `current_price` (the price under the online
+    channel, reflecting any active Barsy Pricelists rule scoped to online). The filter annotates
+    pricing context only — it returns the identical article set as an unfiltered fetch (verified).
+    Consumers that publish to the storefront use current_price (see connector `_price`); with no
+    online rule the two are equal, so this is a no-op until the owner sets channel pricing."""
+    arts = b.call("Articles_getlist", {"filters": {"delivery_type_id": "address"},
+                                        "extra_properties": {"current_price": 1}})
     return {str(a["code"]): a for a in arts if a.get("code")}
 
 

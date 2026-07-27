@@ -73,15 +73,17 @@ def test_prepaid_sale_places_account_with_lines_and_online_payment(conn):
     assert res.get("written") is True
     body = conn.body_for("Accounts_place")
 
-    # account identity is idempotent by the Shopify order id
-    assert body["account"]["uuid"] == "shopify-12345"
+    # account identity is idempotent by the Shopify order id (uuid5 — Barsy rejects raw "shopify-<id>")
+    assert body["account"]["uuid"] == connector._acc_uuid("shopify-12345")
     assert body["account"]["contact_name"] == "Иван Петров"
     assert body["account"]["phone"] == "0888111222"
 
-    # each line maps SKU→article_id, quantity→amount(str), price→current_price(str)
+    # each line maps SKU→article_id, quantity→amount(str), price→original_current_price(str).
+    # NB `original_current_price` NOT `current_price` (the latter is DEPRECATED → silently dropped →
+    # would mis-book the sale at the article's base price).
     assert body["orders"] == [
-        {"article_id": 501, "amount": "2", "current_price": "9.90"},
-        {"article_id": 502, "amount": "1", "current_price": "4.50"},
+        {"article_id": 501, "amount": "2", "original_current_price": "9.90"},
+        {"article_id": 502, "amount": "1", "original_current_price": "4.50"},
     ]
 
     # a single payment for the FULL order total is recorded as collected online
@@ -142,24 +144,28 @@ def test_clientorder_mode_creates_clientorder_without_payment(conn):
     assert "Clientorders_create" in [op for op, _ in conn.calls]
     assert "Accounts_place" not in [op for op, _ in conn.calls]   # no fiscal sale/payment
     body = conn.body_for("Clientorders_create")
-    assert body["client_order"]["uuid"] == "shopify-12345"
+    # Clientorders_create param key is `order` (ClientOrderInputData), not `client_order`
+    assert body["order"]["uuid"] == connector._acc_uuid("shopify-12345")
     assert len(body["rows"]) == 2
 
 
 # ---------------------------------------------------------- refund / cancellation (storno) ---
-def test_refund_places_partial_storno_referencing_the_original_sale(conn, monkeypatch):
+# ⚠ SHAPE contract only. Storno uses the dedicated Accounts_storno method (AccountInputData has NO
+# storno_of_account_id — the old Accounts_place{storno_of_account_id} silently no-op'd). The EMITTED
+# body is pinned here; the live BEHAVIOUR is NOT verified — storno is fiscal + irreversible, so a live
+# round-trip is deferred to a fiscal POS + explicit owner go (Hermes). A green test = "we emit the
+# right shape", NOT "Barsy accepted it".
+def test_refund_stornos_the_refunded_articles(conn, monkeypatch):
     monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
     refund = {"id": 55, "order_id": 12345, "refund_line_items": [
         {"quantity": 1, "line_item": {"sku": "SKU-1"}},
     ]}
     res = connector.shopify_refund_to_barsy(refund, do_write=True)
     assert res.get("written") is True
-    body = conn.body_for("Accounts_place")
-    assert body["account"]["storno_of_account_id"] == 900       # reverses the ORIGINAL sale
-    assert body["account"]["uuid"] == "shopify-refund-55"
-    # only the refunded line + quantity is restocked; storno carries no payment
-    assert body["orders"] == [{"article_id": 501, "amount": "1"}]
-    assert body["payments"] == []
+    # storno the refunded ARTICLE (by article_ids — Barsy can't storno by quantity), full refund
+    assert conn.body_for("Accounts_storno") == {
+        "account_id": 900, "article_ids": [501], "payments": [],
+        "storno_data": {"storno_reason": "return"}}
 
 
 def test_refund_without_a_logged_sale_is_skipped(conn):
@@ -168,14 +174,14 @@ def test_refund_without_a_logged_sale_is_skipped(conn):
     assert conn.calls == []
 
 
-def test_cancellation_places_full_storno(conn, monkeypatch):
+def test_cancellation_stornos_the_whole_account(conn, monkeypatch):
     monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
     res = connector.shopify_order_cancellation_to_barsy(_order(cancel_reason="customer"), do_write=True)
     assert res.get("written") is True
-    body = conn.body_for("Accounts_place")
-    assert body["account"]["storno_of_account_id"] == 900
-    assert body["account"]["uuid"] == "shopify-storno-12345"
-    assert body["orders"] == [] and body["payments"] == []
+    # empty article_ids = storno the WHOLE account; reason "mistake" (order/operator correction)
+    assert conn.body_for("Accounts_storno") == {
+        "account_id": 900, "article_ids": [], "payments": [],
+        "storno_data": {"storno_reason": "mistake"}}
 
 
 def test_cancellation_without_logged_sale_is_skipped(conn):
@@ -244,8 +250,8 @@ def test_cod_refusal_stornos_the_sale(conn, monkeypatch):
     monkeypatch.setattr(connector, "_seen_key", lambda key: False)
     res = connector.cod_refused_to_barsy("12345", do_write=True)
     assert res["written"] is True
-    body = conn.body_for("Accounts_place")
-    assert body["account"]["storno_of_account_id"] == 900       # reverses the sale → restores stock
+    body = conn.body_for("Accounts_storno")                     # RTO → whole-account storno restores stock
+    assert body["account_id"] == 900 and body["article_ids"] == []
 
 
 def test_cod_payment_skips_when_no_logged_sale(conn, monkeypatch):

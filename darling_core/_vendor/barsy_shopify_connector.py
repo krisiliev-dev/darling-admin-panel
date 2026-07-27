@@ -21,7 +21,15 @@ change stops propagating instead of ping-ponging.
 import hashlib
 import json
 import time
+import uuid as _uuid
 from pathlib import Path
+
+
+def _acc_uuid(seed):
+    """Barsy `account.uuid` must be a valid UUID; the raw "shopify-<id>" string is rejected
+    ("Некоректна дата … id:UUID"). Derive a UUID deterministically from a stable seed so
+    idempotency still holds AND the value passes Barsy's UUID validation."""
+    return str(_uuid.uuid5(_uuid.NAMESPACE_URL, str(seed)))
 
 import barsy_api as b
 import barsy_push as bp
@@ -39,6 +47,18 @@ _LOCATION = {"id": None}
 # ============================================================ helpers
 def _catalog():
     return bp._catalog()                                   # {code: article}
+
+
+def _price(art):
+    """Price to publish to the storefront = the article's ONLINE price: `current_price` (the
+    "address"/online delivery channel, which reflects any active Barsy Pricelists rule scoped to
+    online) with a fallback to the base `actual_price` when no online rule applies. Prices always
+    originate in Barsy/Microinvest and are never AI-touched — this only selects the online channel's
+    price. With no online rule set the two are identical, so this is a no-op until channel pricing
+    is configured. NOTE: incoming Shopify orders book at the price the customer actually paid (the
+    order line), NOT this — do not use `_price` on the Shopify→Barsy sale path."""
+    cp = art.get("current_price")
+    return str(cp if cp not in (None, "") else (art.get("actual_price") or ""))
 
 
 def _supplier(code):
@@ -183,10 +203,12 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         if not art:
             missing.append(sku or "(no sku)")
             continue
+        # OrderMakeData unit price = `original_current_price` (docs: `current_price` is DEPRECATED and
+        # silently dropped → the sale would book at the article's base price, not the order's). place.rst.
         rows.append({"article_id": int(art["article_id"]), "amount": str(li.get("quantity") or 0),
-                     "current_price": str(li.get("price") or art.get("actual_price") or "0")})
+                     "original_current_price": str(li.get("price") or art.get("actual_price") or "0")})
     cust, ship = order.get("customer") or {}, order.get("shipping_address") or {}
-    account = {"uuid": f"shopify-{oid}", "notes": f"Shopify поръчка {name}",
+    account = {"uuid": _acc_uuid(f"shopify-{oid}"), "notes": f"Shopify поръчка {name}",
                "description": f"Shopify order {name} ({oid})",
                "contact_name": (f"{cust.get('first_name','')} {cust.get('last_name','')}".strip()
                                 or ship.get("name") or ""),
@@ -205,7 +227,10 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         return {**plan, "dry_run": True}
 
     if mode == "clientorder":
-        aid = b.call("Clientorders_create", {"client_order": account, "rows": rows})
+        # clientorders/create param is `$order` (ClientOrderInputData), not `client_order`. NOTE: `account`
+        # is AccountInputData-shaped; ClientOrderInputData differs (e.g. client_tel) — header binds now, but
+        # a fuller ClientOrderInputData field mapping is still TODO (flagged).
+        aid = b.call("Clientorders_create", {"order": account, "rows": rows})
         _record_order(oid, aid, len(rows), "clientorder")
         return {**plan, "clientorder_id": aid, "written": True}
     # Only record a payment that Shopify actually COLLECTED. A COD order arrives with
@@ -232,8 +257,19 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
     return {**plan, "account_id": aid, "paid_online": paid_online, "invoice": bool(inv), "written": True}
 
 
+# ⚠ STORNO = the dedicated `Accounts_storno` method (NOT Accounts_place). Confirmed from docs 2026-07-27:
+# AccountInputData has NO `storno_of_account_id` field (only `storno_data`), so the old
+# Accounts_place{account:{storno_of_account_id}} was passing an ignored field — it did NOT storno.
+# Accounts_storno signature: {account_id:int, article_ids:[] (empty=whole account), payments:[]
+# (empty=full refund), storno_data:{storno_reason}} → returns the storno account id. Valid
+# storno_reason (Accounts_getstornoreasons): return | mistake | reduction_tax_base.
+# ⚠⚠ CONSTRAINTS (docs): storno works ONLY on a CLOSED (приключена) account; the reason is sent to the
+# FISCAL DEVICE (the storno account gets its own УНП + fiscal storno receipt); the op is IRREVERSIBLE.
+# So storno PRESUPPOSES the sale was fiscalised/closed (the pending fiscal-timing step). While mode=sale
+# only PLACES (open account), there is nothing to storno yet — the account_id must be closed first.
+# NOT yet live-verified (fiscal + irreversible → needs a fiscal POS + explicit owner go).
 def shopify_order_cancellation_to_barsy(order, do_write=False):
-    """Order cancelled on Shopify → reverse the Barsy sale (storno) → restores stock. VERIFY-LIVE."""
+    """Order cancelled on Shopify → full storno of the Barsy sale → restores stock. VERIFY-LIVE (fiscal)."""
     oid = str(order.get("id") or "")
     rec = _seen_order(oid)
     if not rec or not rec.get("account_id"):
@@ -241,52 +277,61 @@ def shopify_order_cancellation_to_barsy(order, do_write=False):
     key = f"storno-{oid}"
     if _seen_key(key):
         return {"skipped": "already stornoed", "order_id": oid}
-    plan = {"order_id": oid, "storno_of_account_id": rec["account_id"]}
+    # order cancellation ≈ operator/order correction; a physical customer return uses the refund path
+    reason = "mistake"
+    plan = {"order_id": oid, "account_id": rec["account_id"], "method": "Accounts_storno",
+            "article_ids": [], "storno_reason": reason}          # article_ids=[] → storno the WHOLE account
     if not do_write:
         return {**plan, "dry_run": True}
-    # a storno account referencing the original reverses the sale + restores stock
-    res = b.call("Accounts_place", {"account": {"uuid": f"shopify-storno-{oid}",
-                 "storno_of_account_id": rec["account_id"],
-                 "storno_reason": order.get("cancel_reason") or "Shopify cancellation",
-                 "notes": f"Storno на Shopify поръчка {rec.get('order_id')}"}, "orders": [], "payments": []})
+    res = b.call("Accounts_storno", {"account_id": int(rec["account_id"]), "article_ids": [],
+                 "payments": [], "storno_data": {"storno_reason": reason}})
     _record_order(oid, res, 0, "storno", key=key)
     return {**plan, "storno_account_id": res, "written": True}
 
 
 def shopify_refund_to_barsy(refund, do_write=False):
-    """Refund (full/partial) on Shopify → partial storno + restock of the refunded lines. VERIFY-LIVE."""
+    """Refund on Shopify → storno the refunded ARTICLES + restock. VERIFY-LIVE (fiscal).
+    ⚠ Accounts_storno storns by ARTICLE (article_ids), NOT by quantity — a partial-QUANTITY refund
+    (e.g. 1 of 3 units) can only be modelled as a whole-article storno here. Flag for fiscal-timing design."""
     oid = str(refund.get("order_id") or "")
     rec = _seen_order(oid)
-    if not rec:
+    if not rec or not rec.get("account_id"):
         return {"skipped": "no logged sale", "order_id": oid}
     key = f"refund-{refund.get('id')}"                      # dedupe per refund (an order can have several)
     if _seen_key(key):
         return {"skipped": "already refunded", "order_id": oid, "refund_id": refund.get("id")}
     cat = _catalog()
-    rows = []
+    article_ids, partial_qty = [], False
     for ri in (refund.get("refund_line_items") or []):
         li = ri.get("line_item") or {}
         art = cat.get(str(li.get("sku") or ""))
-        if art:
-            rows.append({"article_id": int(art["article_id"]), "amount": str(ri.get("quantity") or 0)})
-    plan = {"order_id": oid, "refund_rows": rows}
+        if not art:
+            continue
+        article_ids.append(int(art["article_id"]))
+        # detect a partial-quantity refund (storno can't express it — whole article is reversed)
+        if int(ri.get("quantity") or 0) < int(li.get("quantity") or ri.get("quantity") or 0):
+            partial_qty = True
+    plan = {"order_id": oid, "account_id": rec["account_id"], "method": "Accounts_storno",
+            "article_ids": article_ids, "storno_reason": "return",
+            **({"warn": "partial-quantity refund → whole-article storno (qty not expressible)"} if partial_qty else {})}
     if not do_write:
         return {**plan, "dry_run": True}
-    res = b.call("Accounts_place", {"account": {"uuid": f"shopify-refund-{refund.get('id')}",
-                 "storno_of_account_id": rec["account_id"], "storno_reason": "Shopify refund"},
-                 "orders": rows, "payments": []})
-    _record_order(oid, res, len(rows), "refund", key=key)
+    res = b.call("Accounts_storno", {"account_id": int(rec["account_id"]), "article_ids": article_ids,
+                 "payments": [], "storno_data": {"storno_reason": "return"}})
+    _record_order(oid, res, len(article_ids), "refund", key=key)
     return {**plan, "storno_account_id": res, "written": True}
 
 
 def shopify_fulfillment_to_barsy(order, do_write=False):
     """Order fulfilled/shipped on Shopify → write tracking number onto the Barsy account. VERIFY-LIVE."""
-    oid = str(order.get("id") or "")
+    # A fulfillments/create|update payload's top-level `id` is the FULFILLMENT id — the order is `order_id`.
+    # (Using `id` here meant _seen_order never matched → tracking never written.) Tracking is top-level too.
+    oid = str(order.get("order_id") or order.get("id") or "")
     rec = _seen_order(oid)
     if not rec or not rec.get("account_id"):
         return {"skipped": "no logged sale", "order_id": oid}
     ful = (order.get("fulfillments") or [{}])[0]
-    track = ful.get("tracking_number") or order.get("tracking_number") or ""
+    track = order.get("tracking_number") or ful.get("tracking_number") or ""
     key = f"track-{oid}-{track}"                            # dedupe per (order, waybill)
     if track and _seen_key(key):
         return {"skipped": "tracking already written", "order_id": oid, "tracking_number": track}
@@ -378,7 +423,7 @@ def barsy_new_product_to_shopify(code, do_write=False):
     if not art:
         return {"skipped": "not in Barsy", "code": code}
     pin = {"title": art.get("article_name") or code, "status": "DRAFT"}
-    plan = {"code": code, "title": pin["title"], "price": art.get("actual_price")}
+    plan = {"code": code, "title": pin["title"], "price": _price(art)}
     if not do_write:
         return {**plan, "dry_run": True}
     d = s.gql("""mutation($p:ProductCreateInput!){ productCreate(product:$p){
@@ -387,7 +432,7 @@ def barsy_new_product_to_shopify(code, do_write=False):
     vid = d["productCreate"]["product"]["variants"]["nodes"][0]["id"]
     s.gql("""mutation($pid:ID!,$v:[ProductVariantsBulkInput!]!){ productVariantsBulkUpdate(productId:$pid,
              variants:$v){ userErrors{ message } } }""",
-          {"pid": pid, "v": [{"id": vid, "price": str(art.get("actual_price") or "0"),
+          {"pid": pid, "v": [{"id": vid, "price": _price(art) or "0",
                               "inventoryItem": {"sku": code, "tracked": False}}]})
     return {**plan, "product_id": pid, "written": True}
 
@@ -398,13 +443,13 @@ def barsy_article_to_shopify(code, do_write=False):
     art = _catalog().get(code)
     if not art:
         return {"skipped": "not in Barsy", "code": code}
-    content = {"n": art.get("article_name"), "p": art.get("actual_price")}
+    content = {"n": art.get("article_name"), "p": _price(art)}
     if _echo(code, content):
         return {"skipped": "echo/no-op (loop-guard)", "code": code}
     pid, vid = _find_shopify(code)
     if not pid:
         return {"skipped": "not on Shopify yet", "code": code}
-    title, price = str(art.get("article_name") or "").strip(), str(art.get("actual_price") or "").strip()
+    title, price = str(art.get("article_name") or "").strip(), _price(art).strip()
     plan = {"code": code, "product_id": pid, "title": title, "price": price}
     if not do_write:
         return {**plan, "dry_run": True}
@@ -548,7 +593,7 @@ def reconcile(limit=None, do_write=False):
         pid, vid = _find_shopify(code)
         if not pid:
             continue
-        bp_price = str(art.get("actual_price") or "").strip()
+        bp_price = _price(art).strip()
         try:
             sp = s.gql("query($id:ID!){ productVariant(id:$id){ price } }", {"id": vid})
             sh_price = str(sp["productVariant"]["price"] or "").strip()

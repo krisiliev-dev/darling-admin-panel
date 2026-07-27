@@ -56,11 +56,17 @@ DEPT_TAGS = {
 
 
 def _barsy_price(code):
+    """Storefront price for an enriched product = the article's ONLINE price: current_price under
+    the "address"/online delivery channel (reflects any active Barsy Pricelists rule scoped to
+    online) with a fallback to base actual_price. Prices come from Barsy/Microinvest, never
+    AI-touched — this only picks the online channel's price. No-op until channel pricing is set."""
     try:
         import barsy_api as b
-        for a in b.call("Articles_getlist", {"filters": {}}):
+        for a in b.call("Articles_getlist", {"filters": {"delivery_type_id": "address"},
+                                             "extra_properties": {"current_price": 1}}):
             if str(a.get("code")) == str(code):
-                return str(a.get("actual_price") or "")
+                cp = a.get("current_price")
+                return str(cp if cp not in (None, "") else (a.get("actual_price") or ""))
     except Exception:
         pass
     return ""
