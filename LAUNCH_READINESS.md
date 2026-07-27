@@ -49,11 +49,15 @@ All caught by the live test + the new **Проблеми** anomaly console (the 
 ## Remaining work before launch
 
 ### 🔨 Panel builds (in progress — Claude/panel)
-- **Review → finalise / refuse buttons** on Онлайн поръчки. Contract (confirmed with connector):
-  - *Finalise:* `Accounts_createfromclientorder(client_order_id, flag_close_account:1, print_shipment:0)`
-    → then `record_finalised(order_id, new_account_id)` (so a later cancel storno's, not voids).
-  - *Refuse:* cancel → the connector's cancel-branch voids the clientorder (no decrement, no fiscal).
-  - This deploy also carries the 2 staged connector fixes (COD-client, `record_finalised`).
+- **Review → finalise / refuse buttons** on Онлайн поръчки. ✅ **DONE + live-proven.** Finalise #1004
+  decremented Barsy 9→8 (fiscal:0, no бон on the device-less POS) and created the sale account from the
+  clientorder. Re-firing after a container restart is **idempotent**: the connector's in-process guard is
+  wiped by a redeploy, but Barsy's own 501 ("вече има създадена сметка") blocks the second decrement, and
+  the panel now surfaces that as a calm "вече е финализирана (без промяна)" 200, not a 502 (commit 9caaf9f).
+  - *Contract:* Finalise = `Accounts_createfromclientorder(flag_close_account:1, print_shipment:0)` →
+    `record_finalised(order_id, account_id)`; Refuse = connector cancel-branch voids the clientorder.
+  - *Owed on the connector side (Hermes):* make `finalise_order` catch that Barsy 501 itself + persist its
+    finalise state so the fast-path guard survives a restart. See `finalise-idempotency` memory.
 - **#81 — publish-readiness audit.** Per sellable variant, flag anything not launch-ready:
   **SKU = Barsy code · tracked=TRUE · policy=DENY (or CONTINUE if backorderable) · on_hand mirrored ·
   product ACTIVE.** This produces the exact "what to fix before publishing" list.
@@ -62,10 +66,11 @@ All caught by the live test + the new **Проблеми** anomaly console (the 
   urgent (state is consistent today) but must land before live inventory sync.
 
 ### ⏳ Owner / hardware (only you can do these)
-- **Connect a fiscal POS** (Barsy fiscal device). The storno (reversing a refused/returned finalised sale)
-  needs a real fiscal receipt (УНП) to reverse; the test till is device-less so we couldn't live-prove it.
-  The code path is built + will work once fiscal hardware is connected. *This is the one item deferred to
-  hardware.*
+- **Connect a fiscal POS** (Barsy fiscal device). The storno code path is **proven** — it reads all four
+  fiscal fields (`unp`/`receipt_num`/`receipt_date`/`fm_num`) from the account and Barsy accepted a storno
+  live (store_amount 8→9). What genuinely needs the fiscal POS is *upstream*: a real production бон must have
+  been printed before there's a fiscal receipt to reverse — that's inherent to the business flow, not a code
+  gap. On the device-less test till the бон is fiscal:0, so storno rides on the account's fiscal fields.
 - **Publish + stock-load the go-live product range** — run the stock-load per product (turns on
   tracking + anti-oversell) and set products ACTIVE. **#81 will hand you the exact list.**
 - **Confirm courier / COD payout accounts** are contract-ready (Speedy + Econt are technically validated).
@@ -77,7 +82,7 @@ All caught by the live test + the new **Проблеми** anomaly console (the 
 2. Run the **stock-load per product** for the go-live range (flips tracked=TRUE + real on_hand + DENY/CONTINUE).
 3. **Publish** those products (ACTIVE) on Shopify. Re-run **#81** → expect a clean audit.
 4. Confirm the connector gates are production-set (WEBHOOKS_LIVE, BARSY_WRITE_LIVE — already on for testing).
-5. Verify a real order end-to-end once with the fiscal POS connected (proves the deferred storno path live).
+5. Verify a real order end-to-end once with the fiscal POS connected (production бон → storno on a real УНП).
 6. Go.
 
 ## Known constraints (by design, not gaps)
