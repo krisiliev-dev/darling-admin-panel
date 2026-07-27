@@ -16,8 +16,11 @@ from ..upstream import upstream
 
 router = APIRouter(prefix="/api/public/couriers", tags=["public-couriers"])
 
-# couriers whose office/locker networks make sense for an online office-picker
-_ALLOWED = {"speedy", "econt", "boxnow", "sameday", "pigeon", "evropat"}
+# couriers with a WORKING office/locker lookup. speedy + econt are implemented; boxnow/sameday/
+# pigeon/evropat are stubs (base Courier.offices raises NotImplementedError until their creds land),
+# so we don't expose them yet — a request for one returns a clean 404, not a 502. Add them here as
+# each adapter's offices() is implemented.
+_ALLOWED = {"speedy", "econt"}
 
 
 _OFFICE_TTL = 900.0          # cache the full office list per courier (office networks change rarely)
