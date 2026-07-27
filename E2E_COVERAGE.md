@@ -19,9 +19,9 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 ## Flow 1 — Auth / session
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
-| `Login.tsx` (login + first-run signup) | `/` when logged-out | `auth.spec.ts` | ⬜ login success → shell; bad creds → error; first-run signup path; rate-limit lockout copy |
-| `Shell.tsx` (nav, role-gating, theme) | shell wrapper | covered indirectly by every spec; dedicated `nav.spec.ts` | 🟡 add: every nav item routes; manager vs owner sees/【hides】 Склад + Настройки |
-| `CommandPalette.tsx` (Cmd+K) | global | `nav.spec.ts` | ⬜ open with Cmd+K → jump to a page |
+| `Login.tsx` (login + first-run signup) | `/` when logged-out | `auth.spec.ts` | ✅ login success → shell; bad creds → error; first-run setup; show/hide password |
+| `Shell.tsx` (nav, role-gating, theme) | shell wrapper | `nav.spec.ts` + `access-control.spec.ts` | ✅ all nav items render + hrefs; client-side nav; role-gated routes (access-control) |
+| `CommandPalette.tsx` (Cmd+K) | global | `nav.spec.ts` | ✅ palette opens → filter → jump to a page |
 
 ## Flow 2 — Home / cockpit
 | Page/Component | Route | e2e spec | Status |
@@ -100,10 +100,13 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 ---
 
 ## Gaps to write (priority order)
-1. **`auth.spec.ts`** — login success/failure/first-run (the front door; nothing else runs without it).
-2. **`settings.spec.ts`** + **`sklad.spec.ts`** — the two **owner-gated** pages; must prove a manager is
-   redirected (real access-control regression risk) + the courier-offices tab.
-3. **`nav.spec.ts`** — every nav item routes; role-based nav visibility; Cmd+K palette; ErrorBoundary.
+1. ~~`auth.spec.ts`~~ ✅ done — login success/failure/first-run/password-toggle.
+2. ~~access-control (gate)~~ ✅ done (`access-control.spec.ts`) — owner renders / manager redirected on
+   Склад + Настройки. Still ⬜: their **content** (`settings.spec.ts` courier tab + create-user;
+   `sklad.spec.ts` tab content).
+3. ~~`nav.spec.ts`~~ ✅ done — nav items + hrefs, client-side nav, command palette. Still ⬜: **ErrorBoundary**
+   fallback (a thrown render error shows the fallback, not a white screen) — hard to trigger via API mock;
+   needs a forced-throw hook.
 4. **`intake.spec.ts`** — Нов продукт enrich-gate + mandatory-images guard + save-to-Barsy button states.
 5. **`assistant.spec.ts`** — Q&A answer render + gated-action confirm step.
 6. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
