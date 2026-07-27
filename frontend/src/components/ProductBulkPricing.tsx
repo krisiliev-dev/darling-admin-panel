@@ -361,7 +361,7 @@ function OnlinePriceForm({ selected, onDone }: { selected: CacheProduct[]; onDon
   }
 
   return (
-    <div style={{ marginTop: '.6rem', border: '1px dashed var(--line)', borderRadius: 3, padding: '.7rem', background: 'var(--paper2)', display: 'grid', gap: '.5rem' }}>
+    <div data-testid="online-price-form" style={{ marginTop: '.6rem', border: '1px dashed var(--line)', borderRadius: 3, padding: '.7rem', background: 'var(--paper2)', display: 'grid', gap: '.5rem' }}>
       <div className="font-type" style={{ fontSize: '.8rem', fontWeight: 700 }}>🌐 Онлайн цена · {ids.length} продукта <span style={{ color: 'var(--pencil)', fontWeight: 400 }}>(магазинната цена остава непроменена)</span></div>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <select className="input-paper" value={mode} onChange={(e) => { setMode(e.target.value as typeof mode); setPrev(null) }}>
