@@ -7,6 +7,7 @@ import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { CourierBadge } from '../components/CourierBadge'
 import { useConfirm } from '../components/Confirm'
+import { PublishAudit } from '../components/PublishAudit'
 import { Logs } from './Logs'
 
 interface BarsyRole { role_id: number; role_name: string; weight: number | null; privileged?: boolean }
@@ -57,6 +58,8 @@ export function Settings() {
         )}
         <NewStaffForm roles={selectableRoles} onCreated={reloadStaff} />
       </Sheet>
+
+      <PublishAudit />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' }}>
         {/* Куриери moved here from Онлайн поръчки — owner-only management surface */}

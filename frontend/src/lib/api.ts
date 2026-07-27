@@ -256,6 +256,15 @@ export interface ProcessingIssue {
 }
 export interface IssuesResp { issues: ProcessingIssue[]; open_count: number }
 
+export interface PublishAuditVariant {
+  variant_id: string; sku: string; product_title: string; product_status: string
+  tracked: boolean; policy: string; on_hand: number | null; issues: string[]; blocked: boolean
+}
+export interface PublishAuditResp {
+  total: number; ready: number; not_ready: number
+  by_issue: Record<string, number>; variants: PublishAuditVariant[]
+}
+
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {
   code: string; name: string; supplier: string; suppliers: string[]
