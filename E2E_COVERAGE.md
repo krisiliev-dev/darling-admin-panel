@@ -92,6 +92,11 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 | `Settings.tsx` (Настройки: couriers, users, owner-gated) | `/settings` | `access-control.spec.ts` (gate ✅) · `settings.spec.ts` (content ⬜) | 🟡 gate done (owner renders / manager redirected); still ⬜ courier tab, create-user validation, Дневник tab |
 | `Logs.tsx` (audit logs) | via Settings/Logs | `logs.spec.ts` | ✅ |
 
+## Flow 12 — Sync health (Проблеми)
+| Page/Component | Route | e2e spec | Status |
+|---|---|---|---|
+| `Issues.tsx` (Проблеми: connector/webhook anomalies) | `/issues` | `issues.spec.ts` | ✅ open anomaly + detail + resolve (Confirm→POST); clean empty state |
+
 ## Cross-cutting
 | Component | e2e spec | Status |
 |---|---|---|

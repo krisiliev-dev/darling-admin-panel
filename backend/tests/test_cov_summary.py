@@ -3,6 +3,7 @@
   * /intake -> approved IntakeDraft rows (the panel's own async DB, deterministic)
   * /orders -> fulfillment_state rows in new/picking/packed (pipeline sqlite)
   * /cod    -> delivered rows with cod_amount>0 (pipeline sqlite)
+  * /issues -> unresolved ProcessingIssue rows (panel async DB)
 
 The fulfillment counts read the shared pipeline sqlite through db.connect(); we point that
 at a throwaway temp DB so the counts are deterministic and no real pipeline.db is touched.
@@ -39,14 +40,14 @@ async def test_badges_counts_all_three_routes(owner_client, make_draft, monkeypa
     ]))
     r = await owner_client.get("/api/summary/badges")
     assert r.status_code == 200, r.text
-    assert r.json() == {"/intake": 2, "/orders": 3, "/cod": 1}
+    assert r.json() == {"/intake": 2, "/orders": 3, "/cod": 1, "/issues": 0}
 
 
 async def test_badges_empty_state_is_zeros(owner_client, monkeypatch, tmp_path):
     monkeypatch.setattr(summary.db, "connect", _fake_connect_factory(tmp_path, []))
     r = await owner_client.get("/api/summary/badges")
     assert r.status_code == 200
-    assert r.json() == {"/intake": 0, "/orders": 0, "/cod": 0}
+    assert r.json() == {"/intake": 0, "/orders": 0, "/cod": 0, "/issues": 0}
 
 
 async def test_badges_survive_missing_fulfillment_table(owner_client, monkeypatch, tmp_path):
@@ -56,7 +57,7 @@ async def test_badges_survive_missing_fulfillment_table(owner_client, monkeypatc
     monkeypatch.setattr(summary.db, "connect", lambda: sqlite3.connect(str(empty)))
     r = await owner_client.get("/api/summary/badges")
     assert r.status_code == 200
-    assert r.json() == {"/intake": 0, "/orders": 0, "/cod": 0}
+    assert r.json() == {"/intake": 0, "/orders": 0, "/cod": 0, "/issues": 0}
 
 
 async def test_badges_readable_by_lowest_role(packer_client, monkeypatch, tmp_path):
