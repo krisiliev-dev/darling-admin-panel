@@ -111,6 +111,18 @@ def _order_or_404(order_id: str):
     raise HTTPException(status.HTTP_404_NOT_FOUND, "Поръчката не е намерена.")
 
 
+def _is_already_finalised_error(msg: str) -> bool:
+    """BACKSTOP for an idempotent re-click. The connector's finalise_order short-circuits when its OWN
+    in-process state remembers the sale (kind=="sale") — but that state does NOT survive a container
+    restart, so after a redeploy a second Финализирай re-calls Accounts_createfromclientorder and Barsy
+    itself refuses it (HTTP 501 'по клиентска заявка N вече има създадена/и сметка/и …'). No double
+    decrement happens — Barsy is the backstop — but the operator would otherwise see a scary 502 for a
+    benign re-click. We recognise that specific Barsy response and surface it as a calm already_finalised.
+    (The durable fix lives in the connector: treat this Barsy 501 as idempotent + repair its state.)"""
+    m = msg.lower()
+    return "createfromclientorder" in m and ("вече има" in m or "already" in m)
+
+
 def _to_kg(v) -> float:
     try:
         return float(str(v).replace(",", ".")) if v else 0.0
@@ -349,6 +361,11 @@ async def finalise(
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             "Финализирането не е налично (connector.finalise_order липсва).")
     except Exception as e:
+        if _is_already_finalised_error(str(e)):
+            # benign re-click after a connector restart — Barsy already booked the sale, nothing decremented twice
+            result = {"status": "already_finalised", "order_ref": o["name"], "detail": "Barsy: вече осчетоводена."}
+            await log_action(session, actor, "order.finalise", target=o["name"], detail=str(result)[:300])
+            return result
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
     await log_action(session, actor, "order.finalise", target=o["name"], detail=str(result)[:300])
     return result

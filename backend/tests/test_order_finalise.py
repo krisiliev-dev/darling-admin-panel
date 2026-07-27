@@ -44,6 +44,28 @@ async def test_refuse_calls_connector(owner_client, monkeypatch):
     assert r.json()["voided_clientorder"] == 3
 
 
+async def test_finalise_already_finalised_barsy_501_is_calm_200(owner_client, monkeypatch):
+    _patch_order(monkeypatch)
+    # after a connector restart its in-process 'sale' memory is gone, so it re-calls Barsy, which refuses
+    # with its own 501 (account already exists). No double decrement — surface it as a calm already_finalised.
+    def boom(oid, do_write):
+        raise RuntimeError("HTTP 501 on Accounts_createfromclientorder: по клиентска заявка 3 "
+                           "вече има създадена/и сметка/и (8), покриващи изцяло сумата")
+    monkeypatch.setattr(orders_module.connector, "finalise_order", boom, raising=False)
+    r = await owner_client.post("/api/orders/1004/finalise", json={"confirm": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "already_finalised"
+
+
+async def test_finalise_other_barsy_error_still_502(owner_client, monkeypatch):
+    _patch_order(monkeypatch)
+    def boom(oid, do_write):
+        raise RuntimeError("HTTP 500 on Accounts_createfromclientorder: вътрешна грешка")
+    monkeypatch.setattr(orders_module.connector, "finalise_order", boom, raising=False)
+    r = await owner_client.post("/api/orders/1004/finalise", json={"confirm": True})
+    assert r.status_code == 502
+
+
 async def test_finalise_missing_connector_fn_is_501_not_500(owner_client, monkeypatch):
     _patch_order(monkeypatch)
     # if the connector hasn't exposed finalise_order yet, we return a clean 501, not a 500

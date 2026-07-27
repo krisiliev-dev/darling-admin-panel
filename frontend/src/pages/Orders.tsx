@@ -120,8 +120,10 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
       const oid = String(o.id).split('/').pop() || o.id
       const r = await api.post<{ status?: string; dry_run?: boolean; reason?: string }>(`/api/orders/${oid}/${kind}`, { confirm: true })
       const bg = kind === 'finalise' ? 'финализирана' : 'отказана'
+      const alreadyBg = kind === 'finalise' ? 'финализирана' : 'отказана'
       setMsg(r.dry_run ? `${o.name}: проба — Barsy запис е изключен (нищо не е записано).`
         : r.status === 'needs_review' ? `${o.name}: нужен преглед (${r.reason || '—'}) — виж Проблеми.`
+        : (r.status === 'already_finalised' || r.status === 'duplicate') ? `${o.name}: вече е ${alreadyBg} (без промяна).`
         : `${o.name} ${bg}.`)
       onChange()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy('') }
