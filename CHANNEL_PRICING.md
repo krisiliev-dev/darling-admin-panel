@@ -1,38 +1,24 @@
-# Channel pricing — physical store vs. online (per-POS decision)
+# Channel pricing — physical store vs. online (Barsy NATIVE per-till)
 
-**Decision (owner, 2026-07-27):** prices differ per **POS/channel** — the physical store price ≠ the online (Shopify) price. The *pricing-difference policy* (how the online price is derived — manual per product, a % delta, margin rule, etc.) is deferred to a dedicated future session. This doc records the architecture + what is buildable now.
+**Decision (owner, 2026-07-27):** prices differ per **till/POS (каса)** using **Barsy's native per-till pricing** — NOT a custom panel field. The physical store is one till; the **online store price is assigned to the virtual "claude" till** (the POS the API/connector operates from). The *pricing-difference policy* (how the online price is derived) is deferred to a dedicated future session.
 
-## Two implementation paths
+## ❌ Reverted: the `extra_data.online_price` overlay
+An earlier attempt stored the online price on `extra_data.online_price` and had the connector push `online_price or actual_price`. **This was wrong** — it reinvented pricing Barsy already does natively. Reverted end-to-end:
+- Panel: `IntakeDraft.online_price` col removed (migration `b2c3d4e5f6a7` drops it, forward-only after `a1b2c3d4e5f6`), editor field removed, `_build_barsy_article` no longer writes it, tests removed.
+- Connector (Hermes): `_shopify_price` overlay reverted back to `actual_price`.
 
-### A) Barsy-native per-POS pricelist — BLOCKED (do not build yet)
-`Pricelists_save_barsys_poses` scopes a price rule to a specific POS/каса; the online store would be a distinct Barsy POS and the rule sets its price. Correct long-term, but:
-- `Pricelists_save`/`Pricelists_set` return **HTTP 501** on this install → no clean API create-path (open in `barsy_support_ticket.md` §Pricelists + §B).
-- Requires the online store to exist as a **separate Barsy POS** (unconfirmed — `barsy_support_ticket.md` §B).
-→ Gated on the Barsy contact's answers. Migrate to this later if native per-POS is wanted for reporting/attribution.
+## ✅ The native approach (to design + build)
+Barsy supports **per-till prices**. There is already a **virtual till assigned to the `claude` API user** — every API call the connector makes operates in that till's context. So:
+- **Physical store** = its own till → sells at the article's base price.
+- **Online store** = the **claude/virtual till** → the online price is assigned to *that* till in Barsy.
+- The connector, operating from the claude till, reads the **till-scoped price** and pushes it to Shopify. If Barsy returns the till's effective price in the normal read (Articles_get / catalog in the caller's till context), the connector may need **no special field at all** — it already reads and pushes the article price; that price simply *is* the online price when read from the claude till.
 
-### B) `extra_data.online_price` overlay — UNBLOCKED (the interim build) ✅
-The online price lives on the Barsy article's `extra_data.online_price` (a string, EUR, VAT-incl — same field family as `weight_kg`/`seo_*`, already written by the panel and readable via `Articles_get extra_properties:{extra_data:1}`).
+## Open questions (before building)
+1. **How is a per-till price set in Barsy?** — via the UI (a price list bound to the till), or an API method? Earlier we saw `Pricelists_save`/`_set` = HTTP 501; confirm whether per-till prices use a different method or are UI-only. (Coordinate with Hermes; may fold into `barsy_support_ticket.md` §B.)
+2. **How does the API read a till-scoped price?** — does `Articles_get`/catalog automatically return the price for the *calling* user's till (claude), or is a till/pricelist parameter required?
+3. **Confirm the claude virtual-till id** and that the connector's reads/writes are in that till's context (Hermes owns the connector + API session).
+4. Does the panel need any UI here at all, or is online pricing managed entirely in Barsy against the till? (Likely minimal/no panel change.)
 
-- **Physical price** = Barsy `actual_price` ("Продажна цена") — unchanged, sold at the physical POS.
-- **Online price** = `extra_data.online_price` when set, else falls back to `actual_price`.
-- **Connector push:** `barsy_article_to_shopify` sends `extra_data.online_price or actual_price` as the Shopify variant price (was: `actual_price` only).
-- **Online orders** already book back into Barsy at the line price the customer paid (`original_current_price`) — no change needed.
-- **Human-set, never AI-touched** (respects the price policy; the override is an owner/staff decision).
-
-This delivers per-channel pricing for the real setup (1 physical + 1 online) **without** the blocked Pricelists API or a second Barsy POS. It is forward-compatible: if native per-POS lands, the overlay can seed or be replaced by the Barsy rule.
-
-## Build checklist (path B)
-- [x] Panel product editor: optional **„Онлайн цена"** field → `extra_data.online_price` (empty = use physical price). Merge-preserve other `extra_data` (weight/seo). *(1f037bd)*
-- [x] Backend: threaded through `ApproveRequest`/`DraftOut`/create/update + `_build_barsy_article` (merges into extra_data, omitted when blank). Migration `a1b2c3d4e5f6` (`server_default=''`). *(1f037bd)*
-- [x] Connector (`barsy_shopify_connector.py`, Hermes) — helper `_shopify_price(art)` = `extra_data.online_price` (via `Articles_get extra_properties` — extra_data isn't in list payloads) else `actual_price`, applied in **4** spots, verified live (online 9.99 pushed, clean fallback):
-  1. `barsy_new_product_to_shopify` minimal-create
-  2. `barsy_article_to_shopify` master-data update
-  3. **`sync._barsy_price`** — the ENRICHED create path (where db-enriched products, the common case, get their price)
-  4. **`reconcile()` drift check** — compare against `_shopify_price` so online-priced products don't false-flag as drifted + re-push every nightly run
-- [x] Tests: overlay set → pushed; blank → actual_price fallback; extra_data merge preserves weight/seo. *(1f037bd)*
-- [ ] Nice-to-have: show both prices (physical / online) in the product table so divergence is visible.
-- [ ] Deferred (later session, owner): the *policy* — bulk-set online prices by delta/margin/category; optional native per-POS migration (§B).
-
-**Perf note (Hermes):** +1 `Articles_get` per push (extra_data absent from list payloads) — fine for per-article webhook events; if reconcile-at-scale gets heavy, bulk-pull extra_data via `getlist extra_properties`.
-
-**STATUS: overlay path COMPLETE + verified live end-to-end (2026-07-27).** Physical price = `actual_price`; online price = `extra_data.online_price` when set. Zero divergence until an online price is entered.
+## Next steps
+- Hermes: revert the connector `_shopify_price` overlay to `actual_price`; confirm the claude till id + how a till-scoped price reads back through the API.
+- Then design the native flow from the answers above. Panel involvement TBD (probably none, or a read-only display of the online price).
