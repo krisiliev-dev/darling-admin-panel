@@ -115,10 +115,10 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 7. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
 
 ## Follow-up fix flagged (not a test gap)
-- **Leftover `window.confirm`** — the in-app `Confirm` modal replaced `window.confirm` in
-  `ProductBulkPricing.tsx`, but `Intake.tsx` (`ApprovedDrafts` push-to-Barsy, ~line 492) still calls the
-  native `window.confirm`. The owner asked for the in-app modal everywhere; a sweep of the remaining
-  files (Intake, and any others — Catalog/Sklad/Pricing) should convert them to `useConfirm()`.
+- ✅ **`window.confirm` sweep DONE** — `Confirm.tsx` now exposes `useConfirm()` + `usePrompt()`, and every
+  native `window.confirm/alert/prompt` was converted to the in-app modal (CustomerRisk, Brands, Deliveries,
+  Intake, Orders, Pricing, Purchasing, Settings, Zayavki). No native browser dialogs remain (only the
+  Confirm.tsx fallback defaults). All theme-aware, keyboard-navigable, CDP-safe.
 
 ## Findings surfaced while writing specs
 - **Nav/route role mismatch** — ✅ RESOLVED. `Shell.tsx` listed `/sklad` + `/settings` under
