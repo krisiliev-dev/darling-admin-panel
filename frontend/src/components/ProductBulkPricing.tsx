@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { api, ApiError } from '../lib/api'
-import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview, BulkJob } from '../lib/api'
+import type { CacheProduct, CacheSearchResp, CacheFacets, BulkPricePreview, BulkJob, OnlinePricePreview } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { printLabel, printLabels } from '../lib/label'
@@ -322,6 +322,70 @@ function BulkRenameForm({ ids, onDone }: { ids: number[]; onDone: () => void }) 
   )
 }
 
+// Онлайн цена — set a distinct ONLINE (Shopify) price on the selected products via a native Barsy
+// rule scoped to the online delivery types. The physical store price (actual_price) is untouched.
+// Any method: exact €, % of the store price, fixed ± €, or clear (fall back to the store price).
+function OnlinePriceForm({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
+  const [mode, setMode] = useState<'exact' | 'pct' | 'fixed' | 'clear'>('pct')
+  const [value, setValue] = useState('')
+  const [prev, setPrev] = useState<OnlinePricePreview | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const ids = selected.map((s) => s.article_id)
+  const nameOf = useMemo(() => new Map(selected.map((s) => [s.article_id, s.name])), [selected])
+  const MODES: [typeof mode, string][] = [
+    ['exact', '= точна цена €'], ['pct', '% спрямо магазина'],
+    ['fixed', '± спрямо магазина €'], ['clear', '⌫ изчисти (= магазина)']]
+
+  const runPreview = async () => {
+    if (mode !== 'clear' && !value) { setMsg('Въведи стойност.'); return }
+    setBusy(true); setMsg('')
+    try { setPrev(await api.post<OnlinePricePreview>('/api/online-pricing/apply', { article_ids: ids, mode, value: Number(value) || 0 })) }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
+  }
+  const apply = async () => {
+    if (!window.confirm(`Прилагане на онлайн цена върху ${ids.length} продукта?`)) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await api.post<{ gated?: boolean; applied?: number; uncovered?: number[]; total_online?: number; note?: string }>(
+        '/api/online-pricing/apply', { article_ids: ids, mode, value: Number(value) || 0, confirm: true })
+      if (r.gated) setMsg(r.note || 'Barsy запис е изключен (проба) — нищо не е записано.')
+      else setMsg(`Онлайн цена приложена на ${r.applied} продукта${r.uncovered?.length ? ` · без база: ${r.uncovered.length}` : ''}. Общо с онлайн цена: ${r.total_online}.`)
+      setPrev(null); onDone()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ marginTop: '.6rem', border: '1px dashed var(--line)', borderRadius: 3, padding: '.7rem', background: 'var(--paper2)', display: 'grid', gap: '.5rem' }}>
+      <div className="font-type" style={{ fontSize: '.8rem', fontWeight: 700 }}>🌐 Онлайн цена · {ids.length} продукта <span style={{ color: 'var(--pencil)', fontWeight: 400 }}>(магазинната цена остава непроменена)</span></div>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select className="input-paper" value={mode} onChange={(e) => { setMode(e.target.value as typeof mode); setPrev(null) }}>
+          {MODES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        {mode !== 'clear' && (
+          <input className="input-paper" style={{ width: '8rem' }} inputMode="decimal"
+            placeholder={mode === 'exact' ? 'онлайн цена €' : mode === 'pct' ? '% (напр. 10 или -5)' : '€ (напр. 2 или -1)'}
+            value={value} onChange={(e) => { setValue(e.target.value); setPrev(null) }} />
+        )}
+        <button className="btn-paper" onClick={() => void runPreview()} disabled={busy}>Прегледай</button>
+        {prev?.dry_run && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Приложи на {prev.count}</button>}
+      </div>
+      {msg && <div className="font-type" style={{ fontSize: '.78rem', color: msg.includes('приложена') ? 'var(--ready)' : msg.includes('проба') ? 'var(--pencil)' : 'var(--red)' }}>{msg}</div>}
+      {prev?.dry_run && (
+        <div style={{ maxHeight: '15rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>
+          {prev.preview.slice(0, 80).map((c) => (
+            <div key={c.article_id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.76rem', borderBottom: '1px dashed var(--line)', padding: '.15rem 0' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '22rem' }}>{nameOf.get(c.article_id) || `#${c.article_id}`}</span>
+              <span>магазин {eur(c.store_price)} → онлайн <b style={{ color: 'var(--red)' }}>{c.online_price == null ? '= магазина' : `${c.online_price} €`}</b></span>
+            </div>
+          ))}
+          {prev.uncovered.length > 0 && <span className="pencil" style={{ fontSize: '.72rem' }}>Без магазинна цена (пропуснати за % / ±): {prev.uncovered.length}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
   const [op, setOp] = useState<'mul' | 'div' | 'add' | 'sub' | 'set'>('mul')
   const [value, setValue] = useState('')
@@ -332,6 +396,7 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   const [labelList, setLabelList] = useState<{ name: string; price: number | null; barcode: string; code: string }[] | null>(null)
   const [showPromo, setShowPromo] = useState(false)
   const [showRename, setShowRename] = useState(false)
+  const [showOnline, setShowOnline] = useState(false)
   const ids = selected.map((s) => s.article_id)
   const OPS: [typeof op, string][] = [['mul', '× умножи'], ['div', '÷ раздели'], ['add', '+ добави'], ['sub', '− извади'], ['set', '= задай']]
 
@@ -391,9 +456,11 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
         <button className="btn-paper" onClick={() => void runPreview()} disabled={busy}>Прегледай</button>
         {preview?.dry_run && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Приложи на {preview.count}</button>}
         <span style={{ color: 'var(--line)' }}>│</span>
+        <button className="btn-paper" onClick={() => setShowOnline((s) => !s)}>🌐 Онлайн цена</button>
         <button className="btn-paper" onClick={() => setShowPromo((s) => !s)}>🏷 Промоция за период</button>
         <button className="btn-paper" onClick={() => setShowRename((s) => !s)}>🖊 Преименувай по рецепта</button>
       </div>
+      {showOnline && <OnlinePriceForm selected={selected} onDone={() => { setShowOnline(false); onDone() }} />}
       {showPromo && <PromoForm ids={ids} onDone={() => { setShowPromo(false); onDone() }} />}
       {showRename && <BulkRenameForm ids={ids} onDone={() => { setShowRename(false); onDone() }} />}
       {progress && (

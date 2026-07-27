@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import type { PricingItem, SupplierRule } from '../lib/api'
+import type { PricingItem, SupplierRule, OnlinePriceItem } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { useHotkey, isTyping } from '../lib/useHotkey'
 import { printLabels } from '../lib/label'
@@ -39,6 +39,7 @@ export function Pricing({ embedded = false }: { embedded?: boolean } = {}) {
       {!embedded && <PageHeader title="Ценообразуване" subtitle="доставна цена + надценка → продажна" />}
 
       {isOwner && <ProductBulkPricing />}
+      {isOwner && <OnlinePriceList />}
       {isOwner && <SupplierRules />}
 
       {deepMd && Number(deepMd) > 0 && (
@@ -149,6 +150,47 @@ function PriceRow({ it, isOwner, onChanged }: { it: PricingItem; isOwner: boolea
         )}
       </span>
     </div>
+  )
+}
+
+// Онлайн цени — products that carry a distinct ONLINE (Shopify) price, set via the bulk toolbar
+// above. Read-only overview: store price vs online price. The online price lives in a native Barsy
+// rule scoped to the online delivery types; the physical store price is untouched. Clear one with
+// „🌐 Онлайн цена → ⌫ изчисти" on its selection.
+function OnlinePriceList() {
+  const { data } = useApi<{ items: OnlinePriceItem[]; count: number }>('/api/online-pricing')
+  const items = data?.items || []
+  const eur = (n: number | null) => n == null ? '—' : n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '.95rem', marginBottom: '.4rem' }}>🌐 Онлайн цени ({items.length})</h3>
+      {items.length === 0 ? (
+        <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.8rem' }}>
+          Няма зададени онлайн цени. Избери продукти горе и „🌐 Онлайн цена“ — важи само за онлайн
+          поръчки (до адрес/офис); магазинната цена остава.
+        </p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
+            <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
+              <th style={{ padding: '.25rem' }}>Продукт</th><th style={{ padding: '.25rem' }}>Код</th>
+              <th style={{ padding: '.25rem', textAlign: 'right' }}>Магазин</th>
+              <th style={{ padding: '.25rem', textAlign: 'right' }}>Онлайн</th>
+            </tr></thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.article_id} style={{ borderBottom: '1px dashed var(--line)' }}>
+                  <td style={{ padding: '.3rem .25rem' }}>{it.name || `#${it.article_id}`}</td>
+                  <td style={{ padding: '.3rem .25rem', color: 'var(--pencil)' }}>{it.code}</td>
+                  <td style={{ padding: '.3rem .25rem', textAlign: 'right' }}>{eur(it.store_price)}</td>
+                  <td style={{ padding: '.3rem .25rem', textAlign: 'right', fontWeight: 700, color: 'var(--red)' }}>{it.online_price} €</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Sheet>
   )
 }
 

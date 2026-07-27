@@ -310,6 +310,25 @@ class PricingGroupRule(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class OnlinePrice(Base):
+    """Online (Shopify) channel price per article (owner 2026-07-27). The physical store keeps its
+    base actual_price untouched; the ONLINE price lives in a NATIVE Barsy price rule scoped to the
+    online delivery types (до адрес + офис). This panel-owned table holds the INTENDED online price
+    per article — the source of truth the panel pushes into that Barsy rule as a per-article
+    custom_price (Pricelists_save_articles), mirroring how PricingRule owns markups. No row for an
+    article = no online override = its online price falls back to the store price. The connector then
+    reads Barsy current_price in the online delivery-type context and pushes it to Shopify. See
+    CHANNEL_PRICING.md."""
+    __tablename__ = "online_price"
+
+    article_id: Mapped[int] = mapped_column(primary_key=True)     # Barsy article_id
+    custom_price: Mapped[str] = mapped_column(String(32), default="")   # EUR, VAT-incl, as string
+    mode: Mapped[str] = mapped_column(String(16), default="exact")      # how last set: exact|pct|fixed
+    updated_by: Mapped[str] = mapped_column(String(255), default="")
+    updated_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class OrderOutcome(Base):
     """COD-refuser defense (owner 2026-07-21). Neither Speedy nor Econt exposes recipient reputation,
     so we build our own: one row per finished delivery attempt, keyed on the normalized phone (+ a

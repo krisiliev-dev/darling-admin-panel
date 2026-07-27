@@ -240,6 +240,9 @@ export interface BulkPriceSkip { article_id: number; code: string; name: string;
 export interface BulkPricePreview { dry_run: boolean; count: number; changes?: BulkPriceChange[]; skipped?: BulkPriceSkip[]; applied?: number; failed?: string[]; async?: boolean; job_id?: string }
 // G4c: progress of a background bulk op (large bulk-price / bulk-rename runs)
 export interface BulkJob { id: string; op: string; total: number; done: number; applied: number; skipped: number; failed: string[]; status: 'running' | 'done' | 'error'; note: string }
+// Онлайн цени — dry-run preview of an online-price op (store price → computed online price)
+export interface OnlinePricePreview { dry_run: boolean; mode: string; count: number; uncovered: number[]; preview: { article_id: number; store_price: number | null; online_price: string | null }[] }
+export interface OnlinePriceItem { article_id: number; online_price: string; mode: string; name: string; code: string; store_price: number | null; updated_by: string }
 
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {
