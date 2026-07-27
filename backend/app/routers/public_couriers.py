@@ -75,3 +75,68 @@ def public_offices(key: str, city: str = Query("", max_length=120, description="
         offices = [o for o in offices
                    if q in _norm(o.get("city") or "") or q in _norm(o.get("name") or "")]
     return {"courier": k, "count": len(offices), "offices": offices[:_CAP]}
+
+
+@router.get("/{key}/quote")
+def public_quote(
+    key: str,
+    dest_type: str = Query(..., pattern="^(office|door)$", description="office | door"),
+    office_id: str = Query("", max_length=32, description="required for dest_type=office"),
+    city: str = Query("", max_length=120, description="required for dest_type=door"),
+    address: str = Query("", max_length=200, description="street + no (door)"),
+    postcode: str = Query("", max_length=16),
+    weight_g: int = Query(..., ge=1, le=100_000, description="parcel weight in grams"),
+    cod: bool = Query(False, description="наложен платеж — may add a collection surcharge"),
+    amount_eur: float = Query(0.0, ge=0, description="order value (for the COD collection fee)"),
+    x_office_token: str | None = Header(default=None),
+) -> dict:
+    """Live delivery-fee quote for the storefront checkout: weight + destination → fee, computed via the
+    courier's own rate API (no static Shopify rate). Token-gated like the office lookup; courier creds
+    stay server-side. Returns shipping + COD-surcharge broken out. The COD surcharge is derived as the
+    delta between a with-COD quote and a prepaid quote (adapters return one total), so we make two
+    upstream calls only when cod=true. `estimated:true` always — it's a checkout estimate, not the
+    booked label price."""
+    _check_token(x_office_token)
+    k = (key or "").lower()
+    if k not in _ALLOWED:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown courier.")
+    if dest_type == "office" and not office_id.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "office_id is required for dest_type=office.")
+    if dest_type == "door" and not city.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "city is required for dest_type=door.")
+
+    weight_kg = max(int(weight_g), 1) / 1000.0
+
+    def _shipment(cod_amount: float):
+        kwargs: dict = {"order_ref": "quote", "recipient": "Оценка", "phone": "0000000000",
+                        "weight_kg": weight_kg, "cod_amount": cod_amount}
+        if dest_type == "office":
+            kwargs["office_id"] = office_id.strip()
+        else:
+            kwargs["address"] = {"city": city.strip(), "postcode": postcode.strip(), "street": address.strip()}
+        return courier_mod.Shipment(**kwargs)
+
+    try:
+        with upstream(k):
+            c = courier_mod.get(k)
+            base = c.calculate(_shipment(0.0))                    # prepaid → base shipping
+            shipping = round(float(base.get("price") or 0), 2)
+            cod_fee, total = 0.0, shipping
+            if cod and amount_eur > 0:
+                full = c.calculate(_shipment(float(amount_eur)))  # with COD → total incl. surcharge
+                total = round(float(full.get("price") or 0), 2)
+                cod_fee = round(max(total - shipping, 0.0), 2)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"quote failed: {str(e)[:120]}")
+
+    return {
+        "carrier": k, "currency": "EUR",
+        "shipping_fee_eur": shipping,
+        "cod_fee_eur": cod_fee,
+        "total_fee_eur": round(shipping + cod_fee, 2),
+        "estimated": True,
+        "meta": {"weight_g": int(weight_g), "dest_type": dest_type,
+                 "office_id": office_id.strip() or None, "city": city.strip() or None},
+    }

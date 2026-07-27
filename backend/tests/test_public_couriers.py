@@ -87,3 +87,68 @@ async def test_token_holder_needs_no_panel_login(client, _fake_courier, monkeypa
     _set_token(monkeypatch, "s3cret-abc")
     r = await client.get("/api/public/couriers/econt/offices", headers={"x-office-token": "s3cret-abc"})
     assert r.status_code == 200
+
+
+# --- /quote (live delivery-fee estimate) ----------------------------------------------------------
+class _FakeQuoteCourier:
+    """calculate() returns a base shipping fee + a COD surcharge when cod_amount>0 — so the endpoint's
+    'two calls, subtract' COD-breakdown is exercised deterministically."""
+    def calculate(self, shp):
+        base, cod = 6.40, (0.60 if shp.cod_amount > 0 else 0.0)
+        return {"price": round(base + cod, 2), "currency": "EUR", "courier": "econt"}
+
+
+@pytest.fixture
+def _fake_quote(monkeypatch):
+    monkeypatch.setattr(pc.courier_mod, "get", lambda k: _FakeQuoteCourier())
+
+
+async def test_quote_office_with_cod_breaks_out_the_surcharge(client, _fake_quote, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get(
+        "/api/public/couriers/econt/quote?dest_type=office&office_id=5250&weight_g=5000&cod=true&amount_eur=18.49",
+        headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["carrier"] == "econt" and b["currency"] == "EUR" and b["estimated"] is True
+    assert b["shipping_fee_eur"] == 6.40
+    assert b["cod_fee_eur"] == 0.60
+    assert b["total_fee_eur"] == 7.00
+    assert b["meta"]["weight_g"] == 5000 and b["meta"]["office_id"] == "5250"
+
+
+async def test_quote_prepaid_has_no_cod_fee(client, _fake_quote, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get(
+        "/api/public/couriers/speedy/quote?dest_type=door&city=Свищов&weight_g=3000&cod=false",
+        headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["shipping_fee_eur"] == 6.40 and b["cod_fee_eur"] == 0.0 and b["total_fee_eur"] == 6.40
+
+
+async def test_quote_office_requires_office_id(client, _fake_quote, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get("/api/public/couriers/econt/quote?dest_type=office&weight_g=1000",
+                         headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 400
+
+
+async def test_quote_door_requires_city(client, _fake_quote, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get("/api/public/couriers/econt/quote?dest_type=door&weight_g=1000",
+                         headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 400
+
+
+async def test_quote_needs_token(client, _fake_quote, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get("/api/public/couriers/econt/quote?dest_type=office&office_id=5250&weight_g=1000")
+    assert r.status_code == 401
+
+
+async def test_quote_unknown_courier_404(client, _fake_quote, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get("/api/public/couriers/nope/quote?dest_type=office&office_id=1&weight_g=1000",
+                         headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 404
