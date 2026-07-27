@@ -15,6 +15,7 @@ they authenticate and observe, but stay read-only until deliberately switched on
 We verify synchronously, then hand the (potentially slow) Barsy/Shopify work to a BackgroundTask and
 return 200 immediately — Shopify retries on any non-2xx, so we must ack fast.
 """
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -32,6 +33,23 @@ from ..users import current_owner
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 log = logging.getLogger("darling.webhooks")
+
+# Per-entity in-process lock: Shopify fires orders/create AND orders/updated for the same order almost
+# simultaneously, and we process each in its own background task — so two tasks can both pass the
+# connector's `_seen_order` dedup before either writes the state file, and BOTH book (the #1003
+# double-clientorder). Serialising same-order tasks here (keyed by the payload id) closes that race at
+# the receiver; the connector's own `_op_lock` is the authoritative guard and this is cheap belt-and-
+# suspenders. Single-worker deploy (see docker-compose) → an in-process lock is sufficient; a multi-
+# worker setup would additionally need the connector's file-level dedup (which exists).
+_entity_locks: dict[str, asyncio.Lock] = {}
+
+
+def _entity_lock(key: str) -> asyncio.Lock:
+    lock = _entity_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _entity_locks[key] = lock
+    return lock
 
 
 def _live() -> bool:
@@ -157,8 +175,14 @@ async def _process_shopify(topic: str, payload: dict, live: bool):
         except Exception as e:  # noqa: BLE001 — already 200'd
             log.exception("Checkout %s handler failed: %s", topic, e)
         return
+    # serialise concurrent same-entity deliveries (create+updated for one order) so they can't both book
+    key = str((payload or {}).get("id") or (payload or {}).get("name") or "")
     try:
-        result = await run_in_threadpool(_dispatch_shopify, topic, payload, live)
+        if key:
+            async with _entity_lock(f"{topic.split('/')[0]}:{key}"):
+                result = await run_in_threadpool(_dispatch_shopify, topic, payload, live)
+        else:
+            result = await run_in_threadpool(_dispatch_shopify, topic, payload, live)
         # NEVER silently swallow a refusal/anomaly — persist it as a panel ProcessingIssue (nav badge +
         # Home strip + Проблеми page) so staff see it. A clean result records nothing.
         recorded = await note_shopify_result(topic, payload, result)
