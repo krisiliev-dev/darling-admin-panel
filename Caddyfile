@@ -10,14 +10,6 @@
 panel.darlinghome.bg {
 	encode gzip
 
-	# ⚠ TEMPORARY DIAGNOSTIC (2026-07-27): lower the TLS floor to 1.0 to test whether Barsy's
-	# webhook-probe client (which reports "status 0"/no-response at registration) is failing a
-	# modern-TLS handshake. If confirmed, the clean fix is a separate hooks.darlinghome.bg with the
-	# low floor while this host reverts to Caddy's secure default (TLS 1.2+). REVERT after the test.
-	tls {
-		protocols tls1.0 tls1.3
-	}
-
 	# API + webhook receivers → backend container (compose service name "panel")
 	@backend path /api/* /webhooks/*
 	handle @backend {
