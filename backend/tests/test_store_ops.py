@@ -147,9 +147,22 @@ async def test_revision_preview_computes_variance(owner_client, barsy_recorder):
         "lines": [{"article_id": 5, "counted": 7}, {"article_id": 6, "counted": 12}]})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["lines"][0] == {"article_id": 5, "system": 10.0, "counted": 7.0, "variance": -3.0}
+    row0 = body["lines"][0]
+    assert row0["article_id"] == 5 and row0["system"] == 10.0 and row0["variance"] == -3.0 and row0["known"]
     assert body["total_variance"] == -1.0       # (7-10) + (12-10) = -3 + 2
-    assert body["shortage_lines"] == 1 and body["surplus_lines"] == 1
+    assert body["shortage_lines"] == 1 and body["surplus_lines"] == 1 and body["unknown_lines"] == 0
+
+
+async def test_revision_preview_flags_failed_read_not_zero(owner_client, barsy_recorder):
+    def _boom(_body):
+        raise RuntimeError("Barsy down")
+    barsy_recorder.set_return("Articles_get", _boom)   # stock read fails
+    r = await owner_client.post("/api/store-ops/revision/preview", json={
+        "lines": [{"article_id": 5, "counted": 7}]})
+    assert r.status_code == 200, r.text
+    row = r.json()["lines"][0]
+    assert row["known"] is False and row["system"] is None and row["variance"] is None
+    assert r.json()["unknown_lines"] == 1        # NOT counted as a +7 phantom surplus
 
 
 async def test_revision_post_dry_run_shape(owner_client, barsy_recorder):

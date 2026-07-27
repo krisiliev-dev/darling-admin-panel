@@ -327,6 +327,17 @@ async def commit_delivery(
                                 f"Barsy (създаване на „{ln.name}“): {str(e)[:140]}.{hint}")
         created.append(_article_id(out))
 
+    # Guard: never send a storeload with a null-article_id row (a create that "succeeded" but returned
+    # an unparseable shape, or a mis-flagged existing line). Barsy would reject/mis-book the WHOLE
+    # delivery — after articles were already created. Abort + surface which lines + what did land.
+    if any(aid is None for aid in created):
+        bad = [req.lines[i].name for i, aid in enumerate(created) if aid is None]
+        done = [str(c) for c in created if c]
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            f"Редове без article_id ({', '.join(bad)}) — складовото зареждане НЕ е изпратено. "
+            f"Създадени в Barsy: {', '.join(done) or '—'} — провери преди повторно приемане.")
+
     payload = _storeload_payload(req, created)
     try:
         sl = await run_in_threadpool(barsy.call, "Storeloads_create", payload)

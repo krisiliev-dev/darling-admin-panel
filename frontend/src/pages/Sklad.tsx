@@ -73,8 +73,8 @@ function ResultCard({ res }: { res: WriteResult }) {
   )
 }
 
-type VarianceRow = { article_id: number; system: number; counted: number; variance: number }
-type Preview = { lines: VarianceRow[]; total_variance: number; shortage_lines: number; surplus_lines: number }
+type VarianceRow = { article_id: number; system: number | null; counted: number; variance: number | null; known: boolean }
+type Preview = { lines: VarianceRow[]; total_variance: number; shortage_lines: number; surplus_lines: number; unknown_lines: number }
 
 // Ревизия — physical stocktake: enter counted quantities, compute variance vs Barsy on-hand, then post
 // (Revisions_save save_and_close adjusts stock to the count). Preview is read-only; post is gated.
@@ -149,9 +149,10 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
             {preview.lines.map((row) => (
               <tr key={row.article_id} style={{ borderTop: '1px solid var(--rule)' }}>
                 <td style={{ padding: '0.3rem 0' }}>{row.article_id}</td>
-                <td>{row.system}</td><td>{row.counted}</td>
-                <td style={{ color: row.variance < 0 ? 'var(--red)' : row.variance > 0 ? 'var(--ready)' : 'inherit', fontWeight: row.variance ? 700 : 400 }}>
-                  {row.variance > 0 ? '+' : ''}{row.variance}
+                <td>{row.known ? row.system : <span style={{ color: 'var(--red)' }} title="Наличността не бе прочетена">н/д</span>}</td>
+                <td>{row.counted}</td>
+                <td style={{ color: !row.known ? 'var(--pencil)' : row.variance! < 0 ? 'var(--red)' : row.variance! > 0 ? 'var(--ready)' : 'inherit', fontWeight: row.variance ? 700 : 400 }}>
+                  {!row.known ? '?' : `${row.variance! > 0 ? '+' : ''}${row.variance}`}
                 </td>
               </tr>
             ))}

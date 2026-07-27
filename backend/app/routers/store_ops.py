@@ -11,6 +11,7 @@ us confirm the (partly undocumented) Storeouts/Storemoves/Revisions wire shapes 
 ⚠ SHAPES: Storeloads_create + Storemoves_create are documented/verified. Storeouts_save's wire wrapper is
 reverse-engineered (Hermes) and marked VERIFY-LIVE — trial it against a test object before STORE_OPS_BARSY_LIVE=1.
 """
+import asyncio
 import datetime as _dt
 import time
 
@@ -316,33 +317,45 @@ class RevisionReq(BaseModel):
     confirm: bool = False
 
 
-async def _article_stock(article_id: int) -> float:
-    """Current system on-hand for an article (best-effort; 0 on any read issue)."""
+async def _article_stock(article_id: int) -> float | None:
+    """Current system on-hand for an article, or None if the read FAILED (distinguished from a real 0 —
+    presenting a failed read as 0 would show a phantom surplus on the count sheet)."""
     try:
         r = await run_in_threadpool(barsy.call, "Articles_get",
                                     {"article_id": article_id, "extra_properties": {"store_amount": 1}})
         a = (r or {}).get("Articles_get") if isinstance(r, dict) else None
         a = a if isinstance(a, dict) else (r if isinstance(r, dict) else {})
         return float(a.get("store_amount") or 0)
-    except Exception:  # noqa: BLE001 — a missing read must not break the count
-        return 0.0
+    except Exception:  # noqa: BLE001 — a failed read is flagged (None), not silently 0
+        return None
 
 
 @router.post("/revision/preview")
 async def revision_preview(req: RevisionReq, _: User = Depends(current_active_user)):
     """Variance per line for a stocktake: counted − system on-hand. READ-ONLY (no write) — the count
-    sheet the operator reviews before posting. Negative = липса (shortage), positive = излишък (surplus)."""
+    sheet the operator reviews before posting. Negative = липса (shortage), positive = излишък (surplus).
+    Stock reads run concurrently (bounded) so a big count doesn't serialise thousands of round-trips;
+    a line whose stock read failed is flagged (known=false, system=null) rather than shown as 0."""
+    sem = asyncio.Semaphore(8)
+
+    async def _one(aid: int) -> float | None:
+        async with sem:
+            return await _article_stock(aid)
+
+    stocks = await asyncio.gather(*[_one(ln.article_id) for ln in req.lines])
     lines = []
-    for ln in req.lines:
-        sys_amt = await _article_stock(ln.article_id)
+    variances: list[float] = []                       # typed → aggregates below stay None-free for mypy
+    for ln, sys_amt in zip(req.lines, stocks):
+        var = round(ln.counted - sys_amt, 3) if sys_amt is not None else None
+        if var is not None:
+            variances.append(var)
         lines.append({"article_id": ln.article_id, "system": sys_amt, "counted": ln.counted,
-                      "variance": round(ln.counted - sys_amt, 3)})
-    return {
-        "lines": lines,
-        "total_variance": round(sum(row["variance"] for row in lines), 3),
-        "shortage_lines": sum(1 for row in lines if row["variance"] < 0),
-        "surplus_lines": sum(1 for row in lines if row["variance"] > 0),
-    }
+                      "variance": var, "known": sys_amt is not None})
+    return {"lines": lines,
+            "total_variance": round(sum(variances), 3),
+            "shortage_lines": sum(1 for v in variances if v < 0),
+            "surplus_lines": sum(1 for v in variances if v > 0),
+            "unknown_lines": sum(1 for s in stocks if s is None)}
 
 
 @router.post("/revision")
