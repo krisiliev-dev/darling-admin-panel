@@ -243,6 +243,9 @@ export interface BulkJob { id: string; op: string; total: number; done: number; 
 // Онлайн цени — dry-run preview of an online-price op (store price → computed online price)
 export interface OnlinePricePreview { dry_run: boolean; mode: string; count: number; uncovered: number[]; preview: { article_id: number; store_price: number | null; online_price: string | null }[] }
 export interface OnlinePriceItem { article_id: number; online_price: string; mode: string; name: string; code: string; store_price: number | null; updated_by: string }
+// Кошници — live/abandoned Shopify checkouts (read-only mirror from the checkouts webhook)
+export interface CartItem { token: string; email: string; phone: string; name: string; total_price: string; currency: string; item_count: number; updated_at: string | null }
+export interface CartsResp { active: CartItem[]; abandoned: CartItem[]; active_count: number; abandoned_count: number }
 
 // --- Заявки (purchase requests) ---
 export interface ZayavkaProduct {

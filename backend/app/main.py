@@ -16,6 +16,7 @@ from .routers import (
     assistant,
     auth_extra,
     brands,
+    carts,
     catalog,
     cod,
     dashboard,
@@ -114,6 +115,7 @@ app.include_router(auth_extra.router)
 app.include_router(dashboard.router)
 app.include_router(products.router)
 app.include_router(catalog.router)
+app.include_router(carts.router)
 app.include_router(brands.router)
 app.include_router(orders.router)
 app.include_router(intake.router)

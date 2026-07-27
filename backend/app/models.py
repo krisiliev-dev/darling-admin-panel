@@ -310,6 +310,27 @@ class PricingGroupRule(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class Checkout(Base):
+    """Live + abandoned Shopify checkouts (owner 2026-07-27) — so the panel can show how many people
+    currently have items in their cart and which checkouts were abandoned. Fed by the
+    checkouts/create + checkouts/update webhooks; READ-ONLY panel data, never touches Barsy. A
+    checkout that gains a completed_at became an order → marked completed (drops out of 'active')."""
+    __tablename__ = "checkout"
+
+    token: Mapped[str] = mapped_column(String(80), primary_key=True)   # Shopify checkout token/id
+    email: Mapped[str] = mapped_column(String(255), default="")
+    phone: Mapped[str] = mapped_column(String(32), default="")
+    name: Mapped[str] = mapped_column(String(80), default="")          # checkout #name if present
+    total_price: Mapped[str] = mapped_column(String(32), default="")   # as sent by Shopify (string)
+    currency: Mapped[str] = mapped_column(String(8), default="")
+    item_count: Mapped[int] = mapped_column(default=0)
+    completed: Mapped[bool] = mapped_column(default=False)             # became an order
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class OnlinePrice(Base):
     """Online (Shopify) channel price per article (owner 2026-07-27). The physical store keeps its
     base actual_price untouched; the ONLINE price lives in a NATIVE Barsy price rule scoped to the

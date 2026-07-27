@@ -101,6 +101,45 @@ async def _process_gdpr(topic: str, payload: dict):
             await log_action(session, None, "gdpr.shop_redact", detail=str(payload.get("shop_domain")))
 
 
+_CHECKOUT_TOPICS = {"checkouts/create", "checkouts/update", "checkouts/delete"}
+
+
+async def _process_checkout(topic: str, payload: dict):
+    """Upsert a Shopify checkout into the panel's READ-ONLY carts mirror (never touches Barsy) — this
+    powers the 'active / abandoned carts' view. A checkout with completed_at became an order → marked
+    completed (drops out of 'active'); a delete removes it."""
+    from sqlalchemy import delete as _delete
+
+    from ..db import async_session_maker
+    from ..models import Checkout
+    token = str(payload.get("token") or payload.get("id") or "").strip()
+    if not token:
+        return
+    async with async_session_maker() as session:
+        if topic == "checkouts/delete":
+            await session.execute(_delete(Checkout).where(Checkout.token == token))
+            await session.commit()
+            return
+        cust = payload.get("customer") or {}
+        li = payload.get("line_items") or []
+        vals = {
+            "email": payload.get("email") or cust.get("email") or "",
+            "phone": payload.get("phone") or cust.get("phone") or "",
+            "name": str(payload.get("name") or ""),
+            "total_price": str(payload.get("total_price") or ""),
+            "currency": payload.get("currency") or payload.get("presentment_currency") or "",
+            "item_count": sum(int(x.get("quantity") or 0) for x in li) or len(li),
+            "completed": bool(payload.get("completed_at")),
+        }
+        row = await session.get(Checkout, token)
+        if row:
+            for k, v in vals.items():
+                setattr(row, k, v)
+        else:
+            session.add(Checkout(token=token, **vals))
+        await session.commit()
+
+
 async def _process_shopify(topic: str, payload: dict, live: bool):
     # GDPR/compliance topics act on our OWN data (legal duty) — handled async here, never gated.
     if topic in _GDPR_TOPICS:
@@ -108,6 +147,14 @@ async def _process_shopify(topic: str, payload: dict, live: bool):
             await _process_gdpr(topic, payload)
         except Exception as e:  # noqa: BLE001 — already 200'd; never let a handler crash propagate
             log.exception("GDPR %s handler failed: %s", topic, e)
+        return
+    # Checkout/cart topics are READ-ONLY panel data (active + abandoned carts) — never gated, never
+    # touch Barsy; only the webhooks_live gate applies to the Barsy-writing order path below.
+    if topic in _CHECKOUT_TOPICS:
+        try:
+            await _process_checkout(topic, payload)
+        except Exception as e:  # noqa: BLE001 — already 200'd
+            log.exception("Checkout %s handler failed: %s", topic, e)
         return
     try:
         result = await run_in_threadpool(_dispatch_shopify, topic, payload, live)

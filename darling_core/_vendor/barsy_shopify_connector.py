@@ -183,6 +183,17 @@ def _invoice_data(order, account):
     }
 
 
+# --- sale finalisation flags (Accounts_place) ---------------------------------------------------
+# flag_close_account=1 makes Accounts_place do the FULL lifecycle in one call: open + order + payment
+# + CLOSE, and CLOSE is what writes off (decrements) stock. Payments are only accepted at close, so
+# they ride the same call. Barsy recommends this single-call finalise for online-shop integrations.
+_SALE_FLAG_CLOSE = 1        # finalise on order receipt (draws down stock). LAUNCH fiscal-timing may
+                            # move the close to the packing step — make this env-driven then.
+_SALE_PRINT_RECEIPT = 0     # TEST: no fiscal receipt. On the non-fiscal test POS (no device) closing
+                            # fires no бон regardless; LAUNCH (Barsy = fiscal point) wants 1 → env-drive.
+_SALE_PRINT_SHIPMENT = 0    # never print a courier label from the sale path (that's the courier module).
+
+
 # ============================================================ A. Shopify → Barsy
 def shopify_order_to_barsy(order, mode="sale", do_write=False):
     """New/paid Shopify order → Barsy. mode='sale' finalises immediately (fiscalises + draws down
@@ -244,7 +255,11 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
     payments = ([{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
                   "transaction_id": oid, "description": "Shopify (collected online)", "fiscal": 0}]
                 if paid_online else [])
-    place = {"account": account, "orders": rows, "payments": payments}
+    # flag_close_account=1 → open+order+pay+CLOSE in one call; CLOSE decrements stock. print flags off
+    # for the no-fiscal/no-label test scope (and the device-less test POS prints nothing anyway).
+    place = {"account": account, "orders": rows, "payments": payments,
+             "flag_close_account": _SALE_FLAG_CLOSE, "print_receipt": _SALE_PRINT_RECEIPT,
+             "print_shipment": _SALE_PRINT_SHIPMENT}
     inv = _invoice_data(order, account)
     if inv:                                                # buyer asked for a company VAT invoice (фактура)
         place["invoice_data"] = inv
@@ -254,7 +269,8 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
             account["email_invoices"] = email
     aid = b.call("Accounts_place", place)
     _record_order(oid, aid, len(rows), "sale")
-    return {**plan, "account_id": aid, "paid_online": paid_online, "invoice": bool(inv), "written": True}
+    return {**plan, "account_id": aid, "paid_online": paid_online, "invoice": bool(inv),
+            "closed": bool(_SALE_FLAG_CLOSE), "decremented": bool(_SALE_FLAG_CLOSE), "written": True}
 
 
 # ⚠ STORNO = the dedicated `Accounts_storno` method (NOT Accounts_place). Confirmed from docs 2026-07-27:

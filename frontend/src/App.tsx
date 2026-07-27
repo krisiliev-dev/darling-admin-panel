@@ -7,6 +7,7 @@ import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Home } from './pages/Home'
 import { Orders } from './pages/Orders'
+import { Carts } from './pages/Carts'
 import { Cod } from './pages/Cod'
 import { Intake } from './pages/Intake'
 import { Products } from './pages/Products'
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="analytics" element={<Dashboard />} />
         <Route path="intake" element={<Intake />} />
         <Route path="orders" element={<Orders />} />
+        <Route path="carts" element={<Carts />} />
         <Route path="cod" element={<Cod />} />
         <Route path="products" element={<Products />} />
         {/* old paths keep working (bookmarks / deep-links) → unified Продукти */}

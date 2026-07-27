@@ -12,6 +12,7 @@ const NAV: { to: string; label: string; roles?: string[] }[] = [
   { to: '/', label: 'Начало' },
   { to: '/analytics', label: 'Анализи' },
   { to: '/orders', label: 'Онлайн поръчки' },
+  { to: '/carts', label: 'Кошници' },
   { to: '/products', label: 'Продукти' },
   { to: '/intake', label: 'Нов продукт' },
   { to: '/purchasing', label: 'Доставки' },

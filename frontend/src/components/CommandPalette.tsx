@@ -10,6 +10,7 @@ const COMMANDS: Command[] = [
   { label: 'Днес', hint: 'какво чака внимание', to: '/' },
   { label: 'Нов продукт', hint: 'нов продукт + AI', to: '/intake' },
   { label: 'Онлайн поръчки', hint: 'изпълнение + етикети', to: '/orders' },
+  { label: 'Кошници', hint: 'активни + изоставени колички', to: '/carts' },
   { label: 'Разчети', hint: 'наложен платеж', to: '/cod' },
   { label: 'Продукти', hint: 'каталог · наличност · цени', to: '/products' },
   { label: 'Ценообразуване', hint: 'доставна + надценка', to: '/products' },
