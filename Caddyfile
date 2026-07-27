@@ -10,6 +10,15 @@
 panel.darlinghome.bg {
 	encode gzip
 
+	# Issue an RSA cert instead of Caddy's default ECDSA (which chains to ISRG Root X2). Older HTTP
+	# clients — e.g. Barsy's webhook probe, which fails with "status 0" at registration — may not
+	# support ECDSA certs or trust ISRG Root X2. RSA 2048 chains to the broadly-trusted ISRG Root X1
+	# and keeps TLS 1.2+ (no security downgrade). `key_type` IS a valid Caddy directive (validated
+	# before deploy) — unlike the removed tls1.0 protocol that crash-looped earlier.
+	tls {
+		key_type rsa2048
+	}
+
 	# API + webhook receivers → backend container (compose service name "panel")
 	@backend path /api/* /webhooks/*
 	handle @backend {

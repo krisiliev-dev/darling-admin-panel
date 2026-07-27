@@ -63,10 +63,20 @@ that MUST be wiped before the real catalog + real stock go in. Go through each a
 4. **Load real stock quantities** (barsy_stock.py + наличности export) BEFORE flipping tracking on,
    else every Shopify variant shows sold-out. Oversell is Barsy-driven per article via `sale_below_zero`
    (Mira-N = YES→CONTINUE); to change it, edit the product IN BARSY.
-5. **Register webhooks**: call `connector.register_all_webhooks("https://<host>/webhooks")` for the
-   Barsy side, and register the Shopify topics (orders/paid, orders/cancelled, refunds/create,
-   fulfillments/create, customers/create, customers/update) to `https://<host>/webhooks/shopify/orders`
-   via `webhookSubscriptionCreate`. Register the Barsy article URL WITH `?token=<BARSY_WEBHOOK_TOKEN>`.
+5. **Register webhooks**: register the 9 Shopify topics (orders/create, orders/paid, orders/cancelled,
+   orders/updated, refunds/create, fulfillments/create, fulfillments/update, customers/create,
+   customers/update) to `https://<host>/webhooks/shopify/orders` via `webhookSubscriptionCreate`, and
+   the Barsy article URL via `connector.register_all_webhooks(...)` WITH `?token=<BARSY_WEBHOOK_TOKEN>`.
+   ✅ DONE 2026-07-27 (dry-run): 9 Shopify topics registered. Barsy webhook BLOCKED — its probe can't
+   reach the panel (cert/TLS/firewall; see the GDPR + Barsy notes below).
+5a. **⚠ TODO — GDPR compliance webhooks (owner, Shopify Partner Dashboard):** the 3 mandatory privacy
+    webhooks (`customers/data_request`, `customers/redact`, `shop/redact`) are NOT API-registrable —
+    set their callback URLs in **Partner Dashboard → your app → Compliance webhooks** (or the privacy
+    URIs in `shopify.app.toml`), all pointing at `https://<host>/webhooks/shopify/orders`. The panel
+    handlers are DEPLOYED + tested (redact auto-erases our phone-keyed OrderOutcome + retracts nekorekten;
+    data_request compiles + audits; shop/redact audits). INTERIM: the privacy policy directs data
+    requests to our email, so we can run the erase/lookup manually (`/api/gdpr`) until the dashboard
+    URLs are set. Setting them automates it.
 6. **Add the loop guard**: insert `barsy_shopify_connector.mark_pushed(code)` right after each
    `barsy_push.push_one(...)` in `agent-pipeline/approved_pipeline.run()` (1 line — left out of the live
    push until the Barsy webhook is on, else Direction B could ping-pong our own DB→Barsy writes).
