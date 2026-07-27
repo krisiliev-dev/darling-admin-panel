@@ -5,7 +5,8 @@ gate (BARSY_WRITE_LIVE), the confirm flag, the role check, and the audit line. W
 functions so the test is panel-only."""
 import app.routers.orders as orders_module
 
-_ORDER = {"id": "1004", "name": "#1004"}
+# id is a Shopify GID — the endpoint must pass the bare NUMERIC id to the connector (not the GID)
+_ORDER = {"id": "gid://shopify/Order/1004", "name": "#1004"}
 
 
 def _patch_order(monkeypatch):

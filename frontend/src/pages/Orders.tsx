@@ -115,7 +115,10 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
     if (!(await confirm(q))) return
     setBusy(o.id + kind); setMsg('')
     try {
-      const r = await api.post<{ status?: string; dry_run?: boolean; reason?: string }>(`/api/orders/${o.id}/${kind}`, { confirm: true })
+      // o.id is a Shopify GID (gid://shopify/Order/123) — the slashes break a path param, so pass the
+      // bare numeric id (also the key the connector's order-state uses).
+      const oid = String(o.id).split('/').pop() || o.id
+      const r = await api.post<{ status?: string; dry_run?: boolean; reason?: string }>(`/api/orders/${oid}/${kind}`, { confirm: true })
       const bg = kind === 'finalise' ? 'финализирана' : 'отказана'
       setMsg(r.dry_run ? `${o.name}: проба — Barsy запис е изключен (нищо не е записано).`
         : r.status === 'needs_review' ? `${o.name}: нужен преглед (${r.reason || '—'}) — виж Проблеми.`

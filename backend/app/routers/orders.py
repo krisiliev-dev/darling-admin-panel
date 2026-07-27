@@ -97,9 +97,16 @@ class ShipRequest(BaseModel):
     confirm: bool = False              # required True to actually create a label
 
 
+def _numeric_oid(v) -> str:
+    """The bare numeric Shopify order id — the frontend passes it slash-free (the GID
+    `gid://shopify/Order/123` has slashes that would break a path param), and it's also the key the
+    connector's order-state file uses (from the webhook payload's numeric `id`)."""
+    return str(v).rsplit("/", 1)[-1]
+
+
 def _order_or_404(order_id: str):
     for o in shopify_orders.fetch_orders(limit=250):
-        if o["id"] == order_id or o["name"] == order_id:
+        if order_id in (o["id"], o["name"], _numeric_oid(o["id"])):
             return o
     raise HTTPException(status.HTTP_404_NOT_FOUND, "Поръчката не е намерена.")
 
@@ -337,7 +344,7 @@ async def finalise(
     o = await run_in_threadpool(_order_or_404, order_id)
     do_write = get_settings().barsy_write_live
     try:
-        result = await run_in_threadpool(connector.finalise_order, o["id"], do_write)
+        result = await run_in_threadpool(connector.finalise_order, _numeric_oid(o["id"]), do_write)
     except AttributeError:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             "Финализирането не е налично (connector.finalise_order липсва).")
@@ -362,7 +369,7 @@ async def refuse(
     o = await run_in_threadpool(_order_or_404, order_id)
     do_write = get_settings().barsy_write_live
     try:
-        result = await run_in_threadpool(connector.refuse_order, o["id"], do_write)
+        result = await run_in_threadpool(connector.refuse_order, _numeric_oid(o["id"]), do_write)
     except AttributeError:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             "Отказът не е наличен (connector.refuse_order липсва).")
