@@ -22,9 +22,17 @@ The online price lives on the Barsy article's `extra_data.online_price` (a strin
 This delivers per-channel pricing for the real setup (1 physical + 1 online) **without** the blocked Pricelists API or a second Barsy POS. It is forward-compatible: if native per-POS lands, the overlay can seed or be replaced by the Barsy rule.
 
 ## Build checklist (path B)
-- [ ] Panel product editor: optional **„Онлайн цена"** field → `extra_data.online_price` (empty = use physical price). Merge-preserve other `extra_data` (weight/seo).
-- [ ] Backend: thread the field through the editor model + `_build_barsy_article` / catalog-update / `_save_to_barsy` (merge into extra_data, don't clobber).
-- [ ] Connector (`barsy_shopify_connector.py`): variant price = `extra_data.online_price or actual_price` on create + master-data update push. **Coordinate the one-line change with the Hermes session** (shared file).
-- [ ] Show both prices in the product table (physical / online) so divergence is visible.
-- [ ] Tests: overlay set → online price pushed; overlay empty → actual_price pushed (fallback); extra_data merge preserves weight/seo.
-- [ ] Deferred (later session): the *policy* — bulk-set online prices by delta/margin/category; optional native per-POS migration (§B).
+- [x] Panel product editor: optional **„Онлайн цена"** field → `extra_data.online_price` (empty = use physical price). Merge-preserve other `extra_data` (weight/seo). *(1f037bd)*
+- [x] Backend: threaded through `ApproveRequest`/`DraftOut`/create/update + `_build_barsy_article` (merges into extra_data, omitted when blank). Migration `a1b2c3d4e5f6` (`server_default=''`). *(1f037bd)*
+- [x] Connector (`barsy_shopify_connector.py`, Hermes) — helper `_shopify_price(art)` = `extra_data.online_price` (via `Articles_get extra_properties` — extra_data isn't in list payloads) else `actual_price`, applied in **4** spots, verified live (online 9.99 pushed, clean fallback):
+  1. `barsy_new_product_to_shopify` minimal-create
+  2. `barsy_article_to_shopify` master-data update
+  3. **`sync._barsy_price`** — the ENRICHED create path (where db-enriched products, the common case, get their price)
+  4. **`reconcile()` drift check** — compare against `_shopify_price` so online-priced products don't false-flag as drifted + re-push every nightly run
+- [x] Tests: overlay set → pushed; blank → actual_price fallback; extra_data merge preserves weight/seo. *(1f037bd)*
+- [ ] Nice-to-have: show both prices (physical / online) in the product table so divergence is visible.
+- [ ] Deferred (later session, owner): the *policy* — bulk-set online prices by delta/margin/category; optional native per-POS migration (§B).
+
+**Perf note (Hermes):** +1 `Articles_get` per push (extra_data absent from list payloads) — fine for per-article webhook events; if reconcile-at-scale gets heavy, bulk-pull extra_data via `getlist extra_properties`.
+
+**STATUS: overlay path COMPLETE + verified live end-to-end (2026-07-27).** Physical price = `actual_price`; online price = `extra_data.online_price` when set. Zero divergence until an online price is entered.
