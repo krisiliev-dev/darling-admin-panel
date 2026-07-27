@@ -16,6 +16,13 @@ class _FakeCourier:
         return _OFFICES
 
 
+@pytest.fixture(autouse=True)
+def _clear_office_cache():
+    pc._OFFICE_CACHE.clear()
+    yield
+    pc._OFFICE_CACHE.clear()
+
+
 @pytest.fixture
 def _fake_courier(monkeypatch):
     monkeypatch.setattr(pc.courier_mod, "get", lambda k: _FakeCourier())
@@ -52,6 +59,21 @@ async def test_valid_token_returns_offices(client, _fake_courier, monkeypatch):
     assert body["courier"] == "speedy" and body["count"] == 1
     assert body["offices"][0] == {"id": "42", "name": "Офис Люлин",
                                   "address": "бул. Царица Йоанна 15", "city": "София"}
+
+
+async def test_city_filter_matches_cyrillic(client, _fake_courier, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    # the ?city=София→0 bug: filter must match the office's city (Cyrillic, case/space-insensitive)
+    r = await client.get("/api/public/couriers/econt/offices?city=софия",
+                         headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 200 and r.json()["count"] == 1
+
+
+async def test_city_filter_excludes_other_cities(client, _fake_courier, monkeypatch):
+    _set_token(monkeypatch, "s3cret-abc")
+    r = await client.get("/api/public/couriers/econt/offices?city=Пловдив",
+                         headers={"x-office-token": "s3cret-abc"})
+    assert r.status_code == 200 and r.json()["count"] == 0
 
 
 async def test_unknown_courier_404(client, _fake_courier, monkeypatch):

@@ -6,6 +6,7 @@ secret (X-Office-Token == OFFICE_LOOKUP_TOKEN). No panel-user auth — this is t
 external entry point. Empty token in config => the endpoint is DISABLED (403), so it stays off until
 the owner sets the secret. Owner-approved 2026-07-27."""
 import hmac
+import time
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 
@@ -19,6 +20,11 @@ router = APIRouter(prefix="/api/public/couriers", tags=["public-couriers"])
 _ALLOWED = {"speedy", "econt", "boxnow", "sameday", "pigeon", "evropat"}
 
 
+_OFFICE_TTL = 900.0          # cache the full office list per courier (office networks change rarely)
+_OFFICE_CACHE: dict = {}     # {courier: (fetched_at_monotonic, [offices])}
+_CAP = 300                   # max offices returned per response
+
+
 def _check_token(token: str | None) -> None:
     """Constant-time check of the shared secret. Disabled (403) when no token is configured."""
     configured = (get_settings().office_lookup_token or "").strip()
@@ -28,21 +34,41 @@ def _check_token(token: str | None) -> None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Bad or missing office-lookup token.")
 
 
+def _norm(s: str) -> str:
+    """Case- + whitespace-insensitive key so a Cyrillic city query matches the stored city/name."""
+    return "".join((s or "").split()).casefold()
+
+
+def _all_offices(k: str) -> list:
+    """Full office list for a courier, cached — we filter by city in-process because the courier
+    APIs' `name` param filters by OFFICE name, not city (that was the ?city=София→0 bug)."""
+    hit = _OFFICE_CACHE.get(k)
+    if hit and (time.monotonic() - hit[0]) < _OFFICE_TTL:
+        return hit[1]
+    with upstream(k):
+        offices = courier_mod.get(k).offices(city=None) or []
+    _OFFICE_CACHE[k] = (time.monotonic(), offices)
+    return offices
+
+
 @router.get("/{key}/offices")
 def public_offices(key: str, city: str = Query("", max_length=120, description="filter by city"),
                    x_office_token: str | None = Header(default=None)):
     """City → courier office/locker list for the storefront checkout picker. Token-gated; courier
-    credentials never leave the panel. Returns the same shape as the internal picker:
-    [{id, name, address, city}]."""
+    credentials never leave the panel. Returns [{id, name, address, city}]. The `city` filter is a
+    Unicode-normalized, case-insensitive substring match on each office's city (and name)."""
     _check_token(x_office_token)
     k = (key or "").lower()
     if k not in _ALLOWED:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown courier.")
     try:
-        with upstream(k):
-            offices = courier_mod.get(k).offices(city=city or None)
+        offices = _all_offices(k)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"courier lookup failed: {str(e)[:120]}")
-    return {"courier": k, "count": len(offices), "offices": offices[:300]}
+    if city.strip():
+        q = _norm(city)
+        offices = [o for o in offices
+                   if q in _norm(o.get("city") or "") or q in _norm(o.get("name") or "")]
+    return {"courier": k, "count": len(offices), "offices": offices[:_CAP]}

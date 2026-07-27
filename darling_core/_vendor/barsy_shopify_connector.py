@@ -595,7 +595,10 @@ def register_all_webhooks(receiver_base):
         except Exception as e:
             barsy[ev] = {"error": str(e)[:80]}
     shopify_topics = ["orders/paid", "orders/cancelled", "refunds/create",
-                      "fulfillments/create", "customers/create", "customers/update"]
+                      "fulfillments/create", "customers/create", "customers/update",
+                      # carts view ("Кошници") — panel records these into a read-only carts table;
+                      # HMAC-verified, never touches Barsy. (panel checkouts webhook, 2026-07-27)
+                      "checkouts/create", "checkouts/update"]
     return {"barsy_subscribed": barsy, "shopify_topics_to_register": shopify_topics,
             "receiver_base": receiver_base}
 
