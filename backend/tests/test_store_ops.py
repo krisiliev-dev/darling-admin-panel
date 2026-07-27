@@ -58,16 +58,19 @@ async def test_load_dry_run_writes_nothing(owner_client, barsy_recorder):
     assert "Storeloads_create" not in barsy_recorder.operations   # nothing sent
 
 
-async def test_writeoff_dry_run_carries_reason_and_warning(owner_client, barsy_recorder):
+async def test_writeoff_dry_run_matches_captured_envelope(owner_client, barsy_recorder):
     r = await owner_client.post("/api/store-ops/writeoff", json={
         "lines": [{"article_id": 7, "amount": 2, "note": "счупено"}], "reason_id": 1,
         "description": "витрина"})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["dry_run"] is True and body["method"] == "Storeouts_save"
-    assert body["barsy_body"]["rows"][0]["reason_id"] == 1
-    assert body["barsy_body"]["storeout"]["type_id"] == -1
-    assert any("реверс-инженерна" in w for w in body["warnings"])   # VERIFY-LIVE flagged
+    # envelope confirmed from the Barsy UI capture: flat `values` (strings) + sibling `rows`
+    vals = body["barsy_body"]["values"]
+    assert vals["type_id"] == "-1" and vals["depot_id"] == "1"     # depot flat, string
+    row = body["barsy_body"]["rows"][0]
+    assert row["article_id"] == "7" and row["amount"] == "2" and row["reason_id"] == "1"
+    assert "storeout" not in body["barsy_body"]                    # NOT the old nested shape
 
 
 async def test_transfer_blocked_when_single_depot(owner_client, barsy_recorder):

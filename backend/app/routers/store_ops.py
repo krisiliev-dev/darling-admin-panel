@@ -34,6 +34,16 @@ def _today() -> str:
     return _dt.date.today().isoformat()
 
 
+def _now() -> str:
+    """Barsy doc_date format seen in the UI: 'YYYY-MM-DD HH:MM:SS'."""
+    return _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _amt(x: float) -> str:
+    """Barsy wants quantities as strings; send '2' not '2.0' for whole numbers (matches the UI)."""
+    return str(int(x)) if float(x).is_integer() else str(x)
+
+
 def _doc_num(prefix: str) -> str:
     """A unique-per-second doc number (Barsy requires a unique doc_num per document)."""
     return f"{prefix}-{int(time.time())}"
@@ -189,28 +199,29 @@ async def manual_load(req: LoadReq, actor: User = Depends(current_owner),
 @router.post("/writeoff")
 async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
                     session: AsyncSession = Depends(get_async_session)):
-    """Изписване → Storeouts_save. ⚠ VERIFY-LIVE wrapper (reverse-engineered): header + rows list-form.
+    """Изписване → Storeouts_save. Envelope confirmed by capturing the Barsy UI's own save request
+    (2026-07-27): `{action_type:"save", values:{…flat header incl depot_id STRING…}, rows:[…]}` — header
+    is FLAT in `values`, `rows` is a sibling (NOT nested elements). All ids sent as strings.
     The reason_id drives the чл.79/80 ЗДДС VAT treatment — the panel records it; the протокол за брак is
     the audit defence. Reasons come from /writeoff-reasons."""
+    depot = req.depot_id or get_settings().barsy_depot_id
     body = {
-        "storeout": {
-            "depot_id": req.depot_id or get_settings().barsy_depot_id,
-            "type_id": -1,                        # Глобален (only write-off type)
-            "doc_date": req.doc_date or _today(),
-            "doc_num": _doc_num("BRAK"),
+        "action_type": "save",
+        "values": {
+            "depot_id": str(depot),
+            "type_id": "-1",                     # Глобален (the only write-off type on this install)
+            "doc_date": req.doc_date or _now(),
             "description": req.description,
+            "deal_id": None,
         },
         "rows": [
-            {"article_id": ln.article_id, "amount": ln.amount, "reason_id": req.reason_id,
-             **({"notes": ln.note} if ln.note else {})}
+            {"article_id": str(ln.article_id), "amount": _amt(ln.amount),
+             "reason_id": str(req.reason_id), "notes": ln.note or "", "lot_value": ""}
             for ln in req.lines
         ],
-        "action_type": "save",
     }
-    return await _gate_or_dry(
-        actor, session, action="storeop.writeoff", method="Storeouts_save", body=body,
-        target=f"{len(req.lines)} реда / reason {req.reason_id}",
-        warnings=["⚠ Формата на Storeouts_save е реверс-инженерна — потвърди на тест обект преди live."])
+    return await _gate_or_dry(actor, session, action="storeop.writeoff", method="Storeouts_save",
+                              body=body, target=f"{len(req.lines)} реда / reason {req.reason_id}")
 
 
 @router.post("/transfer")
