@@ -7,6 +7,7 @@ import { useHotkey, isTyping } from '../lib/useHotkey'
 import { printLabels } from '../lib/label'
 import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
+import { useConfirm } from '../components/Confirm'
 import { Pager, usePager } from '../components/TableControls'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
 import { ProductBulkPricing } from '../components/ProductBulkPricing'
@@ -99,6 +100,7 @@ function PriceRow({ it, isOwner, onChanged }: { it: PricingItem; isOwner: boolea
   // markup shown as a whole-number percent; empty until a rule is set
   const [pct, setPct] = useState(it.target_markup != null ? String(Math.round(it.target_markup * 100)) : '')
   const [busy, setBusy] = useState('')
+  const confirm = useConfirm()
 
   const saveMarkup = async () => {
     const v = parseFloat(pct)
@@ -112,7 +114,7 @@ function PriceRow({ it, isOwner, onChanged }: { it: PricingItem; isOwner: boolea
 
   const apply = async () => {
     const proposed = it.proposed_retail?.toFixed(2)
-    if (!window.confirm(`Приложи нова продажна цена на „${it.name}“:\n${it.retail?.toFixed(2) ?? '—'} → ${proposed} €\n(доставна ${it.cost.toFixed(2)} + ${Math.round((it.target_markup ?? 0) * 100)}%)\n\nТова записва цената в Barsy.`)) return
+    if (!(await confirm({ confirmLabel: 'Приложи', title: 'Нова продажна цена', message: `„${it.name}“:\n${it.retail?.toFixed(2) ?? '—'} → ${proposed} €\n(доставна ${it.cost.toFixed(2)} + ${Math.round((it.target_markup ?? 0) * 100)}%)\n\nТова записва цената в Barsy.` }))) return
     setBusy('apply')
     try {
       const r = await api.post<{ new_retail: number }>('/api/pricing/apply', { article_id: it.article_id, confirm: true })
@@ -218,6 +220,7 @@ function SupplierRules() {
 function SupplierRow({ s, onChanged }: { s: SupplierRule; onChanged: (m: string) => void }) {
   const [pct, setPct] = useState(s.markup_pct != null ? String(Math.round(s.markup_pct * 100)) : '')
   const [busy, setBusy] = useState('')
+  const confirm = useConfirm()
 
   const save = async () => {
     const v = parseFloat(pct)
@@ -227,13 +230,13 @@ function SupplierRow({ s, onChanged }: { s: SupplierRule; onChanged: (m: string)
     catch (e) { onChanged(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy('') }
   }
   const applyAll = async () => {
-    if (!window.confirm(`Приложи ${pct}% надценка към ВСИЧКИ продукти на „${s.name}“ (${s.product_count} бр.)?\nТова презаписва продажните им цени в Barsy (продуктите със собствена надценка запазват своята).`)) return
+    if (!(await confirm({ danger: true, confirmLabel: 'Приложи на всички', title: 'Надценка за целия доставчик', message: `Приложи ${pct}% надценка към ВСИЧКИ продукти на „${s.name}“ (${s.product_count} бр.)?\nТова презаписва продажните им цени в Barsy (продуктите със собствена надценка запазват своята).` }))) return
     setBusy('apply')
     try {
       const r = await api.post<{ applied: number; skipped: number; changed?: { name: string; price: number | null; barcode: string; code: string }[] }>('/api/pricing/apply-supplier', { supplier: s.name, confirm: true })
       onChanged(`„${s.name}“: обновени ${r.applied}, пропуснати ${r.skipped}.`)
       // legal: the new price must be on the shelf tag — offer to print fresh labels for the shop floor
-      if (r.changed && r.changed.length && window.confirm(`Цените са сменени. Отпечатай ${r.changed.length} нови етикета за магазина?`)) {
+      if (r.changed && r.changed.length && (await confirm({ confirmLabel: 'Отпечатай', message: `Цените са сменени. Отпечатай ${r.changed.length} нови етикета за магазина?` }))) {
         printLabels(r.changed.map((x) => ({ ...x, copies: 1 })))
       }
     } catch (e) { onChanged(e instanceof ApiError ? e.message : 'Грешка при прилагане.') } finally { setBusy('') }

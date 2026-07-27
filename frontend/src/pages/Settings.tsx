@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { CourierBadge } from '../components/CourierBadge'
+import { useConfirm } from '../components/Confirm'
 import { Logs } from './Logs'
 
 interface BarsyRole { role_id: number; role_name: string; weight: number | null; privileged?: boolean }
@@ -154,6 +155,7 @@ function GdprPanel() {
   const [data, setData] = useState<{ phone: string; count: number; note: string; outcomes: { order_name: string; outcome: string; reported_to_nekorekten: boolean }[] } | null>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState('')
+  const confirm = useConfirm()
 
   const lookup = async () => {
     if (!phone.trim()) return
@@ -162,7 +164,7 @@ function GdprPanel() {
     catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy('') }
   }
   const erase = async () => {
-    if (!window.confirm(`Изтрий данните на панела за ${data?.phone} и оттегли подадени сигнали в НЕкоректен?`)) return
+    if (!(await confirm({ danger: true, confirmLabel: 'Изтрий', message: `Изтрий данните на панела за ${data?.phone} и оттегли подадени сигнали в НЕкоректен?` }))) return
     setBusy('erase')
     try {
       const r = await api.post<{ erased: number; reports_retracted: number }>('/api/gdpr/erase', { phone, confirm: true })

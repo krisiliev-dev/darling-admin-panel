@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { RiskLookup } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useConfirm, usePrompt } from './Confirm'
 
 // COD-refuser risk check for a phone: our own refusal history + a nekorekten.com report count,
 // combined into an advisory flag. Never auto-acts — staff decide (hold / require prepay). Includes
@@ -16,6 +17,8 @@ export function CustomerRisk({ phone }: { phone: string }) {
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
   const [reportId, setReportId] = useState('')  // set after we file a report → enables retraction
+  const confirm = useConfirm()
+  const prompt = usePrompt()
 
   // M3: when the phone changes, clear the previous verdict — never show A's risk next to B's shipment
   // (and never let "Докладвай" publish B under A's justification)
@@ -31,9 +34,11 @@ export function CustomerRisk({ phone }: { phone: string }) {
   // report a refuser TO nekorekten (publishes to their public DB) — owner/manager only, human-typed
   // reason, explicit confirm. Never automatic. GDPR: legitimate interest / fraud prevention.
   const report = async () => {
-    const text = window.prompt('Опиши накратко случая (факти — това се публикува в НЕкоректен):', '')
+    const text = await prompt({ title: 'Докладвай в НЕкоректен', minLength: 5, multiline: true,
+      message: 'Опиши накратко случая (факти — това се публикува в НЕкоректен):', placeholder: 'факти по случая…' })
     if (!text || text.trim().length < 5) return
-    if (!window.confirm(`Това ще ПУБЛИКУВА сигнал за ${phone} в НЕкоректен.\nСигурен ли си?`)) return
+    if (!(await confirm({ danger: true, confirmLabel: 'Публикувай', title: 'Публикуване в НЕкоректен',
+      message: `Това ще ПУБЛИКУВА сигнал за ${phone} в НЕкоректен.\nСигурен ли си?` }))) return
     setBusy(true); setErr(''); setMsg('')
     try {
       const r = await api.post<{ report_id?: string }>('/api/risk/report', { phone, text, confirm: true })
@@ -43,7 +48,7 @@ export function CustomerRisk({ phone }: { phone: string }) {
   }
 
   const retract = async () => {
-    if (!reportId || !window.confirm('Да оттегля ли подадения сигнал от НЕкоректен?')) return
+    if (!reportId || !(await confirm('Да оттегля ли подадения сигнал от НЕкоректен?'))) return
     setBusy(true); setErr('')
     try {
       await api.post('/api/risk/report/retract', { report_id: reportId, confirm: true })

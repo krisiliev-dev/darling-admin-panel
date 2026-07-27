@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { BrandPicker } from '../components/BrandPicker'
+import { useConfirm } from '../components/Confirm'
 
 // Нов продукт — adding a product ALWAYS goes through one editor: FIRST the barcode + images, then a
 // button starts enrichment which fills the rest as editable suggestions (name, Shopify-taxonomy
@@ -482,6 +483,7 @@ function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
   const [drafts, setDrafts] = useState<IntakeDraft[] | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [msg, setMsg] = useState('')
+  const confirm = useConfirm()
 
   const load = () => api.get<{ drafts: IntakeDraft[] }>('/api/intake/drafts')
     .then((d) => setDrafts(d.drafts)).catch(() => setDrafts([]))
@@ -489,7 +491,7 @@ function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
 
   const push = async (d: IntakeDraft) => {
     if (d.id == null) return
-    if (!window.confirm(`Създаване на „${d.name}“ (код ${d.code}) в Barsy? Това е реален запис в ERP.`)) return
+    if (!(await confirm({ danger: true, confirmLabel: 'Създай в Barsy', message: `Създаване на „${d.name}“ (код ${d.code}) в Barsy? Това е реален запис в ERP.` }))) return
     setBusy(d.id); setMsg('')
     try {
       const r = await api.post<{ barsy_article_id: number }>(`/api/intake/drafts/${d.id}/push-barsy`, { confirm: true })

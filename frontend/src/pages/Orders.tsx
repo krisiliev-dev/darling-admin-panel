@@ -6,6 +6,7 @@ import type { CourierReadiness, Office, Order, OrdersResponse } from '../lib/api
 import { Sheet } from '../components/Paper'
 import { PageHeader } from '../components/PageHeader'
 import { CustomerRisk } from '../components/CustomerRisk'
+import { useConfirm } from '../components/Confirm'
 import { FilterChips, Pager, usePager } from '../components/TableControls'
 import { Cod } from './Cod'
 import { hoursSince, timeSinceBg, SLA_HOURS, SLA_WARN } from '../lib/time'
@@ -240,15 +241,18 @@ function ShipmentTool({ couriers, prefill, prefillVer, onDone }: {
       setQuote(`Ориентировъчна цена: ${r.price} ${r.currency}`)
     } catch (e) { setErr(e instanceof ApiError ? e.message : 'Грешка при оферта.') } finally { setBusy('') }
   }
+  const confirm = useConfirm()
   const doLabel = async () => {
     const bad = validate(); if (bad) { setErr(bad); return }
     const b = body()
     const dest = toOffice ? `офис ${f.office_id}` : `${f.city}${f.street ? ', ' + f.street : ''}`
     const cod = b.cod_amount > 0 ? `НП ${b.cod_amount.toFixed(2)} €` : 'без наложен платеж'
     // restate the specifics — a bare yes/no on a real, money-booking action invites click-through
-    if (!window.confirm(
-      `Създай реален етикет при куриера:\n\n${courierName(courier)} · ${f.recipient} · ${dest}\n${cod} · ${b.weight_kg} кг`
-      + (quote ? `\n${quote}` : '') + `\n\nТова създава пратка и таксува.`)) return
+    if (!(await confirm({
+      danger: true, confirmLabel: 'Създай етикет', title: 'Реален етикет при куриера',
+      message: `${courierName(courier)} · ${f.recipient} · ${dest}\n${cod} · ${b.weight_kg} кг`
+        + (quote ? `\n${quote}` : '') + `\n\nТова създава пратка и таксува.`,
+    }))) return
     setBusy('label'); setErr(''); setResult('')
     try {
       const r = await api.post<{ tracking_number: string; label_ref: unknown }>('/api/orders/manual-label', { ...b, confirm: true })

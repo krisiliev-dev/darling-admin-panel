@@ -5,6 +5,7 @@ import { useApi } from '../lib/useApi'
 import { useHotkey, isTyping } from '../lib/useHotkey'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
+import { useConfirm } from '../components/Confirm'
 
 // PO line while editing (amount/current_price are strings so decimals type cleanly).
 interface EditLine { article_id: number; name: string; amount: string; current_price: string }
@@ -172,8 +173,9 @@ function POBuilder({
 }
 
 function OrdersList({ orders, onChange }: { orders: PurchaseOrder[] | null; onChange: () => void }) {
+  const confirm = useConfirm()
   const close = async (id: number) => {
-    if (!window.confirm('Приключване на зареждането? Количествата влизат в наличностите в Barsy.')) return
+    if (!(await confirm({ confirmLabel: 'Приключи', message: 'Приключване на зареждането? Количествата влизат в наличностите в Barsy.' }))) return
     try { await api.post(`/api/purchasing/orders/${id}/close`); onChange() } catch { /* ignore */ }
   }
   if (!orders || orders.length === 0) return null

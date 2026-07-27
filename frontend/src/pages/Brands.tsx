@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
+import { useConfirm } from '../components/Confirm'
 
 // Брандове — the brand gazetteer, editable from the panel. Merges the bundled snapshot (from the
 // pipeline) with panel-added/edited brands. Editing a bundled brand creates a panel override; the
@@ -14,6 +15,7 @@ export function Brands() {
   const [msg, setMsg] = useState('')
   const [editing, setEditing] = useState<BrandRow | null>(null)
   const [adding, setAdding] = useState(false)
+  const confirm = useConfirm()
 
   const load = () => api.get<{ brands: BrandRow[] }>('/api/brands?limit=1000')
     .then((d) => setRows(d.brands)).catch(() => setRows([]))
@@ -26,7 +28,7 @@ export function Brands() {
   })
 
   const del = async (name: string) => {
-    if (!window.confirm(`Изтриване на „${name}“ от панел-хранилището?`)) return
+    if (!(await confirm({ danger: true, confirmLabel: 'Изтрий', message: `Изтриване на „${name}“ от панел-хранилището?` }))) return
     try { await api.del(`/api/brands/${encodeURIComponent(name)}`); setMsg(`„${name}“ изтрит.`); await load() }
     catch (e) { setMsg(e instanceof ApiError ? e.message : 'Изтриването се провали.') }
   }

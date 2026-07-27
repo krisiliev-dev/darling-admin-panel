@@ -6,6 +6,7 @@ import type { DeliveryDetailResp, DeliveryLineRow, DeliveryListItem } from '../l
 import { useAuth } from '../lib/auth'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { Sheet } from '../components/Paper'
+import { useConfirm } from '../components/Confirm'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -285,6 +286,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('blur', onBlur) }
   }, [doScan])
 
+  const confirm = useConfirm()
   const attach = async (lineId: number) => {
     if (!unknown) return
     try { await api.post(`/api/deliveries/${id}/lines/${lineId}/attach-barcode`, { barcode: unknown.barcode }); setUnknown(null); await load() }
@@ -292,7 +294,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   }
 
   const finalise = async (force = false) => {
-    if (!window.confirm('Финализиране на доставката и изпращане към Barsy?')) return
+    if (!(await confirm({ confirmLabel: 'Финализирай', message: 'Финализиране на доставката и изпращане към Barsy?' }))) return
     setFinalising(true); setError(''); setResult(null)
     try {
       const r = await api.post<{ dry_run: boolean; storeload_id?: number | null; warnings: string[] }>(`/api/deliveries/${id}/finalise`, { confirm: true, force })

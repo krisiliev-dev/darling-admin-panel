@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
 import { clickable } from '../lib/a11y'
+import { useConfirm } from '../components/Confirm'
 import type {
   ZayavkaCard, ZayavkaProduct, ZayavkaSupplier, ZayavkaDetailResp, SupplierCatalogItem,
 } from '../lib/api'
@@ -436,13 +437,14 @@ function SendPanel({ z, pref, onSent }: { z: ZayavkaDetailResp; pref: ZayavkaSup
   const belowMin = minOrder > 0 && z.total < minOrder
 
   // persist notes on the заявка, and email + min-order on the supplier (so they survive next time)
+  const confirm = useConfirm()
   const saveNotes = () => Promise.all([
     api.patch(`/api/zayavki/zayavka/${z.id}`, { notes, supplier_email: email }).catch(() => {}),
     api.patch(`/api/zayavki/supplier-prefs/${encodeURIComponent(z.supplier)}`, { email, min_order: minOrder }).catch(() => {}),
   ])
   const sendEmail = async () => {
     if (!email.trim()) { setMsg('Въведи имейл на доставчика.'); return }
-    if (!window.confirm(`Изпращане на заявката към ${email}?`)) return
+    if (!(await confirm({ confirmLabel: 'Изпрати', message: `Изпращане на заявката към ${email}?` }))) return
     setBusy(true); setMsg('')
     try {
       await saveNotes()
