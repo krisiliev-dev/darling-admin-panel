@@ -175,3 +175,21 @@ async def test_barsy_head_probe_is_clean_empty_200(client):
     assert r.status_code == 200
     assert r.content == b""
     assert r.headers.get("content-length") in (None, "0")
+
+
+async def test_gdpr_redact_with_digitless_phone_does_not_mass_erase(client, spy):
+    # a "n/a" phone normalizes to "" — must NOT match+erase every phone-less OrderOutcome row.
+    from sqlalchemy import select
+
+    from app.db import async_session_maker
+    from app.models import OrderOutcome
+    async with async_session_maker() as s:
+        s.add(OrderOutcome(phone_norm="", outcome="refused", order_name="#PHONELESS"))
+        await s.commit()
+    raw = json.dumps({"customer": {"id": 7, "phone": "n/a"}}).encode()
+    r = await client.post("/webhooks/shopify/orders", content=raw,
+                          headers={"x-shopify-hmac-sha256": _sign(raw), "x-shopify-topic": "customers/redact"})
+    assert r.status_code == 200
+    async with async_session_maker() as s:
+        rows = (await s.execute(select(OrderOutcome).where(OrderOutcome.phone_norm == ""))).scalars().all()
+    assert len(rows) == 1   # the phone-less row survived (guard refused the empty-phone erase)

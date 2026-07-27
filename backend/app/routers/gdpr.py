@@ -40,6 +40,12 @@ async def erase_customer_data(session: AsyncSession, phone: str, actor: User | N
     """Erase the panel's own data for a customer + retract any nekorekten report we published. Audited
     (actor may be None for a system/webhook-driven erasure). Does NOT touch Shopify/Barsy."""
     ph = nekorekten.normalize_phone(phone)
+    if not ph:
+        # a digit-less input (e.g. "n/a") normalizes to "" — refuse, or we'd match+erase EVERY
+        # phone-less OrderOutcome row (our records are keyed by phone_norm).
+        await log_action(session, actor, "gdpr.erase.skipped_no_phone", target=str(phone)[:32])
+        return {"phone": "", "erased": 0, "reports_retracted": 0, "retraction_failed": [],
+                "skipped": "no usable phone"}
     rows = (await session.execute(
         select(OrderOutcome).where(OrderOutcome.phone_norm == ph))).scalars().all()
     retracted = 0

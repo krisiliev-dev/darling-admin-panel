@@ -65,14 +65,20 @@ def _rows_payload(lines: list["OpLine"]) -> list[dict]:
 
 
 async def _gate_or_dry(actor: User, session: AsyncSession, *, action: str, method: str,
-                       body: dict, target: str, warnings: list[str] | None = None) -> dict:
-    """Standard store-ops write: dry-run (gate off) returns the body; live sends it + audits."""
+                       body: dict, target: str, confirm: bool = False,
+                       warnings: list[str] | None = None) -> dict:
+    """Standard store-ops write. Gate OFF => dry-run: return the exact body, write nothing (confirm not
+    needed to preview). Gate ON => a REAL Barsy write, so require explicit `confirm` (matches the
+    intake/delivery pattern — a stray call can't mutate stock) + audit."""
     settings = get_settings()
     warnings = warnings or []
     if not settings.store_ops_barsy_live:
         await log_action(session, actor, f"{action}.dry_run", target=target,
                          detail=f"{method} (gate off)")
         return {"ok": True, "dry_run": True, "method": method, "barsy_body": body, "warnings": warnings}
+    if not confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Реалният запис изисква потвърждение (confirm=true).")
     result = await run_in_threadpool(barsy.call, method, body)
     await log_action(session, actor, action, target=target, detail=str(result)[:200])
     return {"ok": True, "dry_run": False, "method": method, "result": result, "warnings": warnings}
@@ -117,8 +123,12 @@ class TransferReq(BaseModel):
 
 
 class StornoReq(BaseModel):
-    """Сторно — reverse a posted storeload (goods-in) by booking the mirror return (operation_type 2)."""
-    storeload_id: int
+    """Сторно — reverse a goods-in by booking the mirror return (Storeloads_create operation_type 2).
+    Barsy has no Storeloads_get to read a doc's rows back, so the caller passes the lines to reverse
+    (the panel knows them from the delivery it's reversing); storeload_id is an optional reference."""
+    lines: list[OpLine] = Field(min_length=1)
+    storeload_id: int | None = None
+    depot_id: int | None = None
     reason: str = ""
     confirm: bool = False
 
@@ -151,21 +161,25 @@ async def movements(article_id: int | None = None, code: str | None = None, limi
     if not article_id and not code:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "article_id или code е задължителен.")
     flt = {"article_id": article_id} if article_id else {"code": code}
-    sources = [
-        ("load", "Storeloads_getlist"),
-        ("writeoff", "Storeouts_movements_getlist"),
-        ("transfer", "Storemoves_getlist"),
-    ]
+    # Documents that move stock and expose a per-article getlist. (Write-offs are NOT here: Barsy's
+    # Storeouts_movements takes a store-out id, not an article filter — so brак isn't in this ledger.)
+    sources = [("load", "Storeloads_getlist"), ("transfer", "Storemoves_getlist")]
     entries: list[dict] = []
     errors: list[str] = []
     for kind, method in sources:
         try:
             rows = await run_in_threadpool(barsy.call, method, {"filters": flt}) or []
             for r in rows:
-                entries.append({"kind": kind, "method": method, "doc": r})
+                entries.append({"kind": kind, "method": method,
+                                "doc_date": r.get("doc_date") or r.get("date") or "", "doc": r})
         except Exception as e:  # noqa: BLE001 — one dead source must not blank the ledger
             errors.append(f"{method}: {str(e)[:60]}")
-    return {"movements": entries[:limit], "count": len(entries), "errors": errors}
+    entries.sort(key=lambda e: e["doc_date"], reverse=True)   # newest first
+    shown = entries[:limit]
+    return {"movements": shown, "count": len(shown), "total": len(entries),
+            "truncated": len(entries) > limit,
+            "note": "Изписвания (брак) не са включени — Storeouts_movements е по документ, не по артикул.",
+            "errors": errors}
 
 
 # ============================================================ writes (gated → dry-run)
@@ -186,14 +200,16 @@ async def manual_load(req: LoadReq, actor: User = Depends(current_owner),
             **({"description": req.description} if req.description else {}),
         },
         "articles": [
-            {"article_id": ln.article_id, "amount": ln.amount,
-             "current_price": ln.current_price if ln.current_price is not None else 0}
+            # strings, matching the verified delivery-path shape (intake_delivery._storeload_payload)
+            {"article_id": str(ln.article_id), "amount": _amt(ln.amount),
+             "current_price": str(ln.current_price if ln.current_price is not None else 0)}
             for ln in req.lines
         ],
         "action_type": "save_and_close",
     }
+    warn = [] if any(ln.current_price for ln in req.lines) else ["⚠ Няма доставна цена — зарежда се с 0 (влияе на себестойност/оценка)."]
     return await _gate_or_dry(actor, session, action="storeop.load", method="Storeloads_create",
-                              body=body, target=f"{len(req.lines)} реда")
+                              body=body, target=f"{len(req.lines)} реда", confirm=req.confirm, warnings=warn)
 
 
 @router.post("/writeoff")
@@ -223,7 +239,8 @@ async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
         ],
     }
     return await _gate_or_dry(actor, session, action="storeop.writeoff", method="Storeouts_save",
-                              body=body, target=f"{len(req.lines)} реда / reason {req.reason_id}")
+                              body=body, target=f"{len(req.lines)} реда / reason {req.reason_id}",
+                              confirm=req.confirm)
 
 
 @router.post("/transfer")
@@ -250,44 +267,39 @@ async def transfer(req: TransferReq, actor: User = Depends(current_owner),
         "action_type": "save_and_close",
     }
     return await _gate_or_dry(actor, session, action="storeop.transfer", method="Storemoves_create",
-                              body=body, target=f"{req.depot_from}→{req.depot_to} / {len(req.lines)} реда")
+                              body=body, target=f"{req.depot_from}→{req.depot_to} / {len(req.lines)} реда",
+                              confirm=req.confirm)
 
 
 @router.post("/storno")
 async def storno(req: StornoReq, actor: User = Depends(current_owner),
                  session: AsyncSession = Depends(get_async_session)):
-    """Сторно of a goods-in storeload → book the mirror return (Storeloads_create operation_type 2),
-    restoring the prior stock/value. Posted documents are immutable; reversal is the only correction path.
+    """Сторно of a goods-in → book the mirror return (Storeloads_create operation_type 2), restoring
+    the prior stock/value. Posted documents are immutable; reversal is the only correction path. The
+    caller supplies the lines to reverse (Barsy exposes no Storeloads_get to read them back).
     (Sale storno lives in the COD/orders flow via storno_of_account_id.)"""
-    # read the original so we can mirror its rows as a return
-    try:
-        orig = await run_in_threadpool(barsy.call, "Storeloads_get", {"id": req.storeload_id})
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status.HTTP_404_NOT_FOUND,
-                            f"Зареждането {req.storeload_id} не е намерено: {str(e)[:80]}")
-    rows = (orig or {}).get("articles") or (orig or {}).get("rows") or []
-    if not rows:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Оригиналното зареждане няма редове за сторниране.")
     s = get_settings()
+    ref = f" #{req.storeload_id}" if req.storeload_id else ""
     body = {
         "store_load": {
-            "depot_id": (orig or {}).get("depot_id") or s.barsy_depot_id,
+            "depot_id": req.depot_id or s.barsy_depot_id,
             "doc_date": _today(),
             "doc_num": _doc_num("STORNO"),
             "operation_type": 2,                 # 2 = return (reverse of a load)
             "currency_id": s.barsy_currency_id,
             "price_mode": s.barsy_price_mode,
-            "description": f"Сторно на зареждане #{req.storeload_id}: {req.reason}".strip(),
+            "description": f"Сторно на зареждане{ref}: {req.reason}".strip(),
         },
         "articles": [
-            {"article_id": r.get("article_id"), "amount": r.get("amount"),
-             "current_price": r.get("current_price") or 0}
-            for r in rows if r.get("article_id")
+            {"article_id": str(ln.article_id), "amount": _amt(ln.amount),
+             "current_price": str(ln.current_price if ln.current_price is not None else 0)}
+            for ln in req.lines
         ],
         "action_type": "save_and_close",
     }
     return await _gate_or_dry(actor, session, action="storeop.storno", method="Storeloads_create",
-                              body=body, target=f"storeload {req.storeload_id}")
+                              body=body, target=f"storeload{ref} / {len(req.lines)} реда",
+                              confirm=req.confirm)
 
 
 # ============================================================ Ревизия (stocktake)
@@ -346,5 +358,9 @@ async def revision_post(req: RevisionReq, actor: User = Depends(current_owner),
         "rows": [{"row_id": str(i + 1), "article_id": str(ln.article_id), "amount": _amt(ln.counted)}
                  for i, ln in enumerate(req.lines)],
     }
-    return await _gate_or_dry(actor, session, action="storeop.revision", method="Revisions_save",
-                              body=body, target=f"{len(req.lines)} реда / depot {depot}")
+    return await _gate_or_dry(
+        actor, session, action="storeop.revision", method="Revisions_save", body=body,
+        target=f"{len(req.lines)} реда / depot {depot}", confirm=req.confirm,
+        warnings=["⚠ НЕПОТВЪРДЕНО: дали посочените редове коригират САМО тях, или ревизията третира "
+                  "непосочените артикули като 0 (изтрива наличности). Тествай на тест обект с непосочен "
+                  "артикул ПРЕДИ реален запис."])

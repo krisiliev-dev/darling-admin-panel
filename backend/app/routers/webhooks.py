@@ -193,10 +193,11 @@ async def barsy_article_probe() -> Response:
 
 @router.post("/barsy/article")
 async def barsy_article_receiver(request: Request, background: BackgroundTasks):
-    """Barsy article-changed webhook → refresh the local product cache AND mirror name/price onto
-    Shopify (see _process_barsy_article). Barsy sends a test call on registration and needs a 2xx to
-    validate, so a tokenless/empty probe still returns 200 (but we only process real, token-authenticated
-    payloads)."""
+    """Barsy article-changed webhook (POST) → refresh the local product cache AND mirror name/price onto
+    Shopify (see _process_barsy_article). Requires the shared token (else 401). NOTE: Barsy's registration
+    probe is a HEAD (handled by barsy_article_probe above → clean empty 200, no token needed); this POST
+    path is the real event delivery and IS token-gated. A token-valid POST with no article code (e.g. a
+    manual test) still 200s but processes nothing."""
     if not _verify_barsy_token(request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token.")
     try:

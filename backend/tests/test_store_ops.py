@@ -100,26 +100,33 @@ async def test_transfer_dry_run_with_two_depots(owner_client, barsy_recorder):
 
 
 # ---------------------------------------------------------------- writes: live (gate on) ---
-async def test_load_live_sends_to_barsy(owner_client, barsy_recorder, monkeypatch):
+async def test_load_live_needs_confirm_then_sends(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(store_ops, "get_settings", _live_settings)
     barsy_recorder.set_return("Storeloads_create", 999)
+    # gate ON without confirm → 400 (a stray call can't mutate stock)
+    r0 = await owner_client.post("/api/store-ops/load", json={"lines": [{"article_id": 5, "amount": 10}]})
+    assert r0.status_code == 400 and "Storeloads_create" not in barsy_recorder.operations
+    # with confirm → sends
     r = await owner_client.post("/api/store-ops/load", json={
-        "lines": [{"article_id": 5, "amount": 10, "current_price": 3.5}]})
-    assert r.status_code == 200, r.text
-    assert r.json()["dry_run"] is False and r.json()["result"] == 999
+        "lines": [{"article_id": 5, "amount": 10, "current_price": 3.5}], "confirm": True})
+    assert r.status_code == 200 and r.json()["dry_run"] is False and r.json()["result"] == 999
     assert "Storeloads_create" in barsy_recorder.operations
 
 
-async def test_storno_mirrors_original_as_return(owner_client, barsy_recorder, monkeypatch):
-    monkeypatch.setattr(store_ops, "get_settings", _live_settings)
-    barsy_recorder.set_return("Storeloads_get", {"depot_id": 1,
-                              "articles": [{"article_id": 5, "amount": 10, "current_price": 3.5}]})
-    barsy_recorder.set_return("Storeloads_create", 1001)
-    r = await owner_client.post("/api/store-ops/storno", json={"storeload_id": 500, "reason": "грешка"})
+async def test_storno_dry_run_mirrors_lines_as_return(owner_client, barsy_recorder):
+    # storno now takes explicit lines (Barsy has no Storeloads_get) → op_type 2 return
+    r = await owner_client.post("/api/store-ops/storno", json={
+        "lines": [{"article_id": 5, "amount": 10, "current_price": 3.5}],
+        "storeload_id": 500, "reason": "грешка"})
     assert r.status_code == 200, r.text
-    sent = barsy_recorder.body_for("Storeloads_create")["store_load"]
-    assert sent["operation_type"] == 2                    # mirror = return
-    assert barsy_recorder.body_for("Storeloads_create")["articles"][0]["article_id"] == 5
+    body = r.json()["barsy_body"]
+    assert body["store_load"]["operation_type"] == 2 and body["articles"][0]["article_id"] == "5"
+    assert "Storeloads_get" not in barsy_recorder.operations   # the nonexistent read is gone
+
+
+async def test_storno_requires_lines(owner_client):
+    r = await owner_client.post("/api/store-ops/storno", json={"storeload_id": 500})
+    assert r.status_code == 422   # lines is required (min_length 1)
 
 
 # ---------------------------------------------------------------- auth ---
@@ -166,7 +173,7 @@ async def test_writeoff_live_sends_storeouts_save(owner_client, barsy_recorder, 
     monkeypatch.setattr(store_ops, "get_settings", _live_settings)
     barsy_recorder.set_return("Storeouts_save", 5)
     r = await owner_client.post("/api/store-ops/writeoff", json={
-        "lines": [{"article_id": 7, "amount": 1}], "reason_id": 1})
+        "lines": [{"article_id": 7, "amount": 1}], "reason_id": 1, "confirm": True})
     assert r.status_code == 200 and r.json()["dry_run"] is False
     body = barsy_recorder.body_for("Storeouts_save")
     assert body["action_type"] == "save_and_close" and body["values"]["depot_id"] == "1"
@@ -178,7 +185,7 @@ async def test_transfer_live_sends_storemoves_create(owner_client, barsy_recorde
     barsy_recorder.set_return("Depots_getlist", [{"depot_id": 1}, {"depot_id": 2}])
     barsy_recorder.set_return("Storemoves_create", 7)
     r = await owner_client.post("/api/store-ops/transfer", json={
-        "lines": [{"article_id": 5, "amount": 2}], "depot_from": 1, "depot_to": 2})
+        "lines": [{"article_id": 5, "amount": 2}], "depot_from": 1, "depot_to": 2, "confirm": True})
     assert r.status_code == 200 and r.json()["dry_run"] is False
     sm = barsy_recorder.body_for("Storemoves_create")["storemove"]
     assert sm["depot_id_left"] == 1 and sm["depot_id_right"] == 2
@@ -188,22 +195,15 @@ async def test_revision_live_sends_revisions_save(owner_client, barsy_recorder, 
     monkeypatch.setattr(store_ops, "get_settings", _live_settings)
     barsy_recorder.set_return("Revisions_save", 3)
     r = await owner_client.post("/api/store-ops/revision", json={
-        "lines": [{"article_id": 5, "counted": 8}], "depot_id": 1})
+        "lines": [{"article_id": 5, "counted": 8}], "depot_id": 1, "confirm": True})
     assert r.status_code == 200 and r.json()["dry_run"] is False
     body = barsy_recorder.body_for("Revisions_save")
     assert body["action_type"] == "save_and_close" and body["rows"][0]["amount"] == "8"
 
 
-# ---------------------------------------------------------------- storno error edges ---
-async def test_storno_rejects_when_original_has_no_rows(owner_client, barsy_recorder):
-    barsy_recorder.set_return("Storeloads_get", {"depot_id": 1})   # no articles/rows
-    r = await owner_client.post("/api/store-ops/storno", json={"storeload_id": 9})
+# ---------------------------------------------------------------- confirm guard (live only) ---
+async def test_live_write_without_confirm_is_400_and_writes_nothing(owner_client, barsy_recorder, monkeypatch):
+    monkeypatch.setattr(store_ops, "get_settings", _live_settings)
+    r = await owner_client.post("/api/store-ops/revision", json={"lines": [{"article_id": 5, "counted": 1}]})
     assert r.status_code == 400
-
-
-async def test_storno_404_when_original_missing(owner_client, barsy_recorder):
-    def _boom(_body):
-        raise RuntimeError("Няма зареждане")
-    barsy_recorder.set_return("Storeloads_get", _boom)
-    r = await owner_client.post("/api/store-ops/storno", json={"storeload_id": 999})
-    assert r.status_code == 404
+    assert "Revisions_save" not in barsy_recorder.operations   # gate-on but unconfirmed → no write

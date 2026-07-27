@@ -421,8 +421,11 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     if cat_id:
         art_body["article"]["cat_id"] = cat_id
         art_body["article"]["master_cat_id"] = cat_id
-    art_body["article"]["min_profit_percent"] = get_settings().barsy_min_profit_percent  # POS below-cost floor
     is_create = not (d.barsy_article_id and d.barsy_article_id > 0)
+    if is_create:
+        # POS below-cost floor — set on CREATE only; on update we'd clobber any value a manager set
+        # directly in Barsy (gap-fill semantics elsewhere in this body).
+        art_body["article"]["min_profit_percent"] = get_settings().barsy_min_profit_percent
     # delivery-sourced products carry supplier traceability from their delivery line: the supplier's
     # own catalogue code → ref_num, and their raw row name → a search alias (POS/search). ref_num is
     # safe on update; article_aliases is create-only (re-sending an attached synonym 501s in Barsy).

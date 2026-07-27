@@ -95,7 +95,7 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
     setBusy(kind); setErr(''); if (kind === 'post') setRes(null)
     try {
       if (kind === 'preview') setPreview(await api.post('/api/store-ops/revision/preview', { lines: payload() }))
-      else setRes(await api.post('/api/store-ops/revision', { lines: payload(), depot_id: depot ? Number(depot) : undefined }))
+      else setRes(await api.post('/api/store-ops/revision', { lines: payload(), depot_id: depot ? Number(depot) : undefined, confirm: true }))
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Операцията се провали.')
     } finally { setBusy('') }
@@ -199,22 +199,23 @@ export function Sklad() {
     setBusy(true); setErr(''); setRes(null)
     try {
       let out: WriteResult
+      const depot_id = depot ? Number(depot) : undefined
       if (tab === 'load') {
-        out = await api.post('/api/store-ops/load', {
-          lines: rows(), depot_id: depot ? Number(depot) : undefined, description: desc,
-        })
+        out = await api.post('/api/store-ops/load', { lines: rows(), depot_id, description: desc, confirm: true })
       } else if (tab === 'writeoff') {
         if (!reasonId) { setErr('Изберете причина за изписване.'); setBusy(false); return }
         out = await api.post('/api/store-ops/writeoff', {
-          lines: rows(), reason_id: Number(reasonId),
-          depot_id: depot ? Number(depot) : undefined, description: desc,
+          lines: rows(), reason_id: Number(reasonId), depot_id, description: desc, confirm: true,
         })
       } else if (tab === 'transfer') {
         out = await api.post('/api/store-ops/transfer', {
-          lines: rows(), depot_from: Number(depot), depot_to: Number(depotTo), description: desc,
+          lines: rows(), depot_from: Number(depot), depot_to: Number(depotTo), description: desc, confirm: true,
         })
       } else {
-        out = await api.post('/api/store-ops/storno', { storeload_id: Number(stornoId), reason: desc })
+        out = await api.post('/api/store-ops/storno', {
+          lines: rows(), storeload_id: stornoId ? Number(stornoId) : undefined,
+          depot_id, reason: desc, confirm: true,
+        })
       }
       setRes(out)
     } catch (e) {
@@ -315,12 +316,12 @@ export function Sklad() {
             </p>
           )}
 
-          {tab === 'storno' ? (
-            <input placeholder="ID на зареждане за сторниране" value={stornoId} inputMode="numeric"
-              onChange={(e) => setStornoId(e.target.value)} style={{ width: 260 }} />
-          ) : (
-            <LineEditor lines={lines} setLines={setLines} showPrice={tab === 'load'} />
+          {tab === 'storno' && (
+            <input placeholder="ID на зареждане за сторниране (по желание, за референция)" value={stornoId}
+              inputMode="numeric" onChange={(e) => setStornoId(e.target.value)}
+              style={{ width: 340, marginBottom: '0.6rem' }} />
           )}
+          <LineEditor lines={lines} setLines={setLines} showPrice={tab === 'load' || tab === 'storno'} />
 
           <input placeholder={tab === 'storno' ? 'причина за сторно' : 'описание (по желание)'}
             value={desc} onChange={(e) => setDesc(e.target.value)}
