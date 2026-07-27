@@ -288,3 +288,63 @@ async def storno(req: StornoReq, actor: User = Depends(current_owner),
     }
     return await _gate_or_dry(actor, session, action="storeop.storno", method="Storeloads_create",
                               body=body, target=f"storeload {req.storeload_id}")
+
+
+# ============================================================ Ревизия (stocktake)
+class RevisionLine(BaseModel):
+    article_id: int
+    counted: float = Field(ge=0)          # physically counted quantity (set-to-exact)
+
+
+class RevisionReq(BaseModel):
+    lines: list[RevisionLine] = Field(min_length=1)
+    depot_id: int | None = None
+    doc_date: str | None = None
+    description: str = ""
+    confirm: bool = False
+
+
+async def _article_stock(article_id: int) -> float:
+    """Current system on-hand for an article (best-effort; 0 on any read issue)."""
+    try:
+        r = await run_in_threadpool(barsy.call, "Articles_get",
+                                    {"article_id": article_id, "extra_properties": {"store_amount": 1}})
+        a = (r or {}).get("Articles_get") if isinstance(r, dict) else None
+        a = a if isinstance(a, dict) else (r if isinstance(r, dict) else {})
+        return float(a.get("store_amount") or 0)
+    except Exception:  # noqa: BLE001 — a missing read must not break the count
+        return 0.0
+
+
+@router.post("/revision/preview")
+async def revision_preview(req: RevisionReq, _: User = Depends(current_active_user)):
+    """Variance per line for a stocktake: counted − system on-hand. READ-ONLY (no write) — the count
+    sheet the operator reviews before posting. Negative = липса (shortage), positive = излишък (surplus)."""
+    lines = []
+    for ln in req.lines:
+        sys_amt = await _article_stock(ln.article_id)
+        lines.append({"article_id": ln.article_id, "system": sys_amt, "counted": ln.counted,
+                      "variance": round(ln.counted - sys_amt, 3)})
+    return {
+        "lines": lines,
+        "total_variance": round(sum(row["variance"] for row in lines), 3),
+        "shortage_lines": sum(1 for row in lines if row["variance"] < 0),
+        "surplus_lines": sum(1 for row in lines if row["variance"] > 0),
+    }
+
+
+@router.post("/revision")
+async def revision_post(req: RevisionReq, actor: User = Depends(current_owner),
+                        session: AsyncSession = Depends(get_async_session)):
+    """Ревизия → `Revisions_save` with action_type save_and_close (posts the count = adjusts on-hand to
+    the counted qty). Same flat eStructListForm envelope confirmed for Storeouts. Gated → dry-run body."""
+    depot = req.depot_id or get_settings().barsy_depot_id
+    body = {
+        "action_type": "save_and_close",       # posts the revision (adjusts stock); "save" = draft
+        "values": {"depot_id": str(depot), "doc_date": req.doc_date or _now(),
+                   "description": req.description},
+        "rows": [{"row_id": str(i + 1), "article_id": str(ln.article_id), "amount": _amt(ln.counted)}
+                 for i, ln in enumerate(req.lines)],
+    }
+    return await _gate_or_dry(actor, session, action="storeop.revision", method="Revisions_save",
+                              body=body, target=f"{len(req.lines)} реда / depot {depot}")

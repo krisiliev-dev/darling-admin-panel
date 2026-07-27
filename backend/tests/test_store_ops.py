@@ -131,3 +131,31 @@ async def test_writes_require_owner_or_manager(staff_client):
 
 async def test_reads_require_auth(client):
     assert (await client.get("/api/store-ops/depots")).status_code == 401
+
+
+# ---------------------------------------------------------------- Ревизия (stocktake) ---
+async def test_revision_preview_computes_variance(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Articles_get", {"store_amount": 10})   # system on-hand = 10
+    r = await owner_client.post("/api/store-ops/revision/preview", json={
+        "lines": [{"article_id": 5, "counted": 7}, {"article_id": 6, "counted": 12}]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["lines"][0] == {"article_id": 5, "system": 10.0, "counted": 7.0, "variance": -3.0}
+    assert body["total_variance"] == -1.0       # (7-10) + (12-10) = -3 + 2
+    assert body["shortage_lines"] == 1 and body["surplus_lines"] == 1
+
+
+async def test_revision_post_dry_run_shape(owner_client, barsy_recorder):
+    r = await owner_client.post("/api/store-ops/revision", json={
+        "lines": [{"article_id": 5, "counted": 7}], "depot_id": 1})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dry_run"] is True and body["method"] == "Revisions_save"
+    assert body["barsy_body"]["action_type"] == "save_and_close"     # posts → adjusts stock
+    assert body["barsy_body"]["values"]["depot_id"] == "1"
+    assert body["barsy_body"]["rows"][0] == {"row_id": "1", "article_id": "5", "amount": "7"}
+
+
+async def test_revision_requires_owner(staff_client):
+    r = await staff_client.post("/api/store-ops/revision", json={"lines": [{"article_id": 5, "counted": 1}]})
+    assert r.status_code in (401, 403)

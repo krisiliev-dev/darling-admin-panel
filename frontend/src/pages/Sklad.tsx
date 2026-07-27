@@ -18,7 +18,7 @@ type WriteResult = {
 
 const TABS = [
   ['load', 'Зареждане'], ['writeoff', 'Изписване'], ['transfer', 'Прехвърляне'],
-  ['storno', 'Сторно'], ['movements', 'Движения'],
+  ['revision', 'Ревизия'], ['storno', 'Сторно'], ['movements', 'Движения'],
 ] as const
 type Tab = (typeof TABS)[number][0]
 
@@ -69,6 +69,101 @@ function ResultCard({ res }: { res: WriteResult }) {
         fontSize: '0.75rem', background: 'var(--ink-05, #f4f1ea)', padding: '0.6rem',
         borderRadius: 6, overflowX: 'auto', marginTop: '0.5rem',
       }}>{JSON.stringify(res.dry_run ? res.barsy_body : res.result, null, 2)}</pre>
+    </Sheet>
+  )
+}
+
+type VarianceRow = { article_id: number; system: number; counted: number; variance: number }
+type Preview = { lines: VarianceRow[]; total_variance: number; shortage_lines: number; surplus_lines: number }
+
+// Ревизия — physical stocktake: enter counted quantities, compute variance vs Barsy on-hand, then post
+// (Revisions_save save_and_close adjusts stock to the count). Preview is read-only; post is gated.
+function RevisionPanel({ depots }: { depots: Depot[] }) {
+  const [depot, setDepot] = useState('')
+  const [lines, setLines] = useState<{ article_id: string; counted: string }[]>([{ article_id: '', counted: '' }])
+  const [preview, setPreview] = useState<Preview | null>(null)
+  const [res, setRes] = useState<WriteResult | null>(null)
+  const [busy, setBusy] = useState('')
+  const [err, setErr] = useState('')
+
+  const upd = (i: number, k: 'article_id' | 'counted', v: string) =>
+    setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
+  const payload = () => lines.filter((l) => l.article_id && l.counted !== '')
+    .map((l) => ({ article_id: Number(l.article_id), counted: Number(l.counted) }))
+
+  const run = async (kind: 'preview' | 'post') => {
+    setBusy(kind); setErr(''); if (kind === 'post') setRes(null)
+    try {
+      if (kind === 'preview') setPreview(await api.post('/api/store-ops/revision/preview', { lines: payload() }))
+      else setRes(await api.post('/api/store-ops/revision', { lines: payload(), depot_id: depot ? Number(depot) : undefined }))
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Операцията се провали.')
+    } finally { setBusy('') }
+  }
+
+  return (
+    <Sheet clip="left">
+      <label style={{ fontSize: '0.85rem' }}>Склад{' '}
+        <select value={depot} onChange={(e) => setDepot(e.target.value)}>
+          <option value="">— основен —</option>
+          {depots.map((d) => <option key={d.depot_id} value={d.depot_id}>{d.depot_name || d.depot_id}</option>)}
+        </select>
+      </label>
+      <p style={{ fontSize: '0.8rem', color: 'var(--pencil)', margin: '0.4rem 0' }}>
+        Въведи преброените количества. „Разлики“ сравнява с наличността в Barsy; „Проведи“ коригира до брояча.
+      </p>
+      <div style={{ display: 'grid', gap: '0.5rem' }}>
+        {lines.map((l, i) => (
+          <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input placeholder="article_id" value={l.article_id} inputMode="numeric"
+              onChange={(e) => upd(i, 'article_id', e.target.value)} style={{ width: 120 }} />
+            <input placeholder="преброено" value={l.counted} inputMode="decimal"
+              onChange={(e) => upd(i, 'counted', e.target.value)} style={{ width: 120 }} />
+            {lines.length > 1 && (
+              <button type="button" onClick={() => setLines(lines.filter((_, j) => j !== i))}
+                style={{ color: 'var(--red)' }}>✕</button>
+            )}
+          </div>
+        ))}
+        <button type="button" onClick={() => setLines([...lines, { article_id: '', counted: '' }])}
+          style={{ justifySelf: 'start', fontSize: '0.85rem' }}>+ ред</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.9rem' }}>
+        <button onClick={() => run('preview')} disabled={!!busy}
+          style={{ border: '1px solid var(--ink)', padding: '0.45rem 1rem', borderRadius: 8 }}>
+          {busy === 'preview' ? '…' : 'Разлики'}
+        </button>
+        <button onClick={() => run('post')} disabled={!!busy}
+          style={{ background: 'var(--ink)', color: 'var(--paper)', padding: '0.45rem 1.1rem', borderRadius: 8 }}>
+          {busy === 'post' ? 'Изпращане…' : 'Проведи ревизия'}
+        </button>
+      </div>
+      {err && <p style={{ color: 'var(--red)', marginTop: '0.5rem' }}>{err}</p>}
+
+      {preview && (
+        <table style={{ width: '100%', marginTop: '0.9rem', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+          <thead><tr style={{ textAlign: 'left', color: 'var(--pencil)' }}>
+            <th>Артикул</th><th>Система</th><th>Преброено</th><th>Разлика</th></tr></thead>
+          <tbody>
+            {preview.lines.map((row) => (
+              <tr key={row.article_id} style={{ borderTop: '1px solid var(--rule)' }}>
+                <td style={{ padding: '0.3rem 0' }}>{row.article_id}</td>
+                <td>{row.system}</td><td>{row.counted}</td>
+                <td style={{ color: row.variance < 0 ? 'var(--red)' : row.variance > 0 ? 'var(--ready)' : 'inherit', fontWeight: row.variance ? 700 : 400 }}>
+                  {row.variance > 0 ? '+' : ''}{row.variance}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot><tr style={{ borderTop: '2px solid var(--ink)' }}>
+            <td colSpan={3} style={{ padding: '0.3rem 0', color: 'var(--pencil)' }}>
+              липси: {preview.shortage_lines} · излишъци: {preview.surplus_lines}</td>
+            <td style={{ fontWeight: 700 }}>{preview.total_variance > 0 ? '+' : ''}{preview.total_variance}</td>
+          </tr></tfoot>
+        </table>
+      )}
+      {res && <ResultCard res={res} />}
     </Sheet>
   )
 }
@@ -178,6 +273,8 @@ export function Sklad() {
               недостъпни източници: {mov.errors.join('; ')}</p>
           ) : null}
         </Sheet>
+      ) : tab === 'revision' ? (
+        <RevisionPanel depots={depots} />
       ) : (
         <Sheet clip="left">
           {/* depot / target pickers */}
