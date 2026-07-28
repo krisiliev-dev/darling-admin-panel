@@ -64,17 +64,28 @@ class Settings(BaseSettings):
     # (BARSY_WRITE_LIVE=1) at launch. Reads are never gated. Mirrors webhooks_live / delivery_barsy_live.
     barsy_write_live: bool = False
 
+    # MASTER SAFETY GATE for REAL courier waybills (Speedy/Econt create_shipment). False (default) =>
+    # /orders/{id}/label and /orders/manual-label return a DRY-RUN plan and никакъв етикет се създава.
+    # Deliberately SEPARATE from barsy_write_live: the courier is a different external system — a waybill
+    # costs money the moment it's minted and the наложен платеж collects REAL cash from the customer, so a
+    # pre-launch rehearsal of Етикет must never reach it. Flip to True (COURIER_LIVE=1) at launch, and only
+    # together with BARSY_WRITE_LIVE — a real label without a booked sale means cash collected with no
+    # Barsy продажба, no fiscal бон and no изписване (the router refuses that combination).
+    courier_live: bool = False
+
     # --- Delivery intake (Приемане) -----------------------------------------------------
     # SAFETY GATE for the batch delivery→Barsy write (storeload create). False (default) =>
     # /intake/delivery/commit runs a DRY-RUN: it validates, creates nothing, and returns the exact
     # Barsy payload it WOULD send. Flip to True (DELIVERY_BARSY_LIVE=1) only once the Barsy
     # storeload API shape is confirmed (Hermes) and staff have trialled the flow. Mirrors webhooks_live.
     delivery_barsy_live: bool = False
-    # SAFETY GATE for COD↔Barsy writes: on a refused delivery → storno the Barsy sale (restore stock);
-    # on a settled COD → post the collected payment (fiscal:0, record-only). False (default) => the panel
-    # only records outcomes/settlements locally and returns a dry-run plan. Flip to True
-    # (COD_BARSY_POST_LIVE=1) once the account linkage + posting shape are trialled against a Barsy test
-    # object. Barsy stays the fiscal point; posting a COD payment never fires the device (fiscal:0).
+    # SAFETY GATE for the COD→Barsy STORNO write: on an uncollected / refused / RTO delivery → storno the
+    # Barsy sale (restores stock + reverses the fiscal бон). False (default) => the panel only records the
+    # outcome locally and returns a dry-run plan. Flip to True (COD_BARSY_POST_LIVE=1) once the account
+    # linkage + storno shape are trialled against a Barsy test object.
+    # NOTE: under the paid-at-packing model the sale is already closed PAID at finalise (method 6,
+    # print_receipt:1), so SETTLE is confirm-only — it posts NO payment to Barsy at all (posting one would
+    # double-pay the account, which is exactly why that branch was removed). This flag gates only the storno.
     cod_barsy_post_live: bool = False
     # Barsy depot the delivery loads into. 1 = 'Основен', can_load=1 (verified live).
     barsy_depot_id: int = 1

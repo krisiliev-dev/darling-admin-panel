@@ -20,7 +20,11 @@ Data note: `db_products` (9,241) = old Microinvest analytics history, NOT the Ba
 
 ## B. Shopify → Barsy (webhooks — WEBHOOKS_LIVE + Shopify topics registered)
 - [ ] B1. **Test PREPAID order** (financial_status=paid) → Accounts_place `flag_close_account:1` → verify: account CLOSED, `store_amount` −qty, fiscal:0 payment booked, **NO receipt_num/fm_num** (⚠ first live run of flag_close_account:1)
-- [ ] B2. **Test COD order** (pending) → account closed, NO online payment, stock −qty
+- [ ] B2. **Test COD order** (pending) → books as a **CLIENTORDER only**: verify `store_amount` is
+      **UNCHANGED** and no account exists yet. The decrement + бон happen later, on the panel's Етикет
+      action (`Accounts_createfromclientorder`, `flag_close_account:1`, `print_receipt:1`, payment under
+      "Наложен платеж" id 6 against the anonymous client) → then verify stock −qty and the account CLOSED
+      and PAID. ⚠ If stock drops at checkout, `ORDER_INGEST_MODE` is on `sale` by mistake.
 - [ ] B3. **Company invoice** (cart invoice box) → Barsy фактура (InvoiceMakeData) + auto-email
 - [ ] B4. **Fulfillment** (tracking) → tracking written to the Barsy account
 - [ ] B5. **Checkouts** (create/update) → **Кошници** shows active + abandoned
@@ -33,9 +37,21 @@ Data note: `db_products` (9,241) = old Microinvest analytics history, NOT the Ba
 - [ ] C3. **Online price** → Shopify variant = `current_price@address`
 
 ## D. COD lifecycle (panel-driven, Разчети)
-- [ ] D1. **Settle COD** → Barsy payment (paymethod 5, fiscal:0)
-- [ ] D2. **Refused (RTO)** → storno restores stock (⚠ storno = held, see B7)
-- [ ] D3. COD payout-file import + reconciliation
+> **Model (2026-07-28): the sale is booked PAID IN FULL at packing.** Етикет finalises the clientorder
+> into a closed sale paid under "Наложен платеж" (`paymethod_id 6`, `print_receipt:1`) against the
+> ANONYMOUS client — that is where the бон prints and stock decrements. Reconciliation therefore
+> **confirms**; it does not pay. See COD_RECONCILE_DESIGN.md.
+- [ ] D1. **Settle a matched COD** (Разчети → разчети) → a `CodSettlement` row + status `cod_paid`,
+      **and Barsy is UNTOUCHED**. ⚠ Verify this explicitly: check the Barsy account still shows
+      `total_paid == total_sum` and **no second payment**. A payment appearing here = the double-pay
+      regression (the old paymethod-5 post) is back.
+- [ ] D2. **Uncollected / RTO** (Разчети → Сторнирай, `confirm=true`) → `cod_refused_to_barsy` stornos
+      the sale (`storno_reason="return"`) → stock restored, order → `returned`. Gated by
+      `COD_BARSY_POST_LIVE`; run it dry first. (⚠ storno is fiscal + irreversible — see B7 hold.)
+- [ ] D3. COD payout-file import (`/api/cod/import-payout`) + courier auto-pull
+      (`/api/cod/reconcile-auto`) → preview buckets → prefilled settle lines
+- [ ] D4. **`GET /api/cod/barsy-booked`** cross-check → Barsy-booked method-6 sales with no courier
+      remittance surface as `uncollected` (= the D2 worklist)
 
 ## E. Courier (NO real labels)
 - [ ] E1. **Office lookup** (public endpoint + city filter, София/Свищов)

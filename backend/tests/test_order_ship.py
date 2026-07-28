@@ -27,7 +27,7 @@ async def test_ship_blocked_when_not_finalised(owner_client, monkeypatch):
     _patch_order(monkeypatch, finalised=False)
     # even if ship_order would succeed, an un-finalised order must be blocked BEFORE we fulfil it
     monkeypatch.setattr(orders_module.connector, "ship_order",
-                        lambda oid, tracking, do_write: {"status": "ok"}, raising=False)
+                        lambda oid, tracking, do_write, speditor=None: {"status": "ok"}, raising=False)
     r = await owner_client.post("/api/orders/1006/ship", json={"confirm": True})
     assert r.status_code == 409
     assert "Финализирай" in r.json()["detail"]
@@ -37,7 +37,7 @@ async def test_ship_passes_numeric_id_and_tracking_and_write_gate(owner_client, 
     _patch_order(monkeypatch)
     seen = {}
 
-    def fake_ship(oid, tracking, do_write):
+    def fake_ship(oid, tracking, do_write, speditor=None):
         seen.update(oid=oid, tracking=tracking, do_write=do_write)
         return {"status": "ok", "order_ref": "#1006", "fulfillment_orders": ["gid://shopify/FulfillmentOrder/1"]}
 
@@ -54,11 +54,26 @@ async def test_ship_empty_tracking_becomes_none(owner_client, monkeypatch):
     _patch_order(monkeypatch)
     seen = {}
     monkeypatch.setattr(orders_module.connector, "ship_order",
-                        lambda oid, tracking, do_write: seen.update(tracking=tracking) or {"status": "ok"},
+                        lambda oid, tracking, do_write, speditor=None: seen.update(tracking=tracking) or {"status": "ok"},
                         raising=False)
     r = await owner_client.post("/api/orders/1006/ship", json={"confirm": True})
     assert r.status_code == 200, r.text
     assert seen["tracking"] is None              # "" → None so the connector omits trackingInfo
+
+
+async def test_ship_passes_the_orders_courier_as_speditor(owner_client, monkeypatch):
+    # the speditor is what lets the connector stamp the waybill onto the Barsy sale account, which is
+    # what makes COD reconciliation able to match Barsy↔courier by waybill instead of via panel state.
+    _patch_order(monkeypatch)
+    monkeypatch.setattr(orders_module.shopify_orders, "state_map",
+                        lambda: {_ORDER["id"]: {"courier": "speedy", "tracking": "20501234567"}})
+    seen = {}
+    monkeypatch.setattr(orders_module.connector, "ship_order",
+                        lambda oid, tracking, do_write, speditor=None:
+                            seen.update(speditor=speditor) or {"status": "ok"}, raising=False)
+    r = await owner_client.post("/api/orders/1006/ship", json={"confirm": True})
+    assert r.status_code == 200, r.text
+    assert seen["speditor"] == "speedy"     # connector normalises speedy/Спиди → speditor_id 2
 
 
 async def test_ship_missing_connector_fn_is_501(owner_client, monkeypatch):
@@ -71,6 +86,6 @@ async def test_ship_missing_connector_fn_is_501(owner_client, monkeypatch):
 async def test_ship_allowed_for_packer(packer_client, monkeypatch):
     _patch_order(monkeypatch)
     monkeypatch.setattr(orders_module.connector, "ship_order",
-                        lambda oid, tracking, do_write: {"status": "ok"}, raising=False)
+                        lambda oid, tracking, do_write, speditor=None: {"status": "ok"}, raising=False)
     r = await packer_client.post("/api/orders/1006/ship", json={"confirm": True})
     assert r.status_code == 200, r.text   # packer ships (they create labels)

@@ -1,41 +1,75 @@
-# COD reconciliation — auto-pull design (build post-launch)
+# COD reconciliation — how it works (BUILT) + the small remainder
 
-**Status: DESIGNED, not built.** The manual payout-file import already ships (`/api/cod/import-payout`).
-This documents the automatic version to build once real courier payout data exists.
+**Status (2026-07-28): BUILT AND SHIPPING.** Manual payout-file import, courier auto-pull, and the
+shared matcher are all live in `backend/app/routers/cod.py`. Only two data fields remain unbuilt (see
+"Not yet built" at the bottom). This doc was previously a *design* for the auto-pull; it is now the
+description of the running system, corrected for the anonymous paid-at-packing COD model.
 
-## Why now (data model)
-Auto-reconciliation matches each courier payout line to one of our orders by **waybill/tracking
-number**. Retrofitting that key is painful, so it's already stored: `CodSettlement.waybill` (indexed),
-populated at settle time from the order's tracking. `fulfillment_state` also holds `tracking` per order.
+## ⚠ THE RULE THAT MUST NOT BE BROKEN — a matched COD writes NOTHING to Barsy
+Under the anonymous-PAID model the sale is booked **PAID IN FULL at packing**: Етикет is the single
+pack action and it finalises the clientorder into a closed sale with a payment under the dedicated
+**"Наложен платеж"** method (`COD_PAYMETHOD_ID = 6`, `print_receipt:1`) against the ANONYMOUS client —
+that is the moment stock decrements and the fiscal бон prints
+(`agent-pipeline/barsy_shopify_connector.py:finalise_order`).
 
-## The two courier sources
-- **Speedy** — `POST /payments` returns shipment payout details for a period (amount collected, fees,
-  transfer date, waybill). Speedy API: https://doc.speedy.io/
-- **Econt** — per-shipment `CD_send_sum` (amount paid out) + `CD_send_time`; bank transfer next business
-  day after collection. Econt COD API: https://www.econt.com/developers/39-nalozhen-platezh.html
+So by the time a courier payout arrives, Barsy already believes the money is in.
 
-Both are already-authenticated in the panel (courier adapters). Add a `payout_report(date_from, date_to)`
-method to each adapter returning normalized rows: `{waybill, collected, fee, payout_date, status}`.
+| outcome | what reconciliation does |
+|---|---|
+| **matched** (courier remitted) | **CONFIRM ONLY** — a `CodSettlement` row + status → `cod_paid`. **NO Barsy write.** |
+| **uncollected / RTO** | **STORNO** — `connector.cod_refused_to_barsy` (`storno_reason="return"`), reverses the false "paid" + returns the goods to stock. Gated by `COD_BARSY_POST_LIVE`. |
 
-## The endpoint to build
-`POST /api/cod/reconcile-auto {courier, date_from, date_to}` (owner-only):
-1. Pull the courier payout rows for the window.
-2. Join to our COD orders by normalized waybill.
-3. Bucket, exactly like the manual importer already does:
-   - **matched** — waybill found; collected vs expected (flag discrepancy), fee vs expected fee.
-   - **short-paid** — deduction > expected courier commission → dispute candidate.
-   - **paid-not-ours** — payout line with no matching order.
-   - **delivered-not-paid** — our awaiting order missing from the payout (courier owes us).
-4. Return the same preview shape as `import-payout` so the existing `Разчети` UI (PayoutImport +
-   SettlePanel prefill) renders it unchanged — reuse the front end.
-5. On settle, post the reconciled cash into **Barsy** (Payments_create against the order's Accounts
-   record) so the fiscal system of record stays clean — but only once the webhook connector is live
-   and orders exist in Barsy as accounts (see WEBHOOKS_LAUNCH.md).
+Posting the collected cash into Barsy on settle would **double-pay** the account
+(`total_paid > total_sum`) and double-count the COD money. The old `_post_cod_payment_to_barsy`
+(paymethod 5) was deleted for exactly this reason — see the comment block at `cod.py:327` and the
+tombstone at `cod.py:384`. The connector's `cod_payment_to_barsy` is marked OBSOLETE. **Do not
+resurrect either.** The accountant signed off on бон-at-packing (Н-18).
 
-## Also store (small additions when built)
-- `expected_fee` per order (courier commission estimate at label time) → enables short-paid detection.
-- `payout_status` per settlement (matched / short / disputed) for the audit trail.
+## The join key
+Every payout line is matched to an order by **waybill/tracking number**, normalised to digits only
+(`_norm_tracking`) because couriers pad and space them. The key is stored at settle time in
+`CodSettlement.waybill` (indexed) and lives per-order in `fulfillment_state.tracking`.
 
-## Effort / sequencing
-Small-to-medium once payout files exist to test against. Build **early post-launch**, after the first
-real twice-weekly payout cycle. Until then the manual importer covers it.
+## What is built
+
+### 1. Manual file import — `POST /api/cod/import-payout` (`cod.py:392`)
+Upload a courier payout/deduction CSV. Tolerant parser (`_parse_payout`): sniffs the delimiter,
+decodes utf-8/cp1251/latin-1, finds the tracking + amount columns by header keyword and then
+**by value shape** (longest-digit column for the waybill, most-decimal column for money) so decoys
+like "Номер на клиент" / "Платец" don't win. Returns a PREVIEW only — writes nothing.
+
+### 2. Courier auto-pull — `POST /api/cod/reconcile-auto {courier, date_from, date_to}` (`cod.py:473`)
+Staff-gated. Calls `adapter.payout_report(date_from, date_to)` on the Speedy/Econt adapters
+(`darling_core/_vendor/courier.py:389` and `:606`), normalises the rows, and feeds the same matcher.
+Rejects anything but `speedy`/`econt`; 503 if the courier isn't configured, 502 on a courier error.
+Wired in the UI at `frontend/src/pages/Cod.tsx:166`.
+⏳ *Live-validation pending*: the shapes are coded against the documented APIs but have not run against
+a real payout window (no real shipments yet). Re-check field names on the first real payout cycle.
+
+### 3. Shared matcher — `_reconcile(rows, orders)` (`cod.py:422`)
+Used by BOTH paths, so the file import and the auto-pull can never drift. Buckets:
+- **matched** — waybill found on an awaiting/in-transit order; flags `discrepancy` (collected ≠ expected)
+  and `out_of_range`.
+- **unmatched_rows** — payout line with no order of ours (paid-not-ours / unknown).
+- **delivered_not_paid** — our `awaiting` order absent from the payout (the courier owes us).
+- **settle_lines** — ready-to-submit lines that the operator posts through `/api/cod/settle`, kept as
+  the single write path.
+
+### 4. The Barsy cross-check — `GET /api/cod/barsy-booked` (`cod.py:195`)
+Reads every finalised method-6 sale via `connector.list_cod_accounts` — "what Barsy believes it
+collected" — and marks the ones no courier has remitted as `uncollected`. That list IS the storno
+worklist. Read-only; skips already-stornoed accounts.
+
+### 5. Uncollected → storno — `POST /api/cod/{order_id}/storno` (`cod.py:344`)
+The only Barsy write in the whole COD surface. Requires `confirm=true` + the staff role + audit; 409s
+on an already-settled order so a collected sale can never be reversed. Flips the order to `returned`.
+
+## Not yet built (genuinely open — do NOT mark these done)
+- ⬜ **`expected_fee` per order** (courier commission estimated at label time). Without it we can flag a
+  short *collection* but not a short *payout* — the `fee` a payout row carries is passed through to the
+  preview but nothing compares it. This is the missing half of "short-paid → dispute candidate".
+- ⬜ **`payout_status` per settlement** (matched / short / disputed) for the audit trail. Today
+  `CodSettlement` stores expected/collected and the discrepancy is derived, not classified.
+
+Both are small column additions on `CodSettlement` (`backend/app/models.py:257`). Build them after the
+first real twice-weekly payout cycle, when there's real fee data to calibrate against.

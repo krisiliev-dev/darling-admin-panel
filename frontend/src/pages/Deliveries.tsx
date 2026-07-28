@@ -96,7 +96,15 @@ function DeliveryList({ onNew, onOpen }: { onNew: () => void; onOpen: (id: numbe
                     <td style={{ padding: '.3rem', textAlign: 'right' }}>{d.total}</td>
                     <td style={{ padding: '.3rem', textAlign: 'right', color: d.new ? 'var(--pending)' : 'var(--pencil)' }}>{d.new}</td>
                     <td style={{ padding: '.3rem' }}><StatusBadge status={d.status} /></td>
-                    <td style={{ padding: '.3rem', color: 'var(--red)' }}>отвори →</td>
+                    {/* the row is click-only for the mouse; the keyboard needs a REAL control — and a
+                        <tr role="button"> would break the table's semantics, so the button lives here */}
+                    <td style={{ padding: '.3rem', color: 'var(--red)' }}>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(d.id) }}
+                        aria-label={`Отвори доставка ${d.supplier || ''} ${d.reference || ''}`.trim()}
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
+                        отвори →
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

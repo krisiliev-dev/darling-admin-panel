@@ -21,6 +21,7 @@ from ..config import get_settings
 from ..core import connector, shopify_orders
 from ..core import courier as courier_mod
 from ..db import get_async_session
+from ..ids import numeric_oid
 from ..models import CodSettlement, User
 from ..users import current_active_user, require_roles
 
@@ -209,13 +210,15 @@ async def barsy_booked_cod(
                             "Справката не е налична (connector.list_cod_accounts липсва).")
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy недостъпен: {str(e)[:160]}")
-    settled = {oid for (oid,) in (await session.execute(select(CodSettlement.order_id))).all()}
-    smap = await run_in_threadpool(shopify_orders.state_map)
+    # ONE id-space for the join: the panel keys by GID, the connector by the bare numeric id, so both
+    # sides get normalised — otherwise every lookup misses and EVERY collected COD reads as uncollected.
+    settled = {numeric_oid(oid) for (oid,) in (await session.execute(select(CodSettlement.order_id))).all()}
+    smap = {numeric_oid(k): v for k, v in (await run_in_threadpool(shopify_orders.state_map)).items()}
     rows, total, uncollected = [], 0.0, 0
     for a in (accounts or []):
         if not isinstance(a, dict) or a.get("stornoed"):
             continue                                    # already reversed — not owed to us
-        oid = str(a.get("order_id") or "")
+        oid = numeric_oid(a.get("order_id"))
         amt = round(float(a.get("amount") or 0), 2)
         total += amt
         st = smap.get(oid) or {}
@@ -341,6 +344,34 @@ class StornoRequest(BaseModel):
     confirm: bool = False
 
 
+def _find_cod_order(orders: dict, order_id: str):
+    """(state_key, state) for a COD order addressed by EITHER id form, else (None, None). The panel's
+    state is GID-keyed, but a GID can't ride in a path param (slashes), so the numeric id is what
+    actually arrives — match both and hand back the state's OWN key, so set_state updates the
+    existing row instead of inserting a duplicate under the other id-space. See app/ids.py."""
+    if order_id in orders:
+        return order_id, orders[order_id]
+    want = numeric_oid(order_id)
+    for k, s in orders.items():
+        if numeric_oid(k) == want:
+            return k, s
+    return None, None
+
+
+# what the connector reports when the storno REALLY hit Barsy vs. merely planned/declined it
+def _storno_reversed(result) -> bool:
+    if not isinstance(result, dict) or result.get("dry_run"):
+        return False                                    # dry-run plans carry no status at all
+    return result.get("status") in ("ok", "duplicate") or bool(result.get("written"))
+
+
+_STORNO_FAIL_BG = {
+    "dry_run": "Пробен режим (COD_BARSY_POST_LIVE е изключен) — в Barsy НЕ е записано нищо.",
+    "refused": "Barsy няма заведена сметка за тази поръчка — сторно не е направено.",
+    "needs_review": "Сметката няма УНП (фискален номер) — сторното иска ръчна намеса.",
+}
+
+
 @router.post("/{order_id}/storno")
 async def cod_storno(
     order_id: str, req: StornoRequest,
@@ -356,28 +387,42 @@ async def cod_storno(
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Сторното е реален запис в Barsy — потвърди с confirm=true.")
     orders = await run_in_threadpool(_cod_orders)
-    s = orders.get(order_id)
+    key, s = _find_cod_order(orders, order_id)
     if not s:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "COD поръчката не е намерена.")
+    name = s.get("order_name") or key
     if _BUCKET.get(s.get("status")) == "settled":
         raise HTTPException(status.HTTP_409_CONFLICT,
-                            f"{s.get('order_name') or order_id} е разчетена (събрана) — не сторнирай платена поръчка.")
+                            f"{name} е разчетена (събрана) — не сторнирай платена поръчка.")
     live = get_settings().cod_barsy_post_live
     try:
-        result = await run_in_threadpool(connector.cod_refused_to_barsy, str(order_id), req.reason, live)
+        # the connector's order log keys on the BARE numeric id — a GID never matches it and the
+        # storno would silently no-op while we report success. See app/ids.py.
+        result = await run_in_threadpool(connector.cod_refused_to_barsy, numeric_oid(key), req.reason, live)
     except AttributeError:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             "Сторното не е налично (connector.cod_refused_to_barsy липсва).")
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
-    # projection: flip to 'returned' so it leaves the awaiting bucket (self-heals from a nightly sync)
-    try:
-        await run_in_threadpool(shopify_orders.set_state, order_id,
-                                s.get("order_name") or order_id, status="returned")
-    except Exception:
-        pass
-    await log_action(session, actor, "cod.storno", target=s.get("order_name") or order_id,
-                     detail=str(result)[:300])
+    reversed_ok = _storno_reversed(result)
+    if reversed_ok:
+        # projection: flip to 'returned' so it leaves the awaiting bucket (self-heals from a nightly sync)
+        try:
+            await run_in_threadpool(shopify_orders.set_state, key, name, status="returned")
+        except Exception:
+            pass
+    await log_action(session, actor, "cod.storno", target=name,
+                     detail=("" if reversed_ok else "БЕЗ сторно: ") + str(result)[:300])
+    if not reversed_ok:
+        # ⚠ do NOT flip to 'returned' — nothing was reversed in Barsy, so the order must STAY in the
+        # tracking buckets. Dropping it here would hide uncollected cash that Barsy still books as paid.
+        rstat = (isinstance(result, dict) and (result.get("status")
+                 or ("dry_run" if result.get("dry_run") else ""))) or "unknown"
+        return {"ok": False, "order_id": order_id, "live": live, "status": rstat,
+                "reason": (isinstance(result, dict) and result.get("reason")) or "",
+                "message": _STORNO_FAIL_BG.get(rstat, "Сторното не мина в Barsy.")
+                           + " Поръчката остава в разчетите.",
+                "result": result}
     return {"ok": True, "order_id": order_id, "live": live, "result": result}
 
 

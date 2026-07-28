@@ -294,8 +294,16 @@ function CodTable({ orders, onChange }: { orders: CodOrder[]; onChange: () => vo
     }))) return
     setBusy(o.order_id); setMsg('')
     try {
-      await api.post(`/api/cod/${o.order_id}/storno`, { confirm: true })
-      setMsg(`${o.order_name}: сторнирана (върната в наличност).`)
+      // order_id is a Shopify GID (gid://shopify/Order/123) — its slashes would break the path param
+      // (and never route), so send the bare numeric id, which is also what the connector keys on.
+      const oid = String(o.order_id).split('/').pop() || o.order_id
+      // the backend returns 200 with ok:false when Barsy did NOT actually reverse (gate off / refused /
+      // needs_review) — never claim success on that, or an uncollected COD silently leaves the разчети.
+      const r = await api.post<{ ok?: boolean; message?: string; reason?: string }>(
+        `/api/cod/${oid}/storno`, { confirm: true })
+      setMsg(r.ok === false
+        ? `${o.order_name}: НЕ е сторнирана — ${r.message || r.reason || 'виж Проблеми'}.`
+        : `${o.order_name}: сторнирана (върната в наличност).`)
       onChange()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Сторното се провали.') } finally { setBusy('') }
   }

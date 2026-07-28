@@ -58,8 +58,9 @@ that MUST be wiped before the real catalog + real stock go in. Go through each a
     key** (the dev key was exposed in a chat transcript). A leaked key locked to one IP is useless
     elsewhere; an open key isn't.
 3. **Configure the Barsy fiscal POS**: a service каса with a fiscal device for order reception
-   (required — closing the sale fiscalises + draws down stock). Decide `ORDER_INGEST_MODE`:
-   `clientorder` (staff review first — safer for stock) or `sale` (finalise immediately).
+   (required — closing the sale fiscalises + draws down stock). `ORDER_INGEST_MODE` is **DECIDED:
+   `clientorder`** (staff review first, safer for stock) — the order parks as a clientorder and the
+   panel's Етикет action closes it. Don't switch to `sale` without redoing the COD model.
 4. **Load real stock quantities** (barsy_stock.py + наличности export) BEFORE flipping tracking on,
    else every Shopify variant shows sold-out. Oversell is Barsy-driven per article via `sale_below_zero`
    (Mira-N = YES→CONTINUE); to change it, edit the product IN BARSY.
@@ -85,15 +86,23 @@ that MUST be wiped before the real catalog + real stock go in. Go through each a
 8. **Flip `WEBHOOKS_LIVE=1`** — only after 1–7. Watch logs for `missing_skus` (unmatched line items —
    these now REFUSE the sale + flag for review rather than booking a partial one) and mis-fiscalisation
    on the first real orders.
-   - **G5 — verify stock decrement:** on the FIRST real order, confirm Barsy stock actually drops for
-     the ordered articles (the sale is drawn down at order time via `Accounts_place`, not at
-     fulfilment). If it doesn't, the panel/connector isn't the one decrementing — resolve before more
-     orders. Also confirm the online payment recorded with `fiscal:0` (no premature бон).
-9. **COD↔Barsy writes** are a SEPARATE gate: `COD_BARSY_POST_LIVE` (default off). When on:
-   - a refused delivery (Разчети/risk `outcome=refused`) **stornos** the Barsy sale → restores stock;
-   - a settled COD payout **posts** the collected money to the sale account with **`fiscal:0`** (record-
-     only; the fiscal бон was already printed on-site at packing, so no device is fired).
-   Trial both against a Barsy test object first, then flip `COD_BARSY_POST_LIVE=1`. Both are idempotent
+   - **G5 — verify stock decrement:** the live default is `ORDER_INGEST_MODE=clientorder`, so an order
+     books as a Barsy CLIENTORDER and **nothing decrements at order time**. Stock drops at
+     **finalise/pack** — the panel's Етикет action, which closes the sale
+     (`Accounts_createfromclientorder`, `flag_close_account:1`) PAID under "Наложен платеж"
+     (`paymethod_id 6`) with `print_receipt:1`. So on the FIRST real order confirm: (a) after checkout,
+     Barsy stock is UNCHANGED and a clientorder exists; (b) after Етикет, stock drops by the ordered qty
+     and the бон prints. If (a) already decrements, `mode='sale'` is wired by mistake — resolve before
+     more orders.
+9. **COD↔Barsy writes** are a SEPARATE gate: `COD_BARSY_POST_LIVE` (default off). It now gates
+   **exactly one write — the STORNO**:
+   - an uncollected/refused delivery (Разчети storno / risk `outcome=refused`) **stornos** the Barsy sale
+     → reverses the paid-at-packing booking and returns the goods to stock.
+   - a **settled/matched** COD payout writes **NOTHING** to Barsy. The sale was already booked PAID IN
+     FULL at packing, so posting the collected money again would OVERPAY the account
+     (`total_paid > total_sum`) and double-count the cash. Settle = CONFIRM ONLY (a `CodSettlement` row +
+     status flip, panel-side). The old paymethod-5 payment post was deleted — do not reintroduce it.
+   Trial the storno against a Barsy test object first, then flip `COD_BARSY_POST_LIVE=1`. It's idempotent
    (keyed in the connector's order log) so a repeated webhook/settle can't double-write.
 
 ## Source-of-truth policy to decide before launch

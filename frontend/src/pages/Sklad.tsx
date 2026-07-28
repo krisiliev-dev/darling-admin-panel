@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote } from '../components/PageHeader'
+import { useConfirm } from '../components/Confirm'
 
 // Склад — store operations against Barsy: Движения (ledger), Зареждане (goods-in), Изписване (write-off),
 // Прехвърляне (transfer), Сторно (reversal). Every write is gated (STORE_OPS_BARSY_LIVE); while OFF the
@@ -33,23 +34,28 @@ function LineEditor({ lines, setLines, showPrice }: {
     <div style={{ display: 'grid', gap: '0.5rem' }}>
       {lines.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input placeholder="article_id" value={l.article_id} inputMode="numeric"
+          <input className="input-paper" placeholder="article_id" value={l.article_id} inputMode="numeric"
+            aria-label={`Артикул (ID), ред ${i + 1}`}
             onChange={(e) => upd(i, 'article_id', e.target.value)} style={{ width: 110 }} />
-          <input placeholder="количество" value={l.amount} inputMode="decimal"
+          <input className="input-paper" placeholder="количество" value={l.amount} inputMode="decimal"
+            aria-label={`Количество, ред ${i + 1}`}
             onChange={(e) => upd(i, 'amount', e.target.value)} style={{ width: 100 }} />
           {showPrice && (
-            <input placeholder="ед. цена €" value={l.current_price} inputMode="decimal"
+            <input className="input-paper" placeholder="ед. цена €" value={l.current_price} inputMode="decimal"
+              aria-label={`Единична цена в евро, ред ${i + 1}`}
               onChange={(e) => upd(i, 'current_price', e.target.value)} style={{ width: 100 }} />
           )}
-          <input placeholder="бележка" value={l.note}
+          <input className="input-paper" placeholder="бележка" value={l.note}
+            aria-label={`Бележка, ред ${i + 1}`}
             onChange={(e) => upd(i, 'note', e.target.value)} style={{ flex: 1, minWidth: 120 }} />
           {lines.length > 1 && (
-            <button type="button" onClick={() => setLines(lines.filter((_, j) => j !== i))}
+            <button type="button" className="btn-paper" aria-label={`Премахни ред ${i + 1}`}
+              onClick={() => setLines(lines.filter((_, j) => j !== i))}
               style={{ color: 'var(--red)' }}>✕</button>
           )}
         </div>
       ))}
-      <button type="button" onClick={() => setLines([...lines, blankLine()])}
+      <button type="button" className="btn-paper" onClick={() => setLines([...lines, blankLine()])}
         style={{ justifySelf: 'start', fontSize: '0.85rem' }}>+ ред</button>
     </div>
   )
@@ -79,6 +85,7 @@ type Preview = { lines: VarianceRow[]; total_variance: number; shortage_lines: n
 // Ревизия — physical stocktake: enter counted quantities, compute variance vs Barsy on-hand, then post
 // (Revisions_save save_and_close adjusts stock to the count). Preview is read-only; post is gated.
 function RevisionPanel({ depots }: { depots: Depot[] }) {
+  const confirm = useConfirm()
   const [depot, setDepot] = useState('')
   const [lines, setLines] = useState<{ article_id: string; counted: string }[]>([{ article_id: '', counted: '' }])
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -91,11 +98,22 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
   const payload = () => lines.filter((l) => l.article_id && l.counted !== '')
     .map((l) => ({ article_id: Number(l.article_id), counted: Number(l.counted) }))
 
+  const depotName = depots.find((d) => String(d.depot_id) === depot)?.depot_name || (depot || 'основен склад')
+
   const run = async (kind: 'preview' | 'post') => {
-    setBusy(kind); setErr(''); if (kind === 'post') setRes(null)
+    const rows = payload()
+    setErr('')
+    if (rows.length === 0) { setErr('Въведи поне един ред с артикул и преброено количество.'); return }
+    // A ревизия REWRITES stock to the counted numbers — never fire it off a single click, and never
+    // send confirm:true before the operator has seen the specifics restated.
+    if (kind === 'post' && !(await confirm({
+      danger: true, confirmLabel: 'Проведи ревизия', title: `Ревизия — ${depotName}`,
+      message: `${rows.length} реда · склад: ${depotName}.\n\nНаличността в Barsy ще бъде коригирана до преброените количества — реален запис, който не се връща с „назад“. Виж първо „Разлики“.`,
+    }))) return
+    setBusy(kind); if (kind === 'post') setRes(null)
     try {
-      if (kind === 'preview') setPreview(await api.post('/api/store-ops/revision/preview', { lines: payload() }))
-      else setRes(await api.post('/api/store-ops/revision', { lines: payload(), depot_id: depot ? Number(depot) : undefined, confirm: true }))
+      if (kind === 'preview') setPreview(await api.post('/api/store-ops/revision/preview', { lines: rows }))
+      else setRes(await api.post('/api/store-ops/revision', { lines: rows, depot_id: depot ? Number(depot) : undefined, confirm: true }))
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Операцията се провали.')
     } finally { setBusy('') }
@@ -104,7 +122,8 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
   return (
     <Sheet clip="left">
       <label style={{ fontSize: '0.85rem' }}>Склад{' '}
-        <select value={depot} onChange={(e) => setDepot(e.target.value)}>
+        <select className="input-paper" style={{ width: 'auto' }} value={depot}
+          aria-label="Склад за ревизия" onChange={(e) => setDepot(e.target.value)}>
           <option value="">— основен —</option>
           {depots.map((d) => <option key={d.depot_id} value={d.depot_id}>{d.depot_name || d.depot_id}</option>)}
         </select>
@@ -115,27 +134,28 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
       <div style={{ display: 'grid', gap: '0.5rem' }}>
         {lines.map((l, i) => (
           <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input placeholder="article_id" value={l.article_id} inputMode="numeric"
+            <input className="input-paper" placeholder="article_id" value={l.article_id} inputMode="numeric"
+              aria-label={`Артикул (ID), ред ${i + 1}`}
               onChange={(e) => upd(i, 'article_id', e.target.value)} style={{ width: 120 }} />
-            <input placeholder="преброено" value={l.counted} inputMode="decimal"
+            <input className="input-paper" placeholder="преброено" value={l.counted} inputMode="decimal"
+              aria-label={`Преброено количество, ред ${i + 1}`}
               onChange={(e) => upd(i, 'counted', e.target.value)} style={{ width: 120 }} />
             {lines.length > 1 && (
-              <button type="button" onClick={() => setLines(lines.filter((_, j) => j !== i))}
+              <button type="button" className="btn-paper" aria-label={`Премахни ред ${i + 1}`}
+                onClick={() => setLines(lines.filter((_, j) => j !== i))}
                 style={{ color: 'var(--red)' }}>✕</button>
             )}
           </div>
         ))}
-        <button type="button" onClick={() => setLines([...lines, { article_id: '', counted: '' }])}
+        <button type="button" className="btn-paper" onClick={() => setLines([...lines, { article_id: '', counted: '' }])}
           style={{ justifySelf: 'start', fontSize: '0.85rem' }}>+ ред</button>
       </div>
 
       <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.9rem' }}>
-        <button onClick={() => run('preview')} disabled={!!busy}
-          style={{ border: '1px solid var(--ink)', padding: '0.45rem 1rem', borderRadius: 8 }}>
+        <button className="btn-paper" onClick={() => void run('preview')} disabled={!!busy}>
           {busy === 'preview' ? '…' : 'Разлики'}
         </button>
-        <button onClick={() => run('post')} disabled={!!busy}
-          style={{ background: 'var(--ink)', color: 'var(--paper)', padding: '0.45rem 1.1rem', borderRadius: 8 }}>
+        <button className="btn-paper btn-red" onClick={() => void run('post')} disabled={!!busy}>
           {busy === 'post' ? 'Изпращане…' : 'Проведи ревизия'}
         </button>
       </div>
@@ -170,9 +190,10 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
 }
 
 export function Sklad() {
+  const confirm = useConfirm()
   const [tab, setTab] = useState<Tab>('load')
-  const { data: depotData } = useApi<{ depots: Depot[] }>('/api/store-ops/depots')
-  const { data: reasonData } = useApi<{ reasons: Reason[]; type_id: number }>('/api/store-ops/writeoff-reasons')
+  const { data: depotData, error: depotErr } = useApi<{ depots: Depot[] }>('/api/store-ops/depots')
+  const { data: reasonData, error: reasonErr } = useApi<{ reasons: Reason[]; type_id: number }>('/api/store-ops/writeoff-reasons')
   const depots = depotData?.depots || []
   const reasons = reasonData?.reasons || []
 
@@ -196,25 +217,51 @@ export function Sklad() {
       current_price: l.current_price ? Number(l.current_price) : undefined,
     }))
 
+  const depotName = (id: string) =>
+    depots.find((d) => String(d.depot_id) === id)?.depot_name || (id || 'основен склад')
+  const reasonName = reasons.find((r) => String(r.reason_id) === reasonId)?.name || reasonId
+
   const submit = async () => {
-    setBusy(true); setErr(''); setRes(null)
+    setErr(''); setRes(null)
+    const ls = rows()
+    // Validate BEFORE anything else — a bad operation must never reach the confirm modal, let alone Barsy.
+    if (ls.length === 0) { setErr('Добави поне един ред с артикул и количество.'); return }
+    if (tab === 'writeoff' && !reasonId) { setErr('Изберете причина за изписване.'); return }
+    if (tab === 'transfer') {
+      // „— основен —“ is the empty value → Number('') === 0, which would post a 0→0 self-transfer.
+      if (!depot) { setErr('Избери склад-източник („От склад“) — прехвърляне от „основен“ не е валидно.'); return }
+      if (!depotTo) { setErr('Избери склад-получател („Към склад“).'); return }
+      if (Number(depot) === Number(depotTo)) { setErr('Складът-източник и складът-получател не могат да са един и същ.'); return }
+    }
+
+    // Every tab below writes real stock in Barsy. Restate the specifics and only send confirm:true
+    // after the operator has agreed — hard-coding it defeats the backend's confirm guard.
+    const label = TABS.find(([id]) => id === tab)?.[1] || tab
+    const where = tab === 'transfer' ? `от „${depotName(depot)}“ към „${depotName(depotTo)}“`
+      : tab === 'writeoff' ? `склад „${depotName(depot)}“ · причина: ${reasonName}`
+      : `склад „${depotName(depot)}“`
+    if (!(await confirm({
+      danger: true, confirmLabel: label, title: `${label} — потвърждение`,
+      message: `${ls.length} реда · ${where}.\n\nТова е реален складов запис в Barsy и променя наличността веднага. Провери редовете преди да продължиш.`,
+    }))) return
+
+    setBusy(true)
     try {
       let out: WriteResult
       const depot_id = depot ? Number(depot) : undefined
       if (tab === 'load') {
-        out = await api.post('/api/store-ops/load', { lines: rows(), depot_id, description: desc, confirm: true })
+        out = await api.post('/api/store-ops/load', { lines: ls, depot_id, description: desc, confirm: true })
       } else if (tab === 'writeoff') {
-        if (!reasonId) { setErr('Изберете причина за изписване.'); setBusy(false); return }
         out = await api.post('/api/store-ops/writeoff', {
-          lines: rows(), reason_id: Number(reasonId), depot_id, description: desc, confirm: true,
+          lines: ls, reason_id: Number(reasonId), depot_id, description: desc, confirm: true,
         })
       } else if (tab === 'transfer') {
         out = await api.post('/api/store-ops/transfer', {
-          lines: rows(), depot_from: Number(depot), depot_to: Number(depotTo), description: desc, confirm: true,
+          lines: ls, depot_from: Number(depot), depot_to: Number(depotTo), description: desc, confirm: true,
         })
       } else {
         out = await api.post('/api/store-ops/storno', {
-          lines: rows(), storeload_id: stornoId ? Number(stornoId) : undefined,
+          lines: ls, storeload_id: stornoId ? Number(stornoId) : undefined,
           depot_id, reason: desc, confirm: true,
         })
       }
@@ -234,6 +281,16 @@ export function Sklad() {
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       <PageHeader title="Склад" subtitle="складови операции — зареждане, изписване, прехвърляне, сторно, движения" />
 
+      {/* the pickers silently fall back to an empty list on a failed fetch — say so, or staff build a
+          write against a склад/причина that isn't there */}
+      {(depotErr || reasonErr) && (
+        <p className="font-type" role="alert" style={{ color: 'var(--red)', fontSize: '0.8rem', margin: 0 }}>
+          ⚠ {depotErr ? 'Списъкът със складове не се зареди.' : ''}{depotErr && reasonErr ? ' ' : ''}
+          {reasonErr ? 'Списъкът с причини за изписване не се зареди.' : ''} Презареди страницата — не
+          изпращай операция с непълни списъци.
+        </p>
+      )}
+
       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
         {TABS.map(([id, label]) => (
           <button key={id} onClick={() => { setTab(id); reset() }}
@@ -249,10 +306,11 @@ export function Sklad() {
       {tab === 'movements' ? (
         <Sheet clip="left">
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input placeholder="код на артикул" value={movCode}
+            <input className="input-paper" placeholder="код на артикул" value={movCode}
+              aria-label="Код на артикул за търсене на движения"
               onChange={(e) => setMovCode(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && setMovQuery(movCode.trim())} style={{ flex: 1 }} />
-            <button onClick={() => setMovQuery(movCode.trim())}>Търси</button>
+            <button className="btn-paper" onClick={() => setMovQuery(movCode.trim())}>Търси</button>
           </div>
           {movLoading && <p style={{ color: 'var(--pencil)' }}>Зареждане…</p>}
           {mov && mov.movements.length === 0 && !movLoading && <EmptyNote>Няма движения за този артикул.</EmptyNote>}
@@ -284,7 +342,9 @@ export function Sklad() {
             {tab !== 'storno' && (
               <label style={{ fontSize: '0.85rem' }}>
                 {tab === 'transfer' ? 'От склад' : 'Склад'}{' '}
-                <select value={depot} onChange={(e) => setDepot(e.target.value)}>
+                <select className="input-paper" style={{ width: 'auto' }} value={depot}
+                  aria-label={tab === 'transfer' ? 'Склад-източник' : 'Склад'}
+                  onChange={(e) => setDepot(e.target.value)}>
                   <option value="">— основен —</option>
                   {depots.map((d) => <option key={d.depot_id} value={d.depot_id}>{d.depot_name || d.depot_id}</option>)}
                 </select>
@@ -293,7 +353,8 @@ export function Sklad() {
             {tab === 'transfer' && (
               <label style={{ fontSize: '0.85rem' }}>
                 Към склад{' '}
-                <select value={depotTo} onChange={(e) => setDepotTo(e.target.value)}>
+                <select className="input-paper" style={{ width: 'auto' }} value={depotTo}
+                  aria-label="Склад-получател" onChange={(e) => setDepotTo(e.target.value)}>
                   <option value="">—</option>
                   {depots.map((d) => <option key={d.depot_id} value={d.depot_id}>{d.depot_name || d.depot_id}</option>)}
                 </select>
@@ -302,7 +363,8 @@ export function Sklad() {
             {tab === 'writeoff' && (
               <label style={{ fontSize: '0.85rem' }}>
                 Причина{' '}
-                <select value={reasonId} onChange={(e) => setReasonId(e.target.value)}>
+                <select className="input-paper" style={{ width: 'auto' }} value={reasonId}
+                  aria-label="Причина за изписване" onChange={(e) => setReasonId(e.target.value)}>
                   <option value="">— избери —</option>
                   {reasons.map((r) => <option key={r.reason_id} value={r.reason_id}>{r.name || r.reason_id}</option>)}
                 </select>
@@ -318,18 +380,20 @@ export function Sklad() {
           )}
 
           {tab === 'storno' && (
-            <input placeholder="ID на зареждане за сторниране (по желание, за референция)" value={stornoId}
+            <input className="input-paper" placeholder="ID на зареждане за сторниране (по желание, за референция)"
+              value={stornoId} aria-label="ID на зареждане за сторниране (по желание)"
               inputMode="numeric" onChange={(e) => setStornoId(e.target.value)}
               style={{ width: 340, marginBottom: '0.6rem' }} />
           )}
           <LineEditor lines={lines} setLines={setLines} showPrice={tab === 'load' || tab === 'storno'} />
 
-          <input placeholder={tab === 'storno' ? 'причина за сторно' : 'описание (по желание)'}
+          <input className="input-paper" placeholder={tab === 'storno' ? 'причина за сторно' : 'описание (по желание)'}
+            aria-label={tab === 'storno' ? 'Причина за сторно' : 'Описание на операцията (по желание)'}
             value={desc} onChange={(e) => setDesc(e.target.value)}
             style={{ width: '100%', marginTop: '0.8rem' }} />
 
-          <button onClick={submit} disabled={busy}
-            style={{ marginTop: '0.9rem', background: 'var(--ink)', color: 'var(--paper)', padding: '0.5rem 1.2rem', borderRadius: 8 }}>
+          <button className="btn-paper btn-red" onClick={() => void submit()} disabled={busy}
+            style={{ marginTop: '0.9rem' }}>
             {busy ? 'Изпращане…' : 'Изпрати'}
           </button>
           {err && <p style={{ color: 'var(--red)', marginTop: '0.5rem' }}>{err}</p>}

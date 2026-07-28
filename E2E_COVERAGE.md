@@ -11,6 +11,12 @@ and button does what it's supposed to." Two test layers exist and are both liste
 
 Status: ✅ covered · 🟡 partial (needs more cases) · ⬜ gap (to write).
 
+⚠ **What ✅ means here.** The mock-e2e layer drives the UI against `page.route` stubs. A ✅ on a page that
+performs **money/stock writes** (Онлайн поръчки, Разчети) means *the view renders and its controls are
+reachable* — it does **not** mean the write action was driven. Those are marked 🟡 with the missing
+action spelled out, because a spec that only renders will not catch a broken settle/label/storno.
+Last honesty pass: **2026-07-28**.
+
 Runner note: run against a **warm** dev server (`npm run dev` once, then
 `npx playwright test`) — a cold per-run server times out `page.goto` under parallel workers.
 
@@ -50,14 +56,14 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 ## Flow 5 — Order fulfilment
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
-| `Orders.tsx` (Онлайн поръчки: 3-tab card, pack, label, create-order) | `/orders` | `orders.spec.ts` | ✅ 🟡 add: create-order flow; per-order label action (test-mode) |
+| `Orders.tsx` (Онлайн поръчки: 3-tab card, pack, label, create-order) | `/orders` | `orders.spec.ts` | 🟡 **RENDER-ONLY** — asserts the 3 tabs, that the Нова пратка form opens, and the до-офис search folds in. The spec mocks an **empty** order list, so no order row, no **Етикет** (= finalise + бон + decrement + label + ship) and no **Откажи** is ever clicked. ⬜ add: an order row → Етикет → assert the POST to `/api/orders/{id}/label`; Откажи → Confirm → POST |
 | `CourierBadge.tsx` | orders | `orders.spec.ts` / `CourierBadge.test.tsx` | ✅ (unit) |
 | `Carts.tsx` (Кошници: live/abandoned checkouts) | `/carts` | `carts.spec.ts` | ✅ |
 
 ## Flow 6 — COD reconciliation (наложен платеж)
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
-| `Cod.tsx` (Разчети: settle, aging, payout import) | `/cod` | `cod.spec.ts` | ✅ 🟡 add: payout-file import parse |
+| `Cod.tsx` (Разчети: settle, aging, payout import, storno) | `/cod` | `cod.spec.ts` | 🟡 **RENDER-ONLY** — one test: the KPI tiles, two order rows, a discrepancy hint, and that the Синхронизирай-проследяване button is *visible* (never clicked). ⬜ add the three writes: **settle** (`POST /api/cod/settle` — must assert it posts NO Barsy payment), **storno** (`POST /api/cod/{id}/storno`, confirm branch), **payout import/auto-pull** preview → prefilled settle lines |
 | `CustomerRisk.tsx` (nekorekten refuser flag) | COD/orders | `cod.spec.ts` | ⬜ assert the risk badge renders on a flagged customer |
 
 ## Flow 7 — Inventory / receiving / purchasing
@@ -65,7 +71,7 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 |---|---|---|---|
 | `Deliveries.tsx` (Доставки: receiving hub, upload/scan/finalise) | `/purchasing` | `deliveries.spec.ts` | ✅ (+ `Deliveries.test.tsx`) |
 | `Zayavki.tsx` (Заявки: per-supplier carts, email/export) | `/zayavki` | `zayavki.spec.ts` | ✅ (+ `Zayavki.test.tsx`) |
-| `Sklad.tsx` (Склад: stock, "за поръчка", owner-gated) | `/sklad` | `access-control.spec.ts` (gate ✅) · `sklad.spec.ts` (content ⬜) | 🟡 gate done (owner renders / manager redirected); still ⬜ tab content + "за поръчка" expand |
+| `Sklad.tsx` (Склад: stock ops, owner-gated) | `/sklad` | `access-control.spec.ts` (gate ✅) · `sklad.spec.ts` (content ✅) | ✅ gate (owner renders / manager redirected) **+ content**: the six operation tabs with Зареждане active, the Изписване чл.79 VAT warning + reason picker, the Сторно storeload-id field, the read-only Движения ledger empty state, and a **load submit that dry-runs and shows the Barsy body without writing**. 🟡 remaining: the "за поръчка" expand |
 | `TableControls.tsx` (shared filter/sort/paginate) | list pages | `TableControls.test.tsx` | ✅ (unit) |
 
 ## Flow 8 — Analytics
@@ -83,13 +89,13 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
 | `Kancelaria.tsx` (label-print desk: search → queue → print) | `/kancelaria` | `kancelaria.spec.ts` | ✅ search → queue → copies → clear (print action not driven) |
-| `Assistant.tsx` (in-panel BG Q&A + gated actions) | `/assistant` | `assistant.spec.ts` | ⬜ ask → answer renders; a gated action shows the human-confirm step |
-| `FloatingAssistant.tsx` | global | `assistant.spec.ts` | ⬜ open/close the floating widget |
+| `Assistant.tsx` (in-panel BG Q&A + gated actions) | `/assistant` | `assistant.spec.ts` | ✅ empty state + example prompts; ask → the posted question is asserted, the grounded answer + model tag render, and a suggested action is clicked → in-app navigation. 🟡 only the safe `goto` suggestion kind is exercised — a *write* suggestion's confirm step is still ⬜ |
+| `FloatingAssistant.tsx` | global | `assistant.spec.ts` | ⬜ open/close the floating widget (the spec deliberately scopes to `<main>` so the floating instance can't double-match — it is never driven) |
 
 ## Flow 11 — Admin / settings
 | Page/Component | Route | e2e spec | Status |
 |---|---|---|---|
-| `Settings.tsx` (Настройки: couriers, users, owner-gated) | `/settings` | `access-control.spec.ts` (gate ✅) · `settings.spec.ts` (content ⬜) | 🟡 gate done (owner renders / manager redirected); still ⬜ courier tab, create-user validation, Дневник tab |
+| `Settings.tsx` (Настройки: couriers, users, owner-gated) | `/settings` | `access-control.spec.ts` (gate ✅) · `settings.spec.ts` (content ✅) | ✅ gate **+ content**: team-from-Barsy, courier status, assistant model chain and the ОРЗД panel all render; the publish-readiness check fires and shows the summary + a blocked variant; the GDPR phone lookup returns and renders. 🟡 remaining: create-user validation, Дневник tab |
 | `Logs.tsx` (audit logs) | via Settings/Logs | `logs.spec.ts` | ✅ |
 
 ## Flow 12 — Sync health (Проблеми)
@@ -114,16 +120,25 @@ Runner note: run against a **warm** dev server (`npm run dev` once, then
    fallback (a thrown render error shows the fallback, not a white screen) — hard to trigger via API mock;
    needs a forced-throw hook.
 4. ~~`intake.spec.ts`~~ ✅ done — enrich-gate + mandatory-images guard. ~~`kancelaria.spec.ts`~~ ✅ done.
-5. **`assistant.spec.ts`** — Q&A answer render + gated-action confirm step (needs the model-chain mocked).
-6. **`settings.spec.ts` / `sklad.spec.ts` content** — courier tab lists offices, create-user validation,
-   Дневник tab; Sklad tab bodies + "за поръчка" expand.
-7. Fill the 🟡 partials (promo/rename forms, create-order, payout import, customer-risk badge).
+5. ~~`assistant.spec.ts`~~ ✅ done — empty state, ask→answer+model tag, suggestion→navigate. Still ⬜: a
+   *write* suggestion's confirm step, and `FloatingAssistant` open/close.
+6. ~~`settings.spec.ts` / `sklad.spec.ts` content~~ ✅ done — Настройки panels + publish-audit + GDPR
+   lookup; Склад's six tabs, чл.79 warning, Сторно ref field, Движения empty state, dry-run load submit.
+   Still ⬜: create-user validation, Дневник tab, "за поръчка" expand.
+7. **⚠ TOP PRIORITY — the money-write actions.** `orders.spec.ts` and `cod.spec.ts` are RENDER-ONLY:
+   neither drives Етикет (finalise + бон + decrement + label + ship), Откажи, settle, or storno. These
+   are the highest-consequence buttons in the panel and nothing regression-tests them. Write:
+   an order row → Етикет → asserted POST; Откажи → Confirm → POST; settle → POST with **no Barsy
+   payment**; storno → confirm-gated POST; payout import/auto-pull → preview → prefilled settle lines.
+8. Fill the remaining 🟡 partials (promo/rename forms, create-order, customer-risk badge).
 
 ## Follow-up fix flagged (not a test gap)
 - ✅ **`window.confirm` sweep DONE** — `Confirm.tsx` now exposes `useConfirm()` + `usePrompt()`, and every
   native `window.confirm/alert/prompt` was converted to the in-app modal (CustomerRisk, Brands, Deliveries,
-  Intake, Orders, Pricing, Purchasing, Settings, Zayavki). No native browser dialogs remain (only the
+  Intake, Orders, Pricing, Settings, Zayavki). No native browser dialogs remain (only the
   Confirm.tsx fallback defaults). All theme-aware, keyboard-navigable, CDP-safe.
+  (`Purchasing.tsx` was also swept at the time; the file has since been **deleted** — it was an unrouted
+  second receiving UI against a divergent `/api/purchasing` contract. `/purchasing` renders `Deliveries`.)
 
 ## Findings surfaced while writing specs
 - **Nav/route role mismatch** — ✅ RESOLVED. `Shell.tsx` listed `/sklad` + `/settings` under

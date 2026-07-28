@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Bar, Line } from 'react-chartjs-2'
@@ -12,6 +13,16 @@ import { Stat } from '../components/Stat'
 import { ProductExplorer } from '../components/ProductExplorer'
 
 type Tab = 'overview' | 'inventory' | 'catalog' | 'online' | 'archive'
+
+// Hand-styled <span>/<div> that only carry onClick don't exist for a keyboard (or for
+// accessibility-tree automation). Spread this to make one a real, focusable, Enter/Space-operable
+// control without touching its look.
+const clickable = (fn: () => void) => ({
+  role: 'button', tabIndex: 0, onClick: fn,
+  onKeyDown: (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() }   // Space would scroll the page
+  },
+})
 
 export function Dashboard() {
   const [tab, setTab] = useState<Tab>('overview')
@@ -553,12 +564,13 @@ function HistoricalDiagnosis() {
           <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Доставчици (топ по приход)</h3>
           <div style={{ display: 'grid', gap: '.25rem', fontSize: '.78rem', maxHeight: '18rem', overflowY: 'auto' }}>
             <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', color: 'var(--red)', fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.04em', cursor: 'pointer' }}>
-              <span onClick={() => setSupSort('name')}>доставчик{supSort === 'name' ? ' ▲' : ''}</span>
-              <span onClick={() => setSupSort('rev')} style={{ textAlign: 'right' }}>приход{supSort === 'rev' ? ' ▼' : ''}</span>
-              <span onClick={() => setSupSort('deadval')} style={{ textAlign: 'right' }}>мъртва €{supSort === 'deadval' ? ' ▼' : ''}</span>
+              <span {...clickable(() => setSupSort('name'))} aria-label="Подреди по доставчик">доставчик{supSort === 'name' ? ' ▲' : ''}</span>
+              <span {...clickable(() => setSupSort('rev'))} aria-label="Подреди по приход" style={{ textAlign: 'right' }}>приход{supSort === 'rev' ? ' ▼' : ''}</span>
+              <span {...clickable(() => setSupSort('deadval'))} aria-label="Подреди по мъртва стока" style={{ textAlign: 'right' }}>мъртва €{supSort === 'deadval' ? ' ▼' : ''}</span>
             </div>
             {sortedSuppliers.map((s) => (
-              <div key={s.name} onClick={() => pickSupplier(s.name)} title={`${s.name} — покажи продуктите`}
+              <div key={s.name} {...clickable(() => pickSupplier(s.name))} title={`${s.name} — покажи продуктите`}
+                aria-label={`${s.name} — покажи продуктите`}
                 style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', borderBottom: '1px dashed var(--line)', paddingBottom: '.2rem', alignItems: 'baseline', cursor: 'pointer' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.name}>{s.name}</span>
                 <span style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{eur(s.rev)}</span>

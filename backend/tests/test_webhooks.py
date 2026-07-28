@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 
+import pytest
 import pytest_asyncio
 
 from app.routers import webhooks
@@ -39,6 +40,15 @@ def spy(monkeypatch):
 
 def _set_live(monkeypatch, live: bool):
     monkeypatch.setattr(webhooks, "_live", lambda: live)
+
+
+@pytest.fixture(autouse=True)
+def _clear_replay_cache():
+    """The replay guard is process-global in-memory state (like the rate limiter) — clear it around
+    every test so one test's delivery keys can't make another's look like a replay."""
+    webhooks._seen_deliveries.clear()
+    yield
+    webhooks._seen_deliveries.clear()
 
 
 # --- Shopify HMAC gating ------------------------------------------------------------
@@ -98,6 +108,45 @@ async def test_shopify_topic_routing(client, spy, monkeypatch):
         assert spy and spy[0][0] == expected_fn, f"{topic} -> {spy}"
 
 
+# --- replay protection --------------------------------------------------------------
+async def test_shopify_replayed_delivery_is_skipped(client, spy, monkeypatch):
+    """A captured (body, signature) pair stays valid forever — re-POSTing it must not dispatch again.
+    Shopify reuses X-Shopify-Webhook-Id for its own retries, which is exactly what we drop."""
+    _set_live(monkeypatch, False)
+    raw = json.dumps({"id": 4242, "name": "#RPL"}).encode()
+    hdrs = {"x-shopify-hmac-sha256": _sign(raw), "x-shopify-topic": "orders/paid",
+            "x-shopify-webhook-id": "wh-replay-1"}
+    first = await client.post("/webhooks/shopify/orders", content=raw, headers=hdrs)
+    assert first.status_code == 200 and not first.json().get("duplicate")
+    assert len(spy) == 1
+
+    replay = await client.post("/webhooks/shopify/orders", content=raw, headers=hdrs)
+    assert replay.status_code == 200          # still 2xx — Shopify must not retry
+    assert replay.json()["duplicate"] is True
+    assert len(spy) == 1                      # nothing dispatched the second time
+
+
+async def test_shopify_replay_falls_back_to_body_hash(client, spy, monkeypatch):
+    # no X-Shopify-Webhook-Id (hand-crafted replay) → the raw body hash is the delivery key
+    _set_live(monkeypatch, False)
+    raw = json.dumps({"id": 4343}).encode()
+    hdrs = {"x-shopify-hmac-sha256": _sign(raw), "x-shopify-topic": "orders/paid"}
+    await client.post("/webhooks/shopify/orders", content=raw, headers=hdrs)
+    r = await client.post("/webhooks/shopify/orders", content=raw, headers=hdrs)
+    assert r.json().get("duplicate") is True
+    assert len(spy) == 1
+
+
+async def test_shopify_distinct_deliveries_both_dispatch(client, spy, monkeypatch):
+    # the guard must not swallow genuinely different deliveries (same topic, different order)
+    _set_live(monkeypatch, False)
+    for oid in (5151, 5252):
+        raw = json.dumps({"id": oid}).encode()
+        await client.post("/webhooks/shopify/orders", content=raw,
+                          headers={"x-shopify-hmac-sha256": _sign(raw), "x-shopify-topic": "orders/paid"})
+    assert len(spy) == 2
+
+
 # --- Barsy token gating -------------------------------------------------------------
 async def test_barsy_rejects_bad_token(client, spy):
     r = await client.post("/webhooks/barsy/article?token=nope", json={"code": "SKU1"})
@@ -111,6 +160,33 @@ async def test_barsy_valid_token_dispatches(client, spy, monkeypatch):
     assert r.status_code == 200
     assert spy and spy[0][0] == "barsy_article_to_shopify"
     assert spy[0][1][0] == "SKU1"  # code extracted
+
+
+async def test_barsy_token_accepted_from_header(client, spy, monkeypatch):
+    """The header is the supported form — a query string puts the long-lived secret in every
+    access-log line."""
+    _set_live(monkeypatch, False)
+    r = await client.post("/webhooks/barsy/article", json={"code": "SKU-H"},
+                          headers={"x-darling-token": _TOKEN})
+    assert r.status_code == 200
+    assert spy and spy[0][1][0] == "SKU-H"
+
+
+async def test_barsy_bad_header_token_rejected(client, spy):
+    r = await client.post("/webhooks/barsy/article", json={"code": "SKU1"},
+                          headers={"x-darling-token": "nope"})
+    assert r.status_code == 401
+    assert not spy
+
+
+async def test_barsy_query_token_still_works_but_warns(client, spy, monkeypatch, caplog):
+    """Backward compatibility: the URLs already registered in Barsy carry ?token=. They must keep
+    delivering, but each one nags the operator to move to the header + rotate the leaked token."""
+    _set_live(monkeypatch, False)
+    with caplog.at_level("WARNING", logger="darling.webhooks"):
+        r = await client.post(f"/webhooks/barsy/article?token={_TOKEN}", json={"code": "SKU-Q"})
+    assert r.status_code == 200 and spy
+    assert "DEPRECATED" in caplog.text
 
 
 async def test_barsy_registration_probe_returns_200(client, spy, monkeypatch):
@@ -152,10 +228,12 @@ async def test_gdpr_customers_redact_erases_panel_data(client, spy):
 
     from app import nekorekten
     from app.db import async_session_maker
-    from app.models import OrderOutcome
+    from app.models import Checkout, OrderOutcome
     ph = nekorekten.normalize_phone("0888123456")
     async with async_session_maker() as s:
         s.add(OrderOutcome(phone_norm=ph, outcome="refused", order_name="#GDPR-T"))
+        # the cart mirror holds PII too (raw Shopify phone) — redact must purge it as well
+        s.add(Checkout(token="chk_redact", phone="+359 88 812 3456", email="kupuvach@b.bg"))
         await s.commit()
     raw = json.dumps({"shop_domain": "x.myshopify.com",
                       "customer": {"id": 7, "phone": "0888123456"}}).encode()
@@ -165,7 +243,9 @@ async def test_gdpr_customers_redact_erases_panel_data(client, spy):
     # the background GDPR handler erased our phone-keyed record
     async with async_session_maker() as s:
         rows = (await s.execute(select(OrderOutcome).where(OrderOutcome.phone_norm == ph))).scalars().all()
+        carts = (await s.execute(select(Checkout))).scalars().all()
     assert rows == []
+    assert carts == []
 
 
 async def test_barsy_head_probe_is_clean_empty_200(client):
@@ -182,9 +262,10 @@ async def test_gdpr_redact_with_digitless_phone_does_not_mass_erase(client, spy)
     from sqlalchemy import select
 
     from app.db import async_session_maker
-    from app.models import OrderOutcome
+    from app.models import Checkout, OrderOutcome
     async with async_session_maker() as s:
         s.add(OrderOutcome(phone_norm="", outcome="refused", order_name="#PHONELESS"))
+        s.add(Checkout(token="chk_someone_else", phone="0899999999"))
         await s.commit()
     raw = json.dumps({"customer": {"id": 7, "phone": "n/a"}}).encode()
     r = await client.post("/webhooks/shopify/orders", content=raw,
@@ -192,4 +273,6 @@ async def test_gdpr_redact_with_digitless_phone_does_not_mass_erase(client, spy)
     assert r.status_code == 200
     async with async_session_maker() as s:
         rows = (await s.execute(select(OrderOutcome).where(OrderOutcome.phone_norm == ""))).scalars().all()
+        carts = (await s.execute(select(Checkout))).scalars().all()
     assert len(rows) == 1   # the phone-less row survived (guard refused the empty-phone erase)
+    assert len(carts) == 1  # ...and so did every cart

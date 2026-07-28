@@ -113,14 +113,65 @@ async def test_storno_calls_connector_and_flips_returned(owner_client, settle_st
 
     def fake_refuse(oid, reason, do_write):
         seen.update(oid=oid, reason=reason, do_write=do_write)
-        return {"order_id": oid, "stornoed": True}
+        return {"order_id": oid, "status": "ok", "storno_account_id": 900, "written": True}
 
     monkeypatch.setattr(cod.connector, "cod_refused_to_barsy", fake_refuse, raising=False)
     r = await owner_client.post("/api/cod/o1/storno", json={"confirm": True})
     assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
     assert seen["oid"] == "o1" and "върната" in seen["reason"]
     assert _state["o1"]["status"] == "returned"          # flipped out of the awaiting bucket
     assert ("o1", {"status": "returned"}) in calls
+
+
+# the panel's own state is GID-keyed; the connector's order log keys on the BARE numeric id
+_GID = "gid://shopify/Order/9911"
+
+
+def _gid_order(state, gid=_GID, **over):
+    state[gid] = {"order_name": "#99", "status": "delivered", "courier": "econt",
+                  "tracking": "999", "cod_amount": 40.0, **over}
+    return state[gid]
+
+
+async def test_storno_sends_bare_numeric_id_to_connector(owner_client, settle_state, monkeypatch):
+    """HIGH: forwarding the GID verbatim made every storno a silent no-op — the connector's
+    _seen_order never matched, so no Accounts_storno fired while the panel reported success."""
+    state, calls = settle_state
+    _gid_order(state)
+    seen = {}
+
+    def fake_refuse(oid, reason, do_write):
+        seen.update(oid=oid)
+        return {"status": "ok", "written": True}
+
+    monkeypatch.setattr(cod.connector, "cod_refused_to_barsy", fake_refuse, raising=False)
+    r = await owner_client.post("/api/cod/9911/storno", json={"confirm": True})
+    assert r.status_code == 200, r.text
+    assert seen["oid"] == "9911"                          # bare numeric — NOT the GID
+    assert state[_GID]["status"] == "returned"            # panel state still written under its GID key
+    assert (_GID, {"status": "returned"}) in calls
+
+
+@pytest.mark.parametrize("result, expect_status", [
+    ({"order_id": "9911", "dry_run": True}, "dry_run"),            # COD_BARSY_POST_LIVE off
+    ({"status": "refused", "reason": "no_logged_order"}, "refused"),
+    ({"status": "needs_review", "reason": "no_unp"}, "needs_review"),
+])
+async def test_storno_without_a_real_reversal_does_not_flip_returned(
+        owner_client, settle_state, monkeypatch, result, expect_status):
+    """MED: flipping to 'returned' regardless of the connector's answer dropped uncollected COD out
+    of the panel while Barsy still held it as a PAID sale — defeating the whole backstop."""
+    state, calls = settle_state
+    monkeypatch.setattr(cod.connector, "cod_refused_to_barsy",
+                        lambda oid, reason, do_write: result, raising=False)
+    r = await owner_client.post("/api/cod/o1/storno", json={"confirm": True})
+    assert r.status_code == 200, r.text                   # explicit non-ok, not an exception
+    b = r.json()
+    assert b["ok"] is False and b["status"] == expect_status and b["message"]
+    assert b["result"] == result                          # the raw connector answer reaches the UI
+    assert state["o1"]["status"] == "delivered"           # stays in the awaiting bucket
+    assert not any(k.get("status") == "returned" for _oid, k in calls)
 
 
 async def test_storno_refuses_a_settled_order(owner_client, settle_state, monkeypatch):
@@ -165,6 +216,29 @@ async def test_barsy_booked_lists_and_flags_uncollected(owner_client, settle_sta
     assert b["count"] == 1 and b["total"] == 30.0        # the stornoed account is excluded
     assert b["uncollected"] == 1                          # o1 booked-paid but not settled/returned
     assert b["accounts"][0]["order_id"] == "o1" and b["accounts"][0]["uncollected"] is True
+
+
+async def test_barsy_booked_joins_gid_state_to_numeric_connector_ids(
+        owner_client, settle_state, monkeypatch):
+    """MED: list_cod_accounts returns NUMERIC order ids while the panel's state map and settlement
+    rows are GID-keyed — un-normalised, both joins always missed and EVERY collected/settled COD was
+    flagged uncollected, making the report pure noise."""
+    state, _calls = settle_state
+    state.pop("o1"); state.pop("o2")            # only the GID-keyed orders matter here
+    _gid_order(state)                                                 # 9911 — has a settlement row
+    _gid_order(state, "gid://shopify/Order/8822", order_name="#88", status="returned")   # 8822 — RTO
+    async with async_session_maker() as s:
+        s.add(CodSettlement(order_id=_GID, order_name="#99", expected=40.0, collected=40.0))
+        await s.commit()
+    monkeypatch.setattr(cod.connector, "list_cod_accounts", lambda: [
+        {"order_id": "9911", "order_ref": "#99", "amount": 40.0},
+        {"order_id": "8822", "order_ref": "#88", "amount": 12.0},
+    ], raising=False)
+    b = (await owner_client.get("/api/cod/barsy-booked")).json()
+    by = {a["order_id"]: a for a in b["accounts"]}
+    assert by["9911"]["settled"] is True        # GID settlement row ↔ numeric Barsy id
+    assert by["8822"]["bucket"] == "rto"        # GID state map ↔ numeric Barsy id
+    assert b["uncollected"] == 0                # neither is a storno candidate
 
 
 async def test_barsy_booked_missing_connector_fn_501(owner_client, settle_state, monkeypatch):

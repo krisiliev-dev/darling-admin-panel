@@ -17,7 +17,8 @@ vi.mock('../lib/api', () => ({
   },
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ me: { role: 'owner' } }) }))
-// Purchasing pulls useApi — stub it so the Заявки tab doesn't error
+// belt-and-braces useApi stub — Deliveries itself doesn't use it, but a child that reaches for it
+// must not hit the network in a unit test
 vi.mock('../lib/useApi', () => ({ useApi: () => ({ data: null, loading: false, reload: () => {} }) }))
 
 import { Deliveries } from './Deliveries'

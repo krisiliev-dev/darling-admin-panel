@@ -5,7 +5,9 @@ one-click Speedy/Econt labels with наложен платеж (COD). The store 
 so the queue shows an empty state; courier readiness + office lookup + quoting work today.
 
 Label creation is a real-world action: it's owner/staff-gated, requires an explicit confirm
-flag, and is written to the audit log."""
+flag, is written to the audit log, and only mints a REAL waybill when COURIER_LIVE is on
+(off => a dry-run plan; and a real label additionally requires BARSY_WRITE_LIVE, so cash is
+never collected for an unbooked sale)."""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -159,13 +161,26 @@ def _finalise_for_pack(o: dict) -> dict:
             return {"status": "already_finalised"}
         raise HTTPException(status.HTTP_502_BAD_GATEWAY,
                             f"Осчетоводяването на {o['name']} преди етикет не успя: {str(e)[:150]}")
+    # "already_finalised" arrives as EITHER status (our own 501-backstop above) or reason (the
+    # connector's own shape: {"status":"duplicate","reason":"already_finalised"}). Accept both.
     ok = isinstance(fin, dict) and (
-        fin.get("status") in ("ok", "duplicate") or fin.get("reason") == "already_finalised")
+        fin.get("status") in ("ok", "duplicate", "already_finalised")
+        or fin.get("reason") == "already_finalised")
     if not ok:
         reason = (fin or {}).get("reason", "?") if isinstance(fin, dict) else "?"
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"Не мога да осчетоводя {o['name']} преди етикет ({reason}). Провери поръчката.")
     return fin if isinstance(fin, dict) else {"status": "ok"}
+
+
+def _courier_or_502(key: str):
+    """Resolve the adapter, mapping an unknown/misconfigured courier to the same 502 the live label
+    path returns (the dry-run branches skip create_shipment, so they'd otherwise 'succeed' for a
+    courier that doesn't exist)."""
+    try:
+        return courier_mod.get(key)
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
 
 
 def _to_kg(v) -> float:
@@ -249,7 +264,8 @@ async def make_label(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Create a REAL shipment + label (наложен платеж if the order is COD). Gated: needs
-    confirm=True, an allowed role, audit-logged, and refuses to double-label an order.
+    confirm=True, an allowed role, COURIER_LIVE on (else a dry-run plan, no label, not shipped),
+    audit-logged, and refuses to double-label an order.
     Blocking courier/Shopify/DB calls run in a threadpool so the event loop stays free."""
     if not req.confirm:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
@@ -271,12 +287,45 @@ async def make_label(
     # (fulfilment, below). Finalise BEFORE the courier so a courier failure leaves a recoverable booked
     # order (retry just re-labels; finalise is idempotent) rather than a real shipment with no booking.
     fin = await run_in_threadpool(_finalise_for_pack, o)
+    courier_live = get_settings().courier_live
+    # The two gates must stay COHERENT: a real waybill requires a real booking. _finalise_for_pack accepts
+    # the connector's dry-run as success (status ok + dry_run), so with BARSY_WRITE_LIVE off nothing is
+    # booked — no продажба, no fiscal бон, no изписване — while the courier would still collect real cash.
+    # (already_finalised is exempt: that dry-run reconciled against Barsy, the sale IS there.)
+    _already = isinstance(fin, dict) and (
+        fin.get("status") in ("duplicate", "already_finalised")
+        or fin.get("reason") == "already_finalised")
+    if courier_live and isinstance(fin, dict) and fin.get("dry_run") and not _already:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Осчетоводяването на {o['name']} е в пробен режим (dry-run) — включи BARSY_WRITE_LIVE "
+            f"преди реален етикет. Реален етикет без осчетоводена продажба означава събрани пари "
+            f"без продажба, без бон и без изписване.")
+    if not courier_live:
+        # COURIER_LIVE off (the pre-launch default): a waybill costs money the moment it's minted and the
+        # наложен платеж collects real cash, so we never even reach the adapter (which would raise anyway).
+        # Return the plan WITHOUT claiming 'labeling' (nothing to release, and a rehearsal must not reset
+        # a 'picking' order), without marking shipped and without a Shopify fulfilment — an order that
+        # looks sent with no label is worse than no label at all.
+        _courier_or_502(req.courier)   # an unknown courier must fail even in a rehearsal
+        shp = await run_in_threadpool(_shipment_from_order, o, req)
+        plan = {"dry_run": True, "gated": True, "courier": req.courier, "order_ref": o["name"],
+                "tracking_number": None, "label_ref": None,
+                "recipient": shp.recipient, "phone": shp.phone, "office_id": shp.office_id,
+                "address": shp.address, "cod_amount": shp.cod_amount, "weight_kg": shp.weight_kg,
+                "finalise": fin,
+                "note": ("ПРОБЕН РЕЖИМ: реален етикет НЕ е създаден (COURIER_LIVE е изключен). "
+                         "Поръчката не е маркирана като изпратена и не е подадена към Shopify. "
+                         "Включи COURIER_LIVE за истинска пратка.")}
+        await log_action(session, actor, "label.dry_run", target=o["name"],
+                         detail=f"{req.courier} COD={shp.cod_amount}€ (без реален етикет)")
+        return plan
     # double-label guard passed + booked → now claim and create the real label
     await run_in_threadpool(shopify_orders.set_state, o["id"], o["name"], status="labeling")  # claim
     try:
         result = await run_in_threadpool(
             courier_mod.get(req.courier).create_shipment,
-            _shipment_from_order(o, req), True)  # do_write=True
+            _shipment_from_order(o, req), courier_live)  # do_write = COURIER_LIVE (true here)
     except Exception as e:
         # release the claim so a retry can proceed
         try:
@@ -299,14 +348,25 @@ async def make_label(
     # drops on_hand once). NON-FATAL — the real label already exists, so a fulfilment hiccup must not
     # fail the label call; it surfaces as a warning (and the connector logs a Проблеми issue).
     try:
+        # `speditor` stamps the waybill + courier onto the Barsy sale account (best-effort — a Barsy
+        # stamp failure never fails the Shopify fulfilment). That's what makes COD reconciliation able
+        # to match Barsy↔courier by waybill directly. Keyword-only: the two connector fns order their
+        # params differently. The connector normalises the courier name (speedy/Спиди → 2, econt → 1);
+        # an unregistered courier resolves to None and the waybill is still stamped.
         fulfil = await run_in_threadpool(
             connector.ship_order, _numeric_oid(o["id"]),
-            result.get("tracking_number"), get_settings().barsy_write_live)
+            result.get("tracking_number"), get_settings().barsy_write_live,
+            speditor=req.courier)
         result["fulfillment"] = fulfil
         result["finalise"] = fin
         if isinstance(fulfil, dict) and fulfil.get("status") not in ("ok", "duplicate", None):
             result["warning"] = (result.get("warning", "") +
                                  f" Пратката не се отбеляза в Shopify ({fulfil.get('reason', '?')}).").strip()
+        # the Barsy waybill stamp is a soft extra — surface a miss as a warning, never an error
+        bt = (fulfil or {}).get("barsy_tracking") if isinstance(fulfil, dict) else None
+        if isinstance(bt, dict) and bt.get("written") is False:
+            result["warning"] = (result.get("warning", "") +
+                                 " Товарителницата не се записа в Barsy (ще се съпостави по поръчка).").strip()
     except Exception as e:
         result["warning"] = (result.get("warning", "") +
                              f" Shopify fulfilment пропусна: {str(e)[:80]}.").strip()
@@ -363,15 +423,30 @@ async def manual_label(
     actor: User = Depends(require_roles("staff", "packer")),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Create a real ad-hoc label (Speedy/Econt) with optional COD. Gated + audited."""
+    """Create a real ad-hoc label (Speedy/Econt) with optional COD. Gated + audited. COURIER_LIVE off
+    => dry-run plan only: no waybill, no COD collection (this endpoint has no order behind it, so an
+    ungated call would mint a real label for a free-text recipient and amount)."""
     if not req.confirm:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Създаването на етикет е реално действие — потвърди с confirm=true.")
     if not req.recipient.strip() or not req.phone.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Нужни са получател и телефон.")
+    courier_live = get_settings().courier_live
+    if not courier_live:
+        _courier_or_502(req.courier)   # an unknown courier must fail even in a rehearsal
+        shp = _manual_shipment(req)
+        plan = {"dry_run": True, "gated": True, "courier": req.courier,
+                "tracking_number": None, "label_ref": None,
+                "recipient": shp.recipient, "phone": shp.phone, "office_id": shp.office_id,
+                "address": shp.address, "cod_amount": shp.cod_amount, "weight_kg": shp.weight_kg,
+                "note": ("ПРОБЕН РЕЖИМ: реален етикет НЕ е създаден (COURIER_LIVE е изключен). "
+                         "Включи COURIER_LIVE за истинска пратка.")}
+        await log_action(session, actor, "label.manual.dry_run", target=req.recipient,
+                         detail=f"{req.courier} COD={req.cod_amount}€ (без реален етикет)")
+        return plan
     try:
         result = await run_in_threadpool(
-            courier_mod.get(req.courier).create_shipment, _manual_shipment(req), True)
+            courier_mod.get(req.courier).create_shipment, _manual_shipment(req), courier_live)
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
     await log_action(session, actor, "label.manual", target=req.recipient,
@@ -400,10 +475,10 @@ async def set_status(
 
 # --------------------------------------------------- review → finalise / refuse (Barsy) ---
 # The owner's clientorder model: an online order books as a Barsy CLIENTORDER (no decrement) awaiting
-# staff review. Staff then FINALISE it (→ closed sale, decrement, fiscal:0) or REFUSE it (→ void the
-# clientorder + cancel the Shopify order; nothing decremented — the nekorekten-fake-customer path).
-# The connector owns the Barsy/Shopify write shapes (finalise_order / refuse_order); this router owns
-# the gate (BARSY_WRITE_LIVE → dry-run when off), the confirm flag, the role check, and the audit line.
+# staff review. Staff then FINALISE it (→ closed PAID sale: decrement + a REAL fiscal бон) or REFUSE it
+# (→ void the clientorder + cancel the Shopify order; nothing decremented — the nekorekten-fake-customer
+# path). The connector owns the Barsy/Shopify write shapes (finalise_order / refuse_order); this router
+# owns the gate (BARSY_WRITE_LIVE → dry-run when off), the confirm flag, the role check, and the audit line.
 class OrderAction(BaseModel):
     confirm: bool = False
 
@@ -414,8 +489,18 @@ async def finalise(
     actor: User = Depends(require_roles("owner", "manager", "staff")),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Convert the order's Barsy clientorder into a CLOSED SALE (Accounts_createfromclientorder,
-    flag_close_account:1, print_shipment:0 → decrement + fiscal:0). Gated + confirm + role + audit."""
+    """MANUAL RECOVERY ONLY — the UI never calls this; Етикет (POST /{id}/label) is the sanctioned
+    finalise path, because finalising and labelling are one packing action.
+
+    Books the order's Barsy clientorder as a CLOSED, **PAID** SALE (Accounts_createfromclientorder,
+    flag_close_account:1, **print_receipt:1**, payment under "Наложен платеж" method 6) — i.e. it
+    DECREMENTS stock AND **PRINTS A REAL FISCAL БОН** on the device (paid-at-packing model; the older
+    "fiscal:0, no бон" behaviour is gone).
+
+    ⚠️ It fiscalises WITHOUT creating a courier label: the customer gets a бон for goods that have no
+    waybill, so use it only to repair a half-finished pack (e.g. the label call died after the courier
+    call) — then create/attach the label separately. For the normal flow use Етикет.
+    Gated (BARSY_WRITE_LIVE → dry-run when off) + confirm + role + audit."""
     if not body.confirm:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Финализирането е реален запис в Barsy — потвърди с confirm=true.")
@@ -488,7 +573,10 @@ async def ship(
     do_write = get_settings().barsy_write_live
     try:
         result = await run_in_threadpool(
-            connector.ship_order, _numeric_oid(o["id"]), body.tracking or None, do_write)
+            connector.ship_order, _numeric_oid(o["id"]), body.tracking or None, do_write,
+            # the courier isn't in the request body here — take it from the order's own recorded state
+            # (set when the label was made) so the Barsy waybill stamp carries the right speditor.
+            speditor=(shopify_orders.state_map().get(o["id"], {}).get("courier") or None))
     except AttributeError:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             "Изпращането не е налично (connector.ship_order липсва).")

@@ -61,7 +61,26 @@ test.describe('Склад — store operations', () => {
     await page.getByPlaceholder('article_id').first().fill('101')
     await page.getByPlaceholder('количество').first().fill('3')
     await page.getByRole('button', { name: 'Изпрати' }).click()
+    // a real Barsy stock write is confirm-gated — accept the modal (scoped to the dialog, since the
+    // tab button carries the same label). Click explicitly: danger confirms don't accept a bare Enter.
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Зареждане' }).click()
     await expect(page.getByText(/Пробно \(dry-run\)/)).toBeVisible()
     await expect(page.getByText('Storeloads_save')).toBeVisible()
+  })
+
+  test('cancelling the confirm sends no store-ops write at all', async ({ page }) => {
+    // the modal is the last guard before a real Barsy stock adjustment — cancelling must be inert
+    let posted = false
+    await mockSklad(page)
+    await page.route('**/api/store-ops/load', (r) => { posted = true; return r.fulfill({ json: {} }) })
+    await page.goto('/sklad')
+    await page.getByPlaceholder('article_id').first().fill('101')
+    await page.getByPlaceholder('количество').first().fill('3')
+    await page.getByRole('button', { name: 'Изпрати' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Отказ' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
+    expect(posted).toBe(false)
   })
 })

@@ -5,7 +5,12 @@ agent-pipeline/barsy_shopify_connector.py (see admin-panel/HANDOFF_connector.md)
 These endpoints are called by Shopify / Barsy, NOT by logged-in panel users, so they carry no
 session auth. Their gate is cryptographic instead:
   • Shopify → HMAC-SHA256(raw_body, app_secret), constant-time compared to X-Shopify-Hmac-Sha256.
-  • Barsy   → a shared secret token embedded in the registered URL (Barsy doesn't sign payloads).
+  • Barsy   → a shared secret token (Barsy doesn't sign payloads). PREFERRED: the X-Darling-Token
+    header. The legacy ?token=<secret> query form still works so the URLs already registered in Barsy
+    keep delivering, but it is DEPRECATED: a query string lands in Caddy/uvicorn access logs, so the
+    long-lived secret ends up in plaintext on disk on every event. Each such delivery logs a WARNING.
+    Migration: re-register the Barsy subscription with the bare URL + the header, then ROTATE
+    BARSY_WEBHOOK_TOKEN (the old value must be treated as compromised — it is in the logs).
 
 MASTER SAFETY GATE: settings.webhooks_live. While False (default), a verified webhook is parsed and
 a dry-run PLAN is logged, but NOTHING is written to Barsy/Shopify. Flip WEBHOOKS_LIVE=1 only at store
@@ -20,6 +25,8 @@ import base64
 import hashlib
 import hmac
 import logging
+import time
+from collections import OrderedDict
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from starlette.concurrency import run_in_threadpool
@@ -56,6 +63,32 @@ def _live() -> bool:
     return get_settings().webhooks_live
 
 
+# A valid (body, signature) pair stays valid forever — anyone who captures one (a log dump, a proxy)
+# can re-POST it and each replay dispatches again. The connector's own dedupe bounds the damage, so
+# this is a cheap first line only: remember the delivery ids we've already accepted and drop repeats.
+# In-process + TTL + size-capped (single-worker deploy, see docker-compose); NOT a DB table.
+_SEEN_TTL_S = 3600.0
+_SEEN_MAX = 4096
+_seen_deliveries: OrderedDict[str, float] = OrderedDict()   # key → monotonic ts, oldest first
+
+
+def _seen_delivery(key: str) -> bool:
+    """True if this delivery was already accepted recently (→ replay, skip). Records it otherwise."""
+    now = time.monotonic()
+    while _seen_deliveries:                       # entries are inserted in time order → evict from front
+        oldest, ts = next(iter(_seen_deliveries.items()))
+        if now - ts > _SEEN_TTL_S:
+            del _seen_deliveries[oldest]
+        else:
+            break
+    if key in _seen_deliveries:
+        return True
+    _seen_deliveries[key] = now
+    while len(_seen_deliveries) > _SEEN_MAX:
+        _seen_deliveries.popitem(last=False)
+    return False
+
+
 # --- Shopify → Barsy -----------------------------------------------------------------
 def _verify_shopify(raw: bytes, header_hmac: str | None) -> bool:
     """Constant-time HMAC-SHA256 check of the RAW body against the app secret."""
@@ -87,8 +120,9 @@ def _dispatch_shopify(topic: str, payload: dict, live: bool):
 
 
 # Shopify's mandatory GDPR/compliance topics. Handled panel-side (our PII footprint = the phone-keyed
-# OrderOutcome refusal history + any nekorekten reports); Shopify remains the customer system of record.
-# These act on OUR OWN data as a legal duty, so they are NOT behind the webhooks_live write-gate.
+# OrderOutcome refusal history + any nekorekten reports + the Checkout cart mirror); Shopify remains the
+# customer system of record. These act on OUR OWN data as a legal duty, so they are NOT behind the
+# webhooks_live write-gate.
 _GDPR_TOPICS = {"customers/data_request", "customers/redact", "shop/redact"}
 
 
@@ -97,25 +131,34 @@ def _shopify_customer_phone(payload: dict) -> str:
     return (c or {}).get("phone") or ""
 
 
+def _shopify_customer_email(payload: dict) -> str:
+    """Carts are frequently email-only (Shopify collects the email before the phone), so the email is
+    the second identifier a redact/data-request must be matched on."""
+    c = payload.get("customer") if isinstance(payload, dict) else None
+    return (c or {}).get("email") or ""
+
+
 async def _process_gdpr(topic: str, payload: dict):
     """Honour a Shopify GDPR webhook against the panel's own data. data_request → compile + audit (owner
     fulfils); customers/redact → erase our PII + retract nekorekten; shop/redact → audit (single-merchant)."""
     from ..db import async_session_maker
     from .gdpr import collect_customer_data, erase_customer_data
     phone = _shopify_customer_phone(payload)
+    email = _shopify_customer_email(payload)
     async with async_session_maker() as session:
         if topic == "customers/redact":
-            if phone:
-                res = await erase_customer_data(session, phone, actor=None)
-                log.info("GDPR customers/redact %s -> %s", phone, res)
+            if phone or email:
+                res = await erase_customer_data(session, phone, actor=None, email=email)
+                log.info("GDPR customers/redact %s -> %s", phone or email, res)
             else:
                 await log_action(session, None, "gdpr.redact.no_phone",
                                  detail=str((payload.get("customer") or {}).get("id")))
         elif topic == "customers/data_request":
-            data = await collect_customer_data(session, phone) if phone else {"count": 0}
-            await log_action(session, None, "gdpr.data_request", target=phone,
+            data = (await collect_customer_data(session, phone, email)) if (phone or email) else {"count": 0}
+            await log_action(session, None, "gdpr.data_request", target=phone or email,
                              detail=f"records={data.get('count', 0)}")
-            log.info("GDPR customers/data_request %s -> %s records (owner fulfils)", phone, data.get("count"))
+            log.info("GDPR customers/data_request %s -> %s records (owner fulfils)",
+                     phone or email, data.get("count"))
         elif topic == "shop/redact":
             await log_action(session, None, "gdpr.shop_redact", detail=str(payload.get("shop_domain")))
 
@@ -196,7 +239,8 @@ async def _process_shopify(topic: str, payload: dict, live: bool):
 @router.post("/shopify/orders")
 async def shopify_receiver(request: Request, background: BackgroundTasks):
     """Generic Shopify receiver — register every order-related topic to this URL; we dispatch by the
-    authoritative X-Shopify-Topic header. Verifies HMAC on the raw body, then processes async."""
+    authoritative X-Shopify-Topic header. Verifies HMAC on the raw body, drops replays of an
+    already-accepted delivery, then processes async."""
     raw = await request.body()
     if not _verify_shopify(raw, request.headers.get("x-shopify-hmac-sha256")):
         # 401 (not 500) so an attacker can't tell configured-vs-misconfigured apart
@@ -207,19 +251,37 @@ async def shopify_receiver(request: Request, background: BackgroundTasks):
         payload = json.loads(raw.decode("utf-8"))
     except Exception:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Malformed JSON.")
+    # Replay guard — AFTER parsing, so a malformed body (which 400s and gets retried by Shopify) never
+    # burns its key. Shopify always sends X-Shopify-Webhook-Id and reuses it for its own retries; the
+    # body hash is the fallback for anything that doesn't (a genuine retry only reaches us if we
+    # answered non-2xx, and we answer 200 the moment we accept, so we can't drop a needed redelivery).
+    delivery = request.headers.get("x-shopify-webhook-id") or hashlib.sha256(raw).hexdigest()
+    if _seen_delivery(f"{topic}:{delivery}"):
+        log.warning("Shopify %s delivery %s already seen — replay skipped.", topic, delivery)
+        return {"ok": True, "topic": topic, "live": _live(), "duplicate": True}
     background.add_task(_process_shopify, topic, payload, _live())
     return {"ok": True, "topic": topic, "live": _live()}
 
 
 # --- Barsy → Shopify -----------------------------------------------------------------
 def _verify_barsy_token(request: Request) -> bool:
-    """Barsy doesn't sign; we require the shared token we baked into the registered URL. Accept it
-    from ?token= or an X-Darling-Token header, constant-time compared."""
+    """Barsy doesn't sign; we require a shared token, constant-time compared. The X-Darling-Token
+    HEADER is the supported form. ?token= is a deprecated fallback kept only so the URLs already
+    registered in Barsy keep working — it puts the secret in every access-log line, so each use
+    nags the operator to switch (and to rotate the token, which the logs have already leaked)."""
     expected = get_settings().barsy_webhook_token
     if not expected:
         return False
-    supplied = request.query_params.get("token") or request.headers.get("x-darling-token") or ""
-    return hmac.compare_digest(expected, supplied)
+    header = request.headers.get("x-darling-token") or ""
+    if header and hmac.compare_digest(expected, header):
+        return True
+    query = request.query_params.get("token") or ""
+    if query and hmac.compare_digest(expected, query):
+        log.warning("Barsy webhook authenticated via DEPRECATED ?token= (secret is now in the access "
+                    "logs). Re-register the subscription with the X-Darling-Token header and rotate "
+                    "BARSY_WEBHOOK_TOKEN.")
+        return True
+    return False
 
 
 def _barsy_code(payload) -> str:
@@ -266,7 +328,8 @@ async def barsy_article_probe() -> Response:
 @router.post("/barsy/article")
 async def barsy_article_receiver(request: Request, background: BackgroundTasks):
     """Barsy article-changed webhook (POST) → refresh the local product cache AND mirror name/price onto
-    Shopify (see _process_barsy_article). Requires the shared token (else 401). NOTE: Barsy's registration
+    Shopify (see _process_barsy_article). Requires the shared token — X-Darling-Token header preferred,
+    ?token= accepted but deprecated (see _verify_barsy_token); else 401. NOTE: Barsy's registration
     probe is a HEAD (handled by barsy_article_probe above → clean empty 200, no token needed); this POST
     path is the real event delivery and IS token-gated. A token-valid POST with no article code (e.g. a
     manual test) still 200s but processes nothing."""

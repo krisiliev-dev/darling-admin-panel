@@ -5,8 +5,12 @@ creation, manual shipments, tracking and status updates.
 No real courier / Shopify is hit: we monkeypatch app.routers.orders.courier_mod.get (per the
 brief) plus courier_mod.available and the shopify_orders helpers. Label/manual-label are real,
 irreversible actions, so the focus is their gating: confirm flag, role, double-label guard,
-and the 502 path when the courier raises.
+the COURIER_LIVE master gate (a waybill costs money and collects real cash), its coherence with
+BARSY_WRITE_LIVE, and the 502 path when the courier raises.
 """
+from types import SimpleNamespace
+
+import pytest
 
 import app.routers.orders as orders
 
@@ -16,6 +20,7 @@ class FakeCourier:
     def __init__(self, key="speedy", raise_on=None):
         self.key = key
         self.raise_on = raise_on or set()
+        self.writes = []          # do_write of every create_shipment call (empty = never reached)
 
     def ping(self):
         return {"sender_name": "Дарлинг", "sender_place": "София"}
@@ -33,6 +38,7 @@ class FakeCourier:
         return {"total": 5.90, "currency": "EUR"}
 
     def create_shipment(self, shp, do_write=False):
+        self.writes.append(do_write)
         if "create" in self.raise_on:
             raise RuntimeError("куриерът отказа")
         return {"tracking_number": "TRK123", "label_ref": "LBL1", "cod_amount": shp.cod_amount}
@@ -49,6 +55,23 @@ _ORDER = {"id": _OID, "name": "#1001", "customer": "Иван", "phone": "0888123
 
 def _patch_courier(monkeypatch, courier):
     monkeypatch.setattr(orders.courier_mod, "get", lambda key: courier)
+    return courier
+
+
+def _patch_gates(monkeypatch, courier_live=True, barsy_write_live=True):
+    """Both master gates the label flow reads. COURIER_LIVE gates the REAL waybill; BARSY_WRITE_LIVE
+    gates the booking that must exist behind it."""
+    monkeypatch.setattr(orders, "get_settings",
+                        lambda: SimpleNamespace(courier_live=courier_live,
+                                                barsy_write_live=barsy_write_live))
+
+
+@pytest.fixture(autouse=True)
+def _courier_gate_live(monkeypatch):
+    """COURIER_LIVE defaults OFF (pre-launch safety: a waybill costs money and collects real cash), so
+    the label tests below would all take the dry-run path. Turn it ON for this module and let the gate
+    tests flip it back off to prove the courier is never reached."""
+    _patch_gates(monkeypatch)
 
 
 def _patch_orders(monkeypatch, orders_list=None, state=None):
@@ -174,14 +197,64 @@ async def test_label_without_confirm_is_400(staff_client, monkeypatch):
 
 async def test_label_happy_path_marks_shipped(staff_client, monkeypatch):
     recorded = _patch_orders(monkeypatch)
-    _patch_courier(monkeypatch, FakeCourier("speedy"))
+    courier = _patch_courier(monkeypatch, FakeCourier("speedy"))
     r = await staff_client.post("/api/orders/1001/label",
                                 json={"courier": "speedy", "confirm": True})
     assert r.status_code == 200, r.text
     assert r.json()["tracking_number"] == "TRK123"
+    assert courier.writes == [True]      # the courier write carries the COURIER_LIVE gate, not a literal
     # final persisted state for the order is 'shipped' with the tracking number
     assert recorded["1001"]["status"] == "shipped"
     assert recorded["1001"]["tracking"] == "TRK123"
+
+
+async def test_label_gate_off_does_not_call_courier_or_ship(staff_client, monkeypatch):
+    # COURIER_LIVE off (the documented pre-launch default): clicking Етикет must NOT mint a real waybill
+    # (which would collect real наложен платеж). FakeCourier raises on create to prove it's never reached.
+    recorded = _patch_orders(monkeypatch)
+    _patch_gates(monkeypatch, courier_live=False)
+    courier = _patch_courier(monkeypatch, FakeCourier(raise_on={"create"}))
+    shipped = {}
+    monkeypatch.setattr(orders.connector, "ship_order",
+                        lambda *a, **k: shipped.update(called=True) or {"status": "ok"}, raising=False)
+    r = await staff_client.post("/api/orders/1001/label",
+                                json={"courier": "speedy", "confirm": True})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dry_run"] is True and body["tracking_number"] is None
+    assert "COURIER_LIVE" in body["note"]
+    assert courier.writes == []          # the adapter was never called
+    assert shipped == {}                 # no Shopify fulfilment either
+    assert recorded == {}                # not marked shipped, and no 'labeling' claim left behind
+
+
+async def test_label_refuses_dry_run_finalise_when_courier_live(staff_client, monkeypatch):
+    # gate coherence: a REAL label against a DRY-RUN booking = cash collected with no продажба, no бон
+    # and no изписване. Refuse with 409 BEFORE the courier is touched.
+    recorded = _patch_orders(monkeypatch)
+    monkeypatch.setattr(orders.connector, "finalise_order",
+                        lambda oid, do_write: {"status": "ok", "dry_run": True}, raising=False)
+    courier = _patch_courier(monkeypatch, FakeCourier())
+    r = await staff_client.post("/api/orders/1001/label",
+                                json={"courier": "speedy", "confirm": True})
+    assert r.status_code == 409
+    assert "BARSY_WRITE_LIVE" in r.json()["detail"]
+    assert courier.writes == [] and recorded == {}
+
+
+async def test_label_dry_run_already_finalised_still_labels(staff_client, monkeypatch):
+    # the connector's DRY-RUN already_finalised is reconciled against Barsy — the sale really is booked,
+    # so it must NOT trip the dry-run refusal above.
+    recorded = _patch_orders(monkeypatch)
+    # the REAL connector shape (verified live): status "duplicate" + reason "already_finalised"
+    monkeypatch.setattr(orders.connector, "finalise_order",
+                        lambda oid, do_write: {"status": "duplicate", "reason": "already_finalised",
+                                               "dry_run": True, "account_id": 8}, raising=False)
+    _patch_courier(monkeypatch, FakeCourier("speedy"))
+    r = await staff_client.post("/api/orders/1001/label",
+                                json={"courier": "speedy", "confirm": True})
+    assert r.status_code == 200, r.text
+    assert recorded["1001"]["status"] == "shipped"
 
 
 async def test_label_finalises_before_courier(staff_client, monkeypatch):
@@ -263,12 +336,28 @@ async def test_manual_label_missing_recipient_is_400(staff_client, monkeypatch):
 
 
 async def test_manual_label_happy_path(staff_client, monkeypatch):
-    _patch_courier(monkeypatch, FakeCourier("speedy"))
+    courier = _patch_courier(monkeypatch, FakeCourier("speedy"))
     r = await staff_client.post("/api/orders/manual-label", json={
         "courier": "speedy", "recipient": "Иван", "phone": "0888",
         "cod_amount": 30.0, "confirm": True})
     assert r.status_code == 200, r.text
     assert r.json()["tracking_number"] == "TRK123"
+    assert courier.writes == [True]      # do_write comes from COURIER_LIVE
+
+
+async def test_manual_label_gate_off_is_dry_run(staff_client, monkeypatch):
+    # manual-label has no order behind it (free-text recipient + COD up to 1 000 000), so the gate
+    # matters most here: with COURIER_LIVE off nothing reaches the courier.
+    _patch_gates(monkeypatch, courier_live=False)
+    courier = _patch_courier(monkeypatch, FakeCourier(raise_on={"create"}))
+    r = await staff_client.post("/api/orders/manual-label", json={
+        "courier": "speedy", "recipient": "Иван", "phone": "0888",
+        "cod_amount": 30.0, "confirm": True})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dry_run"] is True and body["tracking_number"] is None
+    assert body["cod_amount"] == 30.0 and "COURIER_LIVE" in body["note"]
+    assert courier.writes == []
 
 
 async def test_manual_label_courier_failure_is_502(staff_client, monkeypatch):

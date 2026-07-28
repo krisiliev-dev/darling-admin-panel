@@ -13,6 +13,7 @@ from ..audit import log_action
 from ..config import get_settings
 from ..core import connector
 from ..db import get_async_session
+from ..ids import numeric_oid
 from ..models import OrderOutcome, User
 from ..users import current_active_user, current_owner, require_roles
 
@@ -95,7 +96,9 @@ async def _cod_storno_on_refusal(body: "OutcomeBody"):
         return None
     live = get_settings().cod_barsy_post_live
     try:
-        return await run_in_threadpool(connector.cod_refused_to_barsy, body.order_id,
+        # the connector keys its order log on the BARE numeric id; a GID (what the panel/Shopify use)
+        # never matches → the storno silently no-ops. Normalise here. See app/ids.py.
+        return await run_in_threadpool(connector.cod_refused_to_barsy, numeric_oid(body.order_id),
                                        "COD отказан (RTO)", live)
     except Exception as e:
         return {"error": str(e)[:140]}

@@ -1,11 +1,17 @@
 # Handoff → admin-panel agent: bidirectional Barsy ⇄ Shopify webhook service
 
-The **connector logic is built** in `../agent-pipeline/barsy_shopify_connector.py` (part of the
-shared business-core — import it, don't reimplement). Your job is the **HTTP hosting layer**: two
-webhook receiver endpoints in the panel's FastAPI backend, webhook registration, and signature
-verification. This is not urgent — it's needed when the store takes **real orders**, not for the
-draft catalog. Do it after the backend is on an always-on, public-HTTPS server (webhooks can't
-reach the laptop).
+> **Historical handoff — the hosting layer described below is BUILT and deployed.** Kept for the
+> *why*; for current status read WEBHOOKS_LAUNCH.md. Paths + the function inventory were refreshed
+> **2026-07-28**; the "Endpoints to build" section is now a record of what exists.
+
+The **connector logic is built** in `barsy_shopify_connector.py`, a sibling of this repo at
+`C:\Users\lora_\Desktop\product-review\agent-pipeline\barsy_shopify_connector.py`, with a vendored
+copy under `darling_core/_vendor/`. **Never import it by path.** The panel reaches it only through
+`backend/app/core.py` (`from ..core import connector`), which puts `admin-panel/` on `sys.path`,
+imports `darling_core` first (that's what makes the agent-pipeline siblings importable), and then
+`import barsy_shopify_connector as connector`. Import order there is load-bearing — see the
+`ruff: noqa: I001` note at the top of `core.py`. The panel's job was the **HTTP hosting layer**: the
+webhook receiver endpoints in the FastAPI backend, webhook registration, and signature verification.
 
 ## Why this shape
 Neither Barsy nor Shopify talks to the other, and neither can connect to an external DB — both are
@@ -13,16 +19,44 @@ closed SaaS exposing only APIs + webhooks. So the integration is a connector in 
 `Barsy ⇄ [receiver + API caller] ⇄ Shopify`. There is **no native Barsy–Shopify app** (Barsy has
 native WooCommerce only); confirm with Barsy support if you want, else this custom connector is it.
 
-## FULL function set now built (2026-07-20) — `barsy_shopify_connector.py`
-All dry-run validated; every write is `do_write=False` by default and marked VERIFY-LIVE where it
-mutates sales/stock. **Shopify → Barsy:** `shopify_order_to_barsy(order, mode='sale'|'clientorder')`,
-`shopify_order_cancellation_to_barsy`, `shopify_refund_to_barsy`, `shopify_fulfillment_to_barsy`
-(tracking #), `shopify_customer_to_barsy` (Clients_createsmart), `shopify_product_edit_to_barsy`
-(OPT-IN, off by default, echo-guarded). **Barsy → Shopify:** `barsy_new_product_to_shopify`,
-`barsy_article_to_shopify`, `barsy_quantity_change_to_shopify` (stock), `barsy_deleted_product_to_shopify`
-(archives), `barsy_category_change_to_shopify`, `barsy_image_change_to_shopify` (staged-upload replace).
-**Infra:** `register_all_webhooks(receiver_base)`, `reconcile(do_write)` (nightly drift sweep — RUN IT;
-webhooks get missed), `mark_pushed`, `_echo` (content-hash loop-guard).
+## FULL function set (inventory refreshed 2026-07-28) — `barsy_shopify_connector.py`
+Every write is `do_write=False` by default (dry-run returns the plan) and marked VERIFY-LIVE where it
+mutates sales/stock.
+
+**Shopify → Barsy (webhook-driven):** `shopify_order_to_barsy(order, mode='sale'|'clientorder')`,
+`shopify_order_cancellation_to_barsy(..., storno_reason=)`, `shopify_refund_to_barsy`,
+`shopify_fulfillment_to_barsy` (tracking #), `shopify_customer_to_barsy` (Clients_createsmart),
+`shopify_product_edit_to_barsy` (OPT-IN, off by default, echo-guarded).
+
+**Order lifecycle — the panel's staff actions (added AFTER this doc's original 2026-07-20 inventory;
+these are the surface the Онлайн поръчки page actually drives):**
+- `finalise_order(order_id, do_write, tracking=, speditor=)` — clientorder → CLOSED PAID sale via
+  `Accounts_createfromclientorder(flag_close_account:1, print_receipt:1)` with a payment under the
+  "Наложен платеж" method (id 6) against the ANONYMOUS client. This is what decrements stock and fires
+  the бон. Idempotent — reconciles against Barsy, so a re-click or a post-restart call returns
+  `already_finalised` instead of double-decrementing. `tracking`/`speditor` land on the account only if
+  passed HERE (a closed account can't be backfilled).
+- `refuse_order(order_id, do_write)` — cancel the Shopify order (releases the reservation) + void/storno
+  the Barsy side via the cancel branch (clientorder → void; finalised → storno).
+- `ship_order(order_id, tracking=, do_write=, speditor=)` — `fulfillmentCreate` on the open fulfilment
+  orders; clears `committed` and drops `on_hand` exactly once (RECONCILIATION_SPEC rule B).
+- `cod_refused_to_barsy(oid, reason, do_write)` — uncollected/RTO COD → storno with
+  `storno_reason="return"`. **The only Barsy write in the COD reconciliation surface.**
+- `list_cod_accounts(since=)` — READ hook: every finalised method-6 sale, for the panel's
+  `GET /api/cod/barsy-booked` cross-check against courier remittances.
+- `record_finalised(order_id, account_id, rows)` — repairs the local order log after a restart.
+- ⚠ `cod_payment_to_barsy` is **OBSOLETE** — posting a settlement payment would overpay an
+  already-paid-in-full account. Left in place as a tombstone; do not call it.
+
+**Barsy → Shopify:** `barsy_new_product_to_shopify`, `barsy_article_to_shopify`,
+`barsy_quantity_change_to_shopify` (stock — ❌ currently broken, see LAUNCH_READINESS bug #5),
+`barsy_deleted_product_to_shopify` (archives), `barsy_category_change_to_shopify`,
+`barsy_image_change_to_shopify` (staged-upload replace), `list_sellable_variants` (publish audit),
+`backfill_variant_weights`.
+
+**Infra:** `register_all_webhooks(receiver_base)`, `subscribe_barsy_webhook(event, url)`,
+`reconcile(limit, do_write)` (nightly drift sweep — RUN IT; webhooks get missed), `mark_pushed`,
+`_echo` (content-hash loop-guard), `_op_lock` (per-order double-book guard).
 
 **Stock display (owner decided):** show LIVE stock — variants become `tracked:true`, policy `DENY`
 (sold-out at 0). The buyable-at-0 exception is **Barsy-driven, not a heuristic**: Barsy's per-article
@@ -39,17 +73,19 @@ Legacy 2-function import (still valid):
 ```python
 from barsy_shopify_connector import shopify_order_to_barsy, barsy_article_to_shopify, mark_pushed
 ```
-- **A. `shopify_order_to_barsy(order_payload, do_write=False)`** — maps a Shopify order → a Barsy
-  `Accounts_place` sale that logs the order and **draws down stock**. Idempotent by `uuid =
-  shopify-<order_id>` (retried webhook never double-sells) + a local `shopify_orders_synced.jsonl`
-  guard. Returns a plan dict; pass `do_write=True` to write. Line items are matched to Barsy by
-  **SKU == our product code**; unmatched SKUs are returned in `missing_skus` (don't silently drop —
-  surface them).
+- **A. `shopify_order_to_barsy(order_payload, mode=..., do_write=False)`** — maps a Shopify order into
+  Barsy. ⚠ The signature default is `mode='sale'` (an `Accounts_place` sale that closes and draws down
+  stock immediately), but **the live default is `mode='clientorder'`**: the order is logged as a Barsy
+  CLIENTORDER and **nothing decrements** until staff press Етикет → `finalise_order`. Idempotent by
+  `uuid = shopify-<order_id>` (a retried webhook never double-sells) plus an `_op_lock` + local
+  order-log guard. Returns a plan dict; pass `do_write=True` to write. Line items are matched to Barsy
+  by **SKU == our product code**; unmatched SKUs come back in `missing_skus` and now REFUSE the booking
+  rather than silently booking a partial order.
 - **B. `barsy_article_to_shopify(code, do_write=False)`** — a product changed in Barsy → mirror
   name/price onto the matching Shopify product (found by SKU). Skips products not yet on Shopify and
   our own echoes (loop-guard). Returns a plan dict.
 
-## Endpoints to build (panel backend)
+## Endpoints to build (panel backend) — ✅ BUILT, see `backend/app/routers/webhooks.py`
 1. `POST /webhooks/shopify/orders` → verify Shopify HMAC (`X-Shopify-Hmac-Sha256` against the app
    secret), then `shopify_order_to_barsy(request.json, do_write=True)`. Return 200 fast (queue the
    work if it's slow — Shopify retries on non-2xx). Subscribe to `orders/paid` (paid orders only)
@@ -61,7 +97,9 @@ from barsy_shopify_connector import shopify_order_to_barsy, barsy_article_to_sho
 
 ## Two things you MUST handle
 - **Fiscal model — DECIDED (owner 2026-07-20): Barsy IS the fiscal point.** So closing the Barsy
-  sale (`Accounts_place`) SHOULD print the fiscal receipt and draw down stock — that's intended.
+  sale SHOULD print the fiscal receipt and draw down stock — that's intended. **Settled 2026-07-28:
+  the closing moment is PACKING, not order receipt** — `mode='clientorder'` + `finalise_order` on
+  Етикет, `print_receipt:1`, paid under "Наложен платеж". The accountant signed off (Н-18).
   Prereq: a **service POS/каса with a fiscal device** must be configured for order reception (this is
   how Barsy's own e-shop integrations route online orders — a service каса per trading facility).
   Two ingestion modes to expose (mirror Barsy's WooCommerce integration): `mode='sale'` = finalize
@@ -80,7 +118,10 @@ becomes the operational source for those; Direction B keeps Shopify in sync. Dec
 DB→Barsy push doesn't overwrite Barsy-side edits (e.g. stop pushing already-launched products from the
 DB, or only push new ones).
 
-## Validated so far (dry-run, no writes)
+## Validated so far — ⚠ this section is the ORIGINAL 2026-07-20 dry-run note, superseded
 Order with `sku=0151086,qty=2` → maps to Barsy `article_id=724`, qty 2, `uuid=shopify-<id>`, payment
 method resolved; bad SKU flagged. Barsy→Shopify found `gid://…/11452186100053` and read the title.
-The write paths (`Accounts_place`, `productUpdate`) are untested-live by design.
+"The write paths are untested-live by design" was true THEN. Since: clientorder booking, finalise,
+refuse and ship are all **live-proven** against real orders (COD#1–#6), and storno was accepted live.
+For the current state read LAUNCH_READINESS.md — including the one Barsy→Shopify write that is still
+**broken**, the `on_hand` stock push (bug #5).
