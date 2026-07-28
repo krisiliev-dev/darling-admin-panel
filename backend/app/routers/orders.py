@@ -26,14 +26,54 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 
 # --------------------------------------------------------------- courier readiness ---
+# Barsy speditor name → our courier key. Barsy is the RECORD (its documents/reports carry the courier),
+# the panel is the OPERATIONAL side (only we can price + print labels). Barsy exposes no Speditors_create,
+# so this is read + reconcile + WARN: an unmapped courier ships fine, it just can't carry a speditor_id
+# on the Barsy sale, and the owner has to register it in Barsy's admin UI to close the gap.
+_SPEDITOR_ALIASES = {
+    "speedy": "speedy", "спиди": "speedy",
+    "econt": "econt", "еконт": "econt",
+    "boxnow": "boxnow", "box now": "boxnow", "sameday": "sameday",
+    "evropat": "evropat", "европът": "evropat", "pigeon": "pigeon",
+}
+
+
+def _barsy_speditors() -> dict[str, dict]:
+    """{our courier key: {"speditor_id", "barsy_name"}} from Barsy's read-only speditor list.
+    Never raises — a Barsy hiccup must not break the courier-readiness screen."""
+    try:
+        rows = barsy.call("Speditors_getlist", {"filters": {}}) or []
+    except Exception:
+        return {}
+    if isinstance(rows, dict):                       # some Barsy lists come wrapped
+        rows = rows.get("speditors") or rows.get("data") or []
+    out: dict[str, dict] = {}
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict):
+            continue
+        name = str(r.get("speditor_name") or r.get("name") or "").strip()
+        sid = r.get("speditor_id") or r.get("id")
+        key = _SPEDITOR_ALIASES.get(name.lower())
+        if key and sid is not None:
+            out[key] = {"speditor_id": int(sid), "barsy_name": name}
+    return out
+
+
 @router.get("/couriers")
 def courier_readiness(user: User = Depends(current_active_user)):
     """Live status of each courier: configured + (for configured ones) a sender-identity
-    ping, so staff see at a glance who's ready to print labels."""
+    ping, so staff see at a glance who's ready to print labels. Also reconciles each courier against
+    Barsy's speditor list so drift ("we ship with it, Barsy doesn't know it") is visible, not silent."""
+    speditors = _barsy_speditors()
     out = []
     for key, name, configured in courier_mod.available():
+        sp = speditors.get(key)
         row = {"key": key, "name": name, "configured": bool(configured),
-               "ready": False, "sender": "", "note": ""}
+               "ready": False, "sender": "", "note": "",
+               # Barsy-record reconciliation (None = this courier has no Barsy speditor)
+               "barsy_speditor_id": (sp or {}).get("speditor_id"),
+               "barsy_name": (sp or {}).get("barsy_name", ""),
+               "barsy_synced": sp is not None}
         if configured:
             try:
                 p = courier_mod.get(key).ping()
@@ -50,8 +90,14 @@ def courier_readiness(user: User = Depends(current_active_user)):
                 row["note"] = f"Грешка при връзка: {str(e)[:100]}"
         else:
             row["note"] = "Няма ключове в ~/.hermes/.env"
+        # drift warning: we can ship with it, but Barsy documents won't carry the courier
+        if configured and not row["barsy_synced"]:
+            row["note"] = (row["note"] + " · Липсва в списъка със спедитори на Barsy — "
+                           "пратките се издават нормално, но в Barsy не се записва куриер. "
+                           "Добави го в Barsy (Настройки → Спедитори).").strip(" ·")
         out.append(row)
-    return {"couriers": out}
+    unmapped = [r["key"] for r in out if r["configured"] and not r["barsy_synced"]]
+    return {"couriers": out, "barsy_speditors_found": len(speditors), "unmapped": unmapped}
 
 
 @router.get("/couriers/{key}/offices")

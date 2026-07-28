@@ -77,6 +77,21 @@ async def note_shopify_result(topic: str, payload: dict, result: dict | None) ->
             detail={"missing_skus": missing, "reason": result.get("reason"), "topic": topic})
         return True
 
+    # A requested фактура (B2B VAT invoice) that Barsy did NOT issue must never just vanish — the buyer
+    # asked for it at checkout and is legally owed one. Give it its own kind so staff can spot it and
+    # issue it manually in Barsy from the captured company data (the detail carries name/ЕИК/ДДС/адрес).
+    reason_txt = str(result.get("reason") or result.get("error") or "").lower()
+    if result.get("invoice_requested") and not result.get("invoice_issued") or "invoice" in reason_txt \
+            or "фактур" in reason_txt:
+        inv = result.get("invoice") or result.get("invoice_data") or {}
+        await record_issue(
+            source="shopify", topic=topic, order_ref=ref, severity="warning", kind="invoice_not_issued",
+            summary=f"Поръчка {ref or '(без номер)'} — клиентът е поискал ФАКТУРА, но тя не е издадена. "
+                    f"Издай я ръчно в Barsy по данните тук.",
+            detail={"invoice": inv, "reason": result.get("reason") or result.get("error"),
+                    "result": {k: v for k, v in result.items() if k != "lines"}, "topic": topic})
+        return True
+
     # explicit refusal / needs-review from the connector
     if status in ("refused", "needs_review", "error") or result.get("needs_review") or result.get("error"):
         kind = "error" if (status == "error" or result.get("error")) else "needs_review"

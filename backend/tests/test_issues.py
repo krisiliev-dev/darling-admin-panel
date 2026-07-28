@@ -71,3 +71,17 @@ async def test_badge_counts_open_issues(owner_client):
 async def test_list_requires_auth(client):
     # unauthenticated caller can't read issues
     assert (await client.get("/api/issues")).status_code == 401
+
+
+async def test_unissued_invoice_gets_its_own_kind_with_the_company_data(owner_client):
+    """A B2B фактура the buyer requested but Barsy didn't issue must not vanish — it gets its OWN kind
+    carrying the company data, so staff can issue it manually in Barsy (the ЕИК-blocked launch path)."""
+    assert await note_shopify_result(
+        "orders/create", {"name": "#1010", "id": 1010},
+        {"status": "ok", "invoice_requested": True, "invoice_issued": False,
+         "invoice": {"company": "АКМЕ ЕООД", "eik": "123456789", "vat": "BG123456789"}}) is True
+
+    iss = (await owner_client.get("/api/issues")).json()["issues"][0]
+    assert iss["kind"] == "invoice_not_issued" and iss["order_ref"] == "#1010"
+    assert iss["severity"] == "warning" and "ФАКТУРА" in iss["summary"]
+    assert "123456789" in str(iss["detail"])          # staff can issue it straight from this

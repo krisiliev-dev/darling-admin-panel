@@ -11,6 +11,7 @@ import { useConfirm } from '../components/Confirm'
 // fix the data (e.g. set the variant SKU), re-fire, then mark the issue resolved.
 const KIND_BG: Record<string, string> = {
   unmatched_sku: 'артикул без SKU', needs_review: 'нужен преглед',
+  invoice_not_issued: 'фактура за издаване',
   error: 'грешка', exception: 'изключение', unhandled_topic: 'необработена тема',
 }
 const fmt = (s: string | null) => (s ? new Date(s).toLocaleString('bg-BG', { dateStyle: 'short', timeStyle: 'short' }) : '')
