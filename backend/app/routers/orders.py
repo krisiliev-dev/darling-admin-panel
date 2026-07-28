@@ -123,6 +123,26 @@ def _is_already_finalised_error(msg: str) -> bool:
     return "createfromclientorder" in m and ("вече има" in m or "already" in m)
 
 
+def _order_finalised(numeric_oid: str) -> bool:
+    """True iff Barsy already holds the SALE for this order (finalised). Uses the connector's
+    finalise_order DRY-RUN (do_write=False), which reports `already_finalised` when the clientorder
+    already has a Barsy account — the durable fix reconciles that against Barsy, so it survives a
+    container restart. FAIL-CLOSED: anything other than a clear already_finalised is treated as NOT
+    finalised, so we never ship/label an un-decremented order (a false 'not finalised' just makes staff
+    re-click Финализирай, which is idempotent). Guards the ship-before-finalise oversell window — see
+    RECONCILIATION_SPEC / inventory-reconciliation-rule: shipping clears Shopify `committed` while Barsy
+    stock is still full, and the on_hand mirror would then re-add the sold units."""
+    try:
+        r = connector.finalise_order(numeric_oid, False)   # dry-run, no write
+    except AttributeError:
+        return True    # finalise not wired at all → don't block the existing label flow
+    except Exception:
+        return False
+    if not isinstance(r, dict):
+        return False
+    return r.get("status") == "duplicate" or r.get("reason") == "already_finalised"
+
+
 def _to_kg(v) -> float:
     try:
         return float(str(v).replace(",", ".")) if v else 0.0
@@ -210,6 +230,14 @@ async def make_label(
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Създаването на етикет е реално действие — потвърди с confirm=true.")
     o = await run_in_threadpool(_order_or_404, order_id)
+    # finalise-before-ship guard (RECONCILIATION_SPEC): a label = dispatch, and dispatch fulfils the
+    # Shopify order (clears `committed`). If the order isn't finalised first, Barsy stock is still full
+    # while `committed` drops → the on_hand mirror re-adds the sold units → oversell. Block BEFORE we
+    # create a real courier label, so we never label an un-decremented order.
+    if not await run_in_threadpool(_order_finalised, _numeric_oid(o["id"])):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Финализирай {o['name']} преди етикет — изписването от склада още не е "
+                            f"направено (иначе наличността се разминава).")
     # double-label guard: never create a second real COD shipment for an order that already has a
     # label / tracking / is past 'new'. `labeling` is a transient CLAIM (below) — a concurrent
     # confirmed request sees it and backs off, shrinking the TOCTOU window to the tiny gap between
@@ -429,6 +457,10 @@ async def ship(
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Изпращането отбелязва пратката в Shopify — потвърди с confirm=true.")
     o = await run_in_threadpool(_order_or_404, order_id)
+    # finalise-before-ship guard (same invariant as make_label): never fulfil an un-decremented order.
+    if not await run_in_threadpool(_order_finalised, _numeric_oid(o["id"])):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Финализирай {o['name']} преди изпращане — изписването още не е направено.")
     do_write = get_settings().barsy_write_live
     try:
         result = await run_in_threadpool(

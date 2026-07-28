@@ -7,14 +7,30 @@ import app.routers.orders as orders_module
 _ORDER = {"id": "gid://shopify/Order/1006", "name": "#1006"}
 
 
-def _patch_order(monkeypatch):
+def _patch_order(monkeypatch, finalised=True):
     monkeypatch.setattr(orders_module, "_order_or_404", lambda oid: dict(_ORDER))
+    # the ship endpoint guards on _order_finalised (connector.finalise_order dry-run) — mock it so the
+    # tests exercise the ship path itself, not the guard (the guard has its own test below)
+    dry = ({"status": "duplicate", "reason": "already_finalised", "account_id": 8} if finalised
+           else {"status": "ok", "dry_run": True})
+    monkeypatch.setattr(orders_module.connector, "finalise_order",
+                        lambda oid, do_write: dry, raising=False)
 
 
 async def test_ship_requires_confirm(owner_client, monkeypatch):
     _patch_order(monkeypatch)
     r = await owner_client.post("/api/orders/1006/ship", json={"confirm": False})
     assert r.status_code == 400
+
+
+async def test_ship_blocked_when_not_finalised(owner_client, monkeypatch):
+    _patch_order(monkeypatch, finalised=False)
+    # even if ship_order would succeed, an un-finalised order must be blocked BEFORE we fulfil it
+    monkeypatch.setattr(orders_module.connector, "ship_order",
+                        lambda oid, tracking, do_write: {"status": "ok"}, raising=False)
+    r = await owner_client.post("/api/orders/1006/ship", json={"confirm": True})
+    assert r.status_code == 409
+    assert "Финализирай" in r.json()["detail"]
 
 
 async def test_ship_passes_numeric_id_and_tracking_and_write_gate(owner_client, monkeypatch):

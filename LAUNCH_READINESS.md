@@ -56,14 +56,21 @@ All caught by the live test + the new **Проблеми** anomaly console (the 
   the panel now surfaces that as a calm "вече е финализирана (без промяна)" 200, not a 502 (commit 9caaf9f).
   - *Contract:* Finalise = `Accounts_createfromclientorder(flag_close_account:1, print_shipment:0)` →
     `record_finalised(order_id, account_id)`; Refuse = connector cancel-branch voids the clientorder.
-  - *Owed on the connector side (Hermes):* make `finalise_order` catch that Barsy 501 itself + persist its
-    finalise state so the fast-path guard survives a restart. See `finalise-idempotency` memory.
-- **#81 — publish-readiness audit.** Per sellable variant, flag anything not launch-ready:
-  **SKU = Barsy code · tracked=TRUE · policy=DENY (or CONTINUE if backorderable) · on_hand mirrored ·
-  product ACTIVE.** This produces the exact "what to fix before publishing" list.
-- **#83 — inventory reconciliation sequence.** `finalise → ship → [Shopify fulfilment + on_hand mirror]`
-  so the Barsy decrement and Shopify `committed` never both reduce `available` (double-count guard). Not
-  urgent (state is consistent today) but must land before live inventory sync.
+  - *Connector durable fix (Hermes) — DONE + live:* `finalise_order`/`refuse_order` now reconcile against
+    Barsy (system of record) so the idempotency guard survives a container restart. Panel backstop kept too.
+- **Refuse — ✅ live-proven (#1005):** cancel Shopify order (reservation released) + void the clientorder
+  (status 6), nothing decremented — the nekorekten fake-customer path. Barsy-confirmed.
+- **Ship — ✅ live-proven (#1006):** `POST /orders/{id}/ship` → `connector.ship_order` fires
+  `fulfillmentCreate` (SUCCESS, tracking attached), clearing `committed`; idempotent (2nd call = no open
+  fulfilment order, no double-fulfil). Also auto-fires on label-success (non-fatal). **The live
+  FulfillmentInput shape is confirmed.**
+- **#81 — publish-readiness audit — ✅ done + live.** Ran against the store: 67 variants, 1 ready, 66 to fix
+  (13 no-SKU · 65 untracked · 43 draft · 30 SKU-not-in-Barsy · 1 backorder). This IS the "publish + stock-load"
+  worklist below. ⚠ Sanity-check the 30 "SKU-not-in-Barsy" for zero-padding vs genuinely-missing codes.
+- **#83 — inventory reconciliation sequence.** Panel wiring `finalise → ship → fulfilment` DONE + proven; the
+  `on_hand` mirror half is the connector's (Hermes). **OPEN:** decide whether the panel must block/warn
+  Етикет on an un-finalised order (ship-before-finalise could let the on_hand mirror over-report). Awaiting
+  Hermes's read on whether the mirror self-protects.
 
 ### ⏳ Owner / hardware (only you can do these)
 - **Connect a fiscal POS** (Barsy fiscal device). The storno code path is **proven** — it reads all four
