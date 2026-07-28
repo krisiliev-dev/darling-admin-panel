@@ -8,8 +8,10 @@ STORE_OPS_BARSY_LIVE gate: OFF (default, pre-launch) => the endpoint DRY-RUNS �
 and returns the exact Barsy body it WOULD send (`dry_run: true`). This lets staff exercise the UI and lets
 us confirm the (partly undocumented) Storeouts/Storemoves/Revisions wire shapes live before flipping on.
 
-⚠ SHAPES: Storeloads_create + Storemoves_create are documented/verified. Storeouts_save's wire wrapper is
-reverse-engineered (Hermes) and marked VERIFY-LIVE — trial it against a test object before STORE_OPS_BARSY_LIVE=1.
+⚠ SHAPES: Storeloads_create + Storemoves_create are documented/verified. Storeouts_save and Revisions_save
+were CAPTURED from Barsy's own admin UI (owner clicked «Запиши» with an XHR interceptor armed, 2026-07-28)
+— those two are now real shapes, not reverse-engineering. Storemoves_save (Прехвърляне's UI path) and the
+revision CLOSE/apply step are still uncaptured; see the notes at each.
 """
 import asyncio
 import datetime as _dt
@@ -55,6 +57,29 @@ async def _depots() -> list[dict]:
     return rows or []
 
 
+async def _article(article_id: int) -> dict:
+    """One article's card, or {} if unreadable. Barsy's own UI calls Articles_get when a row is picked in
+    a store document — the denormalised fields it then sends (name, unit, price, lot type) come from here."""
+    try:
+        a = await run_in_threadpool(barsy.call, "Articles_get", {"article_id": article_id})
+        return a if isinstance(a, dict) else {}
+    except Exception:  # noqa: BLE001 — a missing card must not block the document
+        return {}
+
+
+async def _article_names(ids: list[int]) -> dict[int, str]:
+    """article_id → article_name for the rows of a document. Barsy stores by id but its UI sends the name
+    ALONGSIDE it (denormalised, e.g. in a Storeouts row) and that name is what a human later reads on the
+    протокол за брак — so we resolve real names rather than shipping blanks. Bounded + best-effort."""
+    sem = asyncio.Semaphore(8)
+
+    async def _one(aid: int) -> tuple[int, str]:
+        async with sem:
+            return aid, str((await _article(aid)).get("article_name") or "")
+
+    return dict(await asyncio.gather(*[_one(i) for i in dict.fromkeys(ids)]))
+
+
 def _rows_payload(lines: list["OpLine"]) -> list[dict]:
     out = []
     for ln in lines:
@@ -91,6 +116,10 @@ class OpLine(BaseModel):
     amount: float = Field(gt=0)
     note: str | None = None
     current_price: float | None = None   # load only (unit cost)
+    # Barsy's UI sends the article NAME denormalised beside the id in a store-document row. The picker
+    # already knows it, so let the client pass it and save a lookup; the backend resolves any that are
+    # missing rather than sending a blank into a document a human will later read.
+    article_name: str | None = None
     # Изписване only. Barsy models the write-off reason PER ROW, and that is not cosmetic: „Липса"
     # (shortage) and „Собствена покупка" (own use) carry DIFFERENT чл.79/80 ЗДДС treatment. One
     # document may legitimately mix them, so a single document-level reason would mistag lines.
@@ -222,15 +251,20 @@ async def manual_load(req: LoadReq, actor: User = Depends(current_owner),
 @router.post("/writeoff")
 async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
                     session: AsyncSession = Depends(get_async_session)):
-    """Изписване → Storeouts_save. Envelope confirmed by capturing the Barsy UI's own save request
-    (2026-07-27): `{action_type:"save", values:{…flat header incl depot_id STRING…}, rows:[…]}` — header
-    is FLAT in `values`, `rows` is a sibling (NOT nested elements). All ids sent as strings.
-    The reason_id drives the чл.79/80 ЗДДС VAT treatment — the panel records it; the протокол за брак is
-    the audit defence. Reasons come from /writeoff-reasons."""
+    """Изписване → Storeouts_save. Envelope CAPTURED from Barsy's own UI (owner clicked «Запиши» with an
+    interceptor armed, 2026-07-28), so this is the real shape, not a guess:
+    `{id, action_type, values:{…flat header…}, rows:[…]}` — header FLAT in `values`, `rows` a sibling
+    (NOT nested elements), ids as strings, `id:0` = new document and `row_id:""` = new row.
+    The capture also settled the design question: **reason_id is per ROW**, exactly as this endpoint
+    assumed — „Липса" and „Собствена покупка" carry different чл.79/80 ЗДДС treatment, so flattening
+    them to one document-level reason would mistag lines. Reasons come from /writeoff-reasons."""
     depot = req.depot_id or get_settings().barsy_depot_id
+    names = await _article_names([ln.article_id for ln in req.lines])
     body = {
+        "id": 0,                                 # 0 = new document (captured)
         # save_and_close POSTS the document → decrements stock (verified live: 10→9). Plain "save" is
         # a draft (status0) that does NOT move stock; "save_and_close" (status1) is the actual write-off.
+        # (The capture itself used "save" — the owner deliberately stopped at the draft step.)
         "action_type": "save_and_close",
         "values": {
             "depot_id": str(depot),
@@ -238,12 +272,18 @@ async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
             "doc_date": req.doc_date or _now(),
             "description": req.description,
             "deal_id": None,
+            "deal_title": "",                    # sent by the UI alongside deal_id
         },
         "rows": [
             # per-row reason (falls back to the document default) — mixing „Липса" and „Собствена
             # покупка" in one document is legitimate and must not be flattened to a single reason
-            {"article_id": str(ln.article_id), "amount": _amt(ln.amount),
-             "reason_id": str(ln.reason_id or req.reason_id), "notes": ln.note or "", "lot_value": ""}
+            {"row_id": "",                       # "" = new row (captured)
+             "article_id": ln.article_id,        # int here — the capture sends the id unquoted…
+             "article_name": ln.article_name or names.get(ln.article_id, ""),  # …and the name beside it
+             "amount": _amt(ln.amount),
+             "reason_id": str(ln.reason_id or req.reason_id),
+             "notes": ln.note or "",
+             "lot_value": ""}                    # batch/lot value; empty for non-lot articles
             for ln in req.lines
         ],
     }
@@ -317,6 +357,7 @@ async def storno(req: StornoReq, actor: User = Depends(current_owner),
 class RevisionLine(BaseModel):
     article_id: int
     counted: float = Field(ge=0)          # physically counted quantity (set-to-exact)
+    notes: str | None = None
 
 
 class RevisionReq(BaseModel):
@@ -327,9 +368,57 @@ class RevisionReq(BaseModel):
     confirm: bool = False
 
 
-async def _article_stock(article_id: int) -> float | None:
+class RevisionCountReq(BaseModel):
+    """Fill counted quantities into an ALREADY-OPEN revision (Barsy: Ревизия → Запиши).
+
+    `revision_id` is the id of a revision opened in Barsy — the panel does not open one, because
+    Revisions_create's envelope is not captured and a revision's SCOPE (which articles it covers) is
+    exactly the thing we must not guess at. The `values` block below must mirror the revision AS OPENED;
+    the defaults match the captured document and can be overridden per call."""
+    revision_id: int = Field(gt=0)
+    lines: list[RevisionLine] = Field(min_length=1)
+    amount_date: str                      # effective stock moment of the revision ("YYYY-MM-DD HH:MM:SS")
+    depot_id: int | None = None
+    cat_id: int | None = None             # scope: category (None = Всички)
+    stream_id: int | None = None          # scope: stream  (None = Всички)
+    view_mode: str = "1"
+    price_mode: str = "1"
+    lots_mode: str = "1"
+    description: str = ""
+    confirm: bool = False
+
+
+def _num(v: object) -> float | None:
+    """Barsy returns amounts as bare numbers, numeric strings, or a {amount: …} wrapper — normalise, and
+    return None for anything unreadable so a failed read never masquerades as a real 0."""
+    if isinstance(v, dict):
+        for k in ("store_amount", "amount", "value"):
+            if k in v:
+                return _num(v[k])
+        return None
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+async def _article_stock(article_id: int, depot_id: int | None = None) -> float | None:
     """Current system on-hand for an article, or None if the read FAILED (distinguished from a real 0 —
-    presenting a failed read as 0 would show a phantom surplus on the count sheet)."""
+    presenting a failed read as 0 would show a phantom surplus on the count sheet).
+
+    Primary: `Articles_getStoreAmount {article_id, depot_id}` — UNDOCUMENTED but confirmed live (it is
+    what Barsy's own UI calls to fill the Наличност column of a store document). It is depot-scoped,
+    which the whole-article read below is not, so it is the correct number for a per-depot count sheet.
+    Falls back to the Articles_get read if that method is unavailable on this install."""
+    depot = depot_id or get_settings().barsy_depot_id
+    try:
+        r = await run_in_threadpool(barsy.call, "Articles_getStoreAmount",
+                                    {"article_id": article_id, "depot_id": depot})
+        n = _num(r)
+        if n is not None:
+            return n
+    except Exception:  # noqa: BLE001 — fall through to the whole-article read
+        pass
     try:
         r = await run_in_threadpool(barsy.call, "Articles_get",
                                     {"article_id": article_id, "extra_properties": {"store_amount": 1}})
@@ -350,7 +439,7 @@ async def revision_preview(req: RevisionReq, _: User = Depends(current_active_us
 
     async def _one(aid: int) -> float | None:
         async with sem:
-            return await _article_stock(aid)
+            return await _article_stock(aid, req.depot_id)
 
     stocks = await asyncio.gather(*[_one(ln.article_id) for ln in req.lines])
     lines = []
@@ -368,34 +457,83 @@ async def revision_preview(req: RevisionReq, _: User = Depends(current_active_us
             "unknown_lines": sum(1 for s in stocks if s is None)}
 
 
-@router.post("/revision")
-async def revision_post(req: RevisionReq, actor: User = Depends(current_owner),
-                        session: AsyncSession = Depends(get_async_session)):
-    """Ревизия → posts the count (adjusts on-hand to the counted qty). Gated → dry-run body.
-
-    🚨 SHAPE SUPERSEDED — DO NOT ENABLE THIS PATH. The flat one-shot envelope below was GUESSED. A live
-    capture of Barsy's own UI (2026-07-28) shows a ревизия is a **scoped document**, not a list of
-    adjustments: `Revisions_create` opens it with a scope (depot + `view_mode:1` = ALL articles by
-    category, `cat_id`/`stream_id` empty = Всички, `amount_moment`, `price_mode`, `lots_mode`), then
-    `Revisions_edit {id}` + rows via `{id, action_type:"values"}`, then a separate close step.
-
-    The open question that blocks this: does closing apply ONLY the sent rows, or treat every article IN
-    SCOPE that wasn't counted as ZERO? Under `view_mode:1` the latter would wipe the whole catalogue's
-    stock in one call. Until that's answered, this endpoint stays dry-run-only and must not be wired to
-    a live gate — rebuild it against the captured create→edit→close flow instead."""
-    depot = req.depot_id or get_settings().barsy_depot_id
-    body = {
-        "action_type": "save_and_close",       # posts the revision (adjusts stock); "save" = draft
-        "values": {"depot_id": str(depot), "doc_date": req.doc_date or _now(),
-                   "description": req.description},
-        "rows": [{"row_id": str(i + 1), "article_id": str(ln.article_id), "amount": _amt(ln.counted)}
-                 for i, ln in enumerate(req.lines)],
+async def _revision_row(ln: RevisionLine, depot_id: int | None) -> dict:
+    """One Revisions_save row, built from the SAME two reads Barsy's UI makes when a row is picked
+    (Articles_get + Articles_getStoreAmount) rather than from invented values. Field names/shape are from
+    the captured save."""
+    a, sys_amt = await asyncio.gather(_article(ln.article_id), _article_stock(ln.article_id, depot_id))
+    store_amount = sys_amt if sys_amt is not None else 0.0
+    diff = round(ln.counted - store_amount, 3)
+    price = _num(a.get("actual_price")) or 0
+    return {
+        "row_unique": ln.article_id,                 # capture: equals article_id for a fresh row
+        "article_id": ln.article_id,
+        "article_name": a.get("article_name") or "",
+        "lot_type_id": a.get("lot_type_id"),
+        "ref_num": a.get("ref_num"),
+        "amount_unit": _num(a.get("amount_unit")) or 1,
+        "amount_type_name_short": a.get("amount_type_name_short") or "",
+        "store_amount": store_amount,                # В системата
+        "amount": _amt(ln.counted),                  # Отчетено (the counted quantity — a string)
+        "diff_1": diff, "diff_2": diff,              # computed difference (UI sends both)
+        "actual_price": price, "cur": price,
+        "rev_res_id": None, "notes": ln.notes or None, "picture": None,
+        "cat_path": a.get("master_cat") or a.get("categories_names") or "",
+        # a DOM handle from Barsy's own list widget; echoed back verbatim in the capture. Harmless, but
+        # it is UI bookkeeping rather than data — kept only because we send what the UI sends.
+        "list_row_id": f"eStructList_1_{ln.article_id}",
     }
+
+
+@router.post("/revision/count")
+async def revision_count(req: RevisionCountReq, actor: User = Depends(current_owner),
+                         session: AsyncSession = Depends(get_async_session)):
+    """Write counted quantities into an OPEN revision → `Revisions_save` with `mode:"changes"`.
+
+    Shape CAPTURED from Barsy's UI (2026-07-28), which also answered the question that blocked the old
+    implementation. The owner counted ONE article inside a 38-article revision and pressed «Запиши»; the
+    request carried `mode:"changes"` and exactly ONE row. So **a revision save sends only the rows that
+    changed, and uncounted articles in scope are neither sent nor zeroed** — the catalogue-wipe risk that
+    kept this endpoint disabled does not exist. We therefore send only counted lines, with no defensive
+    full-scope padding (padding would be the dangerous move: it would assert counts nobody made).
+
+    The panel does NOT open the revision — `Revisions_create` is uncaptured, and a revision's SCOPE is
+    precisely what must not be guessed. Open it in Barsy, then bring its id here. Applying it
+    («Приложи промените» — the step that actually corrects stock) is also uncaptured and stays in Barsy;
+    see /revision/apply."""
+    rows = await asyncio.gather(*[_revision_row(ln, req.depot_id) for ln in req.lines])
+    body = {
+        "action_type": "save",            # captured: a draft save of the counts; apply is a separate step
+        "id": req.revision_id,
+        "mode": "changes",                # ONLY the changed rows travel — see the docstring
+        "values": {
+            "cat_id": req.cat_id, "view_mode": req.view_mode, "stream_id": req.stream_id,
+            "price_mode": req.price_mode, "lots_mode": req.lots_mode,
+            "amount_date": req.amount_date,          # the revision's effective stock moment
+            "last_revision_amount_date": None,
+            "description": req.description,
+        },
+        "rows": list(rows),
+    }
+    counted = sum(1 for r in rows if r["diff_1"])
+    warn = [] if counted else ["ℹ Нито един ред не се различава от системната наличност — записът няма ефект."]
     return await _gate_or_dry(
-        actor, session, action="storeop.revision", method="Revisions_save", body=body,
-        target=f"{len(req.lines)} реда / depot {depot}", confirm=req.confirm,
-        warnings=["🚨 ФОРМАТЪТ Е ОСТАРЯЛ — не включвай реален запис по този път. Реалната ревизия в Barsy "
-                  "е документ с ОБХВАТ (create → edit → close), а не списък с корекции.",
-                  "⚠ НЕИЗЯСНЕНО: дали затварянето коригира САМО подадените редове, или третира всеки "
-                  "артикул В ОБХВАТА, който не е преброен, като 0 — при обхват от всички артикули "
-                  "това би нулирало наличностите на целия каталог."])
+        actor, session, action="storeop.revision.count", method="Revisions_save", body=body,
+        target=f"ревизия #{req.revision_id} / {len(req.lines)} реда", confirm=req.confirm,
+        warnings=warn + ["ℹ Записът само нанася преброените количества. Наличността се коригира чак при "
+                         "„Приложи промените“ в Barsy."])
+
+
+@router.post("/revision/apply")
+async def revision_apply(_: User = Depends(current_owner)):
+    """«Приложи промените» — the step that actually corrects stock. NOT IMPLEMENTED, deliberately.
+
+    Its request was not captured (the owner stopped at «Запиши» on purpose), and this is the single most
+    destructive operation in Склад: it rewrites on-hand for every row of the document. Guessing its
+    envelope is exactly the mistake that produced the previous superseded revision code, so the panel
+    refuses rather than emitting an invented body — apply it in Barsy until the capture exists."""
+    raise HTTPException(
+        status.HTTP_501_NOT_IMPLEMENTED,
+        "Прилагането на ревизия („Приложи промените“) все още се прави в Barsy. Панелът нанася "
+        "преброените количества, но не коригира наличностите — форматът на тази стъпка не е потвърден и "
+        "няма да бъде налучкван.")

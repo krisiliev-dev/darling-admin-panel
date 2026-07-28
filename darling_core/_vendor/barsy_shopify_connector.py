@@ -1286,6 +1286,13 @@ def barsy_article_to_shopify(code, do_write=False, force=False):
     deleted (or the article is gone from Barsy). Echo-guarded. (owner auto-sync 2026-07-28)"""
     code = str(code)
     art = _catalog().get(code)
+    # The shipping-fee article is BARSY-SIDE ONLY. It is is_service=1, so shopify_status() returns None and
+    # the archive branch below would ARCHIVE any Shopify product carrying this SKU. If the storefront ever
+    # sells delivery as a cart LINE ITEM (needed on Basic, where live courier rates can't feed the native
+    # shipping row), that variant must carry SKU=DELIVERY to book against article 11365 — and this sync
+    # would silently archive it mid-trading, breaking checkout. Never sync or archive it either way.
+    if code == SHIPPING_CODE:
+        return {"skipped": "shipping-fee article — Barsy-side only, never synced or archived", "code": code}
     pid, vid = _find_shopify(code)
 
     def _archive(reason):

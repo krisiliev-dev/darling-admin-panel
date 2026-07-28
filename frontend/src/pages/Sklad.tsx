@@ -93,11 +93,17 @@ function ResultCard({ res }: { res: WriteResult }) {
 type VarianceRow = { article_id: number; system: number | null; counted: number; variance: number | null; known: boolean }
 type Preview = { lines: VarianceRow[]; total_variance: number; shortage_lines: number; surplus_lines: number; unknown_lines: number }
 
-// Ревизия — physical stocktake: enter counted quantities, compute variance vs Barsy on-hand, then post
-// (Revisions_save save_and_close adjusts stock to the count). Preview is read-only; post is gated.
+// Ревизия — physical stocktake. TWO steps, and the split is deliberate, not a limitation we haven't got
+// round to: the panel WRITES the counted quantities into a revision that was opened in Barsy
+// (Revisions_save, mode:"changes" — only counted rows travel, uncounted articles are untouched), and the
+// APPLY step («Приложи промените», the one that actually rewrites on-hand) stays in Barsy because its
+// request has never been captured. Counting is the laborious part and it happens here; the irreversible
+// part happens where its format is known.
 function RevisionPanel({ depots }: { depots: Depot[] }) {
   const confirm = useConfirm()
   const [depot, setDepot] = useState('')
+  const [revisionId, setRevisionId] = useState('')
+  const [amountDate, setAmountDate] = useState('')
   const [lines, setLines] = useState<{ article_id: string; counted: string }[]>([{ article_id: '', counted: '' }])
   const [preview, setPreview] = useState<Preview | null>(null)
   const [res, setRes] = useState<WriteResult | null>(null)
@@ -115,16 +121,27 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
     const rows = payload()
     setErr('')
     if (rows.length === 0) { setErr('Въведи поне един ред с артикул и преброено количество.'); return }
-    // A ревизия REWRITES stock to the counted numbers — never fire it off a single click, and never
-    // send confirm:true before the operator has seen the specifics restated.
-    if (kind === 'post' && !(await confirm({
-      danger: true, confirmLabel: 'Проведи ревизия', title: `Ревизия — ${depotName}`,
-      message: `${rows.length} реда · склад: ${depotName}.\n\nНаличността в Barsy ще бъде коригирана до преброените количества — реален запис, който не се връща с „назад“. Виж първо „Разлики“.`,
-    }))) return
+    if (kind === 'post') {
+      if (!revisionId) { setErr('Въведи номера на ревизията, отворена в Barsy.'); return }
+      if (!amountDate) { setErr('Въведи момента на наличността („Към дата“ от ревизията в Barsy).'); return }
+      // This writes counts into a real Barsy document. It does NOT yet change stock — say exactly that,
+      // so nobody reads the confirm as the irreversible step (or, worse, skips checking the counts
+      // because they think a later screen will ask again).
+      if (!(await confirm({
+        confirmLabel: 'Запиши количествата', title: `Ревизия #${revisionId} — ${depotName}`,
+        message: `${rows.length} реда · склад: ${depotName}.\n\nПреброените количества се записват в ревизия #${revisionId}. Наличността НЕ се променя сега — това става с „Приложи промените“ в Barsy.`,
+      }))) return
+    }
     setBusy(kind); if (kind === 'post') setRes(null)
     try {
-      if (kind === 'preview') setPreview(await api.post('/api/store-ops/revision/preview', { lines: rows }))
-      else setRes(await api.post('/api/store-ops/revision', { lines: rows, depot_id: depot ? Number(depot) : undefined, confirm: true }))
+      if (kind === 'preview') {
+        setPreview(await api.post('/api/store-ops/revision/preview', { lines: rows, depot_id: depot ? Number(depot) : undefined }))
+      } else {
+        setRes(await api.post('/api/store-ops/revision/count', {
+          revision_id: Number(revisionId), lines: rows, amount_date: amountDate,
+          depot_id: depot ? Number(depot) : undefined, confirm: true,
+        }))
+      }
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Операцията се провали.')
     } finally { setBusy('') }
@@ -132,15 +149,30 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
 
   return (
     <Sheet clip="left">
-      <label style={{ fontSize: '0.85rem' }}>Склад{' '}
-        <select className="input-paper" style={{ width: 'auto' }} value={depot}
-          aria-label="Склад за ревизия" onChange={(e) => setDepot(e.target.value)}>
-          <option value="">— основен —</option>
-          {depots.map((d) => <option key={d.depot_id} value={d.depot_id}>{d.depot_name || d.depot_id}</option>)}
-        </select>
-      </label>
-      <p style={{ fontSize: '0.8rem', color: 'var(--pencil)', margin: '0.4rem 0' }}>
-        Въведи преброените количества. „Разлики“ сравнява с наличността в Barsy; „Проведи“ коригира до брояча.
+      <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <label style={{ fontSize: '0.85rem' }}>Склад{' '}
+          <select className="input-paper" style={{ width: 'auto' }} value={depot}
+            aria-label="Склад за ревизия" onChange={(e) => setDepot(e.target.value)}>
+            <option value="">— основен —</option>
+            {depots.map((d) => <option key={d.depot_id} value={d.depot_id}>{d.depot_name || d.depot_id}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: '0.85rem' }}>№ на ревизия{' '}
+          <input className="input-paper" placeholder="напр. 2" value={revisionId} inputMode="numeric"
+            aria-label="Номер на ревизията, отворена в Barsy"
+            onChange={(e) => setRevisionId(e.target.value)} style={{ width: 90 }} />
+        </label>
+        <label style={{ fontSize: '0.85rem' }}>Към момент{' '}
+          <input className="input-paper" placeholder="2026-06-04 10:48:58" value={amountDate}
+            aria-label="Момент на наличността (както е зададен в ревизията)"
+            onChange={(e) => setAmountDate(e.target.value)} style={{ width: 190 }} />
+        </label>
+      </div>
+      <p style={{ fontSize: '0.8rem', color: 'var(--pencil)', margin: '0.5rem 0' }}>
+        Ревизията се <strong>отваря в Barsy</strong> (там ѝ се задава обхватът), после тук се въвеждат
+        преброените количества. „Разлики“ сравнява с наличността; „Запиши“ нанася броенето в ревизията.
+        Наличността се коригира чак с „Приложи промените“ в Barsy. Изпращат се <strong>само
+        преброените редове</strong> — непреброените артикули не се променят и не се нулират.
       </p>
       <div style={{ display: 'grid', gap: '0.5rem' }}>
         {lines.map((l, i) => (
@@ -166,8 +198,8 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
         <button className="btn-paper" onClick={() => void run('preview')} disabled={!!busy}>
           {busy === 'preview' ? '…' : 'Разлики'}
         </button>
-        <button className="btn-paper btn-red" onClick={() => void run('post')} disabled={!!busy}>
-          {busy === 'post' ? 'Изпращане…' : 'Проведи ревизия'}
+        <button className="btn-paper" onClick={() => void run('post')} disabled={!!busy}>
+          {busy === 'post' ? 'Изпращане…' : 'Запиши количествата'}
         </button>
       </div>
       {err && <p style={{ color: 'var(--red)', marginTop: '0.5rem' }}>{err}</p>}

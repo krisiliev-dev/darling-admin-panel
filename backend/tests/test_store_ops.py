@@ -59,18 +59,27 @@ async def test_load_dry_run_writes_nothing(owner_client, barsy_recorder):
 
 
 async def test_writeoff_dry_run_matches_captured_envelope(owner_client, barsy_recorder):
+    """Pinned field-for-field against the real Storeouts_save captured from Barsy's own UI (2026-07-28):
+    flat `values` + sibling `rows`, `id:0` = new document, `row_id:""` = new row, `deal_title` beside
+    `deal_id`, and the article NAME denormalised next to its id — that name is what a human reads on the
+    протокол за брак, so a blank there is a real defect. Note article_id travels as an INT in a row
+    (unlike the header ids, which are strings) — that asymmetry is Barsy's, and it is in the capture."""
+    barsy_recorder.set_return("Articles_get", {"article_id": 7, "article_name": "BAST PLASTIC - шпатула"})
     r = await owner_client.post("/api/store-ops/writeoff", json={
         "lines": [{"article_id": 7, "amount": 2, "note": "счупено"}], "reason_id": 1,
         "description": "витрина"})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["dry_run"] is True and body["method"] == "Storeouts_save"
-    # envelope confirmed from the Barsy UI capture: flat `values` (strings) + sibling `rows`
     assert body["barsy_body"]["action_type"] == "save_and_close"   # posts → decrements stock
+    assert body["barsy_body"]["id"] == 0                           # 0 = new document
     vals = body["barsy_body"]["values"]
     assert vals["type_id"] == "-1" and vals["depot_id"] == "1"     # depot flat, string
+    assert vals["deal_id"] is None and vals["deal_title"] == ""
     row = body["barsy_body"]["rows"][0]
-    assert row["article_id"] == "7" and row["amount"] == "2" and row["reason_id"] == "1"
+    assert row["article_id"] == 7 and row["amount"] == "2" and row["reason_id"] == "1"
+    assert row["row_id"] == "" and row["lot_value"] == "" and row["notes"] == "счупено"
+    assert row["article_name"] == "BAST PLASTIC - шпатула"
     assert "storeout" not in body["barsy_body"]                    # NOT the old nested shape
 
 
@@ -165,19 +174,57 @@ async def test_revision_preview_flags_failed_read_not_zero(owner_client, barsy_r
     assert r.json()["unknown_lines"] == 1        # NOT counted as a +7 phantom surplus
 
 
-async def test_revision_post_dry_run_shape(owner_client, barsy_recorder):
-    r = await owner_client.post("/api/store-ops/revision", json={
-        "lines": [{"article_id": 5, "counted": 7}], "depot_id": 1})
+def _count_req(**over):
+    base = {"revision_id": 2, "lines": [{"article_id": 5, "counted": 7}],
+            "amount_date": "2026-06-04 10:48:58", "depot_id": 1}
+    base.update(over)
+    return base
+
+
+async def test_revision_count_dry_run_matches_the_captured_shape(owner_client, barsy_recorder):
+    """Pinned against the real Revisions_save captured from Barsy's UI (2026-07-28)."""
+    barsy_recorder.set_return("Articles_get", {
+        "article_id": 5, "article_name": "Тест артикул", "actual_price": 3.58,
+        "amount_type_name_short": "бр", "lot_type_id": 1})
+    barsy_recorder.set_return("Articles_getStoreAmount", 0)
+    r = await owner_client.post("/api/store-ops/revision/count", json=_count_req())
     assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["dry_run"] is True and body["method"] == "Revisions_save"
-    assert body["barsy_body"]["action_type"] == "save_and_close"     # posts → adjusts stock
-    assert body["barsy_body"]["values"]["depot_id"] == "1"
-    assert body["barsy_body"]["rows"][0] == {"row_id": "1", "article_id": "5", "amount": "7"}
+    body = r.json()["barsy_body"]
+    assert r.json()["dry_run"] is True and r.json()["method"] == "Revisions_save"
+    assert body["id"] == 2 and body["action_type"] == "save"
+    assert body["mode"] == "changes"                      # ONLY changed rows travel
+    assert body["values"]["amount_date"] == "2026-06-04 10:48:58"
+    assert body["values"]["view_mode"] == "1" and body["values"]["lots_mode"] == "1"
+    row = body["rows"][0]
+    assert row["article_id"] == 5 and row["article_name"] == "Тест артикул"
+    assert row["store_amount"] == 0 and row["amount"] == "7"     # В системата vs Отчетено
+    assert row["diff_1"] == 7 and row["diff_2"] == 7
+    assert row["actual_price"] == 3.58 and row["cur"] == 3.58
+
+
+async def test_revision_count_sends_only_the_counted_rows(owner_client, barsy_recorder):
+    """The capture settled this: the owner counted 1 article inside a 38-article revision and Barsy sent
+    ONE row with mode:'changes'. Uncounted articles are neither sent nor zeroed — so the panel must never
+    pad the document to full scope. Padding would assert counts nobody made and zero live stock."""
+    barsy_recorder.set_return("Articles_getStoreAmount", 4)
+    r = await owner_client.post("/api/store-ops/revision/count", json=_count_req(
+        lines=[{"article_id": 5, "counted": 7}, {"article_id": 6, "counted": 2}]))
+    assert r.status_code == 200, r.text
+    rows = r.json()["barsy_body"]["rows"]
+    assert len(rows) == 2 and {r_["article_id"] for r_ in rows} == {5, 6}
+
+
+async def test_revision_apply_is_refused_not_guessed(owner_client, barsy_recorder):
+    """«Приложи промените» rewrites on-hand for the whole document and its request was never captured.
+    The panel must refuse rather than emit an invented body — that guess is what broke the last version."""
+    r = await owner_client.post("/api/store-ops/revision/apply", json={})
+    assert r.status_code == 501
+    assert "Barsy" in r.json()["detail"]
+    assert not [op for op in barsy_recorder.operations if op.startswith("Revisions")]
 
 
 async def test_revision_requires_owner(staff_client):
-    r = await staff_client.post("/api/store-ops/revision", json={"lines": [{"article_id": 5, "counted": 1}]})
+    r = await staff_client.post("/api/store-ops/revision/count", json=_count_req())
     assert r.status_code in (401, 403)
 
 
@@ -190,7 +237,20 @@ async def test_writeoff_live_sends_storeouts_save(owner_client, barsy_recorder, 
     assert r.status_code == 200 and r.json()["dry_run"] is False
     body = barsy_recorder.body_for("Storeouts_save")
     assert body["action_type"] == "save_and_close" and body["values"]["depot_id"] == "1"
-    assert body["rows"][0]["article_id"] == "7"
+    assert body["rows"][0]["article_id"] == 7
+
+
+async def test_writeoff_reason_is_per_row_not_flattened(owner_client, barsy_recorder):
+    """„Липса" (чл.79 correction) and „Собствена покупка" (чл.80) can legitimately appear in ONE document
+    and carry different VAT treatment — the capture confirmed reason_id is a ROW field. A line's own
+    reason must win over the document default, or lines get mistagged for VAT."""
+    r = await owner_client.post("/api/store-ops/writeoff", json={
+        "lines": [{"article_id": 7, "amount": 1, "reason_id": 2}, {"article_id": 8, "amount": 1}],
+        "reason_id": 1})
+    assert r.status_code == 200, r.text
+    rows = r.json()["barsy_body"]["rows"]
+    assert rows[0]["reason_id"] == "2"        # line's own reason
+    assert rows[1]["reason_id"] == "1"        # falls back to the document default
 
 
 async def test_transfer_live_sends_storemoves_create(owner_client, barsy_recorder, monkeypatch):
@@ -207,16 +267,16 @@ async def test_transfer_live_sends_storemoves_create(owner_client, barsy_recorde
 async def test_revision_live_sends_revisions_save(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(store_ops, "get_settings", _live_settings)
     barsy_recorder.set_return("Revisions_save", 3)
-    r = await owner_client.post("/api/store-ops/revision", json={
-        "lines": [{"article_id": 5, "counted": 8}], "depot_id": 1, "confirm": True})
+    r = await owner_client.post("/api/store-ops/revision/count",
+                                json=_count_req(lines=[{"article_id": 5, "counted": 8}], confirm=True))
     assert r.status_code == 200 and r.json()["dry_run"] is False
     body = barsy_recorder.body_for("Revisions_save")
-    assert body["action_type"] == "save_and_close" and body["rows"][0]["amount"] == "8"
+    assert body["action_type"] == "save" and body["id"] == 2 and body["rows"][0]["amount"] == "8"
 
 
 # ---------------------------------------------------------------- confirm guard (live only) ---
 async def test_live_write_without_confirm_is_400_and_writes_nothing(owner_client, barsy_recorder, monkeypatch):
     monkeypatch.setattr(store_ops, "get_settings", _live_settings)
-    r = await owner_client.post("/api/store-ops/revision", json={"lines": [{"article_id": 5, "counted": 1}]})
+    r = await owner_client.post("/api/store-ops/revision/count", json=_count_req())
     assert r.status_code == 400
     assert "Revisions_save" not in barsy_recorder.operations   # gate-on but unconfirmed → no write

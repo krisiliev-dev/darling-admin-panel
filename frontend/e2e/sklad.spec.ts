@@ -76,6 +76,36 @@ test.describe('Склад — store operations', () => {
     await expect(page.getByText('Storeloads_save')).toBeVisible()
   })
 
+  test('Ревизия writes counts into a Barsy-opened revision and says stock is not yet changed', async ({ page }) => {
+    // The two-step split is the safety property here: the panel records the COUNT, Barsy applies it.
+    // If this ever collapses into one button again, the operator loses the review step before an
+    // irreversible stock rewrite — so both the required revision id and the wording are asserted.
+    let sent: Record<string, unknown> | null = null
+    await mockSklad(page)
+    await page.route('**/api/store-ops/revision/count', async (r) => {
+      sent = r.request().postDataJSON()
+      return r.fulfill({ json: { ok: true, dry_run: true, method: 'Revisions_save', barsy_body: { mode: 'changes' } } })
+    })
+    await page.goto('/sklad')
+    await page.getByRole('button', { name: 'Ревизия' }).click()
+    await page.getByLabel(/Артикул \(ID\), ред 1/).fill('5')
+    await page.getByLabel(/Преброено количество, ред 1/).fill('7')
+
+    // without the revision number the write must not even be attempted
+    await page.getByRole('button', { name: 'Запиши количествата' }).click()
+    await expect(page.getByText(/Въведи номера на ревизията/)).toBeVisible()
+    expect(sent).toBeNull()
+
+    await page.getByLabel(/Номер на ревизията/).fill('2')
+    await page.getByLabel(/Момент на наличността/).fill('2026-06-04 10:48:58')
+    await page.getByRole('button', { name: 'Запиши количествата' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(/Наличността НЕ се променя сега/)
+    await dialog.getByRole('button', { name: 'Запиши количествата' }).click()
+    await expect(page.getByText('Revisions_save')).toBeVisible()
+    expect(sent!).toMatchObject({ revision_id: 2, amount_date: '2026-06-04 10:48:58' })
+  })
+
   test('cancelling the confirm sends no store-ops write at all', async ({ page }) => {
     // the modal is the last guard before a real Barsy stock adjustment — cancelling must be inert
     let posted = false

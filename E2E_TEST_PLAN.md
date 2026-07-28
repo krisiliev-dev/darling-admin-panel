@@ -12,7 +12,10 @@ Data note: `db_products` (9,241) = old Microinvest analytics history, NOT the Ba
 - [ ] A5. **Bulk rename по рецепта** → Barsy `article_name`
 - [ ] A6. **Нов продукт** (barcode → enrich → images → save) → Barsy article create (cat_id, brand, GTIN, weight, oversell)
 - [ ] A7. **Доставки/Приемане** (delivery intake batch) → Barsy storeload (price_mode=1, EUR)
-- [ ] A8. **Склад — Зареждане / Изписване / Прехвърляне / Ревизия / Сторно** → Barsy stock moves (confirm=true)
+- [ ] A8. **Склад — Зареждане / Изписване / Прехвърляне / Ревизия / Сторно** → Barsy stock moves (confirm=true).
+  Ревизия is TWO steps by design: the panel writes the counts (`Revisions_save`, `mode:"changes"` — only
+  counted rows travel), and **«Приложи промените» is applied in Barsy** — that request was never captured,
+  so the panel returns 501 rather than guessing it. Прехвърляне still needs a 2nd depot.
 - [ ] A9. **Продукт detail edit** (name/desc/barcode) → Barsy article_update
 - [ ] A10. **Наличности** low-stock + stale-stock alerts
 - [ ] A11. **Заявки** supplier PO (email/export; draft storeload)
