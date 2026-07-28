@@ -1,6 +1,23 @@
 # -*- coding: utf-8 -*-
 """Доставки (receiving): upload → new-vs-existing split → barcode scan-confirm → finalise gate →
 one Barsy storeload. Uses the bundled supplier_codes.jsonl + barcodes.jsonl for matching/scanning."""
+
+import pytest
+
+import app.routers.intake as _intake_mod
+
+
+@pytest.fixture
+def intake_push_live(monkeypatch):
+    """These journeys push a new product to Barsy and then finalise the delivery, so they need the REAL
+    push path. push-barsy is gated by DELIVERY_BARSY_LIVE (default OFF so a pre-launch click can't create
+    a live article); with it off the push dry-runs, no article_id comes back, and the delivery's
+    new-products gate never clears. Patches INTAKE's get_settings only — the delivery-side gate (and its
+    dry-run test above) reads deliveries.get_settings and is untouched."""
+    from types import SimpleNamespace
+    monkeypatch.setattr(_intake_mod, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
+
 import io
 from types import SimpleNamespace
 
@@ -304,7 +321,7 @@ async def test_from_rows_creates_and_matches(owner_client):
 
 
 @pytest.mark.asyncio
-async def test_full_new_product_loop_clears_finalise_gate(owner_client, barsy_recorder):
+async def test_full_new_product_loop_clears_finalise_gate(intake_push_live, owner_client, barsy_recorder):
     """delivery → new product staged as draft → enrich+approve (PUT) → push to Barsy writes the
     article_id back onto the line → finalise gate clears."""
     b = await _create(owner_client)
@@ -340,7 +357,7 @@ async def test_full_new_product_loop_clears_finalise_gate(owner_client, barsy_re
 
 
 @pytest.mark.asyncio
-async def test_delivery_product_stays_checkmarked_then_leaves_on_finalise(owner_client, barsy_recorder, monkeypatch):
+async def test_delivery_product_stays_checkmarked_then_leaves_on_finalise(intake_push_live, owner_client, barsy_recorder, monkeypatch):
     """Spec: a saved delivery product STAYS in the Нов продукт queue (checkmarked, grouped by its
     delivery) and leaves only when the whole delivery is finalised — not one-by-one."""
     b = await _create(owner_client)

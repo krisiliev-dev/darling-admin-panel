@@ -364,7 +364,16 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         # is DEPRECATED/dropped); Clientorders_create reads `current_price` (create.rst). Passing BOTH
         # (each other method drops the field it doesn't use) makes sale AND clientorder book the paid price
         # — else the clientorder silently falls back to the article's base price. (fixed 2026-07-28)
-        _line_price = str(li.get("price") or art.get("actual_price") or "0")
+        # DISCOUNTS: `price` on a webhook line item is the ORIGINAL unit price. An automatic/bundle
+        # discount does NOT reduce it — it arrives as `total_discount` and/or `discount_allocations[]`.
+        # Booking `price` would over-declare the бон and break COD reconciliation by the discount amount
+        # (same failure class as the un-booked shipping line). Book what the customer actually pays.
+        _qty = float(li.get("quantity") or 0) or 1.0
+        _gross_unit = float(li.get("price") or art.get("actual_price") or 0)
+        _disc = float(li.get("total_discount") or 0) + sum(
+            float(a.get("amount") or 0) for a in (li.get("discount_allocations") or []))
+        _net_unit = max(_gross_unit - (_disc / _qty), 0.0)
+        _line_price = f"{_net_unit:.2f}"
         # Price field differs PER METHOD and they are mutually exclusive — Clientorders_create hard-errors
         # "Both current_price and original_price are given. You should provide only 1 of them!" (verified
         # live 2026-07-28), so the row is shaped per mode below, not with every field at once.
@@ -401,6 +410,31 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         # matched lines would make the Barsy sale diverge from the Shopify order and drift stock.
         return {**plan, "status": "needs_review", "reason": "unmatched_skus", "detail": {"missing_skus": missing},
                 "error": f"unmatched SKUs {missing} — sale NOT booked, needs review", "needs_review": True}
+    # TOTALS BACKSTOP: what we're about to book must equal what the customer pays (and what the courier
+    # collects on COD). This is deliberately generic — it catches ANY pricing divergence (a discount shape
+    # we don't model, a tax quirk, a future Shopify change), not just the ones we've thought of. Both known
+    # money bugs so far — un-booked shipping, and pre-discount line prices — would have been caught here.
+    _shop_total = float(order.get("total_price") or 0)
+    if _shop_total:
+        _booked = sum(float(r["_price"]) * float(r["amount"] or 0) for r in rows)
+        _diff = _booked - _shop_total
+        if abs(_diff) > 0.01:
+            # Cheap, DETERMINISTIC cause hint (arithmetic match only — never a guess): if the gap equals
+            # the order's shipping or discount total, that component is the likely culprit. Lets the panel
+            # tell staff "three of these are one cause", not three unrelated incidents.
+            _disc_total = sum(float(x.get("total_discount") or 0) +
+                              sum(float(a.get("amount") or 0) for a in (x.get("discount_allocations") or []))
+                              for x in (order.get("line_items") or []))
+            suspect = "unknown"
+            if _ship_total and abs(abs(_diff) - _ship_total) <= 0.01:
+                suspect = "shipping"
+            elif _disc_total and abs(abs(_diff) - _disc_total) <= 0.01:
+                suspect = "discount"
+            return {**plan, "status": "needs_review", "reason": "total_mismatch",
+                    "detail": {"booked": round(_booked, 2), "shopify_total": _shop_total,
+                               "difference": round(_diff, 2), "suspect": suspect},
+                    "error": f"Barsy total {_booked:.2f} != Shopify total {_shop_total:.2f} — NOT booked "
+                             f"(бон would misdeclare and COD would not reconcile)", "needs_review": True}
     if not do_write:
         return {**plan, "dry_run": True}
 
@@ -567,6 +601,15 @@ def shopify_refund_to_barsy(refund, do_write=False):
     if not rec or not rec.get("account_id"):
         return {"status": "refused", "reason": "no_logged_sale", "order_ref": f"#{oid}",
                 "skipped": "no logged sale", "order_id": oid}
+    # A storno needs a SALE account. For a record still at kind='clientorder', `account_id` is the
+    # CLIENT-ORDER id — passing it to Accounts_storno would target the wrong object entirely (or 501 on a
+    # non-existent account). Nothing was decremented at clientorder stage anyway, so the correct reversal
+    # is a VOID via the cancel-branch, not a storno. (found while testing the reversal invariant)
+    if rec.get("kind") not in ("sale", "refund", "storno"):
+        return {"status": "needs_review", "reason": "not_finalised", "order_ref": f"#{oid}", "order_id": oid,
+                "detail": {"kind": rec.get("kind")},
+                "error": f"order is at '{rec.get('kind')}' stage, not a finalised sale — a refund cannot be "
+                         f"stornoed; void the clientorder instead", "needs_review": True}
     key = f"refund-{rid}"                                   # dedupe per refund (an order can have several)
     if _seen_key(key):
         return {"status": "duplicate", "order_ref": f"#{oid}", "skipped": "already refunded",
@@ -590,11 +633,47 @@ def shopify_refund_to_barsy(refund, do_write=False):
     # NEVER fall through with an empty article list: `article_ids=[]` means "storno the WHOLE account" in
     # this API, so a shipping-only/goodwill refund or an unmapped SKU would irreversibly reverse the entire
     # (fiscal) sale and restock goods the customer kept. Refuse and let a human decide. (audit fix 2026-07-28)
+    # Empty-list check FIRST — it is the more specific diagnosis. (`article_ids=[]` means "storno the WHOLE
+    # account" in this API, so a shipping-only/goodwill refund or an unmapped SKU would irreversibly reverse
+    # the entire fiscal sale and restock goods the customer kept.) Running the totals invariant first would
+    # report a confusing "reversal_mismatch" for what is really an unmatched-SKU problem.
     if not article_ids:
         return {**plan, "status": "needs_review", "reason": "no_matched_articles",
                 "error": "refund matched no Barsy article (shipping-only/goodwill refund or unmapped SKU) — "
                          "an empty article list would storno the WHOLE sale; not reversing",
                 "needs_review": True}
+    # REVERSAL INVARIANT (mirror of the intake totals backstop): what we REVERSE in Barsy must equal what
+    # Shopify actually refunded. This is the more dangerous direction — an intake mismatch eventually
+    # surfaces as a customer complaint or a courier remittance that won't reconcile, but an under/over
+    # reversal is silent: nobody outside ever sees it, and it just leaves phantom stock (or phantom
+    # returns) sitting in Barsy. Also HARD-STOPS the partial-quantity case that was previously only a
+    # warning: Accounts_storno reverses WHOLE articles, so refunding 1 of 3 units would reverse all 3.
+    _refund_total = sum(float(t.get("amount") or 0) for t in (refund.get("transactions") or [])) or \
+        sum(float(ri.get("subtotal") or 0) + float(ri.get("total_tax") or 0)
+            for ri in (refund.get("refund_line_items") or []))
+    if _refund_total:
+        try:
+            _acc = b.call("Accounts_get", {"account_id": int(rec["account_id"]),
+                                           "extra_properties": {"orders": "1"}}) or {}
+            _rev_total = sum(float(o.get("current_price") or 0) * float(o.get("amount") or 0)
+                             for o in (_acc.get("orders") or [])
+                             if int(o.get("article_id") or 0) in article_ids)
+        except Exception as _e:
+            # FAIL CLOSED. A money guard that silently no-ops when it can't verify is worse than no guard —
+            # it looks like it passed. If we cannot read what we'd reverse, we do not reverse.
+            return {**plan, "status": "needs_review", "reason": "reversal_unverifiable",
+                    "detail": {"shopify_refund": round(_refund_total, 2), "error": str(_e)[:150]},
+                    "error": "could not read the Barsy account to verify the reversal total — NOT stornoed",
+                    "needs_review": True}
+        if abs(_rev_total - _refund_total) > 0.01:
+            return {**plan, "status": "needs_review", "reason": "reversal_mismatch",
+                    "detail": {"would_reverse": round(_rev_total, 2),
+                               "shopify_refund": round(_refund_total, 2),
+                               "difference": round(_rev_total - _refund_total, 2),
+                               "suspect": "partial_quantity" if partial_qty else "unknown"},
+                    "error": f"Barsy would reverse {_rev_total:.2f} but Shopify refunded "
+                             f"{_refund_total:.2f} — NOT stornoed (would leave phantom stock)",
+                    "needs_review": True}
     if not do_write:
         return {**plan, "dry_run": True}
     with _op_lock(f"refund-{rid}"):

@@ -12,6 +12,9 @@ import { useConfirm } from '../components/Confirm'
 const KIND_BG: Record<string, string> = {
   unmatched_sku: 'артикул без SKU', needs_review: 'нужен преглед',
   invoice_not_issued: 'фактура за издаване',
+  total_mismatch: 'разлика в сумата',
+  reversal_mismatch: 'разлика при сторно', not_finalised: 'не е финализирана',
+  reversal_unverifiable: 'сметката не се чете',
   error: 'грешка', exception: 'изключение', unhandled_topic: 'необработена тема',
 }
 const fmt = (s: string | null) => (s ? new Date(s).toLocaleString('bg-BG', { dateStyle: 'short', timeStyle: 'short' }) : '')

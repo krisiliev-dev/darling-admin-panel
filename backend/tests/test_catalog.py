@@ -317,3 +317,149 @@ async def test_update_requires_auth(client, barsy_recorder):
     r = await client.post("/api/catalog/7", json={"name": "Х"})
     assert r.status_code == 401
     assert barsy_recorder.calls == []
+
+
+# --- accounting / stock-behaviour block ---------------------------------------------
+# A Barsy field with no panel control is unmanageable AND invisible — staff can't tell it exists.
+# These are the remaining real article-form fields: ДДС група, партиди, разфасовка, лимити,
+# отстъпка/печалба, цена във втора валута, клиентска заявка + the two TRI-state below-zero flags.
+async def test_get_article_reads_back_accounting_fields(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Articles_get", {
+        "article_id": 55, "article_name": "Кана",
+        "tax_id": 4, "lot_type_id": 3, "default_package_id": 11,
+        "sale_below_zero": "YES", "storemove_below_zero": "NO",
+        "max_discount": "15", "min_profit_percent": "12.5", "avg_delivery_price": "7.40",
+        "part_factor": "0.5", "min_amount": "2", "max_amount": "100",
+        "is_for_client_order": 1,
+        # Barsy's OWN typo — reading the "corrected" spelling would return null forever
+        "actuial_price_sec_currency": "19.99",
+        "composite_type_name": "стандартен артикул", "recipe_description": "няма рецепта",
+    })
+    d = (await owner_client.get("/api/catalog/55")).json()
+    assert d["tax_id"] == 4 and d["lot_type_id"] == 3 and d["default_package_id"] == 11
+    assert d["oversell_mode"] == "YES" and d["storemove_mode"] == "NO"
+    assert d["oversell"] is True                      # legacy boolean kept for backwards compat
+    assert d["max_discount"] == 15 and d["min_profit_percent"] == 12.5
+    assert d["avg_delivery_price"] == 7.40 and d["part_factor"] == 0.5
+    assert d["min_amount"] == 2 and d["max_amount"] == 100
+    assert d["is_for_client_order"] is True
+    assert d["price_sec_currency"] == 19.99
+    # read-only display (Комплектация is parked — semantics unverified)
+    assert d["composite_type_name"] == "стандартен артикул"
+    assert d["recipe_description"] == "няма рецепта"
+
+
+async def test_get_article_defaults_accounting_fields_when_absent(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Articles_get", {"article_id": 55, "article_name": "Гола кана",
+                                               "default_package_id": ""})   # "" = без разфасовка
+    d = (await owner_client.get("/api/catalog/55")).json()
+    for k in ("tax_id", "lot_type_id", "default_package_id", "max_discount", "min_profit_percent",
+              "avg_delivery_price", "part_factor", "min_amount", "max_amount", "price_sec_currency"):
+        assert d[k] is None, k
+    # absent below-zero flags mean "Според правата" — never a fabricated hard YES/NO
+    assert d["oversell_mode"] == "DEF" and d["storemove_mode"] == "DEF"
+    assert d["oversell"] is False
+    assert d["is_for_client_order"] is False
+    assert d["composite_type_name"] == "" and d["recipe_description"] == ""
+
+
+async def test_get_article_default_package_zero_is_null(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Articles_get", {"article_id": 55, "article_name": "Кана",
+                                               "default_package_id": 0})
+    assert (await owner_client.get("/api/catalog/55")).json()["default_package_id"] is None
+
+
+async def test_update_maps_accounting_fields_to_barsy(staff_client, barsy_recorder):
+    r = await staff_client.post("/api/catalog/7", json={
+        "name": "Кана", "tax_id": 4, "lot_type_id": 2, "default_package_id": 6,
+        "max_discount": 15, "min_profit_percent": 12.5, "avg_delivery_price": 7.4,
+        "part_factor": 0.5, "min_amount": 2, "max_amount": 100,
+        "is_for_client_order": True, "price_sec_currency": 19.99})
+    assert r.status_code == 200, r.text
+    art = barsy_recorder.body_for("Articles_update")["article"]
+    assert art["tax_id"] == 4 and art["lot_type_id"] == 2 and art["default_package_id"] == 6
+    assert art["max_discount"] == 15 and art["min_profit_percent"] == 12.5
+    assert art["avg_delivery_price"] == 7.4 and art["part_factor"] == 0.5
+    assert art["min_amount"] == 2 and art["max_amount"] == 100
+    assert art["is_for_client_order"] == 1
+    # the typo'd key is what Barsy actually stores — a "corrected" key drops the value silently
+    assert art["actuial_price_sec_currency"] == 19.99
+    assert "actual_price_sec_currency" not in art
+
+
+async def test_update_tri_state_round_trips_all_three_values(staff_client, barsy_recorder):
+    # DEF ("Според правата") was unreachable while the panel wrote only YES/NO
+    for mode in ("DEF", "YES", "NO"):
+        barsy_recorder.calls.clear()
+        r = await staff_client.post("/api/catalog/7", json={"name": "Кана", "oversell_mode": mode,
+                                                            "storemove_mode": mode})
+        assert r.status_code == 200, r.text
+        art = barsy_recorder.body_for("Articles_update")["article"]
+        assert art["sale_below_zero"] == mode, mode
+        assert art["storemove_below_zero"] == mode, mode
+
+
+async def test_update_legacy_oversell_bool_still_writes_yes_no(staff_client, barsy_recorder):
+    # back-compat: an older client sends only the boolean → unchanged YES/NO behaviour
+    await staff_client.post("/api/catalog/7", json={"name": "Кана", "oversell": True})
+    assert barsy_recorder.body_for("Articles_update")["article"]["sale_below_zero"] == "YES"
+    barsy_recorder.calls.clear()
+    await staff_client.post("/api/catalog/7", json={"name": "Кана", "oversell": False})
+    assert barsy_recorder.body_for("Articles_update")["article"]["sale_below_zero"] == "NO"
+
+
+async def test_update_oversell_mode_wins_over_legacy_bool(staff_client, barsy_recorder):
+    r = await staff_client.post("/api/catalog/7", json={"name": "Кана", "oversell": True,
+                                                        "oversell_mode": "DEF"})
+    assert r.status_code == 200, r.text
+    assert barsy_recorder.body_for("Articles_update")["article"]["sale_below_zero"] == "DEF"
+
+
+async def test_update_blank_accounting_optionals_send_nothing(staff_client, barsy_recorder):
+    # no-clobber: an unedited numeric field must not travel — a bare 0 would zero real settings
+    r = await staff_client.post("/api/catalog/7", json={
+        "name": "Кана", "tax_id": None, "lot_type_id": None, "default_package_id": None,
+        "max_discount": None, "min_profit_percent": None, "avg_delivery_price": None,
+        "part_factor": None, "min_amount": None, "max_amount": None,
+        "price_sec_currency": None, "is_for_client_order": None,
+        "oversell_mode": "", "storemove_mode": ""})
+    assert r.status_code == 200, r.text
+    art = barsy_recorder.body_for("Articles_update")["article"]
+    for k in ("tax_id", "lot_type_id", "default_package_id", "max_discount", "min_profit_percent",
+              "avg_delivery_price", "part_factor", "min_amount", "max_amount",
+              "actuial_price_sec_currency", "is_for_client_order", "storemove_below_zero"):
+        assert k not in art, k
+    assert art["sale_below_zero"] == "NO"        # legacy default path is untouched
+
+
+async def test_update_invalid_tri_state_is_400(staff_client, barsy_recorder):
+    for payload in ({"oversell_mode": "MAYBE"}, {"storemove_mode": "1"}):
+        r = await staff_client.post("/api/catalog/7", json={"name": "Кана", **payload})
+        assert r.status_code == 400, payload
+    assert barsy_recorder.calls == []            # never reached the ERP
+
+
+async def test_update_never_writes_composite_or_recipe(staff_client, barsy_recorder):
+    # read-back only: Комплектация is parked, so writing recipe fields could corrupt a real recipe
+    r = await staff_client.post("/api/catalog/7", json={
+        "name": "Кана", "composite_type_name": "рецепта", "recipe_description": "1 x нещо"})
+    assert r.status_code == 200, r.text
+    art = barsy_recorder.body_for("Articles_update")["article"]
+    assert "composite_type_name" not in art and "recipe_description" not in art
+
+
+async def test_default_package_can_be_CLEARED_with_the_zero_sentinel(owner_client, barsy_recorder):
+    """«Без разфасовка» is a real Barsy VALUE (empty string), not an absence — so "not edited" and
+    "cleared" must be distinguishable or a разфасовка could never be removed from the panel. 0 isn't a
+    valid package id (they're 1/6/11/16), so it's the explicit CLEAR sentinel."""
+    barsy_recorder.set_return("Articles_update", {"article_id": 5001})
+    r = await owner_client.post("/api/catalog/5001",
+                                json={"name": "Продукт", "default_package_id": 0})
+    assert r.status_code == 200, r.text
+    assert barsy_recorder.body_for("Articles_update")["article"]["default_package_id"] == ""
+
+
+async def test_omitting_default_package_leaves_it_untouched(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Articles_update", {"article_id": 5001})
+    await owner_client.post("/api/catalog/5001", json={"name": "Продукт"})
+    assert "default_package_id" not in barsy_recorder.body_for("Articles_update")["article"]

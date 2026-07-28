@@ -77,6 +77,61 @@ async def note_shopify_result(topic: str, payload: dict, result: dict | None) ->
             detail={"missing_skus": missing, "reason": result.get("reason"), "topic": topic})
         return True
 
+    # MONEY DISAGREEMENT — the connector's totals backstop refused to book because what it was about to
+    # write into Barsy didn't equal what Shopify says the customer paid. This is the highest-signal issue
+    # we can surface: it catches whole CLASSES of pricing bugs nobody anticipated (un-booked shipping,
+    # pre-discount line prices, tips, tax quirks) instead of one shape at a time. Nothing was booked, so
+    # it is a genuine hold, not a nuisance — say so plainly, with the numbers.
+    if str(result.get("reason") or "").lower() == "total_mismatch":
+        _d = result.get("detail")
+        d: dict = _d if isinstance(_d, dict) else result
+        booked, total = d.get("booked"), d.get("shopify_total")
+        diff = d.get("difference")
+        # deterministic cause hint from the connector (arithmetic match, never a guess): discount |
+        # shipping | unknown. Say nothing when it's unknown — an unlabelled unknown beats a wrong label.
+        suspect = {"discount": " Вероятна причина: отстъпка.",
+                   "shipping": " Вероятна причина: доставка."}.get(str(d.get("suspect") or ""), "")
+        await record_issue(
+            source="shopify", topic=topic, order_ref=ref, severity="error", kind="total_mismatch",
+            summary=f"Поръчка {ref or '(без номер)'} НЕ е осчетоводена — сумата в Barsy ({booked}) не "
+                    f"съвпада с платеното в Shopify ({total}), разлика {diff}. Провери цени, отстъпки "
+                    f"и доставка, преди да я осчетоводиш ръчно.{suspect}",
+            detail={"booked": booked, "shopify_total": total, "difference": diff,
+                    "suspect": d.get("suspect"),
+                    "result": {k: v for k, v in result.items() if k != "lines"}, "topic": topic})
+        return True
+
+    # REVERSAL GUARDS — the mirror of the totals backstop, on the storno/refund side. This direction is
+    # the more dangerous one: an intake mismatch eventually surfaces as a customer complaint or an
+    # unreconciled courier remittance, but an under-reversal just leaves phantom stock that NO external
+    # party ever notices. Each reason gets its own message because the required human action differs.
+    _reason = str(result.get("reason") or "").lower()
+    if _reason in ("reversal_mismatch", "not_finalised", "reversal_unverifiable"):
+        _rd = result.get("detail")
+        rd: dict = _rd if isinstance(_rd, dict) else result
+        if _reason == "reversal_mismatch":
+            # Accounts_storno reverses WHOLE articles, so a part-quantity refund would over-restock and
+            # over-reverse the бон — previously tolerated as a warning, now a hard stop.
+            part = (" Вероятна причина: частично количество (Barsy сторнира цели артикули)."
+                    if str(rd.get("suspect") or "") == "partial_quantity" else "")
+            sev, summary = "error", (
+                f"Сторното на {ref or '(без номер)'} НЕ е направено — Barsy би върнал "
+                f"{rd.get('would_reverse')}, а Shopify е възстановил {rd.get('shopify_refund')}, "
+                f"разлика {rd.get('difference')}. Провери количествата преди ръчно сторно.{part}")
+        elif _reason == "not_finalised":
+            # at clientorder stage nothing was decremented, so a storno is simply the wrong operation
+            sev, summary = "warning", (
+                f"{ref or 'Поръчката'} не е финализирана — сторно не е възможно. Откажи клиентската "
+                f"заявка вместо това (нищо не е изписано на този етап).")
+        else:
+            sev, summary = "error", (
+                f"Сметката в Barsy за {ref or '(без номер)'} не може да бъде прочетена — сторното НЕ е "
+                f"направено. Това е системен проблем, не грешка на оператора — провери връзката с Barsy.")
+        await record_issue(
+            source="shopify", topic=topic, order_ref=ref, severity=sev, kind=_reason, summary=summary,
+            detail={**{k: v for k, v in rd.items() if k != "lines"}, "topic": topic})
+        return True
+
     # A requested фактура (B2B VAT invoice) that Barsy did NOT issue must never just vanish — the buyer
     # asked for it at checkout and is legally owed one. Give it its own kind so staff can spot it and
     # issue it manually in Barsy from the captured company data (the detail carries name/ЕИК/ДДС/адрес).

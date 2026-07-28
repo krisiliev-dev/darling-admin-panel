@@ -7,6 +7,20 @@ Guard order in the handler is: 404 (missing draft) -> 400 (confirm) -> atomic ap
 claim -> 409 (already pushed / in flight). NB: there is NO 'missing code' guard — Barsy assigns the
 SKU on create and returns it.
 """
+from types import SimpleNamespace
+
+import pytest
+
+import app.routers.intake as intake_mod
+
+
+@pytest.fixture(autouse=True)
+def _delivery_gate_live(monkeypatch):
+    """push-barsy is a REAL Articles_create and is gated by DELIVERY_BARSY_LIVE (default OFF, so a
+    pre-launch click can't create a live article). These tests exercise the LIVE path — the gate-off
+    dry-run has dedicated tests in test_intake_push_barsy.py."""
+    monkeypatch.setattr(intake_mod, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
 
 
 async def test_push_without_confirm_is_400(owner_client, make_draft, mock_barsy):

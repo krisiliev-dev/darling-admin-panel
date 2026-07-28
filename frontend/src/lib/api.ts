@@ -535,7 +535,26 @@ export interface ArticleDetail {
   status: string                // active | draft | withdrawn (derived from the two flags)
   ref_num: string               // read-only — set by the delivery
   aliases: string[]             // read-only — create-only in Barsy
+  // --- remaining Barsy article fields (advanced editor) ---
+  tax_id: number | null
+  lot_type_id: number | null
+  default_package_id: number | null
+  oversell_mode: BarsyTriState        // sale_below_zero — tri-state, `oversell` above can't express "DEF"
+  storemove_mode: BarsyTriState       // storemove_below_zero
+  max_discount: number | null
+  min_profit_percent: number | null
+  avg_delivery_price: number | null
+  part_factor: number | null
+  min_amount: number | null
+  max_amount: number | null
+  is_for_client_order: boolean
+  price_sec_currency: number | null   // Barsy field is `actuial_price_sec_currency` — their typo, kept verbatim on the wire
+  composite_type_name: string         // read-only display (e.g. „стандартен артикул“)
+  recipe_description: string          // read-only display — комплектация is managed in Barsy
 }
+
+// Barsy tri-state: DEF = fall back to the user's rights, YES/NO = force it on this article
+export type BarsyTriState = 'DEF' | 'YES' | 'NO'
 
 export interface StaffMember {
   user_id: number

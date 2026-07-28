@@ -11,7 +11,7 @@ import { useConfirm } from '../components/Confirm'
 
 type Depot = { depot_id: number; depot_name?: string; can_load?: number }
 type Reason = { reason_id: number; name?: string }
-type Line = { article_id: string; amount: string; note: string; current_price: string }
+type Line = { article_id: string; amount: string; note: string; current_price: string; reason_id: string }
 type WriteResult = {
   ok: boolean; dry_run: boolean; method: string
   barsy_body?: unknown; result?: unknown; warnings?: string[]
@@ -23,10 +23,10 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number][0]
 
-const blankLine = (): Line => ({ article_id: '', amount: '', note: '', current_price: '' })
+const blankLine = (): Line => ({ article_id: '', amount: '', note: '', current_price: '', reason_id: '' })
 
-function LineEditor({ lines, setLines, showPrice }: {
-  lines: Line[]; setLines: (l: Line[]) => void; showPrice?: boolean
+function LineEditor({ lines, setLines, showPrice, reasons }: {
+  lines: Line[]; setLines: (l: Line[]) => void; showPrice?: boolean; reasons?: Reason[]
 }) {
   const upd = (i: number, k: keyof Line, v: string) =>
     setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
@@ -44,6 +44,17 @@ function LineEditor({ lines, setLines, showPrice }: {
             <input className="input-paper" placeholder="ед. цена €" value={l.current_price} inputMode="decimal"
               aria-label={`Единична цена в евро, ред ${i + 1}`}
               onChange={(e) => upd(i, 'current_price', e.target.value)} style={{ width: 100 }} />
+          )}
+          {/* Barsy stores the write-off reason PER ROW, and „Липса" vs „Собствена покупка" carry
+              different чл.79/80 ЗДДС treatment — so one document may legitimately mix reasons and we
+              must not flatten them to a single document-level value. */}
+          {reasons && (
+            <select className="input-paper" style={{ width: 'auto' }} value={l.reason_id}
+              aria-label={`Причина, ред ${i + 1}`}
+              onChange={(e) => upd(i, 'reason_id', e.target.value)}>
+              <option value="">— причина —</option>
+              {reasons.map((r) => <option key={r.reason_id} value={r.reason_id}>{r.name || r.reason_id}</option>)}
+            </select>
           )}
           <input className="input-paper" placeholder="бележка" value={l.note}
             aria-label={`Бележка, ред ${i + 1}`}
@@ -215,6 +226,7 @@ export function Sklad() {
       article_id: Number(l.article_id), amount: Number(l.amount),
       note: l.note || undefined,
       current_price: l.current_price ? Number(l.current_price) : undefined,
+      reason_id: l.reason_id ? Number(l.reason_id) : undefined,
     }))
 
   const depotName = (id: string) =>
@@ -362,9 +374,9 @@ export function Sklad() {
             )}
             {tab === 'writeoff' && (
               <label style={{ fontSize: '0.85rem' }}>
-                Причина{' '}
+                Причина (по подразбиране){' '}
                 <select className="input-paper" style={{ width: 'auto' }} value={reasonId}
-                  aria-label="Причина за изписване" onChange={(e) => setReasonId(e.target.value)}>
+                  aria-label="Причина за изписване по подразбиране" onChange={(e) => setReasonId(e.target.value)}>
                   <option value="">— избери —</option>
                   {reasons.map((r) => <option key={r.reason_id} value={r.reason_id}>{r.name || r.reason_id}</option>)}
                 </select>
@@ -375,7 +387,7 @@ export function Sklad() {
           {tab === 'writeoff' && (
             <p style={{ fontSize: '0.8rem', color: 'var(--red)', margin: '0 0 0.6rem' }}>
               ⚠ Изписване на стока с приспаднат ДДС може да изисква корекция по чл.79 ЗДДС (освен изключенията
-              по чл.80). Причината определя третирането — приложете протокол за брак.
+              по чл.80). Причината определя третирането и се записва ЗА ВСЕКИ РЕД поотделно — задай я на реда, ако се различава от подразбиращата се. Приложете протокол за брак.
             </p>
           )}
 
@@ -385,7 +397,8 @@ export function Sklad() {
               inputMode="numeric" onChange={(e) => setStornoId(e.target.value)}
               style={{ width: 340, marginBottom: '0.6rem' }} />
           )}
-          <LineEditor lines={lines} setLines={setLines} showPrice={tab === 'load' || tab === 'storno'} />
+          <LineEditor lines={lines} setLines={setLines} showPrice={tab === 'load' || tab === 'storno'}
+            reasons={tab === 'writeoff' ? reasons : undefined} />
 
           <input className="input-paper" placeholder={tab === 'storno' ? 'причина за сторно' : 'описание (по желание)'}
             aria-label={tab === 'storno' ? 'Причина за сторно' : 'Описание на операцията (по желание)'}

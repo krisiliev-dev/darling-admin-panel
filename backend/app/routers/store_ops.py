@@ -91,6 +91,10 @@ class OpLine(BaseModel):
     amount: float = Field(gt=0)
     note: str | None = None
     current_price: float | None = None   # load only (unit cost)
+    # Изписване only. Barsy models the write-off reason PER ROW, and that is not cosmetic: „Липса"
+    # (shortage) and „Собствена покупка" (own use) carry DIFFERENT чл.79/80 ЗДДС treatment. One
+    # document may legitimately mix them, so a single document-level reason would mistag lines.
+    reason_id: int | None = None
 
 
 class LoadReq(BaseModel):
@@ -104,7 +108,9 @@ class LoadReq(BaseModel):
 
 
 class WriteoffReq(BaseModel):
-    """Изписване — remove stock (breakage/loss/own-use). reason_id from /writeoff-reasons."""
+    """Изписване — remove stock (breakage/loss/own-use). reason_id from /writeoff-reasons.
+    `reason_id` here is only the DEFAULT for lines that don't carry their own — Barsy stores the
+    reason per row (different VAT treatment per reason), so the per-line value always wins."""
     lines: list[OpLine] = Field(min_length=1)
     reason_id: int
     depot_id: int | None = None
@@ -234,13 +240,17 @@ async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
             "deal_id": None,
         },
         "rows": [
+            # per-row reason (falls back to the document default) — mixing „Липса" and „Собствена
+            # покупка" in one document is legitimate and must not be flattened to a single reason
             {"article_id": str(ln.article_id), "amount": _amt(ln.amount),
-             "reason_id": str(req.reason_id), "notes": ln.note or "", "lot_value": ""}
+             "reason_id": str(ln.reason_id or req.reason_id), "notes": ln.note or "", "lot_value": ""}
             for ln in req.lines
         ],
     }
     return await _gate_or_dry(actor, session, action="storeop.writeoff", method="Storeouts_save",
-                              body=body, target=f"{len(req.lines)} реда / reason {req.reason_id}",
+                              body=body,
+                              target=f"{len(req.lines)} реда / причини "
+                                     f"{sorted({ln.reason_id or req.reason_id for ln in req.lines})}",
                               confirm=req.confirm)
 
 
@@ -361,8 +371,18 @@ async def revision_preview(req: RevisionReq, _: User = Depends(current_active_us
 @router.post("/revision")
 async def revision_post(req: RevisionReq, actor: User = Depends(current_owner),
                         session: AsyncSession = Depends(get_async_session)):
-    """Ревизия → `Revisions_save` with action_type save_and_close (posts the count = adjusts on-hand to
-    the counted qty). Same flat eStructListForm envelope confirmed for Storeouts. Gated → dry-run body."""
+    """Ревизия → posts the count (adjusts on-hand to the counted qty). Gated → dry-run body.
+
+    🚨 SHAPE SUPERSEDED — DO NOT ENABLE THIS PATH. The flat one-shot envelope below was GUESSED. A live
+    capture of Barsy's own UI (2026-07-28) shows a ревизия is a **scoped document**, not a list of
+    adjustments: `Revisions_create` opens it with a scope (depot + `view_mode:1` = ALL articles by
+    category, `cat_id`/`stream_id` empty = Всички, `amount_moment`, `price_mode`, `lots_mode`), then
+    `Revisions_edit {id}` + rows via `{id, action_type:"values"}`, then a separate close step.
+
+    The open question that blocks this: does closing apply ONLY the sent rows, or treat every article IN
+    SCOPE that wasn't counted as ZERO? Under `view_mode:1` the latter would wipe the whole catalogue's
+    stock in one call. Until that's answered, this endpoint stays dry-run-only and must not be wired to
+    a live gate — rebuild it against the captured create→edit→close flow instead."""
     depot = req.depot_id or get_settings().barsy_depot_id
     body = {
         "action_type": "save_and_close",       # posts the revision (adjusts stock); "save" = draft
@@ -374,6 +394,8 @@ async def revision_post(req: RevisionReq, actor: User = Depends(current_owner),
     return await _gate_or_dry(
         actor, session, action="storeop.revision", method="Revisions_save", body=body,
         target=f"{len(req.lines)} реда / depot {depot}", confirm=req.confirm,
-        warnings=["⚠ НЕПОТВЪРДЕНО: дали посочените редове коригират САМО тях, или ревизията третира "
-                  "непосочените артикули като 0 (изтрива наличности). Тествай на тест обект с непосочен "
-                  "артикул ПРЕДИ реален запис."])
+        warnings=["🚨 ФОРМАТЪТ Е ОСТАРЯЛ — не включвай реален запис по този път. Реалната ревизия в Barsy "
+                  "е документ с ОБХВАТ (create → edit → close), а не списък с корекции.",
+                  "⚠ НЕИЗЯСНЕНО: дали затварянето коригира САМО подадените редове, или третира всеки "
+                  "артикул В ОБХВАТА, който не е преброен, като 0 — при обхват от всички артикули "
+                  "това би нулирало наличностите на целия каталог."])

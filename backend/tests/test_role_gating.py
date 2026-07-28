@@ -4,6 +4,20 @@ and allow the owner. Covers the two owner-only surfaces:
   * POST /api/auth/staff            (only the owner creates accounts)
   * POST /api/intake/drafts/{id}/push-barsy  (real ERP write — owner only)
 """
+from types import SimpleNamespace
+
+import pytest
+
+import app.routers.intake as intake_mod
+
+
+@pytest.fixture(autouse=True)
+def _delivery_gate_live(monkeypatch):
+    """push-barsy is a REAL Articles_create and is gated by DELIVERY_BARSY_LIVE (default OFF, so a
+    pre-launch click can't create a live article). These tests exercise the LIVE path — the gate-off
+    dry-run has dedicated tests in test_intake_push_barsy.py."""
+    monkeypatch.setattr(intake_mod, "get_settings",
+                        lambda: SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0))
 
 
 # --- POST /api/auth/staff -----------------------------------------------------------

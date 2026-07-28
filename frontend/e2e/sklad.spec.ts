@@ -35,8 +35,14 @@ test.describe('Склад — store operations', () => {
     await page.goto('/sklad')
     await page.getByRole('button', { name: 'Изписване' }).click()
     await expect(page.getByText(/чл\.79 ЗДДС/)).toBeVisible()
-    // the reason picker rendered with its Barsy-sourced options
-    await expect(page.getByRole('option', { name: 'Брак' })).toBeAttached()
+    // the reason picker rendered with its Barsy-sourced options (document default)
+    await expect(page.getByLabel('Причина за изписване по подразбиране')).toBeVisible()
+    // …and PER ROW: Barsy stores reason per line, and „Липса" vs „Собствена покупка" carry different
+    // чл.79/80 VAT treatment — one document may legitimately mix them, so flattening to a single
+    // document-level reason would mistag lines. This assertion is the guard against that regression.
+    const rowReason = page.getByLabel(/Причина, ред 1/)
+    await expect(rowReason).toBeVisible()
+    await expect(rowReason.getByRole('option', { name: 'Брак' })).toBeAttached()
   })
 
   test('Сторно tab exposes the storeload-id reference field', async ({ page }) => {

@@ -3,7 +3,10 @@
 products auto-push to Barsy, so the panel requests them here. Price stays read-only (Microinvest-
 sourced, never edited here — price policy). Everything the create path (intake) writes is editable
 here too: name(+public), description(+public), barcode, brand/attributes, category, unit, SEO,
-weight, oversell and the sale/publish status."""
+weight, oversell and the sale/publish status — plus the accounting/stock-behaviour block (ДДС група,
+партиди, разфасовка, min/max количество, отстъпка/печалба, цена втора валута, клиентска заявка).
+A Barsy field with no control here is unmanageable and invisible to staff, so read-back and write
+must stay in step with the live article form."""
 import asyncio
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -847,6 +850,24 @@ def _int_or_none(v):
         return None
 
 
+def _pkg_or_none(v):
+    """default_package_id: Barsy sends "" (and sometimes 0) for «без разфасовка» — both mean
+    "no package", so they must read back as null, not as a package with id 0."""
+    return _int_or_none(v) or None
+
+
+_TRI = ("DEF", "YES", "NO")   # Според правата / може без наличност / не може
+
+
+def _tri(v) -> str:
+    """sale_below_zero + storemove_below_zero are TRI-state in Barsy: DEF ("Според правата" — fall
+    back to the user's rights), YES, NO. The panel used to know only YES/NO, which made DEF
+    unreachable and silently overwrote it on every edit. Anything absent/unrecognised reads as DEF:
+    we must never invent a hard YES/NO the ERP never stored."""
+    s = str(v or "").strip().upper()
+    return s if s in _TRI else "DEF"
+
+
 @router.get("/{article_id}")
 def get_article(article_id: int, user: User = Depends(current_active_user)):
     """Full product detail from Barsy — every field the editor can write back (create/edit parity)."""
@@ -888,6 +909,26 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
         "status": "active" if for_sale and public else ("draft" if for_sale else "withdrawn"),
         "ref_num": str(a.get("ref_num") or ""),          # auto from the delivery — read-only
         "aliases": _aliases(a.get("article_aliases")),   # create-only in Barsy — read-only
+        # --- accounting / stock-behaviour fields (unmanageable from the panel until now) ---
+        "tax_id": _int_or_none(a.get("tax_id")),                     # ДДС група (2=20% Б, 4=9% Г, …)
+        "lot_type_id": _int_or_none(a.get("lot_type_id")),           # партиди: Без / Авт. / Ръчно / …
+        "default_package_id": _pkg_or_none(a.get("default_package_id")),
+        # tri-state (see _tri) — `oversell` above stays for backwards compatibility
+        "oversell_mode": _tri(a.get("sale_below_zero")),
+        "storemove_mode": _tri(a.get("storemove_below_zero")),
+        "max_discount": _numf(a.get("max_discount")),
+        "min_profit_percent": _numf(a.get("min_profit_percent")),
+        "avg_delivery_price": _numf(a.get("avg_delivery_price")),
+        "part_factor": _numf(a.get("part_factor")),
+        "min_amount": _numf(a.get("min_amount")),
+        "max_amount": _numf(a.get("max_amount")),
+        "is_for_client_order": _flag(a.get("is_for_client_order")),
+        # `actuial_price_sec_currency` is Barsy's OWN typo for the secondary-currency price. Reading
+        # (or writing) the "corrected" spelling silently loses the value — keep it verbatim.
+        "price_sec_currency": _numf(a.get("actuial_price_sec_currency")),
+        # READ-ONLY display: Комплектация is parked, so recipe semantics stay unverified → never written
+        "composite_type_name": str(a.get("composite_type_name") or ""),
+        "recipe_description": str(a.get("recipe_description") or ""),
     }
 
 
@@ -916,6 +957,21 @@ class ArticleEdit(BaseModel):
     seo_title: str = ""
     seo_description: str = ""
     status: str = ""              # "" | active | draft | withdrawn
+    # --- accounting / stock behaviour (Barsy article-form parity) ---
+    tax_id: int | None = None                 # ДДС група
+    lot_type_id: int | None = None            # партиди
+    default_package_id: int | None = None     # разфасовка
+    oversell_mode: str = ""                   # "" | DEF | YES | NO — wins over the legacy `oversell`
+    storemove_mode: str = ""                  # "" | DEF | YES | NO
+    max_discount: float | None = None
+    min_profit_percent: float | None = None
+    avg_delivery_price: float | None = None
+    part_factor: float | None = None
+    min_amount: float | None = None
+    max_amount: float | None = None
+    price_sec_currency: float | None = None   # → Barsy's misspelled actuial_price_sec_currency
+    is_for_client_order: bool | None = None
+    # composite_type_name / recipe_description are deliberately NOT writable — read-back only
 
 
 @router.post("/{article_id}")
@@ -930,6 +986,9 @@ async def update_article(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Името е задължително.")
     if req.status and req.status not in _STATUS_FLAGS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалиден статус.")
+    for mode in (req.oversell_mode, req.storemove_mode):
+        if mode and mode not in _TRI:                  # refuse before touching the ERP
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалидна стойност (DEF/YES/NO).")
     article: dict = {
         "article_name": req.name.strip(),
         "article_name_ml": {"bg_BG": req.name.strip()},
@@ -938,8 +997,12 @@ async def update_article(
         article["description_ml"] = {"bg_BG": req.description}
     if req.barcode.strip():
         article["barcode"] = req.barcode.strip()  # string, not array (Barsy create/update)
-    # explicit YES/NO (not the DEF default) so the toggle can turn oversell back OFF on an edit
-    article["sale_below_zero"] = "YES" if req.oversell else "NO"
+    # TRI-state: the mode carries the real Barsy value (incl. DEF = "Според правата", which the old
+    # YES/NO-only toggle could never restore). The legacy `oversell` bool stays the fallback so older
+    # clients keep working — an explicit mode always wins.
+    article["sale_below_zero"] = req.oversell_mode or ("YES" if req.oversell else "NO")
+    if req.storemove_mode:
+        article["storemove_below_zero"] = req.storemove_mode
     if req.name_public.strip():
         article["article_name_public"] = req.name_public.strip()
     if req.description_public.strip():
@@ -951,6 +1014,25 @@ async def update_article(
         article["cat_id"] = article["master_cat_id"] = req.cat_id
     if req.amount_type_id is not None:
         article["amount_type_id"] = req.amount_type_id
+    # Same-named Barsy fields — None means "not edited", so the key is omitted and Barsy keeps its
+    # current value (sending a bare 0/"" here would silently zero out real accounting settings).
+    for _f in ("tax_id", "lot_type_id", "default_package_id", "max_discount", "min_profit_percent",
+               "avg_delivery_price", "part_factor", "min_amount", "max_amount"):
+        _v = getattr(req, _f)
+        if _v is not None:
+            article[_f] = _v
+    # …with ONE exception: «без разфасовка» is a real Barsy VALUE (empty string), not an absence, so
+    # "not edited" and "cleared" would otherwise be indistinguishable and a package could never be
+    # removed from the panel. 0 is not a valid package id (they are 1/6/11/16), so we use it as the
+    # explicit CLEAR sentinel and translate it to the "" Barsy expects.
+    if req.default_package_id == 0:
+        article["default_package_id"] = ""
+    if req.price_sec_currency is not None:
+        # Barsy's OWN misspelling — "fixing" it to actual_price_sec_currency drops the write silently
+        article["actuial_price_sec_currency"] = req.price_sec_currency
+    if req.is_for_client_order is not None:
+        # 1/0 like is_for_sale / is_public — Barsy's flag convention on write
+        article["is_for_client_order"] = 1 if req.is_for_client_order else 0
     # Brand + attributes are ONE details list (parity with intake._build_barsy_article) and Barsy
     # REPLACES it wholesale — so they must travel together, and the Марка row must come first. When
     # the request carries neither, `details` is omitted entirely so the existing rows survive.

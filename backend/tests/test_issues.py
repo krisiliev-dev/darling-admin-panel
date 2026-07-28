@@ -85,3 +85,55 @@ async def test_unissued_invoice_gets_its_own_kind_with_the_company_data(owner_cl
     assert iss["kind"] == "invoice_not_issued" and iss["order_ref"] == "#1010"
     assert iss["severity"] == "warning" and "ФАКТУРА" in iss["summary"]
     assert "123456789" in str(iss["detail"])          # staff can issue it straight from this
+
+
+async def test_total_mismatch_is_its_own_kind_with_the_numbers(owner_client):
+    """The connector's totals backstop refuses to book when Barsy and Shopify disagree on the money.
+    It catches whole CLASSES of pricing bugs (un-booked shipping, pre-discount line prices, tips) that
+    nobody anticipated — so it must read as a genuine hold with the figures, not a vague 'needs review'."""
+    assert await note_shopify_result(
+        "orders/create", {"name": "#1020", "id": 1020},
+        {"status": "needs_review", "reason": "total_mismatch",
+         "detail": {"booked": 13.50, "shopify_total": 99.00, "difference": -85.50}}) is True
+
+    iss = (await owner_client.get("/api/issues")).json()["issues"][0]
+    assert iss["kind"] == "total_mismatch" and iss["severity"] == "error"
+    assert "НЕ е осчетоводена" in iss["summary"]          # nothing was booked — say so
+    assert iss["detail"]["difference"] == -85.50
+
+
+# --- reversal guards (storno/refund side) --------------------------------------------
+async def test_reversal_mismatch_hard_stops_and_explains_partial_quantity(owner_client):
+    """Accounts_storno reverses WHOLE articles, so refunding 1 of 3 units would over-restock by 2 and
+    over-reverse the бон. This was a tolerated warning; it's now a refusal — and the message has to say
+    WHY, or an operator will just re-run it by hand and cause the same damage."""
+    assert await note_shopify_result(
+        "refunds/create", {"name": "#1030", "id": 1030},
+        {"status": "needs_review", "reason": "reversal_mismatch",
+         "detail": {"would_reverse": 13.50, "shopify_refund": 5.00, "difference": 8.50,
+                    "suspect": "partial_quantity"}}) is True
+    iss = (await owner_client.get("/api/issues")).json()["issues"][0]
+    assert iss["kind"] == "reversal_mismatch" and iss["severity"] == "error"
+    assert "НЕ е направено" in iss["summary"] and "частично количество" in iss["summary"]
+
+
+async def test_refund_on_a_non_finalised_order_points_to_voiding_instead(owner_client):
+    """At clientorder stage account_id is the CLIENT-ORDER id, not a sale account — a storno would target
+    the wrong object. Nothing was decremented either, so the right action is to void, not reverse."""
+    assert await note_shopify_result(
+        "refunds/create", {"name": "#1031", "id": 1031},
+        {"status": "needs_review", "reason": "not_finalised", "detail": {"kind": "clientorder"}}) is True
+    iss = (await owner_client.get("/api/issues")).json()["issues"][0]
+    assert iss["kind"] == "not_finalised" and iss["severity"] == "warning"
+    assert "Откажи клиентската заявка" in iss["summary"]
+
+
+async def test_unverifiable_reversal_reads_as_a_system_problem(owner_client):
+    """A money guard that can't verify must FAIL CLOSED — and the operator must be told it's a system
+    fault, not something they did wrong, or they'll "fix" it by reversing manually."""
+    assert await note_shopify_result(
+        "refunds/create", {"name": "#1032", "id": 1032},
+        {"status": "needs_review", "reason": "reversal_unverifiable"}) is True
+    iss = (await owner_client.get("/api/issues")).json()["issues"][0]
+    assert iss["kind"] == "reversal_unverifiable" and iss["severity"] == "error"
+    assert "системен проблем" in iss["summary"]
