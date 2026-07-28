@@ -42,7 +42,7 @@ async def test_settle_records_and_advances(owner_client, settle_state):
     assert r.status_code == 200, r.text
     body = r.json()
     assert (body["settled"], body["discrepancies"], body["skipped"]) == (1, 0, 0)
-    assert body["barsy"] == {"live": False, "posted": 0}   # gated off → recorded locally only
+    assert "barsy" not in body   # matched COD settles panel-side ONLY (already paid at packing — no re-post)
     assert ("o1", {"status": "cod_paid"}) in calls
     row = await _settlement("o1")
     assert row and row.collected == 30.0 and row.expected == 30.0
@@ -140,3 +140,14 @@ async def test_storno_unknown_order_404(owner_client, settle_state):
 async def test_storno_requires_staff(client, settle_state):
     r = await client.post("/api/cod/o1/storno", json={"confirm": True})
     assert r.status_code in (401, 403)
+
+
+async def test_settle_never_posts_payment_to_barsy(owner_client, settle_state, monkeypatch):
+    # anonymous-paid model: the sale is PAID at packing, so settle must NEVER re-post a payment
+    # (would double-pay). Blow up if the connector payment call is reached.
+    def _explode(*a, **k):
+        raise AssertionError("settle must not post a COD payment to Barsy under the paid model")
+    monkeypatch.setattr(cod.connector, "cod_payment_to_barsy", _explode, raising=False)
+    r = await owner_client.post("/api/cod/settle", json={
+        "reference": "P", "payout_date": "", "courier": "", "lines": [{"order_id": "o1", "collected": 30.0}]})
+    assert r.status_code == 200 and r.json()["settled"] == 1

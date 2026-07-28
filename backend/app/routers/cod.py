@@ -245,7 +245,7 @@ async def settle(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове за разчет.")
     orders = await run_in_threadpool(_cod_orders)
     already = {oid for (oid,) in (await session.execute(select(CodSettlement.order_id))).all()}
-    settled = discrepancies = skipped = barsy_posted = 0
+    settled = discrepancies = skipped = 0
     for ln in req.lines:
         s = orders.get(ln.order_id)
         # gate: exists, still owed to us (awaiting/in-transit), not already settled
@@ -282,16 +282,16 @@ async def settle(
             pass  # status flip is a projection of the settlement row; a nightly sync can repair it
         already.add(ln.order_id)
         settled += 1
-        # record the collected COD money on the Barsy sale account (fiscal:0 → no device fire; the бон
-        # was printed on-site at packing). Gated + idempotent; best-effort — never fails the settlement.
-        if await _post_cod_payment_to_barsy(ln.order_id, collected, s.get("tracking") or ""):
-            barsy_posted += 1
+        # ⚠ do NOT post a payment to Barsy here. Under the anonymous-PAID model the sale is booked PAID
+        # IN FULL at packing (finalise → method 6, total_remain 0), so posting the collection again would
+        # DOUBLE-PAY the account (total_paid > total_sum) and double-count the COD cash. Settle now = just
+        # CONFIRM the courier remittance in the panel (the settlement row + status flip). A matched COD
+        # needs no Barsy write; only the UNCOLLECTED path writes to Barsy (storno). See cod_storno.
         if abs(collected - expected) > 0.01:
             discrepancies += 1
     await log_action(session, actor, "cod.settle", target=req.reference,
                      detail=f"settled={settled} discrepancies={discrepancies} skipped={skipped}")
-    return {"ok": True, "settled": settled, "discrepancies": discrepancies, "skipped": skipped,
-            "barsy": {"live": get_settings().cod_barsy_post_live, "posted": barsy_posted}}
+    return {"ok": True, "settled": settled, "discrepancies": discrepancies, "skipped": skipped}
 
 
 class StornoRequest(BaseModel):
@@ -339,16 +339,9 @@ async def cod_storno(
     return {"ok": True, "order_id": order_id, "live": live, "result": result}
 
 
-async def _post_cod_payment_to_barsy(order_id: str, amount: float, waybill: str) -> bool:
-    """Post a settled COD collection to Barsy (record-only, fiscal:0). Returns True only when a LIVE
-    write happened. Gated by COD_BARSY_POST_LIVE; swallows errors (the settlement row is authoritative)."""
-    live = get_settings().cod_barsy_post_live
-    try:
-        res = await run_in_threadpool(connector.cod_payment_to_barsy, str(order_id), amount,
-                                      5, waybill or None, live)
-        return bool(isinstance(res, dict) and res.get("written"))
-    except Exception:
-        return False
+# NB: the old `_post_cod_payment_to_barsy` (settle → connector.cod_payment_to_barsy, paymethod 5) is
+# GONE — under the anonymous-PAID model the sale is already paid in full at packing, so re-posting the
+# collection would double-pay. Matched COD settles panel-side only; see the note in `settle`.
 
 
 _MAX_PAYOUT_BYTES = 5 * 1024 * 1024  # a payout sheet is KBs; cap to avoid a memory-blowout upload
