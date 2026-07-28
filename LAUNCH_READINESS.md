@@ -125,15 +125,22 @@ All caught by the live test + the new **Проблеми** anomaly console (the 
    real waybill → Shopify fulfilment; then a storno on a real УНП).
 6. Go.
 
-### 🧾 B2B фактури — manual by necessity, not by choice
-Barsy's API **cannot issue an invoice**: there is no `Invoices_create` (the whole Invoices category is
-read-only) and Barsy's auto-issue flag only fires for **VPOS** payments, which наложен платеж is not. The
-only working path is the admin UI: **Документи → Фактури → „Нова фактура по сметка(и)"** against the closed
-sale account. So the panel does the reliable half: the connector captures the request at checkout (and
-re-reads it from Shopify if state was rebuilt), and the **Онлайн поръчки → Фактури** tab lists every order
-still owed one with the copy-ready company block (фирма/ЕИК/ДДС/МОЛ/град/адрес) + the Barsy `account_id`
-to pick, then records the issued number so it can't be forgotten or issued twice. `invoice_data` stays
-wired on the payment, so if Barsy ever enables non-VPOS issuance this becomes automatic for free.
+### 🧾 B2B фактури — AUTOMATED (with an exception queue)
+Issued automatically by the connector at finalise, via the **undocumented** `Invoices_save`. It is not in
+Barsy's docs index (`methods/invoices/save.html` 404s) and blind probing only produced 500s — the contract
+was obtained by driving Barsy's own admin UI with an XHR interceptor and capturing the real request.
+Verified live end-to-end (invoice 0000000002, full receiver block, correct VAT split). Issuing is
+**best-effort**: the sale and the бон always complete; an invoice failure never fails the order.
+
+**Онлайн поръчки → Фактури** is therefore an **exception queue**, not the primary path — it lists only the
+orders automation couldn't invoice (almost always incomplete company data), with the copy-ready company
+block + the Barsy `account_id`, and records the number when staff issue one by hand. The storefront also
+hard-gates Фирма+ЕИК+Град+Адрес when „фактура" is ticked, so exceptions should be rare.
+
+> **Method lesson (cost us a wrong architecture once):** Barsy's docs are NOT a complete method list.
+> `Invoices_save` existed all along. Probe/capture against the live system before concluding a capability
+> is missing — but **never sweep `_save` methods blindly**: an empty `Accounts_save {}` body CREATED a real
+> (empty) account. Use admin-UI capture to learn a payload, not trial-and-error POSTs.
 
 ## Known constraints (by design, not gaps)
 - COD orders issue the **бон at packing**, not at delivery: Етикет closes the sale PAID under

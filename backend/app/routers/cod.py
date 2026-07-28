@@ -251,14 +251,18 @@ async def sync_tracking(
         key, tracking = s.get("courier"), s.get("tracking")
         if not key or not tracking:
             continue
+        # the WHOLE per-order body must sit inside the guard, not just .track(): resolving an unknown
+        # courier key, a non-dict track response, or a pipeline-DB write failure would otherwise abort
+        # the entire sweep — exactly the "one bad waybill strands every other order" failure this
+        # try/except exists to prevent.
         try:
             tr = await run_in_threadpool(courier_mod.get(key).track, tracking)
+            if isinstance(tr, dict) and tr.get("delivered"):
+                await run_in_threadpool(shopify_orders.set_state, oid, s.get("order_name") or oid,
+                                        status="delivered")
+                updated += 1
         except Exception:
-            continue  # a single courier hiccup shouldn't abort the sweep
-        if tr.get("delivered"):
-            await run_in_threadpool(shopify_orders.set_state, oid, s.get("order_name") or oid,
-                                    status="delivered")
-            updated += 1
+            continue  # a single courier/DB hiccup shouldn't abort the sweep
     await log_action(session, actor, "cod.sync_tracking", detail=f"delivered+={updated}")
     return {"ok": True, "delivered": updated}
 

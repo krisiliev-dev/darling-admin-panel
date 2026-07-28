@@ -143,16 +143,10 @@ def mark_pushed(code):
 def _seen_order(oid):
     """Return the LATEST recorded state for an order (so a finalise-appended kind='sale' overrides the
     original kind='clientorder' — the cancel-branch keys on this)."""
-    if not ORDERS_STATE.exists():
-        return None
     latest = None
-    for l in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
-        try:
-            d = json.loads(l)
-            if str(d.get("order_id")) == str(oid):
-                latest = d
-        except Exception:
-            pass
+    for d in _state_records():
+        if str(d.get("order_id")) == str(oid):
+            latest = d
     return latest
 
 
@@ -165,6 +159,31 @@ def record_finalised(order_id, account_id, rows=0):
     return {"order_id": str(order_id), "account_id": account_id, "kind": "sale"}
 
 
+_STATE_CACHE = {"sig": None, "records": []}
+
+
+def _state_records():
+    """Parsed ORDERS_STATE records, cached on (mtime, size). Every lookup used to re-read and re-parse the
+    whole append-only log — fine at test volume, but it's read on every webhook/dedup/finalise check and the
+    file only grows. The signature makes the cache self-invalidating: any append changes size/mtime, and
+    _record_order busts it explicitly, so a stale read is not possible. (audit perf fix 2026-07-28)"""
+    try:
+        st = ORDERS_STATE.stat()
+        sig = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        _STATE_CACHE.update(sig=None, records=[])
+        return []
+    if _STATE_CACHE["sig"] != sig:
+        recs = []
+        for line in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
+            try:
+                recs.append(json.loads(line))
+            except Exception:
+                pass
+        _STATE_CACHE.update(sig=sig, records=recs)
+    return _STATE_CACHE["records"]
+
+
 def _record_order(oid, account_id, n, kind="sale", key=None, **extra):
     """Append an order-state record. `account_id` must ALWAYS stay the SALE/clientorder account — a storno
     records its own id under `storno_account_id` via **extra, never overwriting account_id (else the next
@@ -173,6 +192,7 @@ def _record_order(oid, account_id, n, kind="sale", key=None, **extra):
         f.write(json.dumps({"order_id": str(oid), "account_id": account_id, "rows": n, "kind": kind,
                             "key": key, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), **extra},
                            ensure_ascii=False) + "\n")
+    _STATE_CACHE["sig"] = None                             # bust the read cache immediately after append
 
 
 def _barsy_account_for_clientorder(cid):
@@ -259,11 +279,11 @@ def _op_lock(key):
 def _seen_key(key):
     """True if an action with this idempotency key was already recorded (dedupes repeat webhooks —
     a duplicate cancel/refund/fulfilment delivery must not double-storno or re-write)."""
-    if not key or not ORDERS_STATE.exists():
+    if not key:
         return False
-    for l in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
+    for d in _state_records():
         try:
-            if json.loads(l).get("key") == key:
+            if d.get("key") == key:
                 return True
         except Exception:
             pass
@@ -680,8 +700,17 @@ def finalise_order(order_id, do_write=False, tracking=None, speditor=None):
             raise
         account_id = aid.get("account_id") if isinstance(aid, dict) else aid
         record_finalised(oid, account_id, rec.get("rows", 0))
-        return {**plan, "status": "ok", "account_id": account_id, "decremented": True,
-                "paid": total, "written": True}
+        out = {**plan, "status": "ok", "account_id": account_id, "decremented": True,
+               "paid": total, "written": True}
+        # B2B фактура — BEST EFFORT. The sale is already closed and fiscalised; an invoice problem must
+        # never fail the finalise (the request stays in list_invoice_requests for manual issuing).
+        if inv:
+            try:
+                out["invoice"] = issue_invoice(oid, do_write=True)
+            except Exception as e:
+                out["invoice"] = {"status": "needs_review", "reason": "invoice_error",
+                                  "error": str(e)[:200], "needs_review": True}
+        return out
 
 
 def refuse_order(order_id, do_write=False):
@@ -721,14 +750,8 @@ def refuse_order(order_id, do_write=False):
 def _all_latest_orders():
     """{order_id: latest ORDERS_STATE record} — the newest logged state per order (clientorder/sale/storno)."""
     latest = {}
-    if not ORDERS_STATE.exists():
-        return latest
-    for l in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
-        try:
-            d = json.loads(l)
-            latest[str(d.get("order_id"))] = d
-        except Exception:
-            pass
+    for d in _state_records():
+        latest[str(d.get("order_id"))] = d
     return latest
 
 
@@ -782,6 +805,117 @@ def list_cod_accounts(since=None):
     return rows
 
 
+_SELLER = {"data": None}
+
+
+def _seller_company():
+    """Our own company header for a фактура (cached). Barsy REQUIRES the issuer's ЕИК/МОЛ — if these are
+    blank in Настройки → Основни → Фирми the invoice cannot be issued."""
+    if _SELLER["data"] is None:
+        try:
+            _SELLER["data"] = (b.call("Companies_getlist", {"filters": {}}) or [{}])[0]
+        except Exception:
+            _SELLER["data"] = {}
+    return _SELLER["data"]
+
+
+def _invoice_rows(account_id):
+    """Build Invoices_save `rows` from the CLOSED account's order lines. Shape reverse-engineered by
+    capturing the admin UI's own request (the API is undocumented) — see the memory note. Prices on the
+    account are VAT-INCLUSIVE (`current_price`), so the ex-VAT unit price is derived."""
+    acc = b.call("Accounts_get", {"account_id": int(account_id),
+                                  "extra_properties": {"orders": "1"}}) or {}
+    code_by_id = {str(a.get("article_id")): str(a.get("code") or "")
+                  for a in (b.call("Articles_getlist", {"filters": {}}) or [])}
+    rows = []
+    for i, o in enumerate(acc.get("orders") or [], 1):
+        qty = float(o.get("amount") or o.get("row_amount") or 0)
+        gross_unit = float(o.get("current_price") or o.get("original_current_price") or 0)
+        tax = float(o.get("tax") or 0)
+        tax_id = str(o.get("tax_id") or 2)
+        net_unit = gross_unit / (1 + tax / 100) if tax else gross_unit
+        total = round(gross_unit * qty, 2)
+        rows.append({
+            "item_id": str(i), "article_id": str(o.get("article_id") or ""),
+            "inv_ref_num": code_by_id.get(str(o.get("article_id")), ""),
+            "item_name": o.get("article_name") or "",
+            "quantity": str(int(qty) if qty == int(qty) else qty),
+            "measure": o.get("amount_type_name_short") or "бр",
+            "original_single_price": f"{net_unit:.6f}".rstrip("0").rstrip("."),
+            "original_single_price_with_tax": f"{gross_unit:.2f}",
+            "discount": "0", "tax": str(int(tax)), "tax_id": tax_id, "tax_reason": "",
+            f"total_for_tax_{tax_id}": f"{total:.2f}",
+            "total_price": f"{total:.2f}", "chooser": 0,
+        })
+    return rows, acc
+
+
+def issue_invoice(order_id, do_write=False):
+    """Issue the B2B VAT invoice (фактура) for a FINALISED order via the UNDOCUMENTED `Invoices_save`
+    (contract captured from the admin UI — there is no documented create method). Barsy validates hard:
+    the receiver's company name, ЕИК and ADDRESS must all be non-empty, and our own company must have its
+    ЕИК/МОЛ set. Returns needs_review (never raises) when anything is missing, so the request stays visible
+    in list_invoice_requests() for manual issuing instead of vanishing. Gated: do_write=False → dry-run."""
+    oid = str(order_id)
+    rec = _seen_order(oid)
+    name = (rec or {}).get("order_ref") or f"#{oid}"
+    if not rec or rec.get("kind") != "sale" or not rec.get("account_id"):
+        return {"status": "refused", "reason": "not_a_finalised_sale", "order_ref": name, "order_id": oid}
+    inv = next((d["invoice"] for d in _state_records()
+                if str(d.get("order_id")) == oid and d.get("invoice")), None) or _invoice_for_order(oid)
+    if not inv:
+        return {"status": "skipped", "reason": "no_invoice_requested", "order_ref": name, "order_id": oid}
+    key = f"invoice-{oid}"
+    if _seen_key(key):
+        return {"status": "duplicate", "skipped": "invoice already issued", "order_id": oid}
+    missing = [k for k, src in (("фирма", "receiver_company_name"), ("ЕИК", "receiver_identity_num"),
+                                ("адрес", "receiver_address")) if not str(inv.get(src) or "").strip()]
+    seller = _seller_company()
+    if not str(seller.get("identity_num") or "").strip():
+        missing.append("ЕИК на издателя (Настройки→Фирми)")
+    plan = {"order_id": oid, "order_ref": name, "account_id": rec["account_id"], "method": "Invoices_save"}
+    if missing:
+        return {**plan, "status": "needs_review", "reason": "incomplete_invoice_data",
+                "error": f"липсват задължителни данни за фактура: {', '.join(missing)}",
+                "detail": {"missing": missing}, "needs_review": True}
+    if not do_write:
+        return {**plan, "status": "ok", "dry_run": True}
+    with _op_lock(f"invoice-{oid}"):
+        if _seen_key(key):
+            return {**plan, "status": "duplicate", "skipped": "invoice already issued"}
+        rows, acc = _invoice_rows(rec["account_id"])
+        if not rows:
+            return {**plan, "status": "needs_review", "reason": "no_rows",
+                    "error": "сметката няма редове за фактуриране", "needs_review": True}
+        today = time.strftime("%Y-%m-%d")
+        values = {
+            "type_id": "1",                                # 1 = Фактура
+            "client_id": acc.get("client_id") or _ANON_CLIENT_ID,
+            "client_name": acc.get("client_name") or "",
+            "company_id": seller.get("company_id") or 1, "name": seller.get("name") or "",
+            "seller_company_id": seller.get("company_id") or 1,
+            "seller_company_name": seller.get("company_name") or "",
+            "seller_address": seller.get("address") or "", "seller_town": seller.get("town") or "",
+            "seller_identity_num": seller.get("identity_num") or "",
+            "seller_vat_num": seller.get("vat_num") or "", "seller_mol": seller.get("mol") or "",
+            "seller_country_id": "BG",
+            "receiver_company_name": inv.get("receiver_company_name") or "",
+            "receiver_address": inv.get("receiver_address") or "",
+            "receiver_town": inv.get("receiver_town") or "",
+            "receiver_identity_num": inv.get("receiver_identity_num") or "",
+            "receiver_vat_num": inv.get("receiver_vat_num") or "",
+            "receiver_mol": inv.get("receiver_mol") or "", "receiver_country_id": "BG",
+            "inv_id": None, "inv_num": "", "parent_inv_id": None,
+            "create_date": today, "term_date": today, "payment_date": today,
+            "discount": "0", "with_tax": 0, "currency_id": "1", "currency_rate": "1",
+            "is_anulate": "0", "deal_id": None, "deal_title": "", "person_id": None, "person_name": "",
+        }
+        res = b.call("Invoices_save", {"id": None, "action_type": "save",
+                                       "values": values, "rows": rows})
+        _record_order(oid, rec["account_id"], len(rows), "invoice", key=key, invoice_result=res)
+        return {**plan, "status": "ok", "invoice": res, "rows": len(rows), "written": True}
+
+
 _INV_KEYS = (("name", "receiver_company_name"), ("eik", "receiver_identity_num"),
              ("vat", "receiver_vat_num"), ("mol", "receiver_mol"),
              ("city", "receiver_town"), ("address", "receiver_address"))
@@ -803,14 +937,9 @@ def list_invoice_requests(since=None):
     # The invoice block is captured on the CLIENTORDER record at intake; finalise then appends a fresh
     # 'sale' record without it. So scan ALL records per order — reading only the latest one misses it.
     captured = {}
-    if ORDERS_STATE.exists():
-        for line in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
-            try:
-                d = json.loads(line)
-                if d.get("invoice"):
-                    captured[str(d.get("order_id"))] = d["invoice"]
-            except Exception:
-                pass
+    for d in _state_records():
+        if d.get("invoice"):
+            captured[str(d.get("order_id"))] = d["invoice"]
     out = []
     for row in list_cod_accounts(since=since):
         if row.get("stornoed"):                            # reversed sale — nothing to invoice
@@ -841,7 +970,8 @@ def list_invoice_requests(since=None):
             "amount": row["amount"],
             "company": {k: str(inv.get(src) or "") for k, src in _INV_KEYS},
             "requested_ts": row.get("finalised_ts") or row.get("close_date"),
-            "issued": False,
+            # True once WE issued it via Invoices_save; the panel still owns "marked done by staff".
+            "issued": _seen_key(f"invoice-{row['order_id']}"),
         })
     return out
 

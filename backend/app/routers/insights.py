@@ -32,7 +32,14 @@ async def insights(
     limit: int = Query(250, ge=1, le=1000),
     session: AsyncSession = Depends(get_async_session),
 ):
-    orders = await run_in_threadpool(shopify_orders.fetch_orders, limit)
+    # Shopify being down must DEGRADE, not 500 — this is the Анализи landing tab, and the order queue
+    # (orders.py list_orders) already handles the identical call this way. A 500 here renders a bare
+    # "Грешка при зареждане" over the whole dashboard for what is only a missing data source.
+    try:
+        orders = await run_in_threadpool(shopify_orders.fetch_orders, limit)
+        warning = ""
+    except Exception as e:
+        orders, warning = [], f"Shopify недостъпен: {str(e)[:120]}"
     n = len(orders)
     revenue = round(sum(_f(o.get("total")) for o in orders), 2)
     cod_orders = sum(1 for o in orders if o.get("cod"))
@@ -69,6 +76,7 @@ async def insights(
     finished = delivered + refused
 
     return {
+        "warning": warning,      # non-empty => the numbers are incomplete, not genuinely zero
         "orders": n,
         "revenue": revenue,
         "aov": round(revenue / n, 2) if n else 0.0,

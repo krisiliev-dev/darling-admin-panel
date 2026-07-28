@@ -796,8 +796,28 @@ async def push_to_barsy(
                                 f"Вече е създадена в Barsy (article_id {d.barsy_article_id}).")
         raise HTTPException(status.HTTP_409_CONFLICT, "Създаването вече тече.")
 
+    # Build with the SAME enrichment the delivery-save path applies (_save_to_barsy) — otherwise a
+    # product created from Нов продукт lands in Barsy uncategorised and without the POS below-cost
+    # floor, while the identical product created via a delivery gets both.
+    art_body = _build_barsy_article(d)
+    cat_id = await run_in_threadpool(_resolve_cat_id, d.shopify_category_id)
+    if cat_id:
+        art_body["article"]["cat_id"] = cat_id
+        art_body["article"]["master_cat_id"] = cat_id
+    art_body["article"]["min_profit_percent"] = get_settings().barsy_min_profit_percent
+
+    # WRITE GATE — this is a real Articles_create. Every sibling write is gated (delivery save by
+    # delivery_barsy_live, catalog/pricing by barsy_write_live, store-ops by store_ops_barsy_live);
+    # this one wasn't, so pre-launch a single click created a live article. Release the claim so the
+    # draft stays pushable once the gate is on.
+    if not getattr(get_settings(), "delivery_barsy_live", False):
+        d.status = "approved"
+        await session.commit()
+        return {"ok": True, "dry_run": True, "gated": True, "article": art_body["article"],
+                "note": "Проба — не е записано в Barsy (ще се активира при пускане)."}
+
     try:
-        out = await run_in_threadpool(barsy.call, "Articles_create", _build_barsy_article(d))
+        out = await run_in_threadpool(barsy.call, "Articles_create", art_body)
     except Exception as e:
         d.status = "approved"  # release the claim so it can be retried
         await session.commit()
