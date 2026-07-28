@@ -244,6 +244,20 @@ async def make_label(
     except Exception as e:
         result["warning"] = (f"Етикетът е създаден ({result.get('tracking_number')}), но "
                              f"статусът не се запази: {str(e)[:80]}")
+    # #83 / RECONCILIATION_SPEC rule B: dispatch = push a Shopify fulfilment (clears `committed`,
+    # drops on_hand once). NON-FATAL — the real label already exists, so a fulfilment hiccup must not
+    # fail the label call; it surfaces as a warning (and the connector logs a Проблеми issue).
+    try:
+        fulfil = await run_in_threadpool(
+            connector.ship_order, _numeric_oid(o["id"]),
+            result.get("tracking_number"), get_settings().barsy_write_live)
+        result["fulfillment"] = fulfil
+        if isinstance(fulfil, dict) and fulfil.get("status") not in ("ok", "duplicate", None):
+            result["warning"] = (result.get("warning", "") +
+                                 f" Пратката не се отбеляза в Shopify ({fulfil.get('reason', '?')}).").strip()
+    except Exception as e:
+        result["warning"] = (result.get("warning", "") +
+                             f" Shopify fulfilment пропусна: {str(e)[:80]}.").strip()
     await log_action(session, actor, "label.create", target=o["name"],
                      detail=f"{req.courier} {result.get('tracking_number')} "
                             f"COD={result.get('cod_amount')}€")
@@ -393,4 +407,36 @@ async def refuse(
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
     await log_action(session, actor, "order.refuse", target=o["name"], detail=str(result)[:300])
+    return result
+
+
+class ShipAction(BaseModel):
+    tracking: str = Field("", max_length=64)
+    confirm: bool = False
+
+
+@router.post("/{order_id}/ship")
+async def ship(
+    order_id: str, body: ShipAction,
+    actor: User = Depends(require_roles("owner", "manager", "staff", "packer")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Dispatch (#83 / RECONCILIATION_SPEC rule B): push a Shopify fulfilment for the order (clears
+    `committed`, drops on_hand once) via the connector. Normally fired automatically on label success;
+    exposed explicitly for re-runs and for orders shipped without a panel-created label. The connector
+    dedups (a second call on an already-fulfilled order returns a skip). Gated + confirm + role + audit."""
+    if not body.confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Изпращането отбелязва пратката в Shopify — потвърди с confirm=true.")
+    o = await run_in_threadpool(_order_or_404, order_id)
+    do_write = get_settings().barsy_write_live
+    try:
+        result = await run_in_threadpool(
+            connector.ship_order, _numeric_oid(o["id"]), body.tracking or None, do_write)
+    except AttributeError:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Изпращането не е налично (connector.ship_order липсва).")
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
+    await log_action(session, actor, "order.ship", target=o["name"], detail=str(result)[:300])
     return result
