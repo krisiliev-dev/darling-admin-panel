@@ -151,3 +151,23 @@ async def test_settle_never_posts_payment_to_barsy(owner_client, settle_state, m
     r = await owner_client.post("/api/cod/settle", json={
         "reference": "P", "payout_date": "", "courier": "", "lines": [{"order_id": "o1", "collected": 30.0}]})
     assert r.status_code == 200 and r.json()["settled"] == 1
+
+
+# --- Barsy method-6 "expected COD" pull (authoritative source) -----------------------
+async def test_barsy_booked_lists_and_flags_uncollected(owner_client, settle_state, monkeypatch):
+    monkeypatch.setattr(cod.connector, "list_cod_accounts", lambda: [
+        {"order_id": "o1", "order_ref": "#1", "amount": 30.0, "stornoed": False, "tracking_number": None},
+        {"order_id": "o3", "order_ref": "#3", "amount": 9.0, "stornoed": True},   # reversed → excluded
+    ], raising=False)
+    r = await owner_client.get("/api/cod/barsy-booked")
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["count"] == 1 and b["total"] == 30.0        # the stornoed account is excluded
+    assert b["uncollected"] == 1                          # o1 booked-paid but not settled/returned
+    assert b["accounts"][0]["order_id"] == "o1" and b["accounts"][0]["uncollected"] is True
+
+
+async def test_barsy_booked_missing_connector_fn_501(owner_client, settle_state, monkeypatch):
+    monkeypatch.delattr(cod.connector, "list_cod_accounts", raising=False)
+    r = await owner_client.get("/api/cod/barsy-booked")
+    assert r.status_code == 501

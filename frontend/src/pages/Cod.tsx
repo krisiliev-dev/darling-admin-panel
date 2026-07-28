@@ -76,6 +76,8 @@ export function Cod({ embedded = false }: { embedded?: boolean } = {}) {
         {data && data.orders.length > 0 && <CodTable orders={data.orders} onChange={reload} />}
       </Sheet>
 
+      <BarsyBookedCod />
+
       {awaiting.length > 0 && <PayoutImport onApply={applyPrefill} />}
 
       {awaiting.length > 0 && (
@@ -84,6 +86,54 @@ export function Cod({ embedded = false }: { embedded?: boolean } = {}) {
           orders={awaiting} prefill={prefill} onDone={reload} />
       )}
     </div>
+  )
+}
+
+// Осчетоводени COD в Barsy — the AUTHORITATIVE 'expected COD' (method-6 paid sales) pulled straight
+// from Barsy via connector.list_cod_accounts. Cross-check: a booked-paid sale no courier collected is
+// a storno candidate (reverse it on its row in the table above). On-demand — one Barsy read.
+interface BarsyBookedRow { order_id: string; order_ref: string; amount: number; settled: boolean; uncollected: boolean; bucket: string }
+interface BarsyBookedResp { count: number; total: number; uncollected: number; accounts: BarsyBookedRow[] }
+
+function BarsyBookedCod() {
+  const [data, setData] = useState<BarsyBookedResp | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const run = async () => {
+    setBusy(true); setErr(''); setData(null)
+    try { setData(await api.get<BarsyBookedResp>('/api/cod/barsy-booked')) }
+    catch (e) { setErr(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
+  }
+  return (
+    <Sheet>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '.6rem' }}>
+        <h3 style={{ fontSize: '1rem' }}>Осчетоводени COD в Barsy</h3>
+        <button className="btn-paper" onClick={() => void run()} disabled={busy}>{busy ? 'проверява…' : 'Провери'}</button>
+      </div>
+      <p className="pencil" style={{ fontSize: '.78rem', margin: '.2rem 0 .5rem' }}>
+        Продажбите, осчетоводени като <b>платени</b> (наложен платеж) в Barsy. Тези, които <b>никой куриер не е събрал</b>,
+        са кандидати за сторно — сторнирай ги от реда им в таблицата горе.
+      </p>
+      {err && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--red)' }}>{err}</div>}
+      {data && (
+        <>
+          <div style={{ display: 'flex', gap: '1.6rem', flexWrap: 'wrap', margin: '.4rem 0 .3rem' }}>
+            {([['общо', data.count, 'pencil'], ['€ осчетоводени', data.total.toFixed(2), 'ink'],
+               ['несъбрани', data.uncollected, data.uncollected ? 'blocked' : 'ready']] as [string, string | number, string][]).map(([label, n, tone]) => (
+              <span key={label} style={{ display: 'grid' }}>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: `var(--${tone})`, lineHeight: 1 }}>{n}</span>
+                <span className="font-type" style={{ fontSize: '.7rem', color: 'var(--pencil)' }}>{label}</span>
+              </span>
+            ))}
+          </div>
+          {data.uncollected > 0
+            ? <div className="font-type" style={{ fontSize: '.78rem', color: 'var(--blocked)' }}>
+                Несъбрани (кандидати за сторно): {data.accounts.filter((a) => a.uncollected).map((a) => a.order_ref).join(', ')}
+              </div>
+            : data.count > 0 && <p className="font-hand" style={{ color: 'var(--ready)', fontSize: '1rem', margin: 0 }}>Всичко осчетоводено е събрано. 🎉</p>}
+        </>
+      )}
+    </Sheet>
   )
 }
 

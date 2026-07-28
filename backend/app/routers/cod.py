@@ -192,6 +192,48 @@ async def cod_overview(
     return {"summary": summ, "orders": out}
 
 
+@router.get("/barsy-booked")
+async def barsy_booked_cod(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """The AUTHORITATIVE 'expected COD' — the sales Barsy has booked PAID under method 6 (via the
+    connector's list_cod_accounts). Under the anonymous-paid model every finalised order is a method-6
+    COD sale, so this is 'what Barsy believes it collected'. Cross-referenced against the panel's
+    settlement state so staff can spot Barsy-booked COD that NO courier has remitted → uncollected /
+    storno candidates. Skips already-stornoed accounts. Read-only."""
+    try:
+        accounts = await run_in_threadpool(connector.list_cod_accounts)
+    except AttributeError:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Справката не е налична (connector.list_cod_accounts липсва).")
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy недостъпен: {str(e)[:160]}")
+    settled = {oid for (oid,) in (await session.execute(select(CodSettlement.order_id))).all()}
+    smap = await run_in_threadpool(shopify_orders.state_map)
+    rows, total, uncollected = [], 0.0, 0
+    for a in (accounts or []):
+        if not isinstance(a, dict) or a.get("stornoed"):
+            continue                                    # already reversed — not owed to us
+        oid = str(a.get("order_id") or "")
+        amt = round(float(a.get("amount") or 0), 2)
+        total += amt
+        st = smap.get(oid) or {}
+        bucket = _BUCKET.get(st.get("status"), "preship")
+        is_settled = oid in settled or bucket == "settled"
+        # booked paid in Barsy but neither collected/settled nor returned → the storno-candidate signal
+        is_uncollected = not is_settled and bucket != "rto"
+        if is_uncollected:
+            uncollected += 1
+        rows.append({
+            "order_id": oid, "order_ref": a.get("order_ref") or oid, "amount": amt,
+            "tracking_number": a.get("tracking_number"), "finalised_ts": a.get("finalised_ts"),
+            "settled": is_settled, "bucket": bucket, "uncollected": is_uncollected,
+        })
+    rows.sort(key=lambda r: (not r["uncollected"], r["order_ref"]))
+    return {"count": len(rows), "total": round(total, 2), "uncollected": uncollected, "accounts": rows}
+
+
 @router.post("/sync-tracking")
 async def sync_tracking(
     actor: User = Depends(require_roles("staff", "packer")),
