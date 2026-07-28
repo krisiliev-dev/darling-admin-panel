@@ -188,6 +188,35 @@ async def writeoff_reasons(_: User = Depends(current_active_user)):
     return {"reasons": rows or [], "type_id": -1}
 
 
+@router.get("/availability")
+async def availability(article_id: int, _: User = Depends(current_active_user)):
+    """Наличност of one article across ALL depots — what the Прехвърляне screen needs, since a transfer
+    has two sides and moving stock you don't have is the mistake worth preventing at the form.
+
+    Uses `Articles_getAvailability {article_id, depots:[…]}` (undocumented; it is what Barsy's own UI
+    calls for the multi-depot view). Falls back to per-depot `Articles_getStoreAmount` reads so the column
+    still fills if that method is unavailable — and a depot whose read FAILED reports null, never 0."""
+    depots = await _depots()
+    ids = [int(d["depot_id"]) for d in depots if d.get("depot_id") is not None]
+    names = {int(d["depot_id"]): (d.get("depot_name") or str(d["depot_id"]))
+             for d in depots if d.get("depot_id") is not None}
+    try:
+        raw = await run_in_threadpool(barsy.call, "Articles_getAvailability",
+                                      {"article_id": article_id, "depots": ids})
+    except Exception:  # noqa: BLE001 — fall back to the single-depot reads below
+        raw = None
+    rows: list[dict] = []
+    if isinstance(raw, list) and raw:
+        for r in raw:
+            did = int(r.get("depot_id") or 0)
+            rows.append({"depot_id": did, "depot_name": names.get(did, str(did)), "amount": _num(r)})
+    else:
+        amounts = await asyncio.gather(*[_article_stock(article_id, d) for d in ids])
+        rows = [{"depot_id": d, "depot_name": names.get(d, str(d)), "amount": a}
+                for d, a in zip(ids, amounts)]
+    return {"article_id": article_id, "depots": rows}
+
+
 @router.get("/movements")
 async def movements(article_id: int | None = None, code: str | None = None, limit: int = 100,
                     _: User = Depends(current_active_user)):
@@ -297,8 +326,18 @@ async def write_off(req: WriteoffReq, actor: User = Depends(current_owner),
 @router.post("/transfer")
 async def transfer(req: TransferReq, actor: User = Depends(current_owner),
                    session: AsyncSession = Depends(get_async_session)):
-    """Прехвърляне → Storemoves_create (documented). Requires ≥2 depots — Barsy has only 'Основен' until a
-    2nd is created, so we hard-check to give a clear message rather than a confusing Barsy error."""
+    """Прехвърляне → `Storemoves_save`, envelope CAPTURED from Barsy's UI (2026-07-28).
+
+    Uses the captured `Storemoves_save` rather than the documented `Storemoves_create`: the capture is
+    what the UI actually sends and is observed to work, the documented variant never was.
+    `depot_id_left` = FROM, `depot_id_right` = TO. Row shape = a Storeouts row minus `reason_id`.
+
+    ⚠ `id` is **null** here while `Storeouts_save` wants **0** for a new document. That inconsistency is
+    Barsy's, and each is sent verbatim — do NOT factor these two envelopes into one shared builder
+    "for consistency"; normalising them would silently break one of the two.
+
+    Requires ≥2 depots — Barsy has only 'Основен' until a 2nd is created, so we hard-check to give a
+    clear message rather than a confusing Barsy error."""
     if req.depot_from == req.depot_to:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Складът-източник и складът-цел трябва да са различни.")
     depots = await _depots()
@@ -307,17 +346,28 @@ async def transfer(req: TransferReq, actor: User = Depends(current_owner),
             status.HTTP_409_CONFLICT,
             "Прехвърлянето изисква поне 2 склада в Barsy. В момента съществува само един ('Основен'). "
             "Създайте втори склад в Barsy, за да ползвате тази функция.")
+    names = await _article_names([ln.article_id for ln in req.lines])
     body = {
-        "storemove": {
-            "depot_id_left": req.depot_from,
-            "depot_id_right": req.depot_to,
-            "doc_date": req.doc_date or _today(),
-            "description": req.description,
-        },
-        "rows": _rows_payload(req.lines),
+        "id": None,                              # null = new document (captured; NOT 0 as in Storeouts)
+        # the capture stopped at "save" (draft). "save_and_close" is what posts the move — same pairing
+        # as Storeouts, where save_and_close was verified live to move stock (10→9).
         "action_type": "save_and_close",
+        "values": {
+            "user_name": None,
+            "doc_date": req.doc_date or _now(),
+            "description": req.description,
+            "deal_id": None, "deal_title": "",
+            "depot_id_left": str(req.depot_from),    # FROM
+            "depot_id_right": str(req.depot_to),     # TO
+        },
+        "rows": [
+            {"row_id": "", "article_id": ln.article_id,
+             "article_name": ln.article_name or names.get(ln.article_id, ""),
+             "amount": _amt(ln.amount), "notes": ln.note or "", "lot_value": ""}
+            for ln in req.lines
+        ],
     }
-    return await _gate_or_dry(actor, session, action="storeop.transfer", method="Storemoves_create",
+    return await _gate_or_dry(actor, session, action="storeop.transfer", method="Storemoves_save",
                               body=body, target=f"{req.depot_from}→{req.depot_to} / {len(req.lines)} реда",
                               confirm=req.confirm)
 
@@ -358,6 +408,9 @@ class RevisionLine(BaseModel):
     article_id: int
     counted: float = Field(ge=0)          # physically counted quantity (set-to-exact)
     notes: str | None = None
+    # Резолюция (reason for the DIFFERENCE) — null on a plain save, REQUIRED by Barsy on close. The
+    # asymmetry is the point: count first, justify variances second. See /revision/close.
+    rev_res_id: int | None = None
 
 
 class RevisionReq(BaseModel):
@@ -457,14 +510,22 @@ async def revision_preview(req: RevisionReq, _: User = Depends(current_active_us
             "unknown_lines": sum(1 for s in stocks if s is None)}
 
 
-async def _revision_row(ln: RevisionLine, depot_id: int | None) -> dict:
+async def _revision_row(ln: RevisionLine, depot_id: int | None, *, closing: bool = False) -> dict:
     """One Revisions_save row, built from the SAME two reads Barsy's UI makes when a row is picked
     (Articles_get + Articles_getStoreAmount) rather than from invented values. Field names/shape are from
-    the captured save."""
+    the captured save.
+
+    `closing` mirrors the two differences the close capture showed: `amount` travels as an INT (a string
+    on save) and `rev_res_id` carries the row's resolution instead of null."""
     a, sys_amt = await asyncio.gather(_article(ln.article_id), _article_stock(ln.article_id, depot_id))
     store_amount = sys_amt if sys_amt is not None else 0.0
     diff = round(ln.counted - store_amount, 3)
     price = _num(a.get("actual_price")) or 0
+    if closing:
+        amount: object = int(ln.counted) if float(ln.counted).is_integer() else ln.counted
+        rev_res: object = str(ln.rev_res_id) if ln.rev_res_id is not None else None
+    else:
+        amount, rev_res = _amt(ln.counted), None
     return {
         "row_unique": ln.article_id,                 # capture: equals article_id for a fresh row
         "article_id": ln.article_id,
@@ -474,14 +535,34 @@ async def _revision_row(ln: RevisionLine, depot_id: int | None) -> dict:
         "amount_unit": _num(a.get("amount_unit")) or 1,
         "amount_type_name_short": a.get("amount_type_name_short") or "",
         "store_amount": store_amount,                # В системата
-        "amount": _amt(ln.counted),                  # Отчетено (the counted quantity — a string)
+        "amount": amount,                            # Отчетено (str on save, int on close — captured)
         "diff_1": diff, "diff_2": diff,              # computed difference (UI sends both)
         "actual_price": price, "cur": price,
-        "rev_res_id": None, "notes": ln.notes or None, "picture": None,
+        "rev_res_id": rev_res, "notes": ln.notes or None, "picture": None,
         "cat_path": a.get("master_cat") or a.get("categories_names") or "",
         # a DOM handle from Barsy's own list widget; echoed back verbatim in the capture. Harmless, but
         # it is UI bookkeeping rather than data — kept only because we send what the UI sends.
         "list_row_id": f"eStructList_1_{ln.article_id}",
+    }
+
+
+async def _revision_body(req: "RevisionCountReq", *, closing: bool) -> tuple[list[dict], dict]:
+    """The Revisions_save envelope, shared by the count-save and the close. Identical apart from
+    `action_type` and the two per-row differences the close capture showed (see _revision_row)."""
+    rows = list(await asyncio.gather(
+        *[_revision_row(ln, req.depot_id, closing=closing) for ln in req.lines]))
+    return rows, {
+        "action_type": "save_and_close" if closing else "save",
+        "id": req.revision_id,
+        "mode": "changes",                # ONLY the changed rows travel — see revision_count's docstring
+        "values": {
+            "cat_id": req.cat_id, "view_mode": req.view_mode, "stream_id": req.stream_id,
+            "price_mode": req.price_mode, "lots_mode": req.lots_mode,
+            "amount_date": req.amount_date,          # the revision's effective stock moment
+            "last_revision_amount_date": None,
+            "description": req.description,
+        },
+        "rows": rows,
     }
 
 
@@ -501,20 +582,7 @@ async def revision_count(req: RevisionCountReq, actor: User = Depends(current_ow
     precisely what must not be guessed. Open it in Barsy, then bring its id here. Applying it
     («Приложи промените» — the step that actually corrects stock) is also uncaptured and stays in Barsy;
     see /revision/apply."""
-    rows = await asyncio.gather(*[_revision_row(ln, req.depot_id) for ln in req.lines])
-    body = {
-        "action_type": "save",            # captured: a draft save of the counts; apply is a separate step
-        "id": req.revision_id,
-        "mode": "changes",                # ONLY the changed rows travel — see the docstring
-        "values": {
-            "cat_id": req.cat_id, "view_mode": req.view_mode, "stream_id": req.stream_id,
-            "price_mode": req.price_mode, "lots_mode": req.lots_mode,
-            "amount_date": req.amount_date,          # the revision's effective stock moment
-            "last_revision_amount_date": None,
-            "description": req.description,
-        },
-        "rows": list(rows),
-    }
+    rows, body = await _revision_body(req, closing=False)
     counted = sum(1 for r in rows if r["diff_1"])
     warn = [] if counted else ["ℹ Нито един ред не се различава от системната наличност — записът няма ефект."]
     return await _gate_or_dry(
@@ -524,16 +592,32 @@ async def revision_count(req: RevisionCountReq, actor: User = Depends(current_ow
                          "„Приложи промените“ в Barsy."])
 
 
-@router.post("/revision/apply")
-async def revision_apply(_: User = Depends(current_owner)):
-    """«Приложи промените» — the step that actually corrects stock. NOT IMPLEMENTED, deliberately.
+@router.post("/revision/close")
+async def revision_close(req: RevisionCountReq, actor: User = Depends(current_owner),
+                         session: AsyncSession = Depends(get_async_session)):
+    """«Приложи промените» — CLOSE the revision, which is what actually corrects stock.
 
-    Its request was not captured (the owner stopped at «Запиши» on purpose), and this is the single most
-    destructive operation in Склад: it rewrites on-hand for every row of the document. Guessing its
-    envelope is exactly the mistake that produced the previous superseded revision code, so the panel
-    refuses rather than emitting an invented body — apply it in Barsy until the capture exists."""
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        "Прилагането на ревизия („Приложи промените“) все още се прави в Barsy. Панелът нанася "
-        "преброените количества, но не коригира наличностите — форматът на тази стъпка не е потвърден и "
-        "няма да бъде налучкван.")
+    Same method as the count-save with `action_type:"save_and_close"` (captured 2026-07-28). Two per-row
+    differences the capture showed and this honours: `amount` travels as an INT (a string on save), and
+    **`rev_res_id` — the resolution/причина for the difference — is REQUIRED**, where it was null on save.
+
+    That requirement is a real workflow constraint, not a field to auto-fill: count freely, then justify
+    each variance before applying it. So a line whose count differs from the system MUST carry its own
+    rev_res_id; defaulting one would silently attribute every липса to whatever reason we picked, which is
+    precisely the record an inventory audit exists to produce. Lines that match the system need none.
+
+    The close applies the counted quantities to live stock and is irreversible — hence owner-only, the
+    gate, and an explicit confirm."""
+    rows, body = await _revision_body(req, closing=True)
+    missing = [r["article_id"] for r in rows if r["diff_1"] and not r["rev_res_id"]]
+    if missing:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Липсва резолюция (причина за разликата) за артикул(и): {', '.join(map(str, missing))}. "
+            f"Barsy изисква причина за всеки ред с разлика при приключване на ревизия.")
+    differing = sum(1 for r in rows if r["diff_1"])
+    return await _gate_or_dry(
+        actor, session, action="storeop.revision.close", method="Revisions_save", body=body,
+        target=f"ревизия #{req.revision_id} / {len(rows)} реда / {differing} с разлика",
+        confirm=req.confirm,
+        warnings=["🚨 ПРИКЛЮЧВАНЕТО КОРИГИРА НАЛИЧНОСТИТЕ и не може да се върне назад."])

@@ -31,6 +31,34 @@ async def test_writeoff_reasons_uses_getreasons(owner_client, barsy_recorder):
     assert "Storeouts_getreasons" in barsy_recorder.operations   # not the 500-ing *_reasons_getlist
 
 
+async def test_availability_lists_every_depot(owner_client, barsy_recorder):
+    """The Прехвърляне screen needs BOTH sides — moving stock you don't have is the mistake to prevent
+    at the form. Uses the undocumented multi-depot read, one call instead of one per depot."""
+    barsy_recorder.set_return("Depots_getlist", [
+        {"depot_id": 1, "depot_name": "Основен"}, {"depot_id": 2, "depot_name": "Склад 2"}])
+    barsy_recorder.set_return("Articles_getAvailability", [
+        {"depot_id": 1, "amount": 9}, {"depot_id": 2, "amount": 0}])
+    r = await owner_client.get("/api/store-ops/availability?article_id=5")
+    assert r.status_code == 200, r.text
+    rows = r.json()["depots"]
+    assert [d["amount"] for d in rows] == [9.0, 0.0]
+    assert rows[0]["depot_name"] == "Основен"
+
+
+async def test_availability_falls_back_to_per_depot_reads(owner_client, barsy_recorder):
+    """If the multi-depot method is unavailable the column must still fill — and a depot whose read
+    FAILED reports null, never 0 (a phantom 0 would read as 'nothing to transfer from here')."""
+    barsy_recorder.set_return("Depots_getlist", [{"depot_id": 1, "depot_name": "Основен"}])
+
+    def _boom(_body):
+        raise RuntimeError("no such method")
+    barsy_recorder.set_return("Articles_getAvailability", _boom)
+    barsy_recorder.set_return("Articles_getStoreAmount", 4)
+    r = await owner_client.get("/api/store-ops/availability?article_id=5")
+    assert r.status_code == 200, r.text
+    assert r.json()["depots"][0]["amount"] == 4.0
+
+
 async def test_movements_requires_a_selector(owner_client):
     r = await owner_client.get("/api/store-ops/movements")
     assert r.status_code == 400
@@ -103,9 +131,10 @@ async def test_transfer_dry_run_with_two_depots(owner_client, barsy_recorder):
         "lines": [{"article_id": 5, "amount": 3}], "depot_from": 1, "depot_to": 2})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["dry_run"] is True and body["method"] == "Storemoves_create"
-    sm = body["barsy_body"]["storemove"]
-    assert sm["depot_id_left"] == 1 and sm["depot_id_right"] == 2
+    assert body["dry_run"] is True and body["method"] == "Storemoves_save"
+    vals = body["barsy_body"]["values"]
+    assert vals["depot_id_left"] == "1" and vals["depot_id_right"] == "2"
+    assert body["barsy_body"]["rows"][0]["amount"] == "3"
 
 
 # ---------------------------------------------------------------- writes: live (gate on) ---
@@ -214,13 +243,43 @@ async def test_revision_count_sends_only_the_counted_rows(owner_client, barsy_re
     assert len(rows) == 2 and {r_["article_id"] for r_ in rows} == {5, 6}
 
 
-async def test_revision_apply_is_refused_not_guessed(owner_client, barsy_recorder):
-    """«Приложи промените» rewrites on-hand for the whole document and its request was never captured.
-    The panel must refuse rather than emit an invented body — that guess is what broke the last version."""
-    r = await owner_client.post("/api/store-ops/revision/apply", json={})
-    assert r.status_code == 501
-    assert "Barsy" in r.json()["detail"]
-    assert not [op for op in barsy_recorder.operations if op.startswith("Revisions")]
+async def test_revision_close_needs_a_resolution_for_every_differing_row(owner_client, barsy_recorder):
+    """Barsy REQUIRES rev_res_id (причина за разликата) on close, where it was null on save. We refuse
+    rather than defaulting one: auto-filling would silently attribute every липса to a reason nobody
+    chose — exactly the record an inventory audit exists to produce. A matching row needs none."""
+    barsy_recorder.set_return("Articles_getStoreAmount", 5)
+    r = await owner_client.post("/api/store-ops/revision/close", json=_count_req(lines=[
+        {"article_id": 5, "counted": 7},                     # differs, no resolution → refuse
+        {"article_id": 6, "counted": 5, "rev_res_id": 1},
+    ]))
+    assert r.status_code == 400
+    assert "5" in r.json()["detail"] and "резолюция" in r.json()["detail"]
+    assert "Revisions_save" not in barsy_recorder.operations   # nothing reached Barsy
+
+
+async def test_revision_close_matches_the_captured_close_shape(owner_client, barsy_recorder):
+    """The close capture differs from the save in exactly three ways — action_type, `amount` as an INT
+    (a string on save), and rev_res_id populated. Mirror it verbatim."""
+    barsy_recorder.set_return("Articles_getStoreAmount", 0)
+    r = await owner_client.post("/api/store-ops/revision/close",
+                                json=_count_req(lines=[{"article_id": 5, "counted": 1, "rev_res_id": 1}]))
+    assert r.status_code == 200, r.text
+    body = r.json()["barsy_body"]
+    assert body["action_type"] == "save_and_close" and body["id"] == 2 and body["mode"] == "changes"
+    row = body["rows"][0]
+    assert row["amount"] == 1 and isinstance(row["amount"], int)   # int on close, "1" on save
+    assert row["rev_res_id"] == "1" and row["diff_1"] == 1
+    assert r.json()["warnings"] and "НАЛИЧНОСТИТЕ" in r.json()["warnings"][0]
+
+
+async def test_revision_close_matching_row_needs_no_resolution(owner_client, barsy_recorder):
+    """A counted quantity that equals the system has no variance to justify — requiring a reason there
+    would be busywork that trains operators to pick one at random."""
+    barsy_recorder.set_return("Articles_getStoreAmount", 3)
+    r = await owner_client.post("/api/store-ops/revision/close",
+                                json=_count_req(lines=[{"article_id": 5, "counted": 3}]))
+    assert r.status_code == 200, r.text
+    assert r.json()["barsy_body"]["rows"][0]["diff_1"] == 0
 
 
 async def test_revision_requires_owner(staff_client):
@@ -253,15 +312,23 @@ async def test_writeoff_reason_is_per_row_not_flattened(owner_client, barsy_reco
     assert rows[1]["reason_id"] == "1"        # falls back to the document default
 
 
-async def test_transfer_live_sends_storemoves_create(owner_client, barsy_recorder, monkeypatch):
+async def test_transfer_live_sends_storemoves_save(owner_client, barsy_recorder, monkeypatch):
+    """Прехвърляне uses the CAPTURED Storemoves_save (what Barsy's UI sends, observed working) rather
+    than the documented Storemoves_create, which was never verified with a real write."""
     monkeypatch.setattr(store_ops, "get_settings", _live_settings)
     barsy_recorder.set_return("Depots_getlist", [{"depot_id": 1}, {"depot_id": 2}])
-    barsy_recorder.set_return("Storemoves_create", 7)
+    barsy_recorder.set_return("Storemoves_save", 7)
     r = await owner_client.post("/api/store-ops/transfer", json={
         "lines": [{"article_id": 5, "amount": 2}], "depot_from": 1, "depot_to": 2, "confirm": True})
     assert r.status_code == 200 and r.json()["dry_run"] is False
-    sm = barsy_recorder.body_for("Storemoves_create")["storemove"]
-    assert sm["depot_id_left"] == 1 and sm["depot_id_right"] == 2
+    body = barsy_recorder.body_for("Storemoves_save")
+    assert body["values"]["depot_id_left"] == "1"      # FROM
+    assert body["values"]["depot_id_right"] == "2"     # TO
+    # `id` is null for a new Storemoves document but 0 for a new Storeouts one. Barsy's inconsistency,
+    # sent verbatim per module — pinned so nobody "tidies" the two envelopes into one shared builder.
+    assert body["id"] is None
+    row = body["rows"][0]
+    assert row["row_id"] == "" and row["article_id"] == 5 and "reason_id" not in row
 
 
 async def test_revision_live_sends_revisions_save(owner_client, barsy_recorder, monkeypatch):

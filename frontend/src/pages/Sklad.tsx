@@ -25,8 +25,9 @@ type Tab = (typeof TABS)[number][0]
 
 const blankLine = (): Line => ({ article_id: '', amount: '', note: '', current_price: '', reason_id: '' })
 
-function LineEditor({ lines, setLines, showPrice, reasons }: {
+function LineEditor({ lines, setLines, showPrice, reasons, showAvailability }: {
   lines: Line[]; setLines: (l: Line[]) => void; showPrice?: boolean; reasons?: Reason[]
+  showAvailability?: boolean
 }) {
   const upd = (i: number, k: keyof Line, v: string) =>
     setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
@@ -64,6 +65,7 @@ function LineEditor({ lines, setLines, showPrice, reasons }: {
               onClick={() => setLines(lines.filter((_, j) => j !== i))}
               style={{ color: 'var(--red)' }}>✕</button>
           )}
+          {showAvailability && <AvailabilityHint articleId={l.article_id} />}
         </div>
       ))}
       <button type="button" className="btn-paper" onClick={() => setLines([...lines, blankLine()])}
@@ -90,54 +92,78 @@ function ResultCard({ res }: { res: WriteResult }) {
   )
 }
 
+type Availability = { article_id: number; depots: { depot_id: number; depot_name: string; amount: number | null }[] }
+
+// Наличност across depots, shown next to a Прехвърляне line — a transfer has two sides, and moving
+// stock you don't have is the mistake worth catching at the form rather than in Barsy's error.
+function AvailabilityHint({ articleId }: { articleId: string }) {
+  const id = Number(articleId)
+  const { data } = useApi<Availability>(id > 0 ? `/api/store-ops/availability?article_id=${id}` : null, [id])
+  if (!data) return null
+  return (
+    <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
+      {data.depots.map((d) => `${d.depot_name}: ${d.amount === null ? 'н/д' : d.amount}`).join(' · ')}
+    </span>
+  )
+}
+
 type VarianceRow = { article_id: number; system: number | null; counted: number; variance: number | null; known: boolean }
 type Preview = { lines: VarianceRow[]; total_variance: number; shortage_lines: number; surplus_lines: number; unknown_lines: number }
 
-// Ревизия — physical stocktake. TWO steps, and the split is deliberate, not a limitation we haven't got
-// round to: the panel WRITES the counted quantities into a revision that was opened in Barsy
-// (Revisions_save, mode:"changes" — only counted rows travel, uncounted articles are untouched), and the
-// APPLY step («Приложи промените», the one that actually rewrites on-hand) stays in Barsy because its
-// request has never been captured. Counting is the laborious part and it happens here; the irreversible
-// part happens where its format is known.
+// Ревизия — physical stocktake, in the three steps Barsy actually models: count → save → close.
+// The panel drives all three now (Revisions_save, `mode:"changes"` — only counted rows travel, so
+// uncounted articles are never zeroed). The count/close split is Barsy's own and is worth keeping
+// visible: the CLOSE is what rewrites stock, and it demands a резолюция (reason) for every line whose
+// count differs — count freely, then justify each variance before applying it.
 function RevisionPanel({ depots }: { depots: Depot[] }) {
   const confirm = useConfirm()
   const [depot, setDepot] = useState('')
   const [revisionId, setRevisionId] = useState('')
   const [amountDate, setAmountDate] = useState('')
-  const [lines, setLines] = useState<{ article_id: string; counted: string }[]>([{ article_id: '', counted: '' }])
+  const [lines, setLines] = useState<{ article_id: string; counted: string; rev_res_id: string }[]>(
+    [{ article_id: '', counted: '', rev_res_id: '' }])
   const [preview, setPreview] = useState<Preview | null>(null)
   const [res, setRes] = useState<WriteResult | null>(null)
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
 
-  const upd = (i: number, k: 'article_id' | 'counted', v: string) =>
+  const upd = (i: number, k: 'article_id' | 'counted' | 'rev_res_id', v: string) =>
     setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
   const payload = () => lines.filter((l) => l.article_id && l.counted !== '')
-    .map((l) => ({ article_id: Number(l.article_id), counted: Number(l.counted) }))
+    .map((l) => ({
+      article_id: Number(l.article_id), counted: Number(l.counted),
+      rev_res_id: l.rev_res_id ? Number(l.rev_res_id) : undefined,
+    }))
 
   const depotName = depots.find((d) => String(d.depot_id) === depot)?.depot_name || (depot || 'основен склад')
 
-  const run = async (kind: 'preview' | 'post') => {
+  const run = async (kind: 'preview' | 'post' | 'close') => {
     const rows = payload()
     setErr('')
     if (rows.length === 0) { setErr('Въведи поне един ред с артикул и преброено количество.'); return }
-    if (kind === 'post') {
+    if (kind !== 'preview') {
       if (!revisionId) { setErr('Въведи номера на ревизията, отворена в Barsy.'); return }
       if (!amountDate) { setErr('Въведи момента на наличността („Към дата“ от ревизията в Barsy).'); return }
-      // This writes counts into a real Barsy document. It does NOT yet change stock — say exactly that,
-      // so nobody reads the confirm as the irreversible step (or, worse, skips checking the counts
-      // because they think a later screen will ask again).
-      if (!(await confirm({
-        confirmLabel: 'Запиши количествата', title: `Ревизия #${revisionId} — ${depotName}`,
-        message: `${rows.length} реда · склад: ${depotName}.\n\nПреброените количества се записват в ревизия #${revisionId}. Наличността НЕ се променя сега — това става с „Приложи промените“ в Barsy.`,
-      }))) return
+      // Two different confirms, because these are two genuinely different acts. Saving counts is
+      // reversible bookkeeping; closing rewrites stock. Wording them the same would train operators to
+      // click through the one that matters.
+      const ok = kind === 'post'
+        ? await confirm({
+          confirmLabel: 'Запиши количествата', title: `Ревизия #${revisionId} — ${depotName}`,
+          message: `${rows.length} реда · склад: ${depotName}.\n\nПреброените количества се записват в ревизия #${revisionId}. Наличността НЕ се променя сега.`,
+        })
+        : await confirm({
+          danger: true, confirmLabel: 'Приключи ревизията', title: `Приключване на ревизия #${revisionId}`,
+          message: `${rows.length} реда · склад: ${depotName}.\n\nНаличността в Barsy ще бъде коригирана до преброените количества. Това е окончателно и не се връща с „назад“. Всеки ред с разлика трябва да има резолюция.`,
+        })
+      if (!ok) return
     }
-    setBusy(kind); if (kind === 'post') setRes(null)
+    setBusy(kind); if (kind !== 'preview') setRes(null)
     try {
       if (kind === 'preview') {
         setPreview(await api.post('/api/store-ops/revision/preview', { lines: rows, depot_id: depot ? Number(depot) : undefined }))
       } else {
-        setRes(await api.post('/api/store-ops/revision/count', {
+        setRes(await api.post(`/api/store-ops/revision/${kind === 'post' ? 'count' : 'close'}`, {
           revision_id: Number(revisionId), lines: rows, amount_date: amountDate,
           depot_id: depot ? Number(depot) : undefined, confirm: true,
         }))
@@ -170,9 +196,10 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
       </div>
       <p style={{ fontSize: '0.8rem', color: 'var(--pencil)', margin: '0.5rem 0' }}>
         Ревизията се <strong>отваря в Barsy</strong> (там ѝ се задава обхватът), после тук се въвеждат
-        преброените количества. „Разлики“ сравнява с наличността; „Запиши“ нанася броенето в ревизията.
-        Наличността се коригира чак с „Приложи промените“ в Barsy. Изпращат се <strong>само
-        преброените редове</strong> — непреброените артикули не се променят и не се нулират.
+        преброените количества. „Разлики“ сравнява с наличността; „Запиши“ нанася броенето;
+        „Приключи“ коригира наличностите. Изпращат се <strong>само преброените редове</strong> —
+        непреброените артикули не се променят и не се нулират. При приключване всеки ред с разлика
+        изисква <strong>резолюция</strong> (причина за разликата, по номер от Barsy).
       </p>
       <div style={{ display: 'grid', gap: '0.5rem' }}>
         {lines.map((l, i) => (
@@ -183,6 +210,11 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
             <input className="input-paper" placeholder="преброено" value={l.counted} inputMode="decimal"
               aria-label={`Преброено количество, ред ${i + 1}`}
               onChange={(e) => upd(i, 'counted', e.target.value)} style={{ width: 120 }} />
+            {/* Резолюция — only Barsy's CLOSE requires it, and only for rows that differ. Kept on the
+                row (not a document-level field) because each variance has its own explanation. */}
+            <input className="input-paper" placeholder="резолюция №" value={l.rev_res_id} inputMode="numeric"
+              aria-label={`Резолюция (причина за разликата), ред ${i + 1}`}
+              onChange={(e) => upd(i, 'rev_res_id', e.target.value)} style={{ width: 130 }} />
             {lines.length > 1 && (
               <button type="button" className="btn-paper" aria-label={`Премахни ред ${i + 1}`}
                 onClick={() => setLines(lines.filter((_, j) => j !== i))}
@@ -190,7 +222,8 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
             )}
           </div>
         ))}
-        <button type="button" className="btn-paper" onClick={() => setLines([...lines, { article_id: '', counted: '' }])}
+        <button type="button" className="btn-paper"
+          onClick={() => setLines([...lines, { article_id: '', counted: '', rev_res_id: '' }])}
           style={{ justifySelf: 'start', fontSize: '0.85rem' }}>+ ред</button>
       </div>
 
@@ -200,6 +233,9 @@ function RevisionPanel({ depots }: { depots: Depot[] }) {
         </button>
         <button className="btn-paper" onClick={() => void run('post')} disabled={!!busy}>
           {busy === 'post' ? 'Изпращане…' : 'Запиши количествата'}
+        </button>
+        <button className="btn-paper btn-red" onClick={() => void run('close')} disabled={!!busy}>
+          {busy === 'close' ? 'Приключване…' : 'Приключи ревизията'}
         </button>
       </div>
       {err && <p style={{ color: 'var(--red)', marginTop: '0.5rem' }}>{err}</p>}
@@ -430,7 +466,7 @@ export function Sklad() {
               style={{ width: 340, marginBottom: '0.6rem' }} />
           )}
           <LineEditor lines={lines} setLines={setLines} showPrice={tab === 'load' || tab === 'storno'}
-            reasons={tab === 'writeoff' ? reasons : undefined} />
+            reasons={tab === 'writeoff' ? reasons : undefined} showAvailability={tab === 'transfer'} />
 
           <input className="input-paper" placeholder={tab === 'storno' ? 'причина за сторно' : 'описание (по желание)'}
             aria-label={tab === 'storno' ? 'Причина за сторно' : 'Описание на операцията (по желание)'}

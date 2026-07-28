@@ -106,6 +106,23 @@ test.describe('Склад — store operations', () => {
     expect(sent!).toMatchObject({ revision_id: 2, amount_date: '2026-06-04 10:48:58' })
   })
 
+  test('Приключи ревизията warns that stock WILL change, unlike the count save', async ({ page }) => {
+    // Two acts, two confirms: saving counts is reversible bookkeeping, closing rewrites stock. If both
+    // ever read the same, operators learn to click through the one that matters.
+    await mockSklad(page, { '/api/store-ops/revision/close': { ok: true, dry_run: true, method: 'Revisions_save' } })
+    await page.goto('/sklad')
+    await page.getByRole('button', { name: 'Ревизия' }).click()
+    await page.getByLabel(/Артикул \(ID\), ред 1/).fill('5')
+    await page.getByLabel(/Преброено количество, ред 1/).fill('7')
+    await page.getByLabel(/Резолюция.*ред 1/).fill('1')
+    await page.getByLabel(/Номер на ревизията/).fill('2')
+    await page.getByLabel(/Момент на наличността/).fill('2026-06-04 10:48:58')
+    await page.getByRole('button', { name: 'Приключи ревизията' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(/ще бъде коригирана/)
+    await expect(dialog).toContainText(/окончателно/)
+  })
+
   test('cancelling the confirm sends no store-ops write at all', async ({ page }) => {
     // the modal is the last guard before a real Barsy stock adjustment — cancelling must be inert
     let posted = false
