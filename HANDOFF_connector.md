@@ -13,6 +13,14 @@ imports `darling_core` first (that's what makes the agent-pipeline siblings impo
 `ruff: noqa: I001` note at the top of `core.py`. The panel's job was the **HTTP hosting layer**: the
 webhook receiver endpoints in the FastAPI backend, webhook registration, and signature verification.
 
+> **After every `_vendor` resync, re-run the FULL backend suite before pushing.** Dev boxes import the
+> agent-pipeline *sibling*; CI has no sibling and imports `_vendor`. So a resync is the moment the
+> connector's behaviour changes under CI, and panel tests written against the older behaviour go stale
+> silently. `test_vendor_sync.py` proves the two copies are byte-identical — it cannot prove the panel's
+> expectations still hold. (Cost us a red CI run on 2026-07-28: a new `not_finalised` storno guard landed
+> in the sibling, the resync carried it into `_vendor`, and two refund contract tests still stubbed a
+> seen-order record with no `kind`.)
+
 ## Why this shape
 Neither Barsy nor Shopify talks to the other, and neither can connect to an external DB — both are
 closed SaaS exposing only APIs + webhooks. So the integration is a connector in the middle:

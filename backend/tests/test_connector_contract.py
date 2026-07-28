@@ -170,9 +170,16 @@ def test_clientorder_mode_creates_clientorder_without_payment(conn):
 # body is pinned here; the live BEHAVIOUR is NOT verified — storno is fiscal + irreversible, so a live
 # round-trip is deferred to a fiscal POS + explicit owner go (Hermes). A green test = "we emit the
 # right shape", NOT "Barsy accepted it".
+#
+# NB the logged record must carry kind='sale': a storno needs a FINALISED sale account. While the order
+# is still kind='clientorder' its `account_id` is the CLIENT-ORDER id, and stock was never decremented —
+# see test_refund_before_finalise_refuses_the_storno for that branch.
+_SOLD = {"account_id": 900, "kind": "sale"}
+
+
 def test_refund_stornos_the_refunded_articles(conn, monkeypatch):
     _fiscalise(conn)
-    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, **_SOLD})
     refund = {"id": 55, "order_id": 12345, "refund_line_items": [
         {"quantity": 1, "line_item": {"sku": "SKU-1"}},
     ]}
@@ -189,7 +196,7 @@ def test_refund_with_no_matched_articles_refuses_instead_of_whole_account_storno
     refund) must NOT reach Accounts_storno — that would irreversibly reverse the entire fiscal sale and
     restock untouched items."""
     _fiscalise(conn)
-    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, **_SOLD})
     refund = {"id": 56, "order_id": 12345, "refund_line_items": [
         {"quantity": 1, "line_item": {"sku": "SKU-НЯМА-В-BARSY"}},
     ]}
@@ -197,6 +204,23 @@ def test_refund_with_no_matched_articles_refuses_instead_of_whole_account_storno
     assert res["status"] == "needs_review" and res["reason"] == "no_matched_articles"
     with pytest.raises(KeyError):
         conn.body_for("Accounts_storno")            # nothing was reversed
+
+
+def test_refund_before_finalise_refuses_the_storno(conn, monkeypatch):
+    """A refund on an order still at CLIENTORDER stage must not storno. At that stage `account_id` holds
+    the client-order id, so Accounts_storno would target the wrong object — and nothing was decremented
+    anyway, so the correct reversal is a VOID of the clientorder. Pinned because the failure is silent:
+    Barsy would either 501 or reverse an unrelated account."""
+    _fiscalise(conn)
+    monkeypatch.setattr(connector, "_seen_order",
+                        lambda oid: {"order_id": oid, "account_id": 900, "kind": "clientorder"})
+    refund = {"id": 57, "order_id": 12345, "refund_line_items": [
+        {"quantity": 1, "line_item": {"sku": "SKU-1"}},
+    ]}
+    res = connector.shopify_refund_to_barsy(refund, do_write=True)
+    assert res["status"] == "needs_review" and res["reason"] == "not_finalised"
+    with pytest.raises(KeyError):
+        conn.body_for("Accounts_storno")
 
 
 def test_storno_without_a_fiscal_receipt_is_refused(conn, monkeypatch):
