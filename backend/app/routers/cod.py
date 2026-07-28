@@ -294,6 +294,51 @@ async def settle(
             "barsy": {"live": get_settings().cod_barsy_post_live, "posted": barsy_posted}}
 
 
+class StornoRequest(BaseModel):
+    reason: str = Field("COD не е потърсена / върната пратка", max_length=200)
+    confirm: bool = False
+
+
+@router.post("/{order_id}/storno")
+async def cod_storno(
+    order_id: str, req: StornoRequest,
+    actor: User = Depends(require_roles("staff")),   # financial reversal — staff/owner only
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Uncollected/returned COD → STORNO the Barsy sale (reverse the paid-at-packing booking + return the
+    goods to stock). Under the anonymous-PAID model a COD sale is booked PAID when the label prints, so an
+    order the courier never collected (RTO) sits FALSELY 'paid' in Barsy — this is the accuracy backstop
+    that catches it. Gated (COD_BARSY_POST_LIVE) + confirm + role + audit. Flips the order to 'returned'
+    so it drops out of the awaiting/reconcile buckets."""
+    if not req.confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Сторното е реален запис в Barsy — потвърди с confirm=true.")
+    orders = await run_in_threadpool(_cod_orders)
+    s = orders.get(order_id)
+    if not s:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "COD поръчката не е намерена.")
+    if _BUCKET.get(s.get("status")) == "settled":
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"{s.get('order_name') or order_id} е разчетена (събрана) — не сторнирай платена поръчка.")
+    live = get_settings().cod_barsy_post_live
+    try:
+        result = await run_in_threadpool(connector.cod_refused_to_barsy, str(order_id), req.reason, live)
+    except AttributeError:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Сторното не е налично (connector.cod_refused_to_barsy липсва).")
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)[:200])
+    # projection: flip to 'returned' so it leaves the awaiting bucket (self-heals from a nightly sync)
+    try:
+        await run_in_threadpool(shopify_orders.set_state, order_id,
+                                s.get("order_name") or order_id, status="returned")
+    except Exception:
+        pass
+    await log_action(session, actor, "cod.storno", target=s.get("order_name") or order_id,
+                     detail=str(result)[:300])
+    return {"ok": True, "order_id": order_id, "live": live, "result": result}
+
+
 async def _post_cod_payment_to_barsy(order_id: str, amount: float, waybill: str) -> bool:
     """Post a settled COD collection to Barsy (record-only, fiscal:0). Returns True only when a LIVE
     write happened. Gated by COD_BARSY_POST_LIVE; swallows errors (the settlement row is authoritative)."""

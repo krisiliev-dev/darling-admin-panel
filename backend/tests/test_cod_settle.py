@@ -99,3 +99,44 @@ async def test_overview_summary_math(owner_client, settle_state):
 async def test_settle_requires_staff(client, settle_state):
     r = await client.post("/api/cod/settle", json={"reference": "", "payout_date": "", "courier": "", "lines": []})
     assert r.status_code in (401, 403)
+
+
+# --- storno on uncollected COD (the anonymous-paid safety net) -----------------------
+async def test_storno_requires_confirm(owner_client, settle_state):
+    r = await owner_client.post("/api/cod/o1/storno", json={"confirm": False})
+    assert r.status_code == 400
+
+
+async def test_storno_calls_connector_and_flips_returned(owner_client, settle_state, monkeypatch):
+    _state, calls = settle_state
+    seen = {}
+
+    def fake_refuse(oid, reason, do_write):
+        seen.update(oid=oid, reason=reason, do_write=do_write)
+        return {"order_id": oid, "stornoed": True}
+
+    monkeypatch.setattr(cod.connector, "cod_refused_to_barsy", fake_refuse, raising=False)
+    r = await owner_client.post("/api/cod/o1/storno", json={"confirm": True})
+    assert r.status_code == 200, r.text
+    assert seen["oid"] == "o1" and "върната" in seen["reason"]
+    assert _state["o1"]["status"] == "returned"          # flipped out of the awaiting bucket
+    assert ("o1", {"status": "returned"}) in calls
+
+
+async def test_storno_refuses_a_settled_order(owner_client, settle_state, monkeypatch):
+    _state, _calls = settle_state
+    _state["o1"]["status"] = "cod_paid"                  # already reconciled/collected
+    monkeypatch.setattr(cod.connector, "cod_refused_to_barsy",
+                        lambda oid, reason, do_write: {"stornoed": True}, raising=False)
+    r = await owner_client.post("/api/cod/o1/storno", json={"confirm": True})
+    assert r.status_code == 409                          # never storno a collected/paid order
+
+
+async def test_storno_unknown_order_404(owner_client, settle_state):
+    r = await owner_client.post("/api/cod/nope/storno", json={"confirm": True})
+    assert r.status_code == 404
+
+
+async def test_storno_requires_staff(client, settle_state):
+    r = await client.post("/api/cod/o1/storno", json={"confirm": True})
+    assert r.status_code in (401, 403)

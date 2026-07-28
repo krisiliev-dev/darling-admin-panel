@@ -7,6 +7,7 @@ import { Sheet } from '../components/Paper'
 import { Stat } from '../components/Stat'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
 import { FilterChips, Pager, usePager } from '../components/TableControls'
+import { useConfirm } from '../components/Confirm'
 
 // Разчети — COD (наложен платеж) reconciliation. Tracks what couriers collected vs paid out.
 const BUCKET_TONE: Record<string, string> = {
@@ -72,7 +73,7 @@ export function Cod({ embedded = false }: { embedded?: boolean } = {}) {
             изплащане → разчетено, с маркиране на разлики.
           </EmptyNote>
         )}
-        {data && data.orders.length > 0 && <CodTable orders={data.orders} />}
+        {data && data.orders.length > 0 && <CodTable orders={data.orders} onChange={reload} />}
       </Sheet>
 
       {awaiting.length > 0 && <PayoutImport onApply={applyPrefill} />}
@@ -229,8 +230,25 @@ function agingBadge(o: CodOrder) {
   return <span className="font-type" style={{ color, fontSize: '.6rem', fontWeight: d >= 8 ? 700 : 400 }}>{d}д</span>
 }
 
-function CodTable({ orders }: { orders: CodOrder[] }) {
+function CodTable({ orders, onChange }: { orders: CodOrder[]; onChange: () => void }) {
   const [filter, setFilter] = useState<string>('all')
+  const confirm = useConfirm()
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
+  // Uncollected/returned COD is FALSELY 'paid' in Barsy (booked paid at packing under the anonymous
+  // model) → storno reverses the sale + returns the goods to stock. Only for orders not yet settled.
+  const storno = async (o: CodOrder) => {
+    if (!(await confirm({
+      danger: true, confirmLabel: 'Сторно', title: `Сторно на ${o.order_name}`,
+      message: `${o.order_name} не е събрана/върната пратка.\n\nТова сторнира продажбата в Barsy (връща стоката в наличност) и я маркира като върната. Използвай само за непотърсени/върнати COD поръчки.`,
+    }))) return
+    setBusy(o.order_id); setMsg('')
+    try {
+      await api.post(`/api/cod/${o.order_id}/storno`, { confirm: true })
+      setMsg(`${o.order_name}: сторнирана (върната в наличност).`)
+      onChange()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Сторното се провали.') } finally { setBusy('') }
+  }
   // chip per bucket that actually appears, using the бг label the API already sends
   const bucketLabel: Record<string, string> = {}
   const bucketCount: Record<string, number> = {}
@@ -244,12 +262,13 @@ function CodTable({ orders }: { orders: CodOrder[] }) {
   return (
     <div style={{ display: 'grid', gap: '.3rem' }}>
       {chips.length > 2 && <div style={{ marginBottom: '.3rem' }}><FilterChips options={chips} value={filter} onChange={setFilter} /></div>}
-      <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr 7rem 6rem 6rem 6rem', gap: '.5rem', fontSize: '.6rem', textTransform: 'uppercase', color: 'var(--red)', letterSpacing: '.06em', paddingBottom: '.2rem', borderBottom: '1px solid var(--line)' }}>
-        <span>Поръчка</span><span>Статус</span><span style={{ textAlign: 'right' }}>Очаквано</span><span style={{ textAlign: 'right' }}>Събрано</span><span>Куриер</span>
+      {msg && <div className="font-type" style={{ fontSize: '.78rem', marginBottom: '.3rem', color: msg.includes('провали') ? 'var(--red)' : 'var(--ink)' }}>{msg}</div>}
+      <div className="font-type" style={{ display: 'grid', gridTemplateColumns: '1fr 6.5rem 5.5rem 5.5rem 5rem 4.5rem', gap: '.5rem', fontSize: '.6rem', textTransform: 'uppercase', color: 'var(--red)', letterSpacing: '.06em', paddingBottom: '.2rem', borderBottom: '1px solid var(--line)' }}>
+        <span>Поръчка</span><span>Статус</span><span style={{ textAlign: 'right' }}>Очаквано</span><span style={{ textAlign: 'right' }}>Събрано</span><span>Куриер</span><span></span>
       </div>
       {pg.slice.map((o) => (
         <div key={o.order_id} style={{
-          display: 'grid', gridTemplateColumns: '1fr 7rem 6rem 6rem 6rem', gap: '.5rem', alignItems: 'center',
+          display: 'grid', gridTemplateColumns: '1fr 6.5rem 5.5rem 5.5rem 5rem 4.5rem', gap: '.5rem', alignItems: 'center',
           fontSize: '.82rem', padding: '.35rem 0', borderBottom: '1px dashed var(--line)',
           borderLeft: o.discrepancy ? '3px solid var(--blocked)' : '3px solid transparent', paddingLeft: '.5rem',
         }}>
@@ -263,6 +282,15 @@ function CodTable({ orders }: { orders: CodOrder[] }) {
             {o.discrepancy && <span style={{ fontSize: '.6rem', display: 'block' }}>↯ разлика</span>}
           </span>
           <span style={{ color: 'var(--pencil)', fontSize: '.75rem' }}>{o.courier}</span>
+          {/* storno only for orders NOT yet settled/collected — the uncollected/returned safety net */}
+          <span style={{ textAlign: 'right' }}>
+            {o.bucket !== 'settled' && (
+              <button className="btn-paper" style={{ fontSize: '.66rem', padding: '.15rem .4rem', color: 'var(--red)' }}
+                disabled={busy === o.order_id} onClick={() => void storno(o)}>
+                {busy === o.order_id ? '…' : 'Сторно'}
+              </button>
+            )}
+          </span>
         </div>
       ))}
       <Pager {...pg} />
