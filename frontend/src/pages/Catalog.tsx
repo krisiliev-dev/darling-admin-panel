@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { printLabel } from '../lib/label'
-import type { ArticleDetail, CacheFacets, CacheProduct, CacheSearchResp, QualityAudit } from '../lib/api'
+import type { ArticleDetail, CacheFacets, CacheProduct, CacheSearchResp, IntakeAttribute, QualityAudit } from '../lib/api'
 import { useHotkey, isTyping } from '../lib/useHotkey'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
@@ -203,37 +203,86 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   )
 }
 
+type ArticleStatus = 'active' | 'draft' | 'withdrawn'
+// The status drives the Shopify auto-sync (ACTIVE / Draft / Archive), so it is a daily-driver field.
+const STATUS_OPTS: [ArticleStatus, string, string][] = [
+  ['active', 'Активен', 'виден в сайта'],
+  ['draft', 'Чернова', 'само каса'],
+  ['withdrawn', 'Изтеглен', 'спрян'],
+]
+const isStatus = (s: string): s is ArticleStatus => STATUS_OPTS.some(([v]) => v === s)
+// stable signature for a dirty-check on the attribute rows
+const attrsKey = (a: IntakeAttribute[]) => a.map((x) => `${x.key.trim()} ${x.value.trim()}`).join('')
+
+// Product editor. Simplified by default — only what the daily driver touches; everything else Barsy
+// accepts lives behind "Разширени настройки" so the common edit isn't a wall of boxes.
 function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onClose: () => void; onSaved: () => void }) {
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [name, setName] = useState('')
+  const [namePublic, setNamePublic] = useState('')
   const [description, setDescription] = useState('')
   const [barcode, setBarcode] = useState('')
   const [oversell, setOversell] = useState(false)
   const [weight, setWeight] = useState('')
+  const [status, setStatus] = useState<ArticleStatus>('active')
+  const [adv, setAdv] = useState(false)
+  const [brand, setBrand] = useState('')
+  const [attributes, setAttributes] = useState<IntakeAttribute[]>([])
+  const [catId, setCatId] = useState('')
+  const [amountTypeId, setAmountTypeId] = useState('')
+  const [seoTitle, setSeoTitle] = useState('')
+  const [seoDesc, setSeoDesc] = useState('')
+  const [descPublic, setDescPublic] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
     let ignore = false  // ignore a stale response if the user clicks another article first
-    setDetail(null); setMsg('')
+    setDetail(null); setMsg(''); setAdv(false)
     api.get<ArticleDetail>(`/api/catalog/${articleId}`).then((d) => {
       if (ignore) return
       setDetail(d); setName(d.name); setDescription(d.description); setBarcode(d.barcode)
       setOversell(!!d.oversell); setWeight(d.weight_kg || '')
+      setNamePublic(d.name_public || ''); setStatus(isStatus(d.status) ? d.status : 'active')
+      setBrand(d.brand || ''); setAttributes(d.attributes || [])
+      setCatId(d.cat_id != null ? String(d.cat_id) : '')
+      setAmountTypeId(d.amount_type_id != null ? String(d.amount_type_id) : '')
+      setSeoTitle(d.seo_title || ''); setSeoDesc(d.seo_description || ''); setDescPublic(d.description_public || '')
     }).catch(() => { if (!ignore) setMsg('Грешка при зареждане.') })
     return () => { ignore = true }
   }, [articleId])
 
   const save = async () => {
+    if (!detail) return
     setBusy(true); setMsg('')
+    // Empty / null / [] means "leave unchanged" — we only put a field in the body when it carries
+    // an actual value, so a blank advanced box can never wipe what's in Barsy.
+    const body: Record<string, unknown> = { name, description, barcode, oversell, weight_kg: weight }
+    if (namePublic.trim()) body.name_public = namePublic.trim()
+    if (descPublic.trim()) body.description_public = descPublic
+    if (seoTitle.trim()) body.seo_title = seoTitle.trim()
+    if (seoDesc.trim()) body.seo_description = seoDesc.trim()
+    if (status !== detail.status) body.status = status
+    // Barsy REPLACES the whole details list, so brand and attributes must travel together or not at all.
+    const rows = attributes.filter((a) => a.key.trim()).map((a) => ({ key: a.key.trim(), value: a.value.trim() }))
+    if (brand.trim() !== (detail.brand || '') || attrsKey(rows) !== attrsKey(detail.attributes || [])) {
+      body.brand = brand.trim(); body.attributes = rows
+    }
+    const cat = Number(catId)
+    if (catId.trim() && Number.isFinite(cat) && cat !== detail.cat_id) body.cat_id = cat
+    const amt = Number(amountTypeId)
+    if (amountTypeId.trim() && Number.isFinite(amt) && amt !== detail.amount_type_id) body.amount_type_id = amt
     try {
-      await api.post(`/api/catalog/${articleId}`, { name, description, barcode, oversell, weight_kg: weight })
+      await api.post(`/api/catalog/${articleId}`, body)
       setMsg('Записано в Barsy.')
       onSaved()
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : 'Записът се провали.')
     } finally { setBusy(false) }
   }
+
+  const setAttr = (i: number, patch: Partial<IntakeAttribute>) =>
+    setAttributes((a) => a.map((x, k) => (k === i ? { ...x, ...patch } : x)))
 
   return (
     <Sheet clip="right" tilt="r">
@@ -249,16 +298,86 @@ function ArticleEditor({ articleId, onClose, onSaved }: { articleId: number; onC
               код {detail.code} · {detail.price != null ? `${detail.price} € (от Microinvest — не се редактира)` : 'без цена'}{detail.category ? ` · ${detail.category}` : ''}
             </div>
           </div>
-          <Field label="Име"><input className="input-paper" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+
+          <Field label="Име" hint="името за касата и бележката">
+            <input className="input-paper" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Публично име (сайт)" hint="празно = ползва името за каса">
+            <input className="input-paper" value={namePublic} onChange={(e) => setNamePublic(e.target.value)} />
+          </Field>
           <Field label="Баркод"><input className="input-paper" value={barcode} onChange={(e) => setBarcode(e.target.value)} /></Field>
           <Field label="Тегло (кг)"><input className="input-paper" inputMode="decimal" placeholder="напр. 0.55" value={weight} onChange={(e) => setWeight(e.target.value)} /></Field>
           <Field label="Описание (HTML)">
             <textarea className="input-paper" rows={10} value={description} onChange={(e) => setDescription(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
           </Field>
+
+          <fieldset style={{ border: '1px dashed var(--line)', borderRadius: 3, padding: '.35rem .6rem .5rem', display: 'grid', gap: '.3rem' }}>
+            <legend className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '0 .3rem' }}>Статус</legend>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {STATUS_OPTS.map(([v, label, hint]) => (
+                <label key={v} style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer' }}>
+                  <input type="radio" name={`status-${articleId}`} checked={status === v} onChange={() => setStatus(v)} />
+                  <span>{label} <span className="pencil" style={{ fontSize: '.72rem' }}>({hint})</span></span>
+                </label>
+              ))}
+            </div>
+            <span className="pencil" style={{ fontSize: '.72rem' }}>Определя дали продуктът се показва в сайта: „Чернова“ го праща скрит, „Изтеглен“ го архивира.</span>
+          </fieldset>
+
           <label style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', fontSize: '.82rem', cursor: 'pointer' }}>
             <input type="checkbox" checked={oversell} onChange={(e) => setOversell(e.target.checked)} style={{ marginTop: '.2rem' }} />
             <span>Може да се поръча и без наличност (доставка по заявка / дропшип — клиентът се уведомява за по-дълъг срок).</span>
           </label>
+
+          {/* advanced disclosure — button in the left corner, collapsed by default */}
+          <div style={{ display: 'flex', borderTop: '1px dashed var(--line)', paddingTop: '.5rem' }}>
+            <button className="btn-paper" style={{ fontSize: '.72rem' }} aria-expanded={adv} aria-controls={`adv-${articleId}`}
+              onClick={() => setAdv((s) => !s)}>{adv ? '▲ Скрий разширените' : '⚙ Разширени настройки'}</button>
+          </div>
+
+          {adv && (
+            <div id={`adv-${articleId}`} style={{ display: 'grid', gap: '.5rem', borderLeft: '3px solid var(--line)', paddingLeft: '.7rem' }}>
+              <Field label="Марка"><input className="input-paper" value={brand} onChange={(e) => setBrand(e.target.value)} /></Field>
+
+              <div style={{ display: 'grid', gap: '.25rem' }}>
+                <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Атрибути</span>
+                {attributes.length === 0 && <span className="pencil" style={{ fontSize: '.74rem' }}>няма атрибути</span>}
+                {attributes.map((a, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                    <input className="input-paper" style={{ flex: '0 0 10rem' }} aria-label={`име на атрибут ${i + 1}`} placeholder="напр. Цвят"
+                      value={a.key} onChange={(e) => setAttr(i, { key: e.target.value })} />
+                    <input className="input-paper" style={{ flex: 1 }} aria-label={`стойност на атрибут ${i + 1}`} placeholder="стойност…"
+                      value={a.value} onChange={(e) => setAttr(i, { value: e.target.value })} />
+                    <button className="btn-paper" style={{ fontSize: '.72rem' }} aria-label={`премахни атрибут ${a.key || i + 1}`}
+                      onClick={() => setAttributes((x) => x.filter((_, k) => k !== i))}>✕</button>
+                  </div>
+                ))}
+                <div><button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => setAttributes((x) => [...x, { key: '', value: '' }])}>+ атрибут</button></div>
+              </div>
+
+              <Field label="Категория (ID)" hint="категорията от таксономията се избира при въвеждане на доставка">
+                <input className="input-paper" inputMode="numeric" value={catId} onChange={(e) => setCatId(e.target.value)} />
+              </Field>
+              <Field label="Мерна единица (ID)" hint={detail.unit ? `сега: ${detail.unit}` : undefined}>
+                <input className="input-paper" inputMode="numeric" value={amountTypeId} onChange={(e) => setAmountTypeId(e.target.value)} />
+              </Field>
+              <Field label="Мета наименование"><input className="input-paper" value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} /></Field>
+              <Field label="Мета описание">
+                <textarea className="input-paper" rows={3} value={seoDesc} onChange={(e) => setSeoDesc(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
+              </Field>
+              <Field label="Публично описание (сайт)" hint="празно = ползва описанието по-горе">
+                <textarea className="input-paper" rows={6} value={descPublic} onChange={(e) => setDescPublic(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
+              </Field>
+
+              <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'grid', gap: '.15rem', borderTop: '1px dashed var(--line)', paddingTop: '.4rem' }}>
+                <span>№ от доставка: {detail.ref_num || '—'}</span>
+                <span>Синоними: {detail.aliases?.length ? detail.aliases.join(', ') : '—'}</span>
+                <span>Цена: {detail.price != null ? `${detail.price} €` : '—'}</span>
+                <span style={{ fontSize: '.72rem' }}>Само за преглед — цената се редактира в „Ценообразуване“, а № и синонимите идват от доставката.</span>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
             <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy}>{busy ? 'записва…' : 'Запиши в Barsy'}</button>
             <button className="btn-paper" title="Печат на етикет (58мм) с баркод и цена"
@@ -280,11 +399,12 @@ function Thumb({ articleId, hasImage, size = 34 }: { articleId: number; hasImage
   return <img src={`/api/catalog/image/${articleId}?size=thumb`} alt="" loading="lazy" style={box} onError={() => setFailed(true)} />
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'grid', gap: '.2rem' }}>
       <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
       {children}
+      {hint && <span className="pencil" style={{ fontSize: '.72rem' }}>{hint}</span>}
     </label>
   )
 }

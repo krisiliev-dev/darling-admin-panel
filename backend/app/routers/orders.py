@@ -18,6 +18,7 @@ from ..config import get_settings
 from ..core import barsy, connector, db, shopify_orders
 from ..core import courier as courier_mod
 from ..db import get_async_session
+from ..ids import numeric_oid as _numeric_oid
 from ..models import User
 from ..upstream import upstream
 from ..users import current_active_user, require_roles
@@ -143,13 +144,6 @@ class ShipRequest(BaseModel):
     fragile: bool = True
     inspection: bool = True             # преглед (open before pay), not тест
     confirm: bool = False              # required True to actually create a label
-
-
-def _numeric_oid(v) -> str:
-    """The bare numeric Shopify order id — the frontend passes it slash-free (the GID
-    `gid://shopify/Order/123` has slashes that would break a path param), and it's also the key the
-    connector's order-state file uses (from the webhook payload's numeric `id`)."""
-    return str(v).rsplit("/", 1)[-1]
 
 
 def _order_or_404(order_id: str):

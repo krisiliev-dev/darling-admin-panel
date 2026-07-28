@@ -782,6 +782,70 @@ def list_cod_accounts(since=None):
     return rows
 
 
+_INV_KEYS = (("name", "receiver_company_name"), ("eik", "receiver_identity_num"),
+             ("vat", "receiver_vat_num"), ("mol", "receiver_mol"),
+             ("city", "receiver_town"), ("address", "receiver_address"))
+
+
+def list_invoice_requests(since=None):
+    """READ hook for the panel's "Фактури за издаване" screen. Barsy's API CANNOT issue a фактура (there is
+    no create method; `invoice_data` is accepted but only auto-issues for VPOS payments), so staff issue it
+    manually via Документи → Фактури → "Нова фактура по сметка(и)". This returns every finalised order that
+    REQUESTED one, with the copy-ready company block and — most importantly — the **account_id** staff pick
+    in that dialog. No writes. `issued` is always False: the connector owns WHICH orders asked, the panel
+    owns which are done.
+
+    Recreate-proof: driven off the Barsy accounts (like list_cod_accounts). The company block comes from our
+    intake capture when present, else Barsy's `with_invoice` flag on the clientorder tells us to re-read the
+    request from Shopify. Missing fields are returned as "" (never omitted) so the UI can render a stable
+    block and flag what's incomplete — a фактура with a blank ЕИК is useless."""
+    accs = {str(a.get("account_id")): a for a in (b.call("Accounts_getlist", {"filters": {}}) or [])}
+    # The invoice block is captured on the CLIENTORDER record at intake; finalise then appends a fresh
+    # 'sale' record without it. So scan ALL records per order — reading only the latest one misses it.
+    captured = {}
+    if ORDERS_STATE.exists():
+        for line in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
+            try:
+                d = json.loads(line)
+                if d.get("invoice"):
+                    captured[str(d.get("order_id"))] = d["invoice"]
+            except Exception:
+                pass
+    out = []
+    for row in list_cod_accounts(since=since):
+        if row.get("stornoed"):                            # reversed sale — nothing to invoice
+            continue
+        aid = str(row.get("account_id"))
+        inv = captured.get(str(row["order_id"]))
+        if not inv:
+            # No local capture (e.g. state rebuilt after a recreate) — ask Barsy whether this sale's
+            # clientorder carried the with_invoice flag before spending a Shopify read.
+            wants = False
+            for co_id in str((accs.get(aid) or {}).get("client_order_ids") or "").split(","):
+                co_id = co_id.strip()
+                if not co_id:
+                    continue
+                try:
+                    if str((b.call("Clientorders_get", {"client_order_id": int(co_id)}) or {})
+                           .get("with_invoice") or "") == "1":
+                        wants = True
+                except Exception:
+                    pass
+            if wants:
+                inv = _invoice_for_order(row["order_id"])
+        if not inv:
+            continue
+        out.append({
+            "order_id": row["order_id"], "order_ref": row["order_ref"],
+            "account_id": row["account_id"],               # ← what staff type into "Нова фактура по сметка(и)"
+            "amount": row["amount"],
+            "company": {k: str(inv.get(src) or "") for k, src in _INV_KEYS},
+            "requested_ts": row.get("finalised_ts") or row.get("close_date"),
+            "issued": False,
+        })
+    return out
+
+
 def list_sellable_variants():
     """Read-only publish-readiness audit feed (#81): paginate ALL Shopify variants → per variant
     {variant_id, sku, product_title, product_status, tracked, policy, on_hand}. The panel cross-checks

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Каталог — browse + edit products straight from BARSY (the system of record). Approved
 products auto-push to Barsy, so the panel requests them here. Price stays read-only (Microinvest-
-sourced, never edited here — price policy). Editable: name, description, barcode."""
+sourced, never edited here — price policy). Everything the create path (intake) writes is editable
+here too: name(+public), description(+public), barcode, brand/attributes, category, unit, SEO,
+weight, oversell and the sale/publish status."""
 import asyncio
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -800,12 +802,59 @@ def list_articles(
     return {"items": items}
 
 
+_BRAND_DETAIL = "Марка"           # brand has no native Barsy field — it's an article detail row
+
+
+def _read_details(a: dict) -> list[dict]:
+    """Article details from a Barsy read → [{key, value}]. Barsy hands them back under `details` or
+    `article_details`, as a list or an {idx: row} map, named key/value or detail_name/detail_value —
+    normalise all four shapes so the editor round-trips whatever this install returns."""
+    raw = a.get("details") or a.get("article_details") or []
+    rows = list(raw.values()) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        k = str(r.get("key") or r.get("detail_name") or "").strip()
+        if k:
+            out.append({"key": k, "value": str(r.get("value") or r.get("detail_value") or "")})
+    return out
+
+
+def _aliases(raw) -> list[str]:
+    """article_aliases → flat list[str] (list | {idx: row} | bare string). READ-ONLY in the editor:
+    Barsy accepts aliases on create only, so we show them but never write them back."""
+    rows = list(raw.values()) if isinstance(raw, dict) else (raw if isinstance(raw, list) else ([raw] if raw else []))
+    out = []
+    for r in rows:
+        s = str((r.get("alias") or r.get("name") or "") if isinstance(r, dict) else r).strip()
+        if s:
+            out.append(s)
+    return out
+
+
+def _flag(v) -> bool:
+    """Barsy booleans arrive as 1/0, "1"/"0" or YES/NO depending on the field — normalise to bool."""
+    if isinstance(v, str):
+        return v.strip().upper() in ("1", "YES", "TRUE")
+    return bool(v)
+
+
+def _int_or_none(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 @router.get("/{article_id}")
 def get_article(article_id: int, user: User = Depends(current_active_user)):
-    """Full product detail from Barsy."""
+    """Full product detail from Barsy — every field the editor can write back (create/edit parity)."""
     with upstream("Barsy артикул"):
-        # extra_data (SEO + weight_kg) is omitted by a default get — request it explicitly
-        a = barsy.call("Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
+        # extra_data (SEO + weight_kg) and article_details (brand + attributes) are omitted by a
+        # default get — request them explicitly
+        a = barsy.call("Articles_get", {"article_id": article_id,
+                                        "extra_properties": {"extra_data": 1, "article_details": 1}})
     if not isinstance(a, dict) or not a.get("article_id"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Артикулът не е намерен.")
     bc = a.get("barcode")
@@ -813,6 +862,10 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
         bc = bc[0] if bc else ""
     _ed = a.get("extra_data")
     extra = _ed if isinstance(_ed, dict) else {}
+    _dp = a.get("description_public_ml")
+    details = _read_details(a)
+    brand = next((d["value"] for d in details if d["key"] == _BRAND_DETAIL), "")
+    for_sale, public = _flag(a.get("is_for_sale")), _flag(a.get("is_public"))
     return {
         "article_id": a.get("article_id"), "code": a.get("code") or "",
         "name": a.get("article_name") or "", "description": a.get("description") or "",
@@ -821,7 +874,30 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
         "category": a.get("master_cat") or (a.get("categories_names") or ""),
         "oversell": str(a.get("sale_below_zero") or "").upper() == "YES",
         "weight_kg": str(extra.get("weight_kg") or ""),
+        # the storefront title the connector PREFERS over article_name — until now unwritable here
+        "name_public": a.get("article_name_public") or "",
+        "description_public": (_dp.get("bg_BG") if isinstance(_dp, dict) else "") or "",
+        "brand": brand,
+        "attributes": [d for d in details if d["key"] != _BRAND_DETAIL],
+        "cat_id": _int_or_none(a.get("master_cat_id") or a.get("cat_id")),
+        "amount_type_id": _int_or_none(a.get("amount_type_id")),
+        "seo_title": str(extra.get("seo_title") or ""),
+        "seo_description": str(extra.get("seo_description") or ""),
+        "is_for_sale": for_sale, "is_public": public,
+        # drives the Shopify auto-sync (ACTIVE / Draft / Archive)
+        "status": "active" if for_sale and public else ("draft" if for_sale else "withdrawn"),
+        "ref_num": str(a.get("ref_num") or ""),          # auto from the delivery — read-only
+        "aliases": _aliases(a.get("article_aliases")),   # create-only in Barsy — read-only
     }
+
+
+class AttrIn(BaseModel):
+    key: str
+    value: str = ""
+
+
+# status → (is_for_sale, is_public). DRAFT = sellable at the till but hidden online.
+_STATUS_FLAGS = {"active": (1, 1), "draft": (1, 0), "withdrawn": (0, 0)}
 
 
 class ArticleEdit(BaseModel):
@@ -830,6 +906,16 @@ class ArticleEdit(BaseModel):
     barcode: str = ""
     oversell: bool = False        # orderable at <=0 stock (backorder / supplier dropship)
     weight_kg: str = ""           # kg → merged into Barsy extra_data (preserving SEO)
+    # everything below is optional: "" / None / [] means LEAVE UNCHANGED (never clobber Barsy)
+    name_public: str = ""         # storefront title (article_name_public)
+    description_public: str = ""
+    brand: str = ""
+    attributes: list[AttrIn] = []
+    cat_id: int | None = None
+    amount_type_id: int | None = None
+    seo_title: str = ""
+    seo_description: str = ""
+    status: str = ""              # "" | active | draft | withdrawn
 
 
 @router.post("/{article_id}")
@@ -838,9 +924,12 @@ async def update_article(
     actor: User = Depends(require_roles("staff")),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Update editable fields in Barsy (name/description/barcode). Price is NOT touched here."""
+    """Update editable fields in Barsy (Barsy-parity with the create path in intake). Price is NOT
+    touched here — it is edited in bulk via Ценообразуване (price policy)."""
     if not req.name.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Името е задължително.")
+    if req.status and req.status not in _STATUS_FLAGS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалиден статус.")
     article: dict = {
         "article_name": req.name.strip(),
         "article_name_ml": {"bg_BG": req.name.strip()},
@@ -851,17 +940,41 @@ async def update_article(
         article["barcode"] = req.barcode.strip()  # string, not array (Barsy create/update)
     # explicit YES/NO (not the DEF default) so the toggle can turn oversell back OFF on an edit
     article["sale_below_zero"] = "YES" if req.oversell else "NO"
-    # weight rides in the native extra_data object — MERGE, don't clobber (it also holds SEO). Read the
-    # current extra_data first so seo_title/seo_description/variant_codes survive the write.
-    w = req.weight_kg.strip()
-    if w:
+    if req.name_public.strip():
+        article["article_name_public"] = req.name_public.strip()
+    if req.description_public.strip():
+        article["description_public_ml"] = {"bg_BG": req.description_public}
+    if req.status:
+        # both ints together — they drive the Shopify auto-sync (ACTIVE / Draft / Archive)
+        article["is_for_sale"], article["is_public"] = _STATUS_FLAGS[req.status]
+    if req.cat_id is not None:
+        article["cat_id"] = article["master_cat_id"] = req.cat_id
+    if req.amount_type_id is not None:
+        article["amount_type_id"] = req.amount_type_id
+    # Brand + attributes are ONE details list (parity with intake._build_barsy_article) and Barsy
+    # REPLACES it wholesale — so they must travel together, and the Марка row must come first. When
+    # the request carries neither, `details` is omitted entirely so the existing rows survive.
+    details = [{"detail_name": a.key.strip(), "detail_value": a.value.strip()}
+               for a in req.attributes if a.key.strip() and a.key.strip() != _BRAND_DETAIL]
+    brand = req.brand.strip() or next(
+        (a.value.strip() for a in req.attributes if a.key.strip() == _BRAND_DETAIL), "")
+    if brand:
+        details.insert(0, {"detail_name": _BRAND_DETAIL, "detail_value": brand})
+    if details:
+        article["details"] = details
+    # weight + SEO ride in the native extra_data object — MERGE, don't clobber (it also holds
+    # variant_codes). ONE read covers all three, however many of them changed.
+    extra_new = {k: v for k, v in (("weight_kg", req.weight_kg.strip()),
+                                   ("seo_title", req.seo_title.strip()),
+                                   ("seo_description", req.seo_description.strip())) if v}
+    if extra_new:
         try:
             cur = await run_in_threadpool(
                 barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
             extra = dict(cur.get("extra_data") or {}) if isinstance(cur, dict) else {}
         except Exception:
             extra = {}
-        extra["weight_kg"] = w
+        extra.update(extra_new)
         article["extra_data"] = extra
     if not barsy_write_live():
         return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}

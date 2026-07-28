@@ -514,7 +514,7 @@ export interface CatalogItem {
 export interface ArticleDetail {
   article_id: number
   code: string
-  name: string
+  name: string                  // till/receipt name
   description: string
   price: number | null
   barcode: string
@@ -522,6 +522,19 @@ export interface ArticleDetail {
   category: string
   oversell?: boolean
   weight_kg?: string
+  name_public: string           // storefront title; the connector prefers it over `name`
+  description_public: string
+  brand: string
+  attributes: IntakeAttribute[]
+  cat_id: number | null
+  amount_type_id: number | null
+  seo_title: string
+  seo_description: string
+  is_for_sale: boolean
+  is_public: boolean
+  status: string                // active | draft | withdrawn (derived from the two flags)
+  ref_num: string               // read-only — set by the delivery
+  aliases: string[]             // read-only — create-only in Barsy
 }
 
 export interface StaffMember {
