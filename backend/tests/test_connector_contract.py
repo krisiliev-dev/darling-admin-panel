@@ -52,6 +52,21 @@ def conn(monkeypatch):
     return rec
 
 
+# A storno reads the sale account's FISCAL-receipt fields (`_account_storno_data`) and REFUSES with
+# needs_review:no_unp when they're absent — the real device-less-POS behaviour. So a test that wants to
+# reach the storno must hand back a fiscalised account; `unp` is DDDDDDDD-UUUU-NNNNNNN, `fm_num` 8 digits.
+_FISCAL_ACCOUNT = {"account": {"unp": "12345678-0001-0000042", "receipt_num": "42",
+                               "receipt_date": "2026-07-28", "fm_num": "12345678"}}
+_FISCAL_STORNO = {"unp": "12345678-0001-0000042", "receipt_num": "42",
+                  "receipt_date": "2026-07-28", "fm_num": "12345678"}
+
+
+def _fiscalise(rec):
+    """Make the account behind a storno fiscally closed, so Accounts_storno is actually emitted."""
+    rec.returns["Accounts_get"] = _FISCAL_ACCOUNT
+    return rec
+
+
 def _order(**over):
     o = {
         "id": 12345, "name": "#1001", "total_price": "24.30",
@@ -156,6 +171,7 @@ def test_clientorder_mode_creates_clientorder_without_payment(conn):
 # round-trip is deferred to a fiscal POS + explicit owner go (Hermes). A green test = "we emit the
 # right shape", NOT "Barsy accepted it".
 def test_refund_stornos_the_refunded_articles(conn, monkeypatch):
+    _fiscalise(conn)
     monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
     refund = {"id": 55, "order_id": 12345, "refund_line_items": [
         {"quantity": 1, "line_item": {"sku": "SKU-1"}},
@@ -165,7 +181,32 @@ def test_refund_stornos_the_refunded_articles(conn, monkeypatch):
     # storno the refunded ARTICLE (by article_ids — Barsy can't storno by quantity), full refund
     assert conn.body_for("Accounts_storno") == {
         "account_id": 900, "article_ids": [501], "payments": [],
-        "storno_data": {"storno_reason": "return"}}
+        "storno_data": {"storno_reason": "return", **_FISCAL_STORNO}}
+
+
+def test_refund_with_no_matched_articles_refuses_instead_of_whole_account_storno(conn, monkeypatch):
+    """article_ids=[] means WHOLE ACCOUNT to Barsy, so an unmapped SKU (or a shipping-only / goodwill
+    refund) must NOT reach Accounts_storno — that would irreversibly reverse the entire fiscal sale and
+    restock untouched items."""
+    _fiscalise(conn)
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
+    refund = {"id": 56, "order_id": 12345, "refund_line_items": [
+        {"quantity": 1, "line_item": {"sku": "SKU-НЯМА-В-BARSY"}},
+    ]}
+    res = connector.shopify_refund_to_barsy(refund, do_write=True)
+    assert res["status"] == "needs_review" and res["reason"] == "no_matched_articles"
+    with pytest.raises(KeyError):
+        conn.body_for("Accounts_storno")            # nothing was reversed
+
+
+def test_storno_without_a_fiscal_receipt_is_refused(conn, monkeypatch):
+    """Device-less POS: the sale has no УНП, so there is no fiscal document to reverse — the connector
+    must surface needs_review:no_unp rather than emit an Accounts_storno that Barsy would reject."""
+    monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
+    res = connector.shopify_order_cancellation_to_barsy(_order(cancel_reason="customer"), do_write=True)
+    assert res["status"] == "needs_review" and res["reason"] == "no_unp"
+    with pytest.raises(KeyError):
+        conn.body_for("Accounts_storno")
 
 
 def test_refund_without_a_logged_sale_is_skipped(conn):
@@ -175,13 +216,14 @@ def test_refund_without_a_logged_sale_is_skipped(conn):
 
 
 def test_cancellation_stornos_the_whole_account(conn, monkeypatch):
+    _fiscalise(conn)
     monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": oid, "account_id": 900})
     res = connector.shopify_order_cancellation_to_barsy(_order(cancel_reason="customer"), do_write=True)
     assert res.get("written") is True
     # empty article_ids = storno the WHOLE account; reason "mistake" (order/operator correction)
     assert conn.body_for("Accounts_storno") == {
         "account_id": 900, "article_ids": [], "payments": [],
-        "storno_data": {"storno_reason": "mistake"}}
+        "storno_data": {"storno_reason": "mistake", **_FISCAL_STORNO}}
 
 
 def test_cancellation_without_logged_sale_is_skipped(conn):
@@ -246,10 +288,13 @@ def test_cod_payment_is_idempotent(conn, monkeypatch):
 
 
 def test_cod_refusal_stornos_the_sale(conn, monkeypatch):
+    _fiscalise(conn)
     monkeypatch.setattr(connector, "_seen_order", lambda oid: {"order_id": "12345", "account_id": 900})
     monkeypatch.setattr(connector, "_seen_key", lambda key: False)
     res = connector.cod_refused_to_barsy("12345", do_write=True)
     assert res["written"] is True
+    # an uncollected/returned COD is a RETURN, not an operator "mistake"
+    assert conn.body_for("Accounts_storno")["storno_data"]["storno_reason"] == "return"
     body = conn.body_for("Accounts_storno")                     # RTO → whole-account storno restores stock
     assert body["account_id"] == 900 and body["article_ids"] == []
 
