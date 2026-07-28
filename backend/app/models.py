@@ -416,3 +416,24 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(64), index=True)
     target: Mapped[str] = mapped_column(String(255), default="")
     detail: Mapped[str] = mapped_column(Text, default="")
+
+
+class IssuedInvoice(Base):
+    """A B2B фактура that staff have ISSUED in the Barsy admin UI, recorded here so the request clears.
+
+    Barsy's API cannot issue invoices (no Invoices_create; the auto-issue flag only fires for VPOS
+    payments) — the only path is Документи → Фактури → „Нова фактура по сметка(и)" against the closed
+    sale account. So the split is: the CONNECTOR knows which orders requested a фактура (recreate-proof,
+    read from Barsy), and the PANEL owns which of them are done. Without this row a legally-owed invoice
+    would either be forgotten or issued twice. `order_id` is unique — one фактура per order."""
+    __tablename__ = "issued_invoice"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    order_ref: Mapped[str] = mapped_column(String(64), default="")       # #1010
+    account_id: Mapped[str] = mapped_column(String(32), default="")      # the Barsy sale account it was issued from
+    invoice_number: Mapped[str] = mapped_column(String(32), default="")  # the фактура № for the record
+    company: Mapped[str] = mapped_column(String(255), default="")        # who it was issued to (audit trail)
+    issued_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    issued_by: Mapped[str] = mapped_column(String(255), default="")

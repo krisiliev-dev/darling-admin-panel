@@ -117,9 +117,23 @@ All caught by the live test + the new **Проблеми** anomaly console (the 
    returns a dry-run plan instead of creating a Speedy/Econt shipment, so nothing physically ships. Flip it
    alongside the other gates, and only after the Econt sender profile is configured (see
    WEBHOOKS_LAUNCH.md "Courier prerequisites"). ⚠ Once live, every Етикет costs a real waybill.
+4b. **Set the фактура numbering (`min_inv_num`) to continue the Microinvest series — BEFORE any invoice is
+   issued.** Barsy's counter currently starts at 0000000001; the first фактура issued consumes that number
+   permanently, so the series must be set first or the books show a restart. ⚠ Do NOT create a test фактура
+   until this is done. (Company ЕИК/БУЛСТАТ/МОЛ are already set — verified live.)
 5. Verify a real order end-to-end once with the fiscal POS connected (Етикет → production бон + decrement →
    real waybill → Shopify fulfilment; then a storno on a real УНП).
 6. Go.
+
+### 🧾 B2B фактури — manual by necessity, not by choice
+Barsy's API **cannot issue an invoice**: there is no `Invoices_create` (the whole Invoices category is
+read-only) and Barsy's auto-issue flag only fires for **VPOS** payments, which наложен платеж is not. The
+only working path is the admin UI: **Документи → Фактури → „Нова фактура по сметка(и)"** against the closed
+sale account. So the panel does the reliable half: the connector captures the request at checkout (and
+re-reads it from Shopify if state was rebuilt), and the **Онлайн поръчки → Фактури** tab lists every order
+still owed one with the copy-ready company block (фирма/ЕИК/ДДС/МОЛ/град/адрес) + the Barsy `account_id`
+to pick, then records the issued number so it can't be forgotten or issued twice. `invoice_data` stays
+wired on the payment, so if Barsy ever enables non-VPOS issuance this becomes automatic for free.
 
 ## Known constraints (by design, not gaps)
 - COD orders issue the **бон at packing**, not at delivery: Етикет closes the sale PAID under

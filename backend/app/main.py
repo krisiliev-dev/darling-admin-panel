@@ -52,6 +52,7 @@ from .routers import (
     intake_delivery,
     inventory,
     inventory_health,
+    invoices,
     issues,
     logs,
     online_pricing,
@@ -157,6 +158,7 @@ app.include_router(admin.router)
 app.include_router(logs.router)
 app.include_router(gdpr.router)
 app.include_router(insights.router)
+app.include_router(invoices.router)
 app.include_router(issues.router)
 app.include_router(pricing.router)
 app.include_router(online_pricing.router)

@@ -7,6 +7,7 @@ import { Sheet } from '../components/Paper'
 import { PageHeader } from '../components/PageHeader'
 import { CustomerRisk } from '../components/CustomerRisk'
 import { useConfirm } from '../components/Confirm'
+import { InvoiceQueue } from '../components/InvoiceQueue'
 import { FilterChips, Pager, usePager } from '../components/TableControls'
 import { Cod } from './Cod'
 import { hoursSince, timeSinceBg, SLA_HOURS, SLA_WARN } from '../lib/time'
@@ -22,7 +23,7 @@ export interface ShipPrefill {
 // Онлайн поръчки — the fulfilment desk. One card, three tabs: orders to fulfil, orders already
 // shipped, and COD reconciliation (Разчети). The "Нова пратка" flow (top-right) books an ad-hoc
 // courier label — office lookup folded in. Courier readiness/config now lives in Настройки.
-type OrdersTab = 'todo' | 'done' | 'cod'
+type OrdersTab = 'todo' | 'done' | 'cod' | 'invoices'
 
 export function Orders() {
   const [couriers, setCouriers] = useState<CourierReadiness[] | null>(null)
@@ -62,6 +63,7 @@ export function Orders() {
     ['todo', 'За изпълнение', (data?.orders || []).filter((o) => !o.tracking).length],
     ['done', 'Изпълнени', (data?.orders || []).filter((o) => o.tracking).length],
     ['cod', 'Разчети', null],
+    ['invoices', 'Фактури', null],
   ]
 
   return (
@@ -95,7 +97,8 @@ export function Orders() {
         ))}
       </div>
 
-      {tab === 'cod' ? <Cod embedded />
+      {tab === 'invoices' ? <InvoiceQueue />
+        : tab === 'cod' ? <Cod embedded />
         : <OrderQueue data={data} mode={tab} onLabel={labelFromOrder} onChange={loadOrders} />}
     </div>
   )
