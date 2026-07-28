@@ -219,7 +219,7 @@ async def barsy_booked_cod(
         amt = round(float(a.get("amount") or 0), 2)
         total += amt
         st = smap.get(oid) or {}
-        bucket = _BUCKET.get(st.get("status"), "preship")
+        bucket = _BUCKET.get(str(st.get("status") or ""), "preship")
         is_settled = oid in settled or bucket == "settled"
         # booked paid in Barsy but neither collected/settled nor returned → the storno-candidate signal
         is_uncollected = not is_settled and bucket != "rto"
