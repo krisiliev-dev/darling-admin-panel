@@ -20,6 +20,7 @@ change stops propagating instead of ping-ponging.
 """
 import hashlib
 import json
+import threading
 import time
 import uuid as _uuid
 from pathlib import Path
@@ -42,6 +43,19 @@ ECHO_STORE = HERE / ".connector_echo.json"
 DEPOT_ID = 1
 POS_ID = 1
 _PAYMETHOD = {"id": None}
+# COD model (owner, 2026-07-28): online orders carry NO client (Barsy's built-in "Анонимен") — a Client
+# means a B2B/tab-holder, not a random online buyer. Barsy forbids an anonymous account from OWING
+# (hard rule "Анонимен клиент не може да задлъжнява"), so a COD sale is finalised as PAID at packing:
+# closed with a payment under the dedicated "Наложен платеж" method (id 6, fiscal — prints the бон,
+# is_cash, anonymous-allowed) and the fiscal бон fires then. Uncollected orders are caught later by
+# the panel's courier-remittance reconciliation → storno "Връщане/рекламация". Booking COD under its
+# OWN method (not В брой) keeps it isolatable in reports/reconciliation. The account total to pay is
+# read from Clientorders_get(cid).total_sum at finalise. (supersedes the earlier credit_limit approach)
+COD_PAYMETHOD_ID = 6
+# Barsy's built-in anonymous client. Online orders attach to this (not a per-buyer Client) — a Barsy
+# "Client" is a B2B/tab-holder, and an anonymous account closes PAID (it can't owe), which is the COD model.
+_ANON_CLIENT_ID = 1
+_LOCATION = {"id": None}
 _LOCATION = {"id": None}
 
 # ============================================================ helpers
@@ -117,26 +131,84 @@ def mark_pushed(code):
     """Call after WE write `code` to Barsy (from approved_pipeline) so the resulting Barsy webhook
     is recognised as our echo. Records the current name/price fingerprint."""
     art = _catalog().get(str(code)) or {}
-    _echo(code, {"n": art.get("article_name"), "p": art.get("actual_price")})
+    _echo(code, {"n": _display_name(art), "p": art.get("actual_price")})
 
 
 def _seen_order(oid):
+    """Return the LATEST recorded state for an order (so a finalise-appended kind='sale' overrides the
+    original kind='clientorder' — the cancel-branch keys on this)."""
     if not ORDERS_STATE.exists():
         return None
+    latest = None
     for l in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
         try:
             d = json.loads(l)
             if str(d.get("order_id")) == str(oid):
-                return d
+                latest = d
         except Exception:
             pass
-    return None
+    return latest
+
+
+def record_finalised(order_id, account_id, rows=0):
+    """HOOK for the panel's review→finalise endpoint: call AFTER Accounts_createfromclientorder so the
+    connector flips this order from kind='clientorder' to kind='sale' (+ the new sale account_id). Then a
+    later cancel/refund correctly hits the storno branch instead of voiding a clientorder that's already
+    been finalised into a sale."""
+    _record_order(str(order_id), account_id, rows, "sale")
+    return {"order_id": str(order_id), "account_id": account_id, "kind": "sale"}
 
 
 def _record_order(oid, account_id, n, kind="sale", key=None):
     with ORDERS_STATE.open("a", encoding="utf-8") as f:
         f.write(json.dumps({"order_id": str(oid), "account_id": account_id, "rows": n, "kind": kind,
                             "key": key, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}, ensure_ascii=False) + "\n")
+
+
+def _barsy_account_for_clientorder(cid):
+    """Ask BARSY (the system of record) whether client_order <cid> already has a sale account — the
+    durable idempotency source that survives a container recreate wiping ORDERS_STATE.jsonl. Barsy's own
+    rule ('по клиентска заявка N вече има създадена сметка, покриваща сумата') is what really blocks a
+    double-decrement, so we mirror it: return the existing account_id (or None). A storno'd account still
+    counts — Barsy considers the clientorder consumed and refuses a re-finalise regardless of reversal."""
+    cid = str(cid)
+    try:
+        for a in (b.call("Accounts_getlist", {"filters": {}}) or []):
+            ids = str(a.get("client_order_ids") or "")
+            # client_order_ids is a comma-joined string ("3" or "3,5"); match the exact token
+            if cid in [t.strip() for t in ids.split(",") if t.strip()]:
+                return a.get("account_id")
+    except Exception:
+        pass
+    return None
+
+
+def _display_name(art):
+    """The STOREFRONT title for a Barsy article. Owner 2026-07-28: prefer `article_name_public` (Barsy's
+    dedicated customer-facing name) when set, else the internal/till `article_name`. Currently every
+    article_name_public is NULL → this transparently falls back to article_name (no behaviour change) until
+    enrichment starts populating the public name."""
+    art = art or {}
+    return (str(art.get("article_name_public") or "").strip()
+            or str(art.get("article_name") or "").strip())
+
+
+_OP_LOCKS = {}
+_OP_LOCKS_GUARD = threading.Lock()
+
+
+def _op_lock(key):
+    """Per-key in-process lock. Shopify fires orders/create AND orders/updated for the same order
+    ~simultaneously; the receiver dispatches BOTH to concurrent run_in_threadpool tasks, and without
+    this they BOTH pass the _seen_* dedup (read the state file before either writes it) and double-book.
+    Holding this lock across the check-and-book serialises same-order tasks; the persistent state file
+    still covers cross-process retries. (Assumes a single uvicorn worker — the deploy runs one; a
+    multi-worker setup would additionally need a file lock, since threading locks don't span processes.)"""
+    with _OP_LOCKS_GUARD:
+        lk = _OP_LOCKS.get(key)
+        if lk is None:
+            lk = _OP_LOCKS[key] = threading.Lock()
+        return lk
 
 
 def _seen_key(key):
@@ -194,6 +266,13 @@ _SALE_PRINT_RECEIPT = 0     # TEST: no fiscal receipt. On the non-fiscal test PO
 _SALE_PRINT_SHIPMENT = 0    # never print a courier label from the sale path (that's the courier module).
 
 
+def _ensure_client(order):
+    """DEPRECATED under the anonymous COD model (owner 2026-07-28): online orders no longer get a per-buyer
+    Barsy Client — they attach to `_ANON_CLIENT_ID` and finalise as PAID via the "Наложен платеж" method.
+    Kept as a no-op hook in case B2B online orders later need a real Client. Returns None (→ anonymous)."""
+    return None
+
+
 # ============================================================ A. Shopify → Barsy
 def shopify_order_to_barsy(order, mode="sale", do_write=False):
     """New/paid Shopify order → Barsy. mode='sale' finalises immediately (fiscalises + draws down
@@ -202,9 +281,9 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
     oid = str(order.get("id") or "")
     name = order.get("name") or f"#{oid}"
     if not oid:
-        return {"error": "no order id"}
-    if _seen_order(oid):
-        return {"skipped": "already logged", "order_id": oid}
+        return {"status": "error", "reason": "no_order_id", "error": "no order id"}
+    if _seen_order(oid):                                    # fast-path dedup (re-checked inside the lock)
+        return {"status": "duplicate", "skipped": f"already seen {name}", "order_id": oid, "order_ref": name}
 
     cat = _catalog()
     rows, missing = [], []
@@ -214,10 +293,15 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         if not art:
             missing.append(sku or "(no sku)")
             continue
-        # OrderMakeData unit price = `original_current_price` (docs: `current_price` is DEPRECATED and
-        # silently dropped → the sale would book at the article's base price, not the order's). place.rst.
+        # Carry the Shopify line price (what the customer was actually charged) so Barsy books the
+        # correct order value — accounting/COD-reconciliation correctness. The two Barsy methods use
+        # DIFFERENT price fields: Accounts_place (sale) reads `original_current_price` (its `current_price`
+        # is DEPRECATED/dropped); Clientorders_create reads `current_price` (create.rst). Passing BOTH
+        # (each other method drops the field it doesn't use) makes sale AND clientorder book the paid price
+        # — else the clientorder silently falls back to the article's base price. (fixed 2026-07-28)
+        _line_price = str(li.get("price") or art.get("actual_price") or "0")
         rows.append({"article_id": int(art["article_id"]), "amount": str(li.get("quantity") or 0),
-                     "original_current_price": str(li.get("price") or art.get("actual_price") or "0")})
+                     "original_current_price": _line_price, "current_price": _line_price})
     cust, ship = order.get("customer") or {}, order.get("shipping_address") or {}
     account = {"uuid": _acc_uuid(f"shopify-{oid}"), "notes": f"Shopify поръчка {name}",
                "description": f"Shopify order {name} ({oid})",
@@ -225,52 +309,59 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
                                 or ship.get("name") or ""),
                "phone": cust.get("phone") or ship.get("phone") or "",
                "delivery_address": ", ".join(x for x in [ship.get("address1"), ship.get("city")] if x)}
-    plan = {"order_id": oid, "mode": mode, "rows": len(rows), "missing_skus": missing,
+    plan = {"order_id": oid, "order_ref": name, "mode": mode, "rows": len(rows), "missing_skus": missing,
             "would_decrement": [(r["article_id"], r["amount"]) for r in rows]}
     if not rows:
-        return {**plan, "error": "no line items matched a Barsy article"}
+        return {**plan, "status": "refused", "reason": "no_barsy_match",
+                "error": "no line items matched a Barsy article", "needs_review": True}
     if missing:
         # Refuse to book a PARTIAL sale: a human must map the unmatched SKUs first. Booking only the
         # matched lines would make the Barsy sale diverge from the Shopify order and drift stock.
-        return {**plan, "error": f"unmatched SKUs {missing} — sale NOT booked, needs review",
-                "needs_review": True}
+        return {**plan, "status": "needs_review", "reason": "unmatched_skus", "detail": {"missing_skus": missing},
+                "error": f"unmatched SKUs {missing} — sale NOT booked, needs review", "needs_review": True}
     if not do_write:
         return {**plan, "dry_run": True}
 
-    if mode == "clientorder":
-        # clientorders/create param is `$order` (ClientOrderInputData), not `client_order`. NOTE: `account`
-        # is AccountInputData-shaped; ClientOrderInputData differs (e.g. client_tel) — header binds now, but
-        # a fuller ClientOrderInputData field mapping is still TODO (flagged).
-        aid = b.call("Clientorders_create", {"order": account, "rows": rows})
-        _record_order(oid, aid, len(rows), "clientorder")
-        return {**plan, "clientorder_id": aid, "written": True}
-    # Only record a payment that Shopify actually COLLECTED. A COD order arrives with
-    # financial_status='pending' (cash is collected on delivery, reconciled via the panel's COD
-    # flow) — booking its total as "collected online" here would double-count the cash in Barsy's
-    # ledger. So attach the online payment only for a genuinely paid (prepaid) order.
-    paid_online = str(order.get("financial_status") or "").lower() == "paid"
-    # fiscal:0 → RECORD the online payment WITHOUT firing the fiscal device. Fiscalisation (the бон)
-    # happens on-site at packing via Accounts_close, per the owner's workflow — so booking the sale
-    # here must not print a receipt early. (COD sends no payment at all; collected on delivery.)
-    payments = ([{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
-                  "transaction_id": oid, "description": "Shopify (collected online)", "fiscal": 0}]
-                if paid_online else [])
-    # flag_close_account=1 → open+order+pay+CLOSE in one call; CLOSE decrements stock. print flags off
-    # for the no-fiscal/no-label test scope (and the device-less test POS prints nothing anyway).
-    place = {"account": account, "orders": rows, "payments": payments,
-             "flag_close_account": _SALE_FLAG_CLOSE, "print_receipt": _SALE_PRINT_RECEIPT,
-             "print_shipment": _SALE_PRINT_SHIPMENT}
-    inv = _invoice_data(order, account)
-    if inv:                                                # buyer asked for a company VAT invoice (фактура)
-        place["invoice_data"] = inv
-        email = (order.get("customer") or {}).get("email") or order.get("email") or ""
-        if email:                                          # so Barsy auto-emails the issued фактура
-            account["email"] = email
-            account["email_invoices"] = email
-    aid = b.call("Accounts_place", place)
-    _record_order(oid, aid, len(rows), "sale")
-    return {**plan, "account_id": aid, "paid_online": paid_online, "invoice": bool(inv),
-            "closed": bool(_SALE_FLAG_CLOSE), "decremented": bool(_SALE_FLAG_CLOSE), "written": True}
+    # Serialise concurrent deliveries of the SAME order (Shopify fires create+updated ~together) so they
+    # can't both pass the dedup and double-book. The re-check inside the lock is the authoritative one.
+    with _op_lock(f"order-{oid}"):
+        if _seen_order(oid):
+            return {**plan, "status": "duplicate", "skipped": f"already seen {name}"}
+        account["client_id"] = _ANON_CLIENT_ID         # anonymous online buyer (COD finalises as PAID)
+        if mode == "clientorder":
+            # clientorders/create param is `$order` (ClientOrderInputData), not `client_order`. NOTE: `account`
+            # is AccountInputData-shaped; ClientOrderInputData differs (e.g. client_tel) — header binds now, but
+            # a fuller ClientOrderInputData field mapping is still TODO (flagged).
+            aid = b.call("Clientorders_create", {"order": account, "rows": rows})
+            _record_order(oid, aid, len(rows), "clientorder")
+            return {**plan, "status": "ok", "clientorder_id": aid, "written": True}
+        # Only record a payment that Shopify actually COLLECTED. A COD order arrives with
+        # financial_status='pending' (cash is collected on delivery, reconciled via the panel's COD
+        # flow) — booking its total as "collected online" here would double-count the cash in Barsy's
+        # ledger. So attach the online payment only for a genuinely paid (prepaid) order.
+        paid_online = str(order.get("financial_status") or "").lower() == "paid"
+        # fiscal:0 → RECORD the online payment WITHOUT firing the fiscal device. Fiscalisation (the бон)
+        # happens on-site at packing via Accounts_close, per the owner's workflow — so booking the sale
+        # here must not print a receipt early. (COD sends no payment at all; collected on delivery.)
+        payments = ([{"paymethod_id": _paymethod_id(), "actual_paid_sum": str(order.get("total_price") or ""),
+                      "transaction_id": oid, "description": "Shopify (collected online)", "fiscal": 0}]
+                    if paid_online else [])
+        # flag_close_account=1 → open+order+pay+CLOSE in one call; CLOSE decrements stock. print flags off
+        # for the no-fiscal/no-label test scope (and the device-less test POS prints nothing anyway).
+        place = {"account": account, "orders": rows, "payments": payments,
+                 "flag_close_account": _SALE_FLAG_CLOSE, "print_receipt": _SALE_PRINT_RECEIPT,
+                 "print_shipment": _SALE_PRINT_SHIPMENT}
+        inv = _invoice_data(order, account)
+        if inv:                                            # buyer asked for a company VAT invoice (фактура)
+            place["invoice_data"] = inv
+            email = (order.get("customer") or {}).get("email") or order.get("email") or ""
+            if email:                                      # so Barsy auto-emails the issued фактура
+                account["email"] = email
+                account["email_invoices"] = email
+        aid = b.call("Accounts_place", place)
+        _record_order(oid, aid, len(rows), "sale")
+        return {**plan, "status": "ok", "account_id": aid, "paid_online": paid_online, "invoice": bool(inv),
+                "closed": bool(_SALE_FLAG_CLOSE), "decremented": bool(_SALE_FLAG_CLOSE), "written": True}
 
 
 # ⚠ STORNO = the dedicated `Accounts_storno` method (NOT Accounts_place). Confirmed from docs 2026-07-27:
@@ -284,25 +375,80 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
 # So storno PRESUPPOSES the sale was fiscalised/closed (the pending fiscal-timing step). While mode=sale
 # only PLACES (open account), there is nothing to storno yet — the account_id must be closed first.
 # NOT yet live-verified (fiscal + irreversible → needs a fiscal POS + explicit owner go).
-def shopify_order_cancellation_to_barsy(order, do_write=False):
-    """Order cancelled on Shopify → full storno of the Barsy sale → restores stock. VERIFY-LIVE (fiscal)."""
+def _account_storno_data(account_id, reason):
+    """Build InputStornoData for Accounts_storno from the sale account's FISCAL-receipt fields. Storno
+    REQUIRES all of: `unp` (format DDDDDDDD-UUUU-NNNNNNN), `receipt_num`, `receipt_date`, `fm_num`
+    (8 digits) — all issued by the FISCAL DEVICE at close. On a device-less POS they're null → returns
+    None (the connector then surfaces needs_review:no_unp — a non-fiscally-closed sale can't be
+    stornoed). On a real fiscal POS they're populated → the storno reverses the sale + restores stock.
+    (Proven live 2026-07-28: a correctly-FORMATTED placeholder set reversed stock 8→9, so Barsy
+    validates field format+presence, not a receipt-registry lookup.)"""
+    try:
+        a = b.call("Accounts_get", {"account_id": int(account_id)}).get("account") or {}
+    except Exception:
+        return None
+    if not a.get("unp"):
+        return None
+    return {"storno_reason": reason, "unp": a.get("unp"), "receipt_num": a.get("receipt_num"),
+            "receipt_date": a.get("receipt_date"), "fm_num": a.get("fm_num")}
+
+
+def shopify_order_cancellation_to_barsy(order, do_write=False, storno_reason="mistake"):
+    """Order cancelled on Shopify → reverse it in Barsy per the owner's clientorder model:
+    a still-CLIENTORDER order is VOIDED (Clientorders_setstatus → 6 Отказана; nothing was decremented,
+    the refuse-before-finalise flow); a FINALISED sale is STORNO'd (Accounts_storno with the sale's unp).
+    `storno_reason` ∈ {return, mistake, reduction_tax_base} — 'mistake' (операторска грешка) for a plain
+    cancellation, 'return' (Връщане/рекламация) for an uncollected/returned COD (see cod_refused_to_barsy).
+    ⚠ storno is fiscal+irreversible + needs the account's УНП (fiscal POS). Branch keys on the recorded
+    `kind` — the finalise step MUST record kind='sale' + the new account_id for the storno branch to fire."""
     oid = str(order.get("id") or "")
+    name = order.get("name") or f"#{oid}"
     rec = _seen_order(oid)
     if not rec or not rec.get("account_id"):
-        return {"skipped": "no logged Barsy sale for this order", "order_id": oid}
-    key = f"storno-{oid}"
+        return {"status": "refused", "reason": "no_logged_order", "order_ref": name,
+                "skipped": "no logged Barsy order for this Shopify order", "order_id": oid}
+    key = f"cancel-{oid}"
     if _seen_key(key):
-        return {"skipped": "already stornoed", "order_id": oid}
-    # order cancellation ≈ operator/order correction; a physical customer return uses the refund path
-    reason = "mistake"
-    plan = {"order_id": oid, "account_id": rec["account_id"], "method": "Accounts_storno",
-            "article_ids": [], "storno_reason": reason}          # article_ids=[] → storno the WHOLE account
+        return {"status": "duplicate", "order_ref": name, "skipped": "already cancelled", "order_id": oid}
+    # DURABLE re-route: after a recreate the log can rebuild from the order webhook as kind='clientorder'
+    # while Barsy already holds a finalised SALE account (the panel finalise action isn't replayed). Voiding
+    # a clientorder that's really a sale is wrong — ask Barsy and flip to the storno branch if so.
+    if rec.get("kind") == "clientorder":
+        healed = _barsy_account_for_clientorder(rec.get("account_id"))
+        if healed:
+            record_finalised(oid, healed, rec.get("rows", 0))
+            rec = _seen_order(oid)                            # now kind='sale', account_id=healed
+    # CLIENTORDER stage → VOID (nothing was decremented) — the owner's refuse-before-finalise flow.
+    if rec.get("kind") == "clientorder":
+        cid = rec.get("account_id")                          # = client_order_id
+        plan = {"order_id": oid, "order_ref": name, "client_order_id": cid,
+                "method": "Clientorders_setstatus", "action": "void"}
+        if not do_write:
+            return {**plan, "dry_run": True}
+        with _op_lock(f"cancel-{oid}"):
+            if _seen_key(key):
+                return {**plan, "status": "duplicate", "skipped": "already cancelled"}
+            b.call("Clientorders_setstatus", {"client_order_id": int(cid), "status_id": 6})   # 6 = Отказана
+            _record_order(oid, cid, 0, "cancelled", key=key)
+            return {**plan, "status": "ok", "voided_clientorder": cid, "written": True}
+    # FINALISED sale → storno the WHOLE account (article_ids=[]); needs the sale's unp.
+    aid = rec["account_id"]
+    plan = {"order_id": oid, "order_ref": name, "account_id": aid, "method": "Accounts_storno",
+            "article_ids": [], "storno_reason": storno_reason}
     if not do_write:
         return {**plan, "dry_run": True}
-    res = b.call("Accounts_storno", {"account_id": int(rec["account_id"]), "article_ids": [],
-                 "payments": [], "storno_data": {"storno_reason": reason}})
-    _record_order(oid, res, 0, "storno", key=key)
-    return {**plan, "storno_account_id": res, "written": True}
+    with _op_lock(f"cancel-{oid}"):
+        if _seen_key(key):
+            return {**plan, "status": "duplicate", "skipped": "already stornoed"}
+        sd = _account_storno_data(aid, storno_reason)
+        if not sd:
+            return {**plan, "status": "needs_review", "reason": "no_unp",
+                    "error": "account has no fiscal receipt/УНП (non-fiscal POS?) — storno needs the fiscal fields",
+                    "needs_review": True}
+        res = b.call("Accounts_storno", {"account_id": int(aid), "article_ids": [],
+                     "payments": [], "storno_data": sd})
+        _record_order(oid, res, 0, "storno", key=key)
+        return {**plan, "status": "ok", "storno_account_id": res, "written": True}
 
 
 def shopify_refund_to_barsy(refund, do_write=False):
@@ -310,12 +456,15 @@ def shopify_refund_to_barsy(refund, do_write=False):
     ⚠ Accounts_storno storns by ARTICLE (article_ids), NOT by quantity — a partial-QUANTITY refund
     (e.g. 1 of 3 units) can only be modelled as a whole-article storno here. Flag for fiscal-timing design."""
     oid = str(refund.get("order_id") or "")
+    rid = refund.get("id")
     rec = _seen_order(oid)
     if not rec or not rec.get("account_id"):
-        return {"skipped": "no logged sale", "order_id": oid}
-    key = f"refund-{refund.get('id')}"                      # dedupe per refund (an order can have several)
+        return {"status": "refused", "reason": "no_logged_sale", "order_ref": f"#{oid}",
+                "skipped": "no logged sale", "order_id": oid}
+    key = f"refund-{rid}"                                   # dedupe per refund (an order can have several)
     if _seen_key(key):
-        return {"skipped": "already refunded", "order_id": oid, "refund_id": refund.get("id")}
+        return {"status": "duplicate", "order_ref": f"#{oid}", "skipped": "already refunded",
+                "order_id": oid, "refund_id": rid}
     cat = _catalog()
     article_ids, partial_qty = [], False
     for ri in (refund.get("refund_line_items") or []):
@@ -327,15 +476,247 @@ def shopify_refund_to_barsy(refund, do_write=False):
         # detect a partial-quantity refund (storno can't express it — whole article is reversed)
         if int(ri.get("quantity") or 0) < int(li.get("quantity") or ri.get("quantity") or 0):
             partial_qty = True
-    plan = {"order_id": oid, "account_id": rec["account_id"], "method": "Accounts_storno",
+    plan = {"order_id": oid, "order_ref": f"#{oid}", "account_id": rec["account_id"], "method": "Accounts_storno",
             "article_ids": article_ids, "storno_reason": "return",
-            **({"warn": "partial-quantity refund → whole-article storno (qty not expressible)"} if partial_qty else {})}
+            **({"warnings": [{"kind": "partial_quantity_refund",
+                              "reason": "storno reverses whole article; per-unit qty not expressible"}]}
+               if partial_qty else {})}
     if not do_write:
         return {**plan, "dry_run": True}
-    res = b.call("Accounts_storno", {"account_id": int(rec["account_id"]), "article_ids": article_ids,
-                 "payments": [], "storno_data": {"storno_reason": "return"}})
-    _record_order(oid, res, len(article_ids), "refund", key=key)
-    return {**plan, "storno_account_id": res, "written": True}
+    with _op_lock(f"refund-{rid}"):
+        if _seen_key(key):
+            return {**plan, "status": "duplicate", "skipped": "already refunded"}
+        sd = _account_storno_data(rec["account_id"], "return")
+        if not sd:
+            return {**plan, "status": "needs_review", "reason": "no_unp",
+                    "error": "account has no fiscal receipt/УНП (non-fiscal POS?) — storno needs the fiscal fields",
+                    "needs_review": True}
+        res = b.call("Accounts_storno", {"account_id": int(rec["account_id"]), "article_ids": article_ids,
+                     "payments": [], "storno_data": sd})
+        _record_order(oid, res, len(article_ids), "refund", key=key)
+        return {**plan, "status": "ok", "storno_account_id": res, "written": True}
+
+
+# ---- panel review→finalise / refuse buttons (staff actions on the clientorder queue) --------------
+def finalise_order(order_id, do_write=False, tracking=None, speditor=None):
+    """Panel FINALISE action (fires on the Етикет/label step): convert a logged CLIENTORDER into a CLOSED,
+    PAID sale. Closes the anonymous account with a payment under the "Наложен платеж" method (id 6) so it
+    (a) decrements stock and (b) prints the fiscal бон tagged наложен платеж (print_receipt:1). Anonymous
+    accounts can't OWE, so COD is booked as paid-at-packing; the panel's courier-remittance reconciliation
+    catches any uncollected order and stornos it. Idempotent: reconciles against Barsy so a repeat click /
+    post-restart returns already_finalised instead of double-decrementing. Gated: do_write=False → dry-run.
+    Optional `tracking` (courier waybill) + `speditor` (courier name e.g. "Спиди"/"Еконт") are written onto
+    the Barsy sale account IF supplied — but a CLOSED account can't be backfilled, so they only land when
+    passed HERE (i.e. the panel must have the waybill at finalise time = label-first ordering). Omit them and
+    the current finalise-first flow is unchanged; the panel then matches COD by its own state_map."""
+    oid = str(order_id)
+    rec = _seen_order(oid)
+    name = (rec or {}).get("order_ref") or f"#{oid}"
+    if not rec:
+        return {"status": "refused", "reason": "no_logged_order", "order_ref": name, "order_id": oid}
+    if rec.get("kind") == "sale":
+        return {"status": "duplicate", "reason": "already_finalised", "order_ref": name,
+                "order_id": oid, "account_id": rec.get("account_id")}
+    if rec.get("kind") != "clientorder":
+        return {"status": "needs_review", "reason": "not_a_clientorder",
+                "detail": {"kind": rec.get("kind")}, "order_ref": name, "order_id": oid}
+    cid = rec.get("account_id")                            # = client_order_id
+    plan = {"order_id": oid, "order_ref": name, "client_order_id": cid,
+            "method": "Accounts_createfromclientorder", "paymethod": "Наложен платеж"}
+    if not do_write:
+        # Reconcile the DRY-RUN against Barsy too (not just the local log): after a restart the log rebuilds
+        # co as kind='clientorder' while Barsy may already hold the sale account — report already_finalised so
+        # the panel's finalise-before-label guard is TIGHT (doesn't falsely force a harmless re-finalise).
+        existing = _barsy_account_for_clientorder(cid)
+        if existing:
+            return {**plan, "status": "already_finalised", "account_id": existing, "dry_run": True}
+        return {**plan, "status": "ok", "dry_run": True}
+    with _op_lock(f"finalise-{oid}"):
+        rec2 = _seen_order(oid)                            # re-check under lock (not finalised concurrently)
+        if rec2 and rec2.get("kind") == "sale":
+            return {**plan, "status": "duplicate", "account_id": rec2.get("account_id"),
+                    "skipped": "already finalised"}
+        # DURABLE guard: ORDERS_STATE.jsonl lives in the container FS and is wiped by a recreate, so ask
+        # Barsy directly — if the clientorder already has a sale account, it was finalised in a prior life;
+        # self-heal the local log and return calmly instead of re-closing (which Barsy would 501 anyway).
+        existing = _barsy_account_for_clientorder(cid)
+        if existing:
+            record_finalised(oid, existing, rec.get("rows", 0))   # repair wiped state
+            return {**plan, "status": "already_finalised", "account_id": existing,
+                    "skipped": "barsy already has a sale account for this clientorder"}
+        # Pay the EXACT account total under the COD method → closes PAID (an anonymous account can't owe) and
+        # prints the fiscal бон. Read the total from the clientorder; without it we can't build the payment,
+        # and an unpaid anonymous close would 501 — so surface needs_review rather than fail obscurely.
+        total = (b.call("Clientorders_get", {"client_order_id": int(cid)}) or {}).get("total_sum")
+        if total in (None, ""):
+            return {**plan, "status": "needs_review", "reason": "no_total",
+                    "error": "could not read clientorder total to book the COD payment", "needs_review": True}
+        pay = [{"paymethod_id": COD_PAYMETHOD_ID, "actual_paid_sum": str(total)}]
+        body = {"client_order_id": int(cid),
+                "account_props": {"uuid": _acc_uuid(f"shopify-finalise-{oid}")},
+                "flag_close_account": 1, "print_shipment": 0, "print_receipt": 1, "payments": pay}
+        if tracking:                                       # waybill onto the Barsy account (label-first flow)
+            body["tracking_number"] = str(tracking)
+        if speditor:                                       # courier name → Barsy resolves speditor_id
+            body["speditor_name"] = str(speditor)
+        try:
+            aid = b.call("Accounts_createfromclientorder", body)
+        except Exception as e:
+            # Belt-and-suspenders: even if the pre-check missed it (race / partial read), Barsy is the true
+            # backstop — its "вече има създадена ... сметка" 501 means no second decrement happened.
+            msg = str(e)
+            if "вече има създадена" in msg or "покриваща" in msg or "покриващи" in msg:
+                existing = _barsy_account_for_clientorder(cid)
+                if existing:
+                    record_finalised(oid, existing, rec.get("rows", 0))
+                return {**plan, "status": "already_finalised", "account_id": existing,
+                        "skipped": "barsy rejected re-finalise (clientorder already has an account)",
+                        "barsy_message": msg[:200]}
+            raise
+        account_id = aid.get("account_id") if isinstance(aid, dict) else aid
+        record_finalised(oid, account_id, rec.get("rows", 0))
+        return {**plan, "status": "ok", "account_id": account_id, "decremented": True,
+                "paid": total, "written": True}
+
+
+def refuse_order(order_id, do_write=False):
+    """Panel REFUSE action: cancel the Shopify order (releases the reservation + drops it from the queue)
+    AND void/storno the Barsy side via the cancel-branch (clientorder→void status 6; finalised→storno).
+    Dedup-safe with the orders/cancelled webhook the Shopify-cancel also fires (both key on cancel-<oid>).
+    restock=False on the Shopify cancel — Barsy is authoritative for stock. Gated: do_write=False → dry-run."""
+    oid = str(order_id)
+    rec = _seen_order(oid)
+    name = (rec or {}).get("order_ref") or f"#{oid}"
+    plan = {"order_id": oid, "order_ref": name}
+    if not do_write:
+        return {**plan, "status": "ok", "dry_run": True,
+                "barsy_plan": shopify_order_cancellation_to_barsy({"id": oid, "name": name}, do_write=False)}
+    shop = {}
+    try:
+        d = s.gql("""mutation($id:ID!,$reason:OrderCancelReason!,$restock:Boolean!,$notify:Boolean){
+                     orderCancel(orderId:$id, reason:$reason, restock:$restock, notifyCustomer:$notify){
+                       job{ id } orderCancelUserErrors{ field message } } }""",
+                  {"id": f"gid://shopify/Order/{oid}", "reason": "STAFF", "restock": False, "notify": False})
+        errs = (d.get("orderCancel") or {}).get("orderCancelUserErrors") or []
+        shop = {"cancelled": not errs, **({"errors": errs} if errs else {})}
+    except Exception as e:
+        shop = {"cancelled": False, "error": str(e)[:150]}
+    # void/storno the Barsy side (reuses the cancel-branch; deduped vs the orders/cancelled webhook)
+    barsy = shopify_order_cancellation_to_barsy({"id": oid, "name": name}, do_write=True)
+    return {**plan, "status": barsy.get("status", "ok"), "shopify_cancel": shop, "barsy": barsy}
+
+
+# ---- COD reconciliation hooks for the panel (courier remittances ↔ Barsy method-6 payments) ----------
+def _all_latest_orders():
+    """{order_id: latest ORDERS_STATE record} — the newest logged state per order (clientorder/sale/storno)."""
+    latest = {}
+    if not ORDERS_STATE.exists():
+        return latest
+    for l in ORDERS_STATE.read_text(encoding="utf-8").splitlines():
+        try:
+            d = json.loads(l)
+            latest[str(d.get("order_id"))] = d
+        except Exception:
+            pass
+    return latest
+
+
+def list_cod_accounts(since=None):
+    """READ hook for the panel's COD reconciliation: every FINALISED sale (under the anonymous-paid COD
+    model each finalised order is a Наложен-платеж/method-6 sale) with the fields needed to match against a
+    courier payout report. Panel joins its OWN courier waybill by order_id (Barsy's tracking_number isn't
+    populated yet — see note). `since` = ISO ts filter on the finalisation time. No writes."""
+    latest = _all_latest_orders()
+    accs = {str(a.get("account_id")): a for a in (b.call("Accounts_getlist", {"filters": {}}) or [])}
+    rows = []
+    for oid, rec in latest.items():
+        if rec.get("kind") != "sale":                      # only finalised sales are COD-collectable
+            continue
+        if since and str(rec.get("ts") or "") < str(since):
+            continue
+        a = accs.get(str(rec.get("account_id"))) or {}
+        total = a.get("total_sum")
+        storno = a.get("total_sum_storno") or 0
+        # a fully-reversed account (|storno| >= total) is already cancelled — surface it so the panel skips it
+        reversed_ = bool(total) and abs(float(storno)) >= abs(float(total)) and float(total) != 0
+        rows.append({
+            "order_id": oid, "order_ref": rec.get("order_ref") or f"#{oid}",
+            "account_id": rec.get("account_id"), "amount": total,
+            "close_date": a.get("close_date"), "finalised_ts": rec.get("ts"),
+            "tracking_number": a.get("tracking_number"),   # None today — panel matches via its own state
+            "stornoed": reversed_,
+        })
+    return rows
+
+
+def list_sellable_variants():
+    """Read-only publish-readiness audit feed (#81): paginate ALL Shopify variants → per variant
+    {variant_id, sku, product_title, product_status, tracked, policy, on_hand}. The panel cross-checks
+    each sku against the Barsy-code mirror and flags no_sku / sku_not_in_barsy / not_tracked / not_active."""
+    out, cursor = [], None
+    while True:
+        d = s.gql("""query($cur:String){ productVariants(first:100, after:$cur){
+                     pageInfo{ hasNextPage endCursor }
+                     nodes{ id sku inventoryPolicy product{ title status }
+                       inventoryItem{ tracked inventoryLevels(first:1){ nodes{
+                         quantities(names:["on_hand"]){ quantity } } } } } } }""", {"cur": cursor})
+        pv = d.get("productVariants") or {}
+        for n in pv.get("nodes") or []:
+            ii = n.get("inventoryItem") or {}
+            lvls = (ii.get("inventoryLevels") or {}).get("nodes") or []
+            qs = (lvls[0].get("quantities") if lvls else None) or []
+            prod = n.get("product") or {}
+            out.append({"variant_id": n.get("id"), "sku": n.get("sku"),
+                        "product_title": prod.get("title"), "product_status": prod.get("status"),
+                        "tracked": ii.get("tracked"), "policy": n.get("inventoryPolicy"),
+                        "on_hand": (qs[0].get("quantity") if qs else None)})
+        pi = pv.get("pageInfo") or {}
+        if not pi.get("hasNextPage"):
+            return out
+        cursor = pi.get("endCursor")
+
+
+def ship_order(order_id, tracking=None, do_write=False):
+    """Ship/dispatch (#83, RECONCILIATION_SPEC rule B): create a Shopify `fulfillment` for the order's
+    open fulfillment-orders (with the label's tracking #) — this CLEARS `committed` and drops on_hand ONCE,
+    so a sold unit is counted exactly once vs the Barsy on_hand mirror. Called from the panel's label-success
+    path. Dry-run returns the plan; {status, reason} on failure → Проблеми.
+    ⚠ fulfillmentCreate input shape to confirm against the live API version (storefront)."""
+    oid = str(order_id)
+    gid = f"gid://shopify/Order/{oid}"
+    d = s.gql("""query($id:ID!){ order(id:$id){ name displayFulfillmentStatus
+                 fulfillmentOrders(first:10){ nodes{ id status } } } }""", {"id": gid})
+    order = d.get("order")
+    if not order:
+        return {"status": "refused", "reason": "order_not_found", "order_id": oid}
+    name = order.get("name") or f"#{oid}"
+    fos = [fo for fo in ((order.get("fulfillmentOrders") or {}).get("nodes") or [])
+           if fo.get("status") in ("OPEN", "IN_PROGRESS")]
+    plan = {"order_id": oid, "order_ref": name, "tracking": tracking,
+            "fulfillment_orders": [fo["id"] for fo in fos]}
+    if not fos:
+        return {**plan, "status": "needs_review", "reason": "no_open_fulfillment_order",
+                "detail": {"fulfillment_status": order.get("displayFulfillmentStatus")}}
+    if not do_write:
+        return {**plan, "status": "ok", "dry_run": True}
+    results, ok = [], True
+    for fo in fos:
+        ffin = {"lineItemsByFulfillmentOrder": [{"fulfillmentOrderId": fo["id"]}], "notifyCustomer": False}
+        if tracking:
+            ffin["trackingInfo"] = {"number": str(tracking)}
+        try:
+            r = s.gql("""mutation($f:FulfillmentInput!){ fulfillmentCreate(fulfillment:$f){
+                         fulfillment{ id status } userErrors{ field message } } }""", {"f": ffin})
+            fc = r.get("fulfillmentCreate") or {}
+            errs = fc.get("userErrors") or []
+            results.append({"fulfillment_order": fo["id"], "fulfillment": fc.get("fulfillment"),
+                            **({"errors": errs} if errs else {})})
+            ok = ok and not errs
+        except Exception as e:
+            results.append({"fulfillment_order": fo["id"], "error": str(e)[:150]})
+            ok = False
+    return {**plan, "status": "ok" if ok else "needs_review",
+            **({} if ok else {"reason": "fulfillment_failed"}), "fulfillments": results, "written": True}
 
 
 def shopify_fulfillment_to_barsy(order, do_write=False):
@@ -396,17 +777,20 @@ def shopify_product_edit_to_barsy(product, do_write=False, enabled=False):
 
 # ---- COD lifecycle (driven by the panel's наложен-платеж flow, not a Shopify webhook) ----
 def cod_refused_to_barsy(oid, reason="COD отказан (RTO)", do_write=False):
-    """A REFUSED COD delivery (RTO) → storno the Barsy sale so the returned goods go back into stock.
-    Mechanically identical to a Shopify cancellation (idempotent, keyed). The panel calls this when it
-    records an order outcome as 'refused'."""
-    return shopify_order_cancellation_to_barsy({"id": str(oid), "cancel_reason": reason}, do_write=do_write)
+    """A REFUSED/uncollected COD delivery (RTO) → storno the Barsy sale so the returned goods go back into
+    stock. Mechanically identical to a Shopify cancellation (idempotent, keyed). The panel calls this from
+    the COD reconciliation "uncollected → storno" action. `reason` is the human note; the Barsy fiscal
+    storno_reason is fixed to 'return' (Връщане/рекламация) — the correct enum for a returned COD."""
+    return shopify_order_cancellation_to_barsy({"id": str(oid), "cancel_reason": reason},
+                                               do_write=do_write, storno_reason="return")
 
 
 def cod_payment_to_barsy(oid, amount, paymethod_id=5, waybill=None, do_write=False):
-    """A SETTLED COD collection → record the received payment on the Barsy sale account. fiscal:0 →
-    NO fiscal device is fired (the бон was already printed on-site at packing); this only books the
-    money against the (already-fiscalised) sale. paymethod_id 5 = По банка (BG COD couriers bank the
-    batch); use 1 for cash-in-hand. Idempotent per order via the connector's action log."""
+    """⚠ OBSOLETE under the anonymous paid-at-packing COD model (2026-07-28). finalise_order already closes
+    the sale PAID IN FULL (method 6), so posting a settlement payment here would OVERPAY the account
+    (total_paid > total_sum) = double-count the COD cash. The panel's reconciliation now CONFIRMS a matched
+    remittance without any Barsy write. Kept only for a hypothetical partially-owed account; it HARD-GUARDS
+    on total_remain and no-ops if the account is already settled. paymethod_id 5 = По банка."""
     oid = str(oid)
     rec = _seen_order(oid)
     if not rec or not rec.get("account_id"):
@@ -414,6 +798,16 @@ def cod_payment_to_barsy(oid, amount, paymethod_id=5, waybill=None, do_write=Fal
     key = f"codpay-{oid}"
     if _seen_key(key):
         return {"skipped": "COD payment already posted", "order_id": oid}
+    # DOUBLE-PAY GUARD: refuse to post if the account isn't actually owed. Under paid-at-finalise every
+    # account is already total_remain 0, so this makes the call a safe no-op even if wired in by mistake.
+    try:
+        acc = b.call("Accounts_get", {"account_id": int(rec["account_id"])}) or {}
+        remain = float(acc.get("total_remain") or 0)
+    except Exception:
+        remain = None
+    if remain is not None and remain <= 0:
+        return {"skipped": "account already paid (paid-at-finalise model) — no COD payment to post",
+                "order_id": oid, "account_id": rec["account_id"], "total_remain": remain, "guard": "double_pay"}
     pay = {"paymethod_id": paymethod_id, "actual_paid_sum": str(amount), "fiscal": 0,
            "description": f"COD събран (куриер){f' · {waybill}' if waybill else ''}"}
     plan = {"order_id": oid, "account_id": rec["account_id"], "amount": str(amount), "fiscal": 0}
@@ -438,44 +832,73 @@ def barsy_new_product_to_shopify(code, do_write=False):
     art = _catalog().get(code)
     if not art:
         return {"skipped": "not in Barsy", "code": code}
-    pin = {"title": art.get("article_name") or code, "status": "DRAFT"}
-    plan = {"code": code, "title": pin["title"], "price": _price(art)}
+    status = sync.shopify_status(art)                     # ACTIVE/DRAFT from Barsy flags, or None
+    if status is None:
+        return {"skipped": "not sellable in Barsy (is_for_sale=0 / service / deleted)", "code": code}
+    pin = {"title": _display_name(art) or code, "status": status}
+    plan = {"code": code, "title": pin["title"], "price": _price(art), "status": status}
     if not do_write:
         return {**plan, "dry_run": True}
     d = s.gql("""mutation($p:ProductCreateInput!){ productCreate(product:$p){
                  product{ id variants(first:1){ nodes{ id } } } userErrors{ message } } }""", {"p": pin})
     pid = d["productCreate"]["product"]["id"]
     vid = d["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+    inv = {"sku": code, "tracked": False}
+    wm = sync._weight_input((art.get("extra_data") or {}).get("weight_kg"))   # parcel weight (or omit)
+    if wm:
+        inv["measurement"] = wm
     s.gql("""mutation($pid:ID!,$v:[ProductVariantsBulkInput!]!){ productVariantsBulkUpdate(productId:$pid,
              variants:$v){ userErrors{ message } } }""",
-          {"pid": pid, "v": [{"id": vid, "price": _price(art) or "0",
-                              "inventoryItem": {"sku": code, "tracked": False}}]})
+          {"pid": pid, "v": [{"id": vid, "price": _price(art) or "0", "inventoryItem": inv}]})
     return {**plan, "product_id": pid, "written": True}
 
 
 def barsy_article_to_shopify(code, do_write=False):
-    """Barsy master-data change (name/price) → update the Shopify product. Echo-guarded."""
+    """Barsy article change → Shopify UPSERT + status sync — the AUTO-SYNC entry point (fires on the Barsy
+    `articles` webhook). CREATE if new, UPDATE name/price/weight if existing, set the product STATUS from the
+    flags (is_for_sale/is_public → ACTIVE/DRAFT), and ARCHIVE when Barsy marks it not-for-sale / service /
+    deleted (or the article is gone from Barsy). Echo-guarded. (owner auto-sync 2026-07-28)"""
     code = str(code)
     art = _catalog().get(code)
-    if not art:
-        return {"skipped": "not in Barsy", "code": code}
-    content = {"n": art.get("article_name"), "p": _price(art)}
+    pid, vid = _find_shopify(code)
+
+    def _archive(reason):
+        if not pid:
+            return {"skipped": f"{reason} — not on Shopify", "code": code}
+        if not do_write:
+            return {"code": code, "product_id": pid, "action": "archive", "reason": reason, "dry_run": True}
+        s.gql("mutation($p:ProductUpdateInput!){ productUpdate(product:$p){ userErrors{ message } } }",
+              {"p": {"id": pid, "status": "ARCHIVED"}})
+        return {"code": code, "product_id": pid, "archived": True, "reason": reason, "written": True}
+
+    if not art:                                            # gone from the live Barsy catalog (deleted)
+        return _archive("gone_from_barsy") if pid else {"skipped": "not in Barsy", "code": code}
+    status = sync.shopify_status(art)
+    if status is None:                                     # not-for-sale / service / deleted
+        return _archive("not_sellable")
+    if not pid:                                            # not on Shopify yet → AUTO-CREATE
+        return {"code": code, "action": "create", **barsy_new_product_to_shopify(code, do_write=do_write)}
+    # existing → update name/price/weight + status. Key the echo on the DISPLAY name (public-preferred) so a
+    # change to only article_name_public still triggers a push instead of being missed by the loop-guard.
+    content = {"n": _display_name(art), "p": _price(art), "st": status}
     if _echo(code, content):
         return {"skipped": "echo/no-op (loop-guard)", "code": code}
-    pid, vid = _find_shopify(code)
-    if not pid:
-        return {"skipped": "not on Shopify yet", "code": code}
-    title, price = str(art.get("article_name") or "").strip(), _price(art).strip()
-    plan = {"code": code, "product_id": pid, "title": title, "price": price}
+    title, price = _display_name(art), _price(art).strip()
+    plan = {"code": code, "product_id": pid, "title": title, "price": price, "status": status}
     if not do_write:
         return {**plan, "dry_run": True}
+    upd = {"id": pid, "status": status}                    # always sync status; title only if present
     if title:
-        s.gql("mutation($p:ProductUpdateInput!){ productUpdate(product:$p){ userErrors{ message } } }",
-              {"p": {"id": pid, "title": title}})
+        upd["title"] = title
+    s.gql("mutation($p:ProductUpdateInput!){ productUpdate(product:$p){ userErrors{ message } } }", {"p": upd})
     if price and vid:
+        vin = {"id": vid, "price": price}
+        wm = sync._weight_input((art.get("extra_data") or {}).get("weight_kg"))   # keep weight in sync too
+        if wm:
+            vin["inventoryItem"] = {"measurement": wm}
         s.gql("""mutation($pid:ID!,$v:[ProductVariantsBulkInput!]!){ productVariantsBulkUpdate(
                  productId:$pid, variants:$v){ userErrors{ message } } }""",
-              {"pid": pid, "v": [{"id": vid, "price": price}]})
+              {"pid": pid, "v": [vin]})
     return {**plan, "written": True}
 
 
@@ -506,19 +929,33 @@ def barsy_quantity_change_to_shopify(code, qty=None, do_write=False):
     plan = {"code": code, "qty": qty, "sale_below_zero": sbz, "inventory_policy": policy}
     if not do_write:
         return {**plan, "dry_run": True}
-    # 1) inventoryPolicy on the variant; 2) enable tracking; 3) set on-hand at the primary location
-    inv = s.gql("""query($id:ID!){ productVariant(id:$id){ inventoryItem{ id } } }""", {"id": vid})
-    inv_item = inv["productVariant"]["inventoryItem"]["id"]
+    # 1) inventoryPolicy on the variant; 2) enable tracking; 3) set on-hand at the primary location.
+    # Read the current on_hand too — `inventorySetQuantities` requires an explicit `compareQuantity`
+    # (optimistic-concurrency guard; the old `inventorySetOnHandQuantities` / an `ignoreCompareQuantity`
+    # flag both error in this API version). We set on_hand ONLY → Shopify keeps available = on_hand −
+    # committed, so live order-reservations survive every sync (reservation-safe). (fixed 2026-07-28)
+    loc = _shopify_location()
+    inv = s.gql("""query($id:ID!,$loc:ID!){ productVariant(id:$id){ inventoryItem{ id
+            inventoryLevel(locationId:$loc){ quantities(names:["on_hand"]){ quantity } } } } }""",
+          {"id": vid, "loc": loc})
+    ii = inv["productVariant"]["inventoryItem"]
+    inv_item = ii["id"]
+    _lvl = ii.get("inventoryLevel") or {}
+    cur_onhand = ((_lvl.get("quantities") or [{}])[0] or {}).get("quantity", 0) if _lvl else 0
     s.gql("""mutation($pid:ID!,$v:[ProductVariantsBulkInput!]!){ productVariantsBulkUpdate(productId:$pid,
              variants:$v){ userErrors{ message } } }""",
           {"pid": pid, "v": [{"id": vid, "inventoryPolicy": policy,
                               "inventoryItem": {"tracked": True}}]})
     s.gql("""mutation($id:ID!){ inventoryItemUpdate(id:$id, input:{tracked:true}){ userErrors{ message } } }""",
           {"id": inv_item})
-    s.gql("""mutation($in:InventorySetOnHandQuantitiesInput!){ inventorySetOnHandQuantities(input:$in){
-             userErrors{ message } } }""",
-          {"in": {"reason": "correction", "setQuantities": [
-              {"inventoryItemId": inv_item, "locationId": _shopify_location(), "quantity": int(float(qty or 0))}]}})
+    # API 2026-07 requires the @idempotent(key) directive on inventorySetQuantities; a fresh key per
+    # call is fine (a stock SET is naturally idempotent + guarded by changeFromQuantity).
+    s.gql("""mutation($in:InventorySetQuantitiesInput!,$key:String!){
+             inventorySetQuantities(input:$in) @idempotent(key:$key){ userErrors{ field message } } }""",
+          {"in": {"name": "on_hand", "reason": "correction",
+                  "quantities": [{"inventoryItemId": inv_item, "locationId": loc,
+                                  "quantity": int(float(qty or 0)), "changeFromQuantity": cur_onhand}]},
+           "key": _uuid.uuid4().hex})
     # 4) darling.backorder metafield (product-level) → the storefront renders the "по поръчка · по-дълга
     # доставка" badge off it. CONTINUE (sale_below_zero=YES) products are backorderable; others are not.
     s.gql("""mutation($m:[MetafieldsSetInput!]!){ metafieldsSet(metafields:$m){ userErrors{ message } } }""",
@@ -623,6 +1060,41 @@ def reconcile(limit=None, do_write=False):
             if do_write:
                 barsy_article_to_shopify(code, do_write=True)
     return {"checked": min(limit or len(cat), len(cat)), "drift": drift, "fixed": do_write}
+
+
+def backfill_variant_weights(limit=None, do_write=False):
+    """One-off/periodic: set the Shopify variant weight from Barsy `extra_data.weight_kg` for products
+    that lack it or drifted. The regular push now sets weight on create/update, but existing draft
+    variants created BEFORE weight was wired need this backfill (so courier /quote gets real weights
+    without waiting for a price/stock change to trigger a push). Skips products with no Barsy weight —
+    never writes 0 (unset > weightless). Returns the change list; do_write applies it."""
+    cat = _catalog()
+    changed, skipped_noweight = [], 0
+    for code, art in list(cat.items())[:(limit or len(cat))]:
+        w = sync._parse_weight_kg((art.get("extra_data") or {}).get("weight_kg"))
+        if w is None:
+            skipped_noweight += 1
+            continue
+        pid, vid = _find_shopify(code)
+        if not vid:
+            continue
+        try:
+            cur = s.gql("""query($id:ID!){ productVariant(id:$id){
+                        inventoryItem{ measurement{ weight{ value unit } } } } }""", {"id": vid})
+            m = (((cur.get("productVariant") or {}).get("inventoryItem") or {}).get("measurement") or {}).get("weight")
+            cur_val = (m or {}).get("value")
+        except Exception:
+            cur_val = None
+        if cur_val is not None and abs(float(cur_val) - w) < 1e-6:
+            continue                                    # already correct — skip
+        changed.append({"code": code, "weight_kg": w, "was": cur_val})
+        if do_write:
+            s.gql("""mutation($pid:ID!,$v:[ProductVariantsBulkInput!]!){ productVariantsBulkUpdate(
+                     productId:$pid, variants:$v){ userErrors{ field message } } }""",
+                  {"pid": pid, "v": [{"id": vid,
+                   "inventoryItem": {"measurement": {"weight": {"value": w, "unit": "KILOGRAMS"}}}}]})
+    return {"checked": min(limit or len(cat), len(cat)), "changed": changed,
+            "skipped_no_weight": skipped_noweight, "written": do_write}
 
 
 # ---- Barsy webhook registration ----

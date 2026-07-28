@@ -46,9 +46,17 @@ def fetch_orders(limit=100, unfulfilled_only=False):
     """Normalized recent orders from Shopify. COD is inferred from the payment gateway /
     financial status (наложен платеж shows as a manual/COD gateway, unpaid at creation)."""
     import shopify_api
-    filt = ', query: "fulfillment_status:unfulfilled"' if unfulfilled_only else ""
+    # Always exclude CANCELLED orders — a cancelled order can still read fulfillment_status:unfulfilled,
+    # so without this it lingers in the panel's Онлайн поръчки queue after the customer/staff cancel it.
+    q_terms = ["-status:cancelled"]
+    if unfulfilled_only:
+        q_terms.append("fulfillment_status:unfulfilled")
+    filt = ', query: "%s"' % " AND ".join(q_terms)
     data = shopify_api.gql(_ORDERS_Q % (limit, filt))
-    edges = (((data or {}).get("data") or {}).get("orders") or {}).get("edges") or []
+    # shopify_api.gql() already returns the UNWRAPPED `data` payload (top-level key `orders`), so do NOT
+    # unwrap `data` again — the old `.get("data")` here double-unwrapped → always 0 orders → the panel's
+    # Онлайн поръчки queue showed empty ("магазинът не е пуснат") for every real order. (fixed 2026-07-28)
+    edges = ((data or {}).get("orders") or {}).get("edges") or []
     out = []
     for e in edges:
         n = e["node"]

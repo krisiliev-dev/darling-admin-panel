@@ -51,7 +51,7 @@ def _catalog():
     Consumers that publish to the storefront use current_price (see connector `_price`); with no
     online rule the two are equal, so this is a no-op until the owner sets channel pricing."""
     arts = b.call("Articles_getlist", {"filters": {"delivery_type_id": "address"},
-                                        "extra_properties": {"current_price": 1}})
+                                        "extra_properties": {"current_price": 1, "extra_data": 1}})
     return {str(a["code"]): a for a in arts if a.get("code")}
 
 

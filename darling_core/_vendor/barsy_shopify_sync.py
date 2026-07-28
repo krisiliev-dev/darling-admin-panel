@@ -72,6 +72,70 @@ def _barsy_price(code):
     return ""
 
 
+def _parse_weight_kg(raw):
+    """Barsy `extra_data.weight_kg` (string, may be comma-decimal in BG locale) → positive float KG,
+    or None if missing/unparseable/≤0. Per spec: NEVER push 0 — an unset weight is better than a
+    weightless parcel (0 would make the courier quote think the parcel has no weight)."""
+    if raw in (None, ""):
+        return None
+    try:
+        v = float(str(raw).replace(",", ".").strip())
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def _weight_input(raw):
+    """→ Shopify InventoryItemInput.measurement dict for a weight, or None to omit the field entirely.
+    Stored as KG/KILOGRAMS; Shopify still exposes it as item.grams (kg×1000) in /cart.js."""
+    v = _parse_weight_kg(raw)
+    return {"weight": {"value": v, "unit": "KILOGRAMS"}} if v is not None else None
+
+
+def _barsy_weight_kg(code):
+    """Fetch a single article's parcel weight (kg) from Barsy extra_data.weight_kg. Read via
+    extra_properties:{extra_data:1} (⚠ extra_properties:{weight:1} 500s)."""
+    try:
+        import barsy_api as b
+        for a in b.call("Articles_getlist", {"filters": {}, "extra_properties": {"extra_data": 1}}):
+            if str(a.get("code")) == str(code):
+                ed = a.get("extra_data")
+                return _parse_weight_kg((ed or {}).get("weight_kg") if isinstance(ed, dict) else None)
+    except Exception:
+        pass
+    return None
+
+
+def _barsy_flags(code):
+    """Read a Barsy article's status flags via getlist (reliable — Articles_get returns null for these
+    in some contexts). Returns {is_for_sale, is_public, is_service, delete_flag} (values as-is)."""
+    try:
+        import barsy_api as b
+        for a in b.call("Articles_getlist", {"filters": {}}):
+            if str(a.get("code")) == str(code):
+                return {k: a.get(k) for k in ("is_for_sale", "is_public", "is_service", "delete_flag")}
+    except Exception:
+        pass
+    return {}
+
+
+def shopify_status(flags):
+    """Barsy article flags → Shopify product status (owner mapping 2026-07-28):
+      • is_service=1 OR delete_flag=1 OR is_for_sale=0 → None  = NOT on Shopify (skip-create / archive-if-exists)
+      • is_for_sale=1 AND is_public=0 → 'DRAFT'   (sellable in-store, hidden from the online store)
+      • is_for_sale=1 AND is_public=1 → 'ACTIVE'  (live on the online store)
+    An absent/None flag takes its permissive default (for_sale/public=1, service/deleted=0) so a partial
+    record never silently hides a product."""
+    def on(k, default):
+        v = flags.get(k)
+        return (str(v) == "1") if v is not None else default
+    if on("is_service", False) or on("delete_flag", False):
+        return None
+    if not on("is_for_sale", True):
+        return None
+    return "ACTIVE" if on("is_public", True) else "DRAFT"
+
+
 def _fields(code):
     import db
     rec = db.get_record(code) or {}
@@ -115,12 +179,13 @@ def build_input(code):
         pass
     images = [u.strip() for u in re.split(r"[,\s]+", str(fields.get("Снимки") or ""))
               if u.strip().startswith("http")]
+    status = shopify_status(_barsy_flags(code))    # ACTIVE/DRAFT from Barsy is_for_sale/is_public, or None
     pin = {
         "title": name,
         "descriptionHtml": str(fields.get("Описание") or ""),
         "vendor": str(fields.get("Бранд") or "").strip() or "Darling",
         "productType": meta.get("leaf_name") or "",
-        "status": "DRAFT",
+        "status": status or "DRAFT",               # sync_code archives/skips instead when status is None
         "tags": _tags(fields, meta.get("leaf_full") or ""),
     }
     if leaf_gid:
@@ -129,7 +194,7 @@ def build_input(code):
     seo_d = str(fields.get("Мета описание") or "").strip()
     if seo_t or seo_d:
         pin["seo"] = {"title": seo_t or name, "description": seo_d}
-    return pin, price, (barcodes[0] if barcodes else ""), images
+    return pin, price, (barcodes[0] if barcodes else ""), images, status
 
 
 def _find_by_sku(code):
@@ -141,10 +206,20 @@ def _find_by_sku(code):
 
 
 def sync_code(code, do_write=False):
-    pin, price, barcode, images = build_input(code)
+    pin, price, barcode, images, status = build_input(code)
     prod_id, var_id = _find_by_sku(code)
     plan = {"code": code, "exists": bool(prod_id), "price": price, "barcode": barcode,
-            "images": len(images), "input": pin}
+            "images": len(images), "status": status, "input": pin}
+    # Barsy flags say this must NOT be on the online store (is_for_sale=0 / is_service / deleted):
+    # archive it if it's already there, otherwise don't create it.
+    if status is None:
+        if not do_write:
+            return {**plan, "action": ("archive" if prod_id else "skip"), "dry_run": True}
+        if prod_id:
+            s.gql('''mutation($p:ProductUpdateInput!){ productUpdate(product:$p){
+                    product{ id } userErrors{ message } } }''', {"p": {"id": prod_id, "status": "ARCHIVED"}})
+            return {**plan, "archived": True, "written": True}
+        return {**plan, "skipped": "not sellable in Barsy (is_for_sale=0 / service / deleted)"}
     if not do_write:
         return plan
     # create or update the product core
@@ -159,9 +234,12 @@ def sync_code(code, do_write=False):
                   {"p": pin})
         pid = d["productCreate"]["product"]["id"]
         var_id = d["productCreate"]["product"]["variants"]["nodes"][0]["id"]
-    # variant: price + barcode + sku
-    vin = {"id": var_id, "price": price or "0", "barcode": barcode,
-           "inventoryItem": {"sku": str(code), "tracked": False}}
+    # variant: price + barcode + sku (+ parcel weight for courier quotes, when Barsy has it)
+    inv = {"sku": str(code), "tracked": False}
+    w = _barsy_weight_kg(code)                          # positive float kg, or None
+    if w is not None:                                   # omit the field entirely when missing/≤0 (never 0)
+        inv["measurement"] = {"weight": {"value": w, "unit": "KILOGRAMS"}}
+    vin = {"id": var_id, "price": price or "0", "barcode": barcode, "inventoryItem": inv}
     s.gql('''mutation($pid:ID!,$v:[ProductVariantsBulkInput!]!){
              productVariantsBulkUpdate(productId:$pid, variants:$v){ userErrors{ field message } } }''',
           {"pid": pid, "v": [vin]})
