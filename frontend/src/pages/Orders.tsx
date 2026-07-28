@@ -11,8 +11,11 @@ import { FilterChips, Pager, usePager } from '../components/TableControls'
 import { Cod } from './Cod'
 import { hoursSince, timeSinceBg, SLA_HOURS, SLA_WARN } from '../lib/time'
 
-// A label-form prefill (from an order, or blank for an ad-hoc shipment).
+// A label-form prefill. When it carries order_id, the label is ORDER-LINKED: submitting books the sale
+// (finalise + бон + decrement) and marks the order sent via /orders/{id}/label. Without it, it's an
+// ad-hoc courier label (/manual-label) that touches no order.
 export interface ShipPrefill {
+  order_id?: string; order_name?: string
   recipient: string; phone: string; city: string; street: string; cod_amount: number
 }
 
@@ -38,9 +41,11 @@ export function Orders() {
     loadOrders()
   }, [loadOrders])
 
-  // "Етикет" on an order opens the create-flow prefilled; the version bump re-applies the prefill
+  // "Етикет" on an order opens the create-flow prefilled + ORDER-LINKED (so submit finalises + labels +
+  // marks sent). o.id is a Shopify GID → pass the bare numeric id for the path param.
   const labelFromOrder = (o: Order) => {
-    setPrefill({ recipient: o.customer, phone: o.phone, city: o.city, street: o.address, cod_amount: o.cod ? o.cod_amount : 0 })
+    setPrefill({ order_id: String(o.id).split('/').pop() || String(o.id), order_name: o.name,
+      recipient: o.customer, phone: o.phone, city: o.city, street: o.address, cod_amount: o.cod ? o.cod_amount : 0 })
     setPrefillVer((v) => v + 1)
     setShowCreate(true)
     document.getElementById('create-shipment')?.scrollIntoView({ behavior: 'smooth' })
@@ -70,7 +75,7 @@ export function Orders() {
       {/* create-shipment flow — hidden until invoked (top-right button or an order's Етикет) */}
       {showCreate && (
         <div id="create-shipment">
-          <ShipmentTool couriers={couriers} prefill={prefill} prefillVer={prefillVer} onDone={() => setShowCreate(false)} />
+          <ShipmentTool couriers={couriers} prefill={prefill} prefillVer={prefillVer} onDone={() => { setShowCreate(false); loadOrders() }} />
         </div>
       )}
 
@@ -104,14 +109,11 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
   const confirm = useConfirm()
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
-  // Review actions: FINALISE (clientorder → closed sale, decrement, fiscal:0) or REFUSE (void +
-  // cancel the Shopify order; nothing decremented). Both are real Barsy writes → confirm + gated backend.
-  const act = async (o: Order, kind: 'finalise' | 'refuse') => {
-    const q = kind === 'finalise'
-      ? { title: 'Финализирай поръчката', confirmLabel: 'Финализирай',
-          message: `Осчетоводяване на ${o.name} в Barsy — продажба + изписване на наличността.` }
-      : { title: 'Откажи поръчката', confirmLabel: 'Откажи', danger: true,
-          message: `Отказ на ${o.name} — количката се освобождава и нищо не се осчетоводява. (Използвай при съмнителен клиент.)` }
+  // REFUSE — void the order at review (releases the reservation, nothing decremented): the nekorekten
+  // fake-customer path. Finalising is no longer a separate action — the Етикет (pack) flow books the sale.
+  const act = async (o: Order, kind: 'refuse') => {
+    const q = { title: 'Откажи поръчката', confirmLabel: 'Откажи', danger: true,
+                message: `Отказ на ${o.name} — количката се освобождава и нищо не се осчетоводява. (Използвай при съмнителен клиент.)` }
     if (!(await confirm(q))) return
     setBusy(o.id + kind); setMsg('')
     try {
@@ -119,12 +121,10 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
       // bare numeric id (also the key the connector's order-state uses).
       const oid = String(o.id).split('/').pop() || o.id
       const r = await api.post<{ status?: string; dry_run?: boolean; reason?: string }>(`/api/orders/${oid}/${kind}`, { confirm: true })
-      const bg = kind === 'finalise' ? 'финализирана' : 'отказана'
-      const alreadyBg = kind === 'finalise' ? 'финализирана' : 'отказана'
       setMsg(r.dry_run ? `${o.name}: проба — Barsy запис е изключен (нищо не е записано).`
         : r.status === 'needs_review' ? `${o.name}: нужен преглед (${r.reason || '—'}) — виж Проблеми.`
-        : (r.status === 'already_finalised' || r.status === 'duplicate') ? `${o.name}: вече е ${alreadyBg} (без промяна).`
-        : `${o.name} ${bg}.`)
+        : r.status === 'duplicate' ? `${o.name}: вече е отказана (без промяна).`
+        : `${o.name} отказана.`)
       onChange()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy('') }
   }
@@ -199,11 +199,11 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
                 </span>
                 {needsLabel && (
                   <span style={{ display: 'flex', gap: '.3rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                    <button className="btn-paper btn-red" style={{ fontSize: '.72rem' }}
-                      disabled={busy === o.id + 'finalise'} onClick={() => act(o, 'finalise')}>Финализирай</button>
+                    {/* Етикет is the single pack action: it finalises (decrement + бон + осчетоводяване) →
+                        creates the label → marks the order sent. Откажи voids the order at review (nekorekten). */}
                     <button className="btn-paper" style={{ fontSize: '.72rem' }}
                       disabled={busy === o.id + 'refuse'} onClick={() => act(o, 'refuse')}>Откажи</button>
-                    <button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => onLabel(o)}>Етикет</button>
+                    <button className="btn-paper btn-red" style={{ fontSize: '.72rem' }} onClick={() => onLabel(o)}>Етикет</button>
                   </span>
                 )}
               </div>
@@ -237,12 +237,17 @@ function ShipmentTool({ couriers, prefill, prefillVer, onDone }: {
   const [result, setResult] = useState<string>('')
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
+  // set when the flow was opened from an order's Етикет → submit is order-linked (finalise + label + sent)
+  const [orderLink, setOrderLink] = useState<{ id: string; name: string } | null>(null)
 
   // apply a prefill each time the create-flow is (re-)opened; prefillVer bumps even for the same order
   useEffect(() => {
     setResult(''); setQuote(''); setErr('')
     if (prefill) {
       setF((p) => ({ ...p, recipient: prefill.recipient, phone: prefill.phone, city: prefill.city, street: prefill.street, cod_amount: String(prefill.cod_amount) }))
+      setOrderLink(prefill.order_id ? { id: prefill.order_id, name: prefill.order_name || '' } : null)
+    } else {
+      setOrderLink(null)
     }
   }, [prefillVer]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -287,15 +292,31 @@ function ShipmentTool({ couriers, prefill, prefillVer, onDone }: {
     const dest = toOffice ? `офис ${f.office_id}` : `${f.city}${f.street ? ', ' + f.street : ''}`
     const cod = b.cod_amount > 0 ? `НП ${b.cod_amount.toFixed(2)} €` : 'без наложен платеж'
     // restate the specifics — a bare yes/no on a real, money-booking action invites click-through
+    const linked = !!orderLink
     if (!(await confirm({
-      danger: true, confirmLabel: 'Създай етикет', title: 'Реален етикет при куриера',
+      danger: true,
+      confirmLabel: linked ? 'Осчетоводи + етикет' : 'Създай етикет',
+      title: linked ? `Опаковане на ${orderLink!.name}` : 'Реален етикет при куриера',
       message: `${courierName(courier)} · ${f.recipient} · ${dest}\n${cod} · ${b.weight_kg} кг`
-        + (quote ? `\n${quote}` : '') + `\n\nТова създава пратка и таксува.`,
+        + (quote ? `\n${quote}` : '')
+        + (linked
+          ? `\n\nТова осчетоводява продажбата като платена (наложен платеж), издава бон, изписва наличността, създава етикета и отбелязва поръчката като изпратена.`
+          : `\n\nТова създава пратка и таксува.`),
     }))) return
     setBusy('label'); setErr(''); setResult('')
     try {
-      const r = await api.post<{ tracking_number: string; label_ref: unknown }>('/api/orders/manual-label', { ...b, confirm: true })
-      setResult(`Етикет създаден. Товарителница: ${r.tracking_number}`)
+      if (linked) {
+        // order-linked: /orders/{id}/label finalises (decrement + бон + paid) → label → marks sent.
+        // recipient/address/COD come from the order server-side; we send only the shipment options.
+        const r = await api.post<{ tracking_number: string }>(`/api/orders/${orderLink!.id}/label`, {
+          courier, office_id: toOffice ? f.office_id : null,
+          weight_kg: parseFloat(f.weight_kg) || 1, fragile, inspection, confirm: true,
+        })
+        setResult(`Готово: ${orderLink!.name} осчетоводена, етикет създаден и отбелязана изпратена. Товарителница: ${r.tracking_number}`)
+      } else {
+        const r = await api.post<{ tracking_number: string; label_ref: unknown }>('/api/orders/manual-label', { ...b, confirm: true })
+        setResult(`Етикет създаден. Товарителница: ${r.tracking_number}`)
+      }
     } catch (e) { setErr(e instanceof ApiError ? e.message : 'Създаването се провали.') } finally { setBusy('') }
   }
 

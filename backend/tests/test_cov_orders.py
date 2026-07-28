@@ -184,17 +184,33 @@ async def test_label_happy_path_marks_shipped(staff_client, monkeypatch):
     assert recorded["1001"]["tracking"] == "TRK123"
 
 
-async def test_label_blocked_when_not_finalised_is_409(staff_client, monkeypatch):
-    # finalise-before-ship: labelling an un-decremented order would fulfil it and desync stock, so block
-    # BEFORE the courier is even called (the FakeCourier here raises if hit, proving we never reach it).
+async def test_label_finalises_before_courier(staff_client, monkeypatch):
+    # Етикет = pack: the label FINALISES the sale (decrement + бон + paid) before the courier is called.
+    recorded = _patch_orders(monkeypatch)
+    seen = {}
+    monkeypatch.setattr(orders.connector, "finalise_order",
+                        lambda oid, do_write: seen.update(oid=oid, do_write=do_write) or {"status": "ok", "account_id": 8},
+                        raising=False)
+    _patch_courier(monkeypatch, FakeCourier("speedy"))
+    r = await staff_client.post("/api/orders/1001/label",
+                                json={"courier": "speedy", "confirm": True})
+    assert r.status_code == 200, r.text
+    assert seen["oid"] == "1001" and seen["do_write"] is True   # finalised with the master write gate
+    assert r.json()["tracking_number"] == "TRK123"
+    assert recorded["1001"]["status"] == "shipped"
+
+
+async def test_label_aborts_if_order_cannot_be_booked(staff_client, monkeypatch):
+    # if finalise refuses (e.g. no logged order), abort BEFORE the courier — never a real shipment
+    # with no booking. FakeCourier raises on create to prove we never reach it.
     _patch_orders(monkeypatch)
     monkeypatch.setattr(orders.connector, "finalise_order",
-                        lambda oid, do_write: {"status": "ok", "dry_run": True}, raising=False)  # NOT finalised
+                        lambda oid, do_write: {"status": "refused", "reason": "no_logged_order"}, raising=False)
     _patch_courier(monkeypatch, FakeCourier(raise_on={"create"}))
     r = await staff_client.post("/api/orders/1001/label",
                                 json={"courier": "speedy", "confirm": True})
     assert r.status_code == 409
-    assert "Финализирай" in r.json()["detail"]
+    assert "осчетовод" in r.json()["detail"].lower()
 
 
 async def test_label_double_guard_is_409(staff_client, monkeypatch):

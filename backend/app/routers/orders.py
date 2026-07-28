@@ -143,6 +143,31 @@ def _order_finalised(numeric_oid: str) -> bool:
     return r.get("status") == "duplicate" or r.get("reason") == "already_finalised"
 
 
+def _finalise_for_pack(o: dict) -> dict:
+    """Book the sale as part of the Етикет/pack action (owner's flow: label = finalise + бон + sent).
+    Decrement stock + fiscal бон (print at packing) + mark paid via the connector, BEFORE the courier
+    label. Idempotent (already_finalised on a re-label). Raises HTTPException if the order can't be booked
+    so we never create a real courier label for an un-booked order. `do_write` is the master Barsy gate."""
+    do_write = get_settings().barsy_write_live
+    try:
+        fin = connector.finalise_order(_numeric_oid(o["id"]), do_write)
+    except AttributeError:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Осчетоводяването не е налично (connector.finalise_order липсва).")
+    except Exception as e:
+        if _is_already_finalised_error(str(e)):
+            return {"status": "already_finalised"}
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            f"Осчетоводяването на {o['name']} преди етикет не успя: {str(e)[:150]}")
+    ok = isinstance(fin, dict) and (
+        fin.get("status") in ("ok", "duplicate") or fin.get("reason") == "already_finalised")
+    if not ok:
+        reason = (fin or {}).get("reason", "?") if isinstance(fin, dict) else "?"
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Не мога да осчетоводя {o['name']} преди етикет ({reason}). Провери поръчката.")
+    return fin if isinstance(fin, dict) else {"status": "ok"}
+
+
 def _to_kg(v) -> float:
     try:
         return float(str(v).replace(",", ".")) if v else 0.0
@@ -230,14 +255,6 @@ async def make_label(
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Създаването на етикет е реално действие — потвърди с confirm=true.")
     o = await run_in_threadpool(_order_or_404, order_id)
-    # finalise-before-ship guard (RECONCILIATION_SPEC): a label = dispatch, and dispatch fulfils the
-    # Shopify order (clears `committed`). If the order isn't finalised first, Barsy stock is still full
-    # while `committed` drops → the on_hand mirror re-adds the sold units → oversell. Block BEFORE we
-    # create a real courier label, so we never label an un-decremented order.
-    if not await run_in_threadpool(_order_finalised, _numeric_oid(o["id"])):
-        raise HTTPException(status.HTTP_409_CONFLICT,
-                            f"Финализирай {o['name']} преди етикет — изписването от склада още не е "
-                            f"направено (иначе наличността се разминава).")
     # double-label guard: never create a second real COD shipment for an order that already has a
     # label / tracking / is past 'new'. `labeling` is a transient CLAIM (below) — a concurrent
     # confirmed request sees it and backs off, shrinking the TOCTOU window to the tiny gap between
@@ -249,6 +266,12 @@ async def make_label(
             status.HTTP_409_CONFLICT,
             f"Поръчка {o['name']} вече има издаден етикет или се обработва "
             f"({existing.get('courier') or ''} {existing.get('tracking') or ''}).")
+    # Етикет = pack (owner's flow): the label IS the finalise moment. Book the sale first — decrement
+    # stock + fiscal бон (print at packing) + mark paid — THEN create the courier label, THEN mark sent
+    # (fulfilment, below). Finalise BEFORE the courier so a courier failure leaves a recoverable booked
+    # order (retry just re-labels; finalise is idempotent) rather than a real shipment with no booking.
+    fin = await run_in_threadpool(_finalise_for_pack, o)
+    # double-label guard passed + booked → now claim and create the real label
     await run_in_threadpool(shopify_orders.set_state, o["id"], o["name"], status="labeling")  # claim
     try:
         result = await run_in_threadpool(
@@ -280,6 +303,7 @@ async def make_label(
             connector.ship_order, _numeric_oid(o["id"]),
             result.get("tracking_number"), get_settings().barsy_write_live)
         result["fulfillment"] = fulfil
+        result["finalise"] = fin
         if isinstance(fulfil, dict) and fulfil.get("status") not in ("ok", "duplicate", None):
             result["warning"] = (result.get("warning", "") +
                                  f" Пратката не се отбеляза в Shopify ({fulfil.get('reason', '?')}).").strip()
