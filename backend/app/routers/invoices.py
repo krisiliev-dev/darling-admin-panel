@@ -68,10 +68,17 @@ async def list_requests(
             "missing": [k for k in ("name", "eik") if not comp[k]],
         }
         rec = done.get(oid)
-        if rec:
+        if rec:                                   # a human issued it and recorded the number here
             issued.append({**row, "invoice_number": rec.invoice_number,
-                           "issued_by": rec.issued_by,
+                           "issued_by": rec.issued_by, "auto": False,
                            "issued_at": rec.issued_at.isoformat() if rec.issued_at else ""})
+        elif r.get("issued"):
+            # the connector ISSUED IT AUTOMATICALLY (Invoices_save at finalise). It must never appear as
+            # pending: this screen is the exception queue, and showing an already-issued order as "to do"
+            # invites a SECOND фактура for the same sale — a real accounting error, not just noise.
+            issued.append({**row, "invoice_number": str(r.get("invoice_number") or ""),
+                           "issued_by": "автоматично", "auto": True,
+                           "issued_at": str(r.get("issued_ts") or r.get("requested_ts") or "")})
         else:
             pending.append(row)
     return {"pending": pending, "issued": issued,
@@ -101,6 +108,19 @@ async def mark_issued(
     if not body.invoice_number.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Въведи номера на издадената фактура (за да остане в отчета).")
+    # the connector may have issued it automatically since the page was loaded — refuse rather than
+    # record a manual number over an existing фактура (that would hide a double-issue, not prevent one)
+    try:
+        auto = next((r for r in (await run_in_threadpool(connector.list_invoice_requests) or [])
+                     if isinstance(r, dict) and str(r.get("order_id") or "") == order_id
+                     and r.get("issued")), None)
+    except Exception:
+        auto = None                                  # connector unavailable → fall through to the local check
+    if auto:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Фактурата вече е издадена автоматично (№ {auto.get('invoice_number') or '—'}). "
+            f"Не издавай втора за същата поръчка.")
     existing = (await session.execute(
         select(IssuedInvoice).where(IssuedInvoice.order_id == order_id))).scalar_one_or_none()
     if existing:

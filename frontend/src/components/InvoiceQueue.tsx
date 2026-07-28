@@ -5,17 +5,19 @@ import { Sheet } from './Paper'
 import { EmptyNote, Loading } from './PageHeader'
 import { useConfirm } from './Confirm'
 
-// Фактури за издаване — the B2B VAT-invoice worklist.
-// Barsy's API CANNOT issue a фактура (no Invoices_create; its auto-issue only fires for VPOS payments),
-// so the only path is the admin UI: Документи → Фактури → „Нова фактура по сметка(и)" against the closed
-// sale account. This screen therefore exists to make that hand-off reliable: it lists every order that
-// asked for one, hands staff the exact data to copy (company block + Barsy account_id), and records the
-// issued number so a legally-owed invoice is neither forgotten nor issued twice.
+// Фактури за издаване — the B2B VAT-invoice EXCEPTION queue.
+// Invoices are issued AUTOMATICALLY by the connector at finalise (undocumented `Invoices_save`, whose
+// contract was captured from Barsy's own admin UI). What lands here is only what automation could not
+// complete — almost always incomplete company data. For those, staff issue by hand in
+// Документи → Фактури → „Нова фактура по сметка(и)", so the card hands them exactly what that form wants
+// (the company block + the Barsy account_id) and records the number afterwards.
+// Two failures this guards: a legally-owed invoice VANISHING, and the same sale being invoiced TWICE —
+// which is why an auto-issued order never appears as pending and can't be hand-marked.
 interface Company { name: string; eik: string; vat: string; mol: string; city: string; address: string }
 interface InvoiceRow {
   order_id: string; order_ref: string; account_id: string; amount?: number | null
   company: Company; missing: string[]
-  invoice_number?: string; issued_by?: string; issued_at?: string
+  invoice_number?: string; issued_by?: string; issued_at?: string; auto?: boolean
 }
 interface InvoiceResp { pending: InvoiceRow[]; issued: InvoiceRow[]; pending_count: number; issued_count: number }
 
@@ -69,7 +71,11 @@ export function InvoiceQueue() {
                   borderBottom: '1px dashed var(--line)' }}>
                 <span style={{ fontWeight: 700 }}>{r.order_ref}</span>
                 <span style={{ flex: 1, color: 'var(--pencil)' }}>{r.company.name || '—'}</span>
-                <span>№ {r.invoice_number}</span>
+                {/* auto vs hand-issued: staff need to know which ones the system already handled */}
+                <span style={{ color: r.auto ? 'var(--ready)' : 'var(--pencil)', fontSize: '.7rem' }}>
+                  {r.auto ? 'автоматично' : 'ръчно'}
+                </span>
+                <span>№ {r.invoice_number || '—'}</span>
                 <span style={{ color: 'var(--pencil)' }}>{(r.issued_at || '').slice(0, 10)}</span>
               </div>
             ))}

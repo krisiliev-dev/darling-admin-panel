@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Фактури за издаване — the B2B invoice worklist.
+"""Фактури за издаване — the B2B invoice EXCEPTION queue.
 
-Barsy's API cannot issue a фактура (no Invoices_create; auto-issue is VPOS-only), so staff issue them by
-hand in Документи → Фактури → „Нова фактура по сметка(и)". The panel's job is to make sure a legally-owed
-invoice is never lost and never issued twice — that's what these tests pin."""
+Invoices are issued AUTOMATICALLY by the connector at finalise (via the undocumented `Invoices_save`,
+whose contract was captured from Barsy's own admin UI). This screen therefore holds only what automation
+could not complete — almost always incomplete company data — plus the record of what staff issued by hand
+in Документи → Фактури → „Нова фактура по сметка(и)".
+
+The two failures worth pinning: a legally-owed invoice silently VANISHING, and the same sale being
+invoiced TWICE (once automatically, once by a human reading a stale screen)."""
 import app.routers.invoices as inv
 
 _REQ = {
@@ -76,3 +80,24 @@ async def test_missing_connector_fn_is_501_not_an_empty_list(owner_client, monke
 
 async def test_requires_auth(client):
     assert (await client.get("/api/invoices")).status_code == 401
+
+
+# --- auto-issued invoices (connector Invoices_save) must never look pending -----------
+async def test_connector_auto_issued_is_not_pending(owner_client, monkeypatch):
+    """Invoices are issued AUTOMATICALLY at finalise. If the screen showed an already-issued order as
+    'to issue', staff would create a SECOND фактура for the same sale — an accounting error, not noise."""
+    _patch(monkeypatch, [{**_REQ, "issued": True, "invoice_number": "0000000002"}])
+    b = (await owner_client.get("/api/invoices")).json()
+    assert b["pending_count"] == 0 and b["issued_count"] == 1
+    row = b["issued"][0]
+    assert row["invoice_number"] == "0000000002" and row["auto"] is True
+
+
+async def test_marking_an_auto_issued_order_is_refused(owner_client, monkeypatch):
+    """Belt-and-braces for the same failure: even if the page was loaded before the connector issued it,
+    recording a manual number must be REFUSED, not written over the existing фактура."""
+    _patch(monkeypatch, [{**_REQ, "issued": True, "invoice_number": "0000000002"}])
+    r = await owner_client.post(f"/api/invoices/{_REQ['order_id']}/issued",
+                                json={"invoice_number": "0000000099", "confirm": True})
+    assert r.status_code == 409
+    assert "автоматично" in r.json()["detail"]
