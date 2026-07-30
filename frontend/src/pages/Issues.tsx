@@ -16,6 +16,11 @@ const KIND_BG: Record<string, string> = {
   reversal_mismatch: 'разлика при сторно', not_finalised: 'не е финализирана',
   reversal_unverifiable: 'сметката не се чете',
   error: 'грешка', exception: 'изключение', unhandled_topic: 'необработена тема',
+  // ops alerts — written straight into this table by the cron scripts on the server (backup + peer
+  // check), deliberately NOT through the API: an alert that needs the panel to be alive is no alert.
+  backup_failed: 'резервното копие се провали',
+  backup_offsite_stale: 'извънните копия остаряват',
+  woo_box_down: 'магазинът не отговаря',
 }
 const fmt = (s: string | null) => (s ? new Date(s).toLocaleString('bg-BG', { dateStyle: 'short', timeStyle: 'short' }) : '')
 
