@@ -21,14 +21,19 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 @router.get("/staff")
 def staff(user: User = Depends(current_sysadmin)):
-    """Staff from Barsy (Users_getlist) — Barsy is the source of truth for accounts + roles."""
+    """Staff from Barsy (Users_getlist) — Barsy is the source of truth for accounts + roles.
+
+    Blocked users are LISTED, not filtered out. `delete_flag` is Barsy's „Блокиран" checkbox, not a
+    deletion (a real deletion removes the row entirely), so hiding those rows would make offboarding
+    one-way: nobody could see who is blocked, let alone un-block them. They come back marked instead."""
     with upstream("Barsy потребители"):
         rows = barsy.call("Users_getlist", {})
     return {"staff": [
         {"user_id": r.get("user_id"), "user_name": r.get("user_name", ""),
          "full_name": r.get("full_name") or f"{r.get('fname','')} {r.get('lname','')}".strip(),
-         "role": r.get("role_name", ""), "email": r.get("email", "")}
-        for r in (rows or []) if not r.get("delete_flag")]}
+         "role": r.get("role_name", ""), "role_id": r.get("role_id"),
+         "email": r.get("email", ""), "blocked": bool(r.get("delete_flag"))}
+        for r in (rows or [])]}
 
 
 class NewStaff(BaseModel):
@@ -78,6 +83,66 @@ def roles(user: User = Depends(current_sysadmin)):
                        "weight": r.get("role_weight"),
                        "privileged": map_role({"role_id": r.get("role_id")})[1]}
                       for r in (rows or []) if not r.get("delete_flag")]}
+
+
+class StaffEdit(BaseModel):
+    """Change ONE thing about a Barsy user: their role, or whether they're blocked."""
+    role_id: int | None = None
+    blocked: bool | None = None      # Barsy's `delete_flag` — the UI's „Блокиран" checkbox
+
+
+@router.patch("/staff/{user_id}")
+async def edit_staff(
+    user_id: int,
+    req: StaffEdit,
+    actor: User = Depends(current_sysadmin),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Re-role or block a Barsy user → `users_edit` (lowercase, `action_type:"save"`), the envelope
+    captured from Barsy's own UI 2026-07-30.
+
+    🚨 READ-MODIFY-WRITE IS MANDATORY. The capture shows the ENTIRE form travels on a save: a partial
+    body does not merge, it BLANKS every field it omits — name, email, phone, `barsys`, discount limits,
+    session timeout. So we fetch the user, change exactly the one field asked for, and send it all back.
+
+    🚨 BLOCKING IS NOT DELETION. `users_delete {id}` is a HARD delete (verified: the row vanishes from
+    Users_getlist under every filter, and Users_get 404s afterwards) — so it is deliberately NOT exposed
+    anywhere in the panel. Offboarding sets `delete_flag: 1`, which is what Barsy's own „Блокиран"
+    checkbox does. A destroyed user row would orphan the audit trail: the panel's log records WHO did
+    each ERP write, and Н-18 traceability needs that person to stay nameable.
+
+    Manager-level roles stay OWNER-only, same as create_staff — system access must not become a way to
+    grant business authority."""
+    if req.role_id is None and req.blocked is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма какво да се промени.")
+    if req.role_id is not None:
+        _, privileged = map_role({"role_id": req.role_id})
+        if privileged and actor.role != "owner":
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Само собственикът може да дава мениджърска роля.")
+    with upstream("Barsy потребител"):
+        current = await run_in_threadpool(barsy.call, "Users_get", {"user_id": user_id})
+    if not isinstance(current, dict) or not current.get("user_id"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Потребителят не е намерен в Barsy.")
+    # the whole form, then the single change on top — never a partial body
+    values = {k: v for k, v in current.items() if k != "picture"}
+    values["user_id"] = str(user_id)
+    if req.role_id is not None:
+        values["role_id"] = str(req.role_id)
+    if req.blocked is not None:
+        values["delete_flag"] = 1 if req.blocked else 0
+    body = {"action_type": "save", "active_struct_id": "eStructForm_1", "id": user_id,
+            "values": values}
+    with upstream("Barsy запис на потребител"):
+        res = await run_in_threadpool(barsy.call, "users_edit", body)
+    what = []
+    if req.role_id is not None:
+        what.append(f"role_id={req.role_id}")
+    if req.blocked is not None:
+        what.append("блокиран" if req.blocked else "отблокиран")
+    await log_action(session, actor, "staff.edit", target=str(user_id), detail=", ".join(what))
+    return {"ok": True, "user_id": user_id, "changed": what, "result": res}
 
 
 # ---------------------------------------------------------------- sysadmin capability ---

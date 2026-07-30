@@ -52,16 +52,13 @@ export function Settings() {
         <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Екип (Barsy)</h3>
         {!staff ? <Loading /> : (
           <div style={{ display: 'grid', gap: '.3rem' }}>
-            {staff.staff.map((s) => (
-              <div key={s.user_id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '.6rem', fontSize: '.82rem', padding: '.3rem 0', borderBottom: '1px dashed var(--line)' }}>
-                <span className="font-type" style={{ fontWeight: 700 }}>{s.full_name || s.user_name}</span>
-                <span style={{ color: 'var(--pencil)' }}>{s.email || s.user_name}</span>
-                <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--red)' }}>{s.role}</span>
-              </div>
+            {(staff.staff || []).map((s) => (
+              <StaffRow key={s.user_id} s={s} roles={selectableRoles} onChanged={reloadStaff} />
             ))}
             <p className="pencil" style={{ fontSize: '.76rem', marginTop: '.4rem' }}>
               Паролите се генерират и изпращат от Barsy. Ролите се дефинират в Barsy — тук се
-              избира съществуваща роля.
+              избира съществуваща роля. „Блокирай“ спира достъпа, но <strong>не изтрива</strong>
+              {' '}потребителя — историята кой какво е правил трябва да остане проследима.
             </p>
           </div>
         )}
@@ -103,6 +100,68 @@ export function Settings() {
 
       {sys && <GdprPanel />}
       </>}
+    </div>
+  )
+}
+
+// One Barsy user: re-role, or block/unblock. BLOCK is not delete — the panel exposes no hard delete at
+// all, because destroying a user row orphans the audit trail's authors (and Н-18 traceability needs the
+// person who touched a document to stay nameable). Blocked users stay listed, marked, and reversible.
+function StaffRow({ s, roles, onChanged }: { s: StaffMember; roles: BarsyRole[]; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const confirm = useConfirm()
+
+  const patch = async (body: Record<string, unknown>) => {
+    setBusy(true); setErr('')
+    try { await api.patch(`/api/admin/staff/${s.user_id}`, body); onChanged() }
+    catch (e) { setErr(e instanceof ApiError ? e.message : 'Промяната се провали.') } finally { setBusy(false) }
+  }
+
+  const changeRole = async (roleId: number) => {
+    const name = roles.find((r) => r.role_id === roleId)?.role_name || String(roleId)
+    if (!(await confirm({
+      confirmLabel: 'Смени ролята', title: `Роля на ${s.full_name || s.user_name}`,
+      message: `Новата роля „${name}“ важи и в Barsy, и в панела при следващото влизане.`,
+    }))) return
+    await patch({ role_id: roleId })
+  }
+
+  const toggleBlock = async () => {
+    const blocking = !s.blocked
+    if (!(await confirm({
+      danger: blocking, confirmLabel: blocking ? 'Блокирай' : 'Отблокирай',
+      title: `${blocking ? 'Блокиране' : 'Отблокиране'} на ${s.full_name || s.user_name}`,
+      message: blocking
+        ? 'Достъпът до Barsy и панела спира веднага. Потребителят НЕ се изтрива — историята му остава в дневника и може да бъде отблокиран по всяко време.'
+        : 'Достъпът се възстановява с предишната роля.',
+    }))) return
+    await patch({ blocked: blocking })
+  }
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '.6rem', alignItems: 'center',
+      fontSize: '.82rem', padding: '.3rem 0', borderBottom: '1px dashed var(--line)',
+      opacity: s.blocked ? 0.55 : 1,
+    }}>
+      <span className="font-type" style={{ fontWeight: 700 }}>
+        {s.full_name || s.user_name}
+        {s.blocked && <span style={{ fontSize: '.7rem', color: 'var(--red)', fontWeight: 400 }}> · блокиран</span>}
+      </span>
+      <span style={{ color: 'var(--pencil)' }}>{s.email || s.user_name}</span>
+      {roles.length > 0 ? (
+        <select className="input-paper" style={{ width: 'auto', fontSize: '.74rem' }}
+          aria-label={`Роля на ${s.user_name}`} value={s.role_id ?? ''} disabled={busy}
+          onChange={(e) => void changeRole(Number(e.target.value))}>
+          {s.role_id === null && <option value="">{s.role || '—'}</option>}
+          {roles.map((r) => <option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}
+        </select>
+      ) : <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--red)' }}>{s.role}</span>}
+      <button className="btn-paper" style={{ fontSize: '.7rem' }} disabled={busy}
+        aria-label={`${s.blocked ? 'Отблокирай' : 'Блокирай'} ${s.user_name}`}
+        onClick={() => void toggleBlock()}>{s.blocked ? 'отблокирай' : 'блокирай'}</button>
+      {err && <span className="font-type" style={{ gridColumn: '1 / -1', fontSize: '.74rem', color: 'var(--red)' }}>{err}</span>}
     </div>
   )
 }

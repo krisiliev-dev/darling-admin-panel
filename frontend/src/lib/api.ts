@@ -570,7 +570,11 @@ export interface StaffMember {
   user_name: string
   full_name: string
   role: string
+  role_id: number | null
   email: string
+  // Barsy's `delete_flag` / „Блокиран" — a BLOCK, not a deletion. Blocked users stay listed so they
+  // can be seen and un-blocked; the panel never hard-deletes a user (it would orphan the audit trail).
+  blocked: boolean
 }
 
 export interface AuditEntry {

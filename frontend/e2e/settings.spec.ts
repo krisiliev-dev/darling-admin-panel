@@ -4,7 +4,10 @@ import { mockApi, MANAGER } from './helpers'
 // Настройки — the owner/manager back-office: team (from Barsy), publish-readiness (#81), courier status,
 // assistant model chain, and the ОРЗД/GDPR data-subject tool. We mock every panel of it and verify each
 // renders + the two on-demand checks (publish-audit, GDPR lookup) fire and display.
-const STAFF = { staff: [{ user_id: 7, full_name: 'Кристиян Илиев', user_name: 'kris', email: 'kris@darling.bg', role: 'Мениджър' }] }
+const STAFF = { staff: [
+  { user_id: 7, full_name: 'Кристиян Илиев', user_name: 'kris', email: 'kris@darling.bg', role: 'Мениджър', role_id: 3, blocked: false },
+  { user_id: 8, full_name: 'Напуснал Служител', user_name: 'gone', email: 'gone@darling.bg', role: 'Служител', role_id: 3, blocked: true },
+] }
 const ROLES = { roles: [{ role_id: 3, role_name: 'Мениджър', weight: 10, privileged: false }] }
 const COURIERS = { couriers: [{ key: 'speedy', name: 'Спиди', configured: true, ready: true, sender: 'Дарлинг 7', note: '' }] }
 const BACKENDS = { backends: [{ name: 'pipeline', label: 'Безплатна верига (pipeline)', ready: true }] }
@@ -72,6 +75,30 @@ test.describe('Настройки — back-office', () => {
     await expect(dialog).toContainText(/не променя правата му върху поръчки/)
     await dialog.getByRole('button', { name: 'Дай достъп' }).click()
     await expect.poll(() => posted).toMatchObject({ email: 'mgr@darling.bg', grant: true })
+  })
+
+  test('a blocked user stays LISTED and can be un-blocked (never hard-deleted)', async ({ page }) => {
+    // `users_delete` is a HARD delete in Barsy, so the panel exposes none — blocking sets delete_flag
+    // and the row must remain visible, or offboarding would be one-way and un-blocking impossible.
+    let sent: Record<string, unknown> | null = null
+    await mockSettings(page)
+    await page.route('**/api/admin/staff/8', (r) => { sent = r.request().postDataJSON(); return r.fulfill({ json: { ok: true } }) })
+    await page.goto('/settings')
+    const main = page.getByRole('main')
+    await expect(main.getByText('Напуснал Служител')).toBeVisible()
+    await expect(main.getByText('· блокиран')).toBeVisible()
+    await main.getByRole('button', { name: 'Отблокирай gone' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(/Достъпът се възстановява/)
+    await dialog.getByRole('button', { name: 'Отблокирай' }).click()
+    await expect.poll(() => sent).toMatchObject({ blocked: false })
+  })
+
+  test('blocking says plainly that the user is not deleted', async ({ page }) => {
+    await mockSettings(page)
+    await page.goto('/settings')
+    await page.getByRole('main').getByRole('button', { name: 'Блокирай kris' }).click()
+    await expect(page.getByRole('dialog')).toContainText(/НЕ се изтрива/)
   })
 
   test('publish-readiness check fetches and shows the summary + a blocked variant', async ({ page }) => {
