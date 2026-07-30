@@ -139,6 +139,14 @@ class Settings(BaseSettings):
     # deep-link template the UI opens for a manual lookup ({phone} substituted)
     nekorekten_search_url: str = "https://nekorekten.com/bg?search={phone}"
 
+    # nepostop.com — SECOND COD-refuser registry (owner-approved 2026-07-30). Same shape as
+    # nekorekten: server-side key only, advisory only, fail-open. `nepostop_report_live` gates the
+    # CONTRIBUTING half (sending our shipment outcomes back) separately from lookups, because
+    # disclosing customer data outbound is a different decision from querying.
+    nepostop_api_key: str = ""
+    nepostop_api_base: str = "https://nepostop.com/api/v1"
+    nepostop_report_live: bool = False
+
     # Reverse-proxy trust. The rate limiter keys on client IP; X-Forwarded-For is client-
     # spoofable, so we IGNORE it unless the panel actually sits behind a trusted proxy.
     # Set TRUST_PROXY=1 ONLY when a proxy you control terminates the connection and appends
