@@ -20,7 +20,7 @@ from ..config import get_settings
 from ..db import get_async_session
 from ..models import User
 from ..schemas import OwnerSetup, SetupStatus, UserCreate, UserRead
-from ..users import UserManager, current_owner, get_jwt_strategy, get_user_manager
+from ..users import UserManager, current_sysadmin, get_jwt_strategy, get_user_manager
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -136,7 +136,7 @@ async def barsy_login(
 @router.post("/staff", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_staff(
     payload: UserCreate,
-    actor: User = Depends(current_owner),  # owner-only
+    actor: User = Depends(current_sysadmin),  # owner-only
     session: AsyncSession = Depends(get_async_session),
     user_manager: UserManager = Depends(get_user_manager),
 ):

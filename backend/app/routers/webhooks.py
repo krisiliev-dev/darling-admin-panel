@@ -36,7 +36,7 @@ from ..config import get_settings
 from ..core import connector
 from ..issues import note_exception, note_shopify_result
 from ..models import User
-from ..users import current_owner
+from ..users import current_sysadmin
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 log = logging.getLogger("darling.webhooks")
@@ -351,7 +351,7 @@ async def barsy_article_receiver(request: Request, background: BackgroundTasks):
 @router.post("/reconcile")
 async def run_reconcile(
     limit: int = 200,
-    actor: User = Depends(current_owner),
+    actor: User = Depends(current_sysadmin),
 ):
     """Manual drift sweep (Barsy vs Shopify). Dry-run unless webhooks_live is on — mirrors the
     nightly job. Owner-gated because it can (when live) push fixes to Shopify."""

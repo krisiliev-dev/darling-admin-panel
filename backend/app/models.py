@@ -5,13 +5,14 @@ import datetime
 import uuid
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import DateTime, Index, LargeBinary, String, Text, UniqueConstraint, func, text
+from sqlalchemy import Boolean, DateTime, Index, LargeBinary, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
 
 # task-oriented roles: owner = local break-glass superuser; manager = Barsy Мениджър
-# (full access); staff/packer = limited. Full access is signalled by is_superuser.
+# (full BUSINESS access); staff/packer = limited. Full business access is signalled by is_superuser.
+# SYSTEM access (deploys/integrations/gates/user admin/audit) is a separate axis — see User.is_sysadmin.
 ROLES = ("owner", "manager", "staff", "packer")
 
 
@@ -27,6 +28,17 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     # is_active, is_superuser, is_verified
     full_name: Mapped[str] = mapped_column(String(120), default="")
     role: Mapped[str] = mapped_column(String(16), default="staff", index=True)
+    # SYSADMIN is a CAPABILITY, not a rung on the owner/manager/staff/packer ladder — deliberately a
+    # separate column rather than a 4th `role` value. Two reasons, one of them decisive:
+    #   1. `role` and `is_superuser` are OVERWRITTEN from the Barsy role map on every Barsy login
+    #      (auth_extra.barsy_login), so a sysadmin stored in `role` would be silently wiped the next
+    #      time that person signed in. This column is never touched there.
+    #   2. It is orthogonal to the retail hierarchy: system work (deploys, integrations, gates, user
+    #      admin, audit) is a different axis from business authority, and one person may hold either,
+    #      both, or — for an outside IT contractor — only this.
+    # Granting is owner-only, and it is absent from UserUpdate so nobody can grant it to themselves.
+    is_sysadmin: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0"), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
 

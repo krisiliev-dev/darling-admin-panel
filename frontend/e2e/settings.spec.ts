@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi } from './helpers'
+import { mockApi, MANAGER } from './helpers'
 
 // Настройки — the owner/manager back-office: team (from Barsy), publish-readiness (#81), courier status,
 // assistant model chain, and the ОРЗД/GDPR data-subject tool. We mock every panel of it and verify each
@@ -34,6 +34,44 @@ test.describe('Настройки — back-office', () => {
     await expect(main.getByText('Спиди')).toBeVisible()
     await expect(main.getByText('Безплатна верига (pipeline)')).toBeVisible()
     await expect(main.getByText('Заявки по ОРЗД')).toBeVisible()
+  })
+
+  test('a MANAGER sees no system sections and no team data is even requested', async ({ page }) => {
+    // Owner's 2026-07-30 narrowing: system surfaces (team/roles/audit/ОРЗД) are owner+sysadmin only,
+    // while a Мениджър keeps every business function. Asserting that /api/admin/staff is never CALLED
+    // matters as much as the hidden UI: fetching it would 403 and surface a spurious error banner to
+    // someone who is simply not meant to see this part.
+    let staffCalled = false
+    await mockApi(page, { '/api/users/me': MANAGER, '/api/orders/couriers': COURIERS, '/api/assistant/backends': BACKENDS })
+    await page.route('**/api/admin/staff', (r) => { staffCalled = true; return r.fulfill({ status: 403, json: { detail: 'no' } }) })
+    await page.goto('/settings')
+    const main = page.getByRole('main')
+    await expect(main.getByText('Само за системен администратор')).toBeVisible()
+    await expect(main.getByText('Екип (Barsy)')).toBeHidden()
+    await expect(main.getByText('Заявки по ОРЗД')).toBeHidden()
+    await expect(main.getByRole('heading', { name: 'Системен достъп' })).toBeHidden()   // granting is owner-only
+    expect(staffCalled).toBe(false)
+  })
+
+  test('the owner can grant and revoke system access', async ({ page }) => {
+    let posted: Record<string, unknown> | null = null
+    await mockSettings(page, {
+      '/api/admin/panel-users': { users: [
+        { email: 'owner@darling.bg', full_name: 'Owner', role: 'owner', is_sysadmin: false, is_active: true },
+        { email: 'mgr@darling.bg', full_name: 'Мария Мениджър', role: 'manager', is_sysadmin: false, is_active: true },
+      ] },
+    })
+    await page.route('**/api/admin/sysadmin', (r) => { posted = r.request().postDataJSON(); return r.fulfill({ json: { ok: true } }) })
+    await page.goto('/settings')
+    const panel = page.getByRole('main')
+    await expect(panel.getByRole('heading', { name: 'Системен достъп' })).toBeVisible()
+    // the owner's own row offers no toggle — role=='owner' always passes, so a button would lie
+    await expect(panel.getByText('✓ винаги')).toBeVisible()
+    await panel.getByRole('button', { name: /Дай системен достъп на mgr@darling.bg/ }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(/не променя правата му върху поръчки/)
+    await dialog.getByRole('button', { name: 'Дай достъп' }).click()
+    await expect.poll(() => posted).toMatchObject({ email: 'mgr@darling.bg', grant: true })
   })
 
   test('publish-readiness check fetches and shows the summary + a blocked variant', async ({ page }) => {

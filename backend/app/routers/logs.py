@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_session
 from ..models import AuditLog, User
-from ..users import current_owner
+from ..users import current_sysadmin
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
 
@@ -27,7 +27,7 @@ def _bound(s: str, end: bool = False) -> dt.datetime | None:
 async def list_logs(
     actor: str = "", action: str = "", q: str = "", date_from: str = "", date_to: str = "",
     page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
-    owner: User = Depends(current_owner),
+    owner: User = Depends(current_sysadmin),
     session: AsyncSession = Depends(get_async_session),
 ):
     # LEFT JOIN User so request-logged rows (actor_email blank) still resolve to an email
@@ -57,7 +57,7 @@ async def list_logs(
 
 
 @router.get("/actions")
-async def distinct_actions(owner: User = Depends(current_owner),
+async def distinct_actions(owner: User = Depends(current_sysadmin),
                            session: AsyncSession = Depends(get_async_session)):
     """Distinct action names for the filter dropdown."""
     rows = (await session.execute(select(AuditLog.action).distinct())).all()

@@ -80,7 +80,16 @@ export interface Me {
   full_name: string
   role: 'owner' | 'manager' | 'staff' | 'packer'
   is_superuser: boolean
+  // SYSTEM access (Настройки internals, integrations, audit, user admin) — a capability separate from
+  // the business hierarchy, so a Мениджър with is_superuser does NOT imply it. Use canSystem().
+  is_sysadmin: boolean
 }
+
+/** May this user reach SYSTEM-level surfaces? The owner always can; anyone else needs the grant.
+ *  Mirrors the backend's `current_sysadmin` guard — keep the two in step, and note that
+ *  `is_superuser` is deliberately NOT part of it (Barsy managers are superusers). */
+export const canSystem = (me: Me | null | undefined): boolean =>
+  !!me && (me.role === 'owner' || me.is_sysadmin)
 
 export interface CatalogDashboard {
   cards: {

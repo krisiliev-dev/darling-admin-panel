@@ -50,11 +50,34 @@ async def test_manager_cannot_create_privileged_role(manager_client, barsy_recor
     assert barsy_recorder.calls == []
 
 
-async def test_manager_can_create_nonprivileged_role(manager_client, barsy_recorder):
+async def test_manager_can_no_longer_create_staff_at_all(manager_client, barsy_recorder):
+    """CONTRACT CHANGED 2026-07-30 (owner): creating accounts is SYSTEM administration, so it moved
+    behind owner+sysadmin. A Мениджър previously could create non-privileged roles; now they can create
+    none. Kept as an explicit test rather than deleted, so the narrowing is recorded as intended
+    behaviour and a later "fix" that hands it back has to argue with a named decision."""
+    r = await manager_client.post("/api/admin/staff", json={**_NEW_STAFF, "role_id": 4})
+    assert r.status_code == 403, r.text
+    assert barsy_recorder.calls == []            # nothing reached Barsy
+
+
+async def test_a_granted_sysadmin_can_create_nonprivileged_but_not_privileged(
+        manager_client, barsy_recorder):
+    """With the capability granted, a sysadmin creates ordinary staff — but manager-level roles stay
+    OWNER-only. System access must not become a back door to granting business authority."""
+    from sqlalchemy import select
+
+    from app.db import async_session_maker
+    from app.models import User
+    async with async_session_maker() as s:
+        u = (await s.execute(select(User).where(User.email == "mgr@x.bg"))).scalar_one()  # type: ignore[arg-type]
+        u.is_sysadmin = True
+        await s.commit()
     barsy_recorder.set_return("Users_create", 9001)
     r = await manager_client.post("/api/admin/staff", json={**_NEW_STAFF, "role_id": 4})
     assert r.status_code == 201, r.text
     assert barsy_recorder.body_for("Users_create")["user"]["role_id"] == 4
+    r = await manager_client.post("/api/admin/staff", json={**_NEW_STAFF, "role_id": 1})
+    assert r.status_code == 403 and "собственикът" in r.json()["detail"]
 
 
 async def test_owner_can_create_privileged_role(owner_client, barsy_recorder):

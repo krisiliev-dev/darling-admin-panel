@@ -87,3 +87,33 @@ def require_roles(*roles: str):
             return user
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Няма достъп до тази функция.")
     return _guard
+
+
+async def current_owner_strict(user: User = Depends(current_active_user)) -> User:
+    """Literally the owner — `role == "owner"`, NOT merely a superuser.
+
+    `current_owner` is fastapi-users' superuser check, and Barsy managers map to superuser, so it does
+    not mean "the owner". For granting the sysadmin capability that distinction is the whole point: a
+    manager must not be able to hand themselves the system access this design withholds from them."""
+    if user.role == "owner":
+        return user
+    raise HTTPException(status.HTTP_403_FORBIDDEN,
+                        "Само собственикът може да променя системния достъп.")
+
+
+async def current_sysadmin(user: User = Depends(current_active_user)) -> User:
+    """SYSTEM-level guard: the owner, or anyone holding the sysadmin capability.
+
+    Distinct from `current_owner` (= any superuser, which includes Barsy managers) on purpose. Owner
+    decision 2026-07-30: system work — write gates, integrations/webhook config, user administration,
+    audit and logs — is a different axis from business authority, so a Мениджър with full authority over
+    orders, pricing and Склад does NOT automatically get to change integration wiring or add accounts.
+    Note this deliberately NARROWS the 2026-07-20 decision; see the note in models.User.is_sysadmin.
+
+    `role == "owner"` (not is_superuser) is the escape hatch, so applying this can never lock the owner
+    out of their own panel before anyone has been granted the capability."""
+    if user.role == "owner" or user.is_sysadmin:
+        return user
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        "Тази част е само за системен администратор. Обърни се към собственика за достъп.")

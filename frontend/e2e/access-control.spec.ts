@@ -32,7 +32,11 @@ test.describe('Access control — management pages', () => {
     await expect(page.getByText('Екип (Barsy)')).toBeVisible()
   })
 
-  test('manager can also open Склад and Настройки', async ({ page }) => {
+  test('manager keeps Склад and the Настройки route, but not its SYSTEM sections', async ({ page }) => {
+    // CONTRACT CHANGED 2026-07-30 (owner): a Мениджър keeps full business authority — Склад included —
+    // and is still admitted to /settings, because business config lives there too. What they no longer
+    // see is the SYSTEM part (team/roles/audit/ОРЗД), which moved behind owner+sysadmin. Both halves are
+    // asserted: route access must NOT regress into a lockout, and the system sections must stay hidden.
     await mockApi(page, { '/api/users/me': MANAGER, ...MGMT_MOCKS })
     await page.goto('/sklad')
     await expect(page).toHaveURL(/\/sklad$/)
@@ -40,7 +44,8 @@ test.describe('Access control — management pages', () => {
 
     await page.goto('/settings')
     await expect(page).toHaveURL(/\/settings$/)
-    await expect(page.getByText('Екип (Barsy)')).toBeVisible()
+    await expect(page.getByText('Само за системен администратор')).toBeVisible()
+    await expect(page.getByText('Екип (Barsy)')).toHaveCount(0)
   })
 
   test('staff is redirected from Склад and Настройки to Home', async ({ page }) => {

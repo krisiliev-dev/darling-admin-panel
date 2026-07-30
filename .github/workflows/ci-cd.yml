@@ -80,6 +80,14 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # PINNED host key, not ssh-keyscan. Scanning on every run is trust-on-first-use EVERY time:
+          # the runner would accept whatever answered on port 22, and this step then ships a container
+          # that reads a .env full of live Barsy + courier credentials. The pin makes a MITM fail loudly.
+          # ⚠ If the box is rebuilt or its host keys are regenerated, deploys will fail with a host-key
+          # mismatch. That is CORRECT — do not "fix" it by restoring ssh-keyscan. Get the new key from
+          # the server itself (`ssh-keyscan` run ON the box, or /etc/ssh/ssh_host_ed25519_key.pub) and
+          # update the SERVER_SSH_HOST_KEY secret. The value may list several host forms, one per line.
+          printf '%s\n' "${{ secrets.SERVER_SSH_HOST_KEY }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
           ssh -i ~/.ssh/id_ed25519 "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
             'bash /home/darling/product-review/admin-panel/deploy.sh'

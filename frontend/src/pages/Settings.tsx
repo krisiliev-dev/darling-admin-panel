@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, ApiError } from '../lib/api'
+import { api, ApiError, canSystem } from '../lib/api'
 import type { AssistantBackend, CourierReadiness, StaffMember } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { useAuth } from '../lib/auth'
@@ -13,12 +13,20 @@ import { Logs } from './Logs'
 interface BarsyRole { role_id: number; role_name: string; weight: number | null; privileged?: boolean }
 
 // Настройки — staff (from Barsy), system status, GDPR, and the full audit trail (Дневник tab).
-// Owner/manager only.
+//
+// SYSTEM vs BUSINESS (owner decision 2026-07-30): the team/roles/audit/GDPR sections are SYSTEM
+// surfaces, gated on canSystem() — the owner or a granted sysadmin. A Barsy Мениджър keeps every
+// business function but no longer reaches these. We hide rather than render-and-fail: the backend
+// 403s them, and showing a panel that can only produce an error is worse than not showing it.
 export function Settings() {
   const { me } = useAuth()
+  const sys = canSystem(me)
   const [tab, setTab] = useState<'main' | 'logs'>('main')
-  const { data: staff, reload: reloadStaff } = useApi<{ staff: StaffMember[] }>('/api/admin/staff')
-  const { data: roles } = useApi<{ roles: BarsyRole[] }>('/api/admin/roles')
+  // Don't even fetch the system endpoints without the capability — a 403 on load would surface as a
+  // spurious error banner to a manager who is simply not meant to see this part.
+  const { data: staff, reload: reloadStaff } = useApi<{ staff: StaffMember[] }>(
+    sys ? '/api/admin/staff' : null, [sys])
+  const { data: roles } = useApi<{ roles: BarsyRole[] }>(sys ? '/api/admin/roles' : null, [sys])
   // managers may create only non-privileged roles; the owner sees all (backend enforces too)
   const selectableRoles = (roles?.roles || []).filter((r) => me?.role === 'owner' || !r.privileged)
   const { data: couriers } = useApi<{ couriers: CourierReadiness[] }>('/api/orders/couriers')
@@ -38,8 +46,9 @@ export function Settings() {
         </div>
       } />
 
-      {tab === 'logs' ? <Logs embedded /> : <>
-      <Sheet clip="left" tilt="l">
+      {tab === 'logs' ? (sys ? <Logs embedded /> : <NoSystemAccess what="Дневникът" />) : <>
+      {!sys && <NoSystemAccess what="Екипът, ролите и ОРЗД справките" />}
+      {sys && <Sheet clip="left" tilt="l">
         <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Екип (Barsy)</h3>
         {!staff ? <Loading /> : (
           <div style={{ display: 'grid', gap: '.3rem' }}>
@@ -57,7 +66,9 @@ export function Settings() {
           </div>
         )}
         <NewStaffForm roles={selectableRoles} onCreated={reloadStaff} />
-      </Sheet>
+      </Sheet>}
+
+      {me?.role === 'owner' && <SysadminPanel />}
 
       <PublishAudit />
 
@@ -90,9 +101,90 @@ export function Settings() {
         </Sheet>
       </div>
 
-      <GdprPanel />
+      {sys && <GdprPanel />}
       </>}
     </div>
+  )
+}
+
+function NoSystemAccess({ what }: { what: string }) {
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.3rem' }}>Само за системен администратор</h3>
+      <p className="pencil" style={{ fontSize: '.8rem', margin: 0 }}>
+        {what} е част от системната администрация (потребители, интеграции, дневник). Твоята роля дава
+        пълен достъп до работата с поръчки, цени и склад, но не до тази част. Ако ти е нужен достъп,
+        собственикът може да го даде от Настройки.
+      </p>
+    </Sheet>
+  )
+}
+
+// Системен достъп — the owner grants/revokes the sysadmin capability. Owner-only surface (the backend
+// uses `current_owner_strict`, not the superuser check, so a manager cannot grant it to themselves).
+// Only panel accounts appear: someone must have signed in at least once to be granted anything.
+function SysadminPanel() {
+  type PanelUser = { email: string; full_name: string; role: string; is_sysadmin: boolean; is_active: boolean }
+  const { data, reload } = useApi<{ users: PanelUser[] }>('/api/admin/panel-users')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState('')
+  const confirm = useConfirm()
+
+  const toggle = async (u: PanelUser) => {
+    const granting = !u.is_sysadmin
+    if (!(await confirm({
+      danger: !granting, confirmLabel: granting ? 'Дай достъп' : 'Отнеми достъп',
+      title: granting ? 'Системен достъп' : 'Отнемане на системен достъп',
+      message: granting
+        ? `${u.full_name || u.email} ще получи достъп до системната част: потребители, интеграции, дневник, ОРЗД. Това не променя правата му върху поръчки и цени.`
+        : `${u.full_name || u.email} ще загуби достъп до системната част. Работата с поръчки, цени и склад остава непроменена.`,
+    }))) return
+    setBusy(u.email); setMsg('')
+    try {
+      await api.post('/api/admin/sysadmin', { email: u.email, grant: granting })
+      reload()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Промяната се провали.') } finally { setBusy('') }
+  }
+
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>Системен достъп</h3>
+      <p style={{ color: 'var(--pencil)', fontSize: '.8rem', margin: '0 0 .6rem' }}>
+        кой може да управлява потребители, интеграции и дневника. Отделно от ролята в Barsy — мениджър
+        не получава системен достъп автоматично.
+      </p>
+      {msg && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--red)', marginBottom: '.4rem' }}>{msg}</div>}
+      {/* `data?.users || []` rather than data.users — a response without the key (a proxy error page,
+          a truncated body) would otherwise throw inside render and white-screen the whole Настройки
+          page behind the error boundary. Caught by an e2e run against an unmocked endpoint. */}
+      {!data ? <Loading /> : (data.users || []).length === 0 ? (
+        <p className="pencil" style={{ fontSize: '.8rem', margin: 0 }}>Няма акаунти в панела.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '.3rem' }}>
+          {(data.users || []).map((u) => (
+            <div key={u.email} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.6rem', alignItems: 'center', fontSize: '.82rem', padding: '.3rem 0', borderBottom: '1px dashed var(--line)' }}>
+              <span>
+                <span className="font-type" style={{ fontWeight: 700 }}>{u.full_name || u.email}</span>
+                {!u.is_active && <span className="font-type" style={{ fontSize: '.7rem', color: 'var(--pencil)' }}> · неактивен</span>}
+              </span>
+              <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>{u.role}</span>
+              {u.role === 'owner' ? (
+                <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--ready)' }}>✓ винаги</span>
+              ) : (
+                <button className={u.is_sysadmin ? 'btn-paper btn-red' : 'btn-paper'} style={{ fontSize: '.72rem' }}
+                  disabled={busy === u.email} onClick={() => void toggle(u)}
+                  aria-label={`${u.is_sysadmin ? 'Отнеми' : 'Дай'} системен достъп на ${u.email}`}>
+                  {u.is_sysadmin ? 'отнеми' : 'дай достъп'}
+                </button>
+              )}
+            </div>
+          ))}
+          <p className="pencil" style={{ fontSize: '.76rem', marginTop: '.4rem' }}>
+            В списъка са само хора, влизали поне веднъж в панела.
+          </p>
+        </div>
+      )}
+    </Sheet>
   )
 }
 

@@ -18,7 +18,7 @@ from .. import nekorekten
 from ..audit import log_action
 from ..db import get_async_session
 from ..models import Checkout, OrderOutcome, User
-from ..users import current_owner
+from ..users import current_sysadmin
 
 router = APIRouter(prefix="/api/gdpr", tags=["gdpr"])
 
@@ -125,7 +125,7 @@ async def erase_customer_data(session: AsyncSession, phone: str, actor: User | N
 async def lookup(
     phone: str = Query(..., description="телефон на клиента"),
     email: str = Query("", description="имейл (по избор — кошниците често имат само имейл)"),
-    actor: User = Depends(current_owner),
+    actor: User = Depends(current_sysadmin),
     session: AsyncSession = Depends(get_async_session),
 ):
     """What panel data we hold about this customer (by normalized phone + optional email). Read-only."""
@@ -146,7 +146,7 @@ class EraseBody(BaseModel):
 @router.post("/erase")
 async def erase(
     body: EraseBody,
-    actor: User = Depends(current_owner),
+    actor: User = Depends(current_sysadmin),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Erase the panel's own data for a customer AND retract any nekorekten report we published about
