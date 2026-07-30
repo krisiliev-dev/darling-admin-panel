@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger — lets a deploy be re-run without inventing a commit (e.g. to verify the pipeline
+  # after server-side changes like the SSH hardening on 2026-07-30). Note the `deploy` job's `if:`
+  # must accept this event too, or a manual run would pass CI and silently skip the deploy.
+  workflow_dispatch:
 
 concurrency:
   group: deploy-main
@@ -66,7 +70,9 @@ jobs:
 
   deploy:
     needs: [frontend-ci, backend-ci]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server over SSH
