@@ -10,9 +10,13 @@ from app.routers.orders import _SPEDITOR_ALIASES, _norm_speditor
 
 
 def _shp(cod: float):
+    # site_id is supplied so _calc_payload never calls _resolve_site() — that is a LIVE Speedy
+    # nomenclature lookup, and a unit test must not depend on credentials or the network. (It did on
+    # the first attempt: green locally where creds exist, red on CI where they do not.)
     return courier_mod.Shipment(order_ref="q", recipient="О", phone="0000000000",
                                 weight_kg=1.0, cod_amount=cod,
-                                address={"city": "Свищов", "postcode": "", "street": ""})
+                                address={"city": "Свищов", "postcode": "", "street": "",
+                                         "site_id": 68789})
 
 
 # ---------------------------------------------------------------- Speedy COD surcharge ---
