@@ -31,3 +31,9 @@ Thumbs.db
 darling_core/_vendor/.shopify_token.json
 darling_core/_vendor/*token*.json
 **/.shopify_token.json
+
+# sqlite CREATES a missing file, so a wrong DB_PATH leaves an empty database that reads as
+# 'no such table' rather than 'file missing' — and a later attempt would read it as an empty
+# catalogue instead of failing. Never let one be committed. (2026-07-31)
+darling_core/_vendor/pipeline.db
+darling_core/_vendor/*.db
