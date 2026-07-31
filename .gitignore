@@ -26,3 +26,8 @@ frontend/node_modules/
 Thumbs.db
 
 # --- caddy runtime volumes are docker-managed, not in the tree ---
+
+# never vendor runtime secrets — a .shopify_token.json was picked up by 'git add -A' on 2026-07-31
+darling_core/_vendor/.shopify_token.json
+darling_core/_vendor/*token*.json
+**/.shopify_token.json
