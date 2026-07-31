@@ -62,3 +62,31 @@ def test_real_content_change_still_detected_under_crlf(tmp_path, monkeypatch):
     changed.write_bytes(real.read_bytes().replace(b"\n", b"\r\n") + b"\r\nX = 1\r\n")
     monkeypatch.setattr(courier, "__file__", str(changed))
     assert [d["module"] for d in core_drift.core_drift()] == ["courier"]
+
+
+# ---------------------------------------------------------------- #98: imports come from the repo ---
+def test_shared_modules_are_imported_from_this_repo_not_the_sibling():
+    """THE #98 fix. Imports must resolve to `_vendor`, which ships in this repo and therefore cannot be
+    stale relative to what CI tested. They used to resolve to ../agent-pipeline, which nothing deploys
+    — no cron, no systemd, a local .git with no remote — so it was updated by two people remembering to
+    scp. A fix to courier.py then passed CI, deployed green, reported healthy, and did not run;
+    production under-charged the Speedy COD surcharge for an unknown period as a result."""
+    from app.core import barsy, connector, courier, db, shopify_orders
+    vendor = pathlib.Path(__file__).resolve().parents[2] / "darling_core" / "_vendor"
+    for mod in (courier, db, barsy, connector, shopify_orders):
+        assert pathlib.Path(mod.__file__).resolve().parent == vendor.resolve(), \
+            f"{mod.__name__} loaded from {mod.__file__} — not this repo's copy"
+
+
+def test_data_root_still_points_at_the_sibling_when_present():
+    """…and the split must not drag the DATA with it: pipeline.db genuinely lives in agent-pipeline and
+    is not ours to relocate. Forcing _vendor wholesale would have broken every catalogue read, which is
+    why this was a real change rather than a one-line path flip."""
+    import os
+
+    import darling_core
+    sibling = pathlib.Path(darling_core.__file__).resolve().parents[2] / "agent-pipeline"
+    if sibling.is_dir():
+        assert pathlib.Path(darling_core.CORE_ROOT).resolve() == sibling.resolve()
+    else:                                   # CI has no sibling — data root falls back to _vendor
+        assert os.path.isdir(darling_core.CORE_ROOT)

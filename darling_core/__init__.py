@@ -28,11 +28,29 @@ import sys
 _AGENT_PIPELINE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "agent-pipeline"))
 _VENDOR = os.path.join(os.path.dirname(__file__), "_vendor")
-_CORE_DIR = _AGENT_PIPELINE if os.path.isdir(_AGENT_PIPELINE) else _VENDOR
-if _CORE_DIR not in sys.path:
-    sys.path.insert(0, _CORE_DIR)
+# MODULE PATH and DATA ROOT are deliberately SEPARATE (2026-07-31, task #98).
+#
+# They used to be the same directory, and that was a live deployment hole: this package preferred the
+# sibling ../agent-pipeline for imports, agent-pipeline is not in this repository, and NOTHING deploys
+# it (verified — no cron, no systemd unit, and its local .git has no remote and a 19 July HEAD). It was
+# updated by hand, by two people remembering to scp. So a fix to a shared module landed in _vendor,
+# passed CI, deployed green, reported healthy — and production kept running the old code. A stale
+# courier.py under-charged the COD surcharge on every Speedy order for an unknown period that way.
+#
+# Two people remembering to copy files is not a deployment mechanism; it is the absence of one.
+#
+# So: IMPORTS come from _vendor, which ships in this repo and therefore cannot be stale relative to what
+# CI tested. DATA still comes from the sibling, because pipeline.db genuinely lives there and is not
+# ours to relocate. agent-pipeline stays on the path AFTER _vendor so modules we do not vendor still
+# resolve — it just no longer shadows the ones we do.
+CORE_ROOT = _AGENT_PIPELINE if os.path.isdir(_AGENT_PIPELINE) else _VENDOR   # data (pipeline.db)
 
-CORE_ROOT = _CORE_DIR                 # where the real code + pipeline.db live, for now
+_MODULE_DIR = _VENDOR if os.path.isdir(_VENDOR) else CORE_ROOT               # code (this repo's copy)
+if _MODULE_DIR in sys.path:
+    sys.path.remove(_MODULE_DIR)
+sys.path.insert(0, _MODULE_DIR)                    # first: vendored modules win
+if CORE_ROOT not in sys.path:
+    sys.path.append(CORE_ROOT)                     # last: non-vendored siblings still importable
 
 # --- the shared surface -------------------------------------------------------------
 import db                     # noqa: E402  system-of-record (SQLite; the one DB the panel reads)
