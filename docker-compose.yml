@@ -17,6 +17,11 @@ services:
       - /home/darling/.hermes/.env:/root/.hermes/.env:ro   # shared secrets (read by panel AND agent-pipeline)
     environment:
       - TRUST_PROXY=1                       # behind Caddy; trust the real client IP in X-Forwarded-For
+      # Shared-core MODULES now import from darling_core/_vendor (which the deploy carries), so the
+      # DATA root has to be stated explicitly — db.py otherwise resolves pipeline.db next to itself and
+      # would look for it inside _vendor. That exact mistake took catalogue reads down on 2026-07-31.
+      # db.py REFUSES to create a missing file at this path rather than silently making an empty one.
+      - PIPELINE_DB=/app/agent-pipeline/pipeline.db
     dns:                                    # host's systemd-resolved stub (127.0.0.53) doesn't work in
       - 1.1.1.1                             # containers → give real resolvers so Barsy/Shopify/courier
       - 8.8.8.8                             # API hostnames resolve

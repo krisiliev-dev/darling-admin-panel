@@ -15,11 +15,17 @@ dual-write DB-FIRST, then append the JSONL. The `results*.jsonl` are a rebuildab
 EXPORT / disaster-recovery source — `ingest()` reconstructs the DB from them — but they are NOT
 what the pipeline reads at runtime. (The earlier "JSONL is ground truth" note was stale.)
 """
-import json, glob, sqlite3
+import json, glob, os, sqlite3
 from pathlib import Path
 
 HERE = Path(__file__).parent
-DB_PATH = HERE / "pipeline.db"
+
+# The DB is resolved from PIPELINE_DB when set, else next to this file (unchanged default, so the
+# pipeline behaves exactly as before). The override exists because this module gets imported from a
+# vendored copy inside the panel: resolving the database relative to `__file__` tied the DATA ROOT to
+# the MODULE PATH, so moving the import moved the data lookup with it and the panel read a database
+# that wasn't there. Data root and import path are now independent. (2026-07-31, panel #98)
+DB_PATH = Path(os.environ["PIPELINE_DB"]) if os.environ.get("PIPELINE_DB") else HERE / "pipeline.db"
 
 _STAGE_KEYS = [
     ("name_builder:convention", "rename"),
@@ -44,6 +50,15 @@ def _stage(notes):
 
 
 def connect():
+    # sqlite CREATES a missing file rather than failing, so a misconfigured PIPELINE_DB produced an
+    # empty 4KB database: the first query said "no such table", and a LATER one would have read it
+    # as an EMPTY CATALOGUE — a wrong answer wearing the costume of a real one. An explicitly
+    # configured path that isn't there is a misconfiguration, never a first run, so refuse it.
+    # (The default path may still be created on demand — that IS a legitimate first run.)
+    if os.environ.get("PIPELINE_DB") and not DB_PATH.exists():
+        raise FileNotFoundError(
+            f"PIPELINE_DB points at {DB_PATH}, which does not exist. Refusing to create an empty "
+            f"database there — it would report 'no such table' now and an empty catalogue later.")
     con = sqlite3.connect(str(DB_PATH), timeout=10)
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA busy_timeout=8000")

@@ -62,3 +62,22 @@ def test_real_content_change_still_detected_under_crlf(tmp_path, monkeypatch):
     changed.write_bytes(real.read_bytes().replace(b"\n", b"\r\n") + b"\r\nX = 1\r\n")
     monkeypatch.setattr(courier, "__file__", str(changed))
     assert [d["module"] for d in core_drift.core_drift()] == ["courier"]
+
+
+def test_a_product_can_actually_be_read_after_the_split():
+    """THE test the first attempt at #98 lacked. It asserted CORE_ROOT still pointed at the sibling —
+    which was true — and shipped a build whose catalogue reads failed with 'no such table: products',
+    because db.py resolves the database next to ITSELF and never consults CORE_ROOT.
+
+    Asserting the variable you changed is not the same as asserting the behaviour that matters. This
+    reads a real row, so a future path change cannot pass while production cannot query its catalogue."""
+    from app.core import db
+    n = db.connect().execute("select count(*) from products").fetchone()[0]
+    assert n > 0, f"catalogue query returned {n} rows — the data root is wrong"
+
+
+def test_no_empty_database_is_left_beside_the_vendored_modules():
+    """sqlite CREATES a missing file, so a wrong DB_PATH leaves an empty database that says 'no such
+    table' today and reads as an EMPTY CATALOGUE after any migration — a wrong answer with no error."""
+    vendor = pathlib.Path(__file__).resolve().parents[2] / "darling_core" / "_vendor"
+    assert not (vendor / "pipeline.db").exists(), "an empty pipeline.db was created inside _vendor"

@@ -28,11 +28,41 @@ import sys
 _AGENT_PIPELINE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "agent-pipeline"))
 _VENDOR = os.path.join(os.path.dirname(__file__), "_vendor")
-_CORE_DIR = _AGENT_PIPELINE if os.path.isdir(_AGENT_PIPELINE) else _VENDOR
-if _CORE_DIR not in sys.path:
-    sys.path.insert(0, _CORE_DIR)
+# MODULE PATH and DATA ROOT are deliberately SEPARATE (task #98, 2026-07-31).
+#
+# They used to be one directory, which was a live deployment hole: imports preferred the sibling
+# ../agent-pipeline, that directory is not in this repository, and NOTHING deploys it (verified: no
+# cron, no systemd unit, its local .git has no remote and a 19 July HEAD). It was updated by hand.
+# So a fix landed in _vendor, passed CI, deployed green, reported healthy — and production kept running
+# the old module. A stale courier.py under-charged the COD surcharge on every Speedy order that way.
+#
+# IMPORTS therefore come from _vendor: it ships in this repo, so it cannot be stale relative to what CI
+# tested and the deploy carried. agent-pipeline stays on the path AFTER it, so modules we do not vendor
+# still import — it simply no longer shadows the ones we do.
+#
+# ⚠ DATA is a separate question and the first attempt at this got it wrong. `db.py` resolves pipeline.db
+# next to ITSELF, never consulting CORE_ROOT, so moving the import moved the data lookup with it and
+# broke every catalogue read. It now honours a PIPELINE_DB env var (set in docker-compose) and REFUSES
+# to create a missing file there — an explicitly configured path that does not exist is always a
+# misconfiguration, never a first run, and sqlite would otherwise leave an empty database that reports
+# "no such table" today and an empty CATALOGUE after any migration.
+CORE_ROOT = _AGENT_PIPELINE if os.path.isdir(_AGENT_PIPELINE) else _VENDOR   # data lives here
 
-CORE_ROOT = _CORE_DIR                 # where the real code + pipeline.db live, for now
+_MODULE_DIR = _VENDOR if os.path.isdir(_VENDOR) else CORE_ROOT               # code comes from here
+if _MODULE_DIR in sys.path:
+    sys.path.remove(_MODULE_DIR)
+sys.path.insert(0, _MODULE_DIR)                    # first: this repo's copy wins
+if CORE_ROOT not in sys.path:
+    sys.path.append(CORE_ROOT)                     # last: non-vendored siblings still importable
+
+# Point db.py at the DATA root explicitly. Without this the split works only where something else sets
+# PIPELINE_DB (the container) and breaks everywhere else — dev machines included, which is how the first
+# attempt reached production: it was never exercised anywhere the env var was absent. Setting it here
+# makes the module path and the data root consistent by construction rather than by deployment config.
+# Only when the sibling EXISTS: with no sibling (CI) there is no pipeline.db to point at, and db.py
+# refuses a configured-but-missing path by design, so we leave it on its own default there.
+if os.path.isdir(_AGENT_PIPELINE):
+    os.environ.setdefault("PIPELINE_DB", os.path.join(_AGENT_PIPELINE, "pipeline.db"))
 
 # --- the shared surface -------------------------------------------------------------
 import db                     # noqa: E402  system-of-record (SQLite; the one DB the panel reads)
