@@ -34,7 +34,9 @@ def _configure_logging() -> None:
 _configure_logging()
 from .config import get_settings
 from .core import health as core_health
+from .core_drift import core_drift, log_core_drift
 from .db import create_db_and_tables
+from .issues import record_issue
 from .routers import (
     admin,
     assistant,
@@ -78,6 +80,15 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_db_and_tables()  # create admin.db (users + audit) if missing
+    # Say at startup whether we are running the shared core this repo shipped. A deploy that changes
+    # nothing is otherwise indistinguishable from one that worked (task #98), and it is recorded in
+    # Проблеми so it survives past whoever happened to read the log that day.
+    for d in log_core_drift():
+        await record_issue(
+            source="ops", topic="deploy", order_ref="", severity="error", kind="core_drift",
+            summary=f"Панелът работи със стара версия на {d['module']} — деплойът НЕ я обновява. "
+                    f"Поправки в този модул минават тестовете и не влизат в сила.",
+            detail=d)
     yield
 
 
@@ -174,5 +185,10 @@ app.include_router(webhooks.router)  # Barsy⇄Shopify receivers (HMAC/token-gat
 
 @app.get("/api/health", tags=["meta"])
 def health():
-    """Startup probe: catalog DB reachable, couriers registered."""
-    return core_health()
+    """Startup probe: catalog DB reachable, couriers registered, and — since 2026-07-31 — whether the
+    shared core modules match this repo. `core_drift` non-empty means the panel is executing code the
+    deploy did not update, so a "successful" deploy may have changed nothing (task #98)."""
+    out = core_health()
+    if isinstance(out, dict):
+        out["core_drift"] = core_drift()
+    return out
