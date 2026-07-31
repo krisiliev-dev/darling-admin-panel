@@ -9,6 +9,18 @@ from app.core import courier as courier_mod
 from app.routers.orders import _SPEDITOR_ALIASES, _norm_speditor
 
 
+def _speedy():
+    """A Speedy adapter built WITHOUT credentials. `courier_mod.get("speedy")` raises when the keys are
+    absent, so a payload-shape test that used it could only ever run on a developer machine — CI has no
+    keys, which is correct. We construct the object directly and stub the one credentialed call
+    `_calc_payload` makes, so the test asserts the SHAPE and nothing else.
+    (My first two attempts at this were false greens: unsetting the env vars locally doesn't help,
+    because the module reads ~/.hermes/.env regardless of the environment.)"""
+    s = courier_mod.Speedy.__new__(courier_mod.Speedy)
+    s._sender = lambda: {"clientId": 1}          # type: ignore[method-assign]
+    return s
+
+
 def _shp(cod: float):
     # site_id is supplied so _calc_payload never calls _resolve_site() — that is a LIVE Speedy
     # nomenclature lookup, and a unit test must not depend on credentials or the network. (It did on
@@ -25,19 +37,19 @@ def test_speedy_calc_payload_carries_the_cod_service():
     not, so Speedy priced a parcel with no наложен платеж and returned the same total either way:
     cod_fee 0.00 on every quote, while the real label was booked WITH the surcharge and we paid it.
     Quote path and booking path must agree — on 55-60% of orders the gap is a silent per-order loss."""
-    s = courier_mod.get("speedy")
+    s = _speedy()
     with_cod = s._calc_payload(_shp(13.50))
     add = (with_cod["service"].get("additionalServices") or {}).get("cod") or {}
     assert add.get("amount") == 13.5
     assert add.get("processingType") == "CASH"
     # …and absent when there is no COD, so a prepaid quote is not inflated
-    assert "additionalServices" not in courier_mod.get("speedy")._calc_payload(_shp(0.0))["service"]
+    assert "additionalServices" not in _speedy()._calc_payload(_shp(0.0))["service"]
 
 
 def test_speedy_payer_is_not_a_substitute_for_the_cod_service():
     """courierServicePayer decides WHO pays the courier fee, not what the COD surcharge is. It flipped
     correctly all along, which is exactly why the missing service block went unnoticed."""
-    s = courier_mod.get("speedy")
+    s = _speedy()
     assert s._calc_payload(_shp(0.0))["payment"]["courierServicePayer"] == "SENDER"
     assert s._calc_payload(_shp(9.99))["payment"]["courierServicePayer"] == "RECIPIENT"
 
