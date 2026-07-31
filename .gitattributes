@@ -1,0 +1,4 @@
+# Normalise line endings in the repo. A Windows-authored copy of a shared core module differs from
+# an LF copy on every byte-line while being the SAME CODE — which made the core-drift detector report
+# a false positive and cost a needless write to production money-path modules (2026-07-31).
+* text=auto eol=lf

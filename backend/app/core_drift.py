@@ -27,8 +27,18 @@ _VENDOR = pathlib.Path(__file__).resolve().parents[2] / "darling_core" / "_vendo
 
 
 def _sha(p: pathlib.Path) -> str:
+    """Hash of the file CONTENT, with line endings normalised.
+
+    Hashing raw bytes was wrong and produced a false positive on its first real use: a Windows-authored
+    copy differs from an LF copy on every line while `diff --strip-trailing-cr` reports zero changes.
+    That is not drift, it is the same code. Reporting it as drift cost a write to shared money-path
+    modules driven by a signal that meant nothing, which is exactly what this module exists to prevent.
+    A detector that cries wolf gets ignored, and then the real drift goes unread too.
+    """
     try:
-        return hashlib.sha256(p.read_bytes()).hexdigest()[:12]
+        raw = p.read_bytes()
+        raw = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        return hashlib.sha256(raw).hexdigest()[:12]
     except OSError:
         return ""
 
