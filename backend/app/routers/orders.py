@@ -8,6 +8,8 @@ Label creation is a real-world action: it's owner/staff-gated, requires an expli
 flag, is written to the audit log, and only mints a REAL waybill when COURIER_LIVE is on
 (off => a dry-run plan; and a real label additionally requires BARSY_WRITE_LIVE, so cash is
 never collected for an unbooked sale)."""
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,12 +33,28 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 # the panel is the OPERATIONAL side (only we can price + print labels). Barsy exposes no Speditors_create,
 # so this is read + reconcile + WARN: an unmapped courier ships fine, it just can't carry a speditor_id
 # on the Barsy sale, and the owner has to register it in Barsy's admin UI to close the gap.
+# Keys are NORMALISED (lowercase, all non-alphanumerics stripped), so "BOX NOW", "Box  Now" and
+# "box-now" all land on the same entry. An exact-string table survives only until someone types a
+# variant: Hermes's mapper broke on precisely this — the storefront sends `boxnow`, Barsy stores
+# "BOX NOW", and the compare missed on the space, producing a waybill with NO courier attached and
+# nothing raised. Ours happened to contain that one literal, i.e. it was correct by luck.
 _SPEDITOR_ALIASES = {
     "speedy": "speedy", "спиди": "speedy",
     "econt": "econt", "еконт": "econt",
-    "boxnow": "boxnow", "box now": "boxnow", "sameday": "sameday",
-    "evropat": "evropat", "европът": "evropat", "pigeon": "pigeon",
+    "boxnow": "boxnow", "бокснау": "boxnow",
+    "sameday": "sameday", "самдей": "sameday",
+    "evropat": "evropat", "европът": "evropat",
+    # Barsy stores the trading name ("Pigeon Express"), we key on the short one
+    "pigeon": "pigeon", "pigeonexpress": "pigeon", "пиджън": "pigeon",
+    # NB Barsy's "Поща" and "От офис" are its own pseudo-speditors, not couriers we ship
+    # with — they stay unmapped on purpose and simply carry no speditor_id.
 }
+
+
+def _norm_speditor(name: str) -> str:
+    """Fold a Barsy speditor name to a lookup key: lowercase, drop everything non-alphanumeric.
+    Unicode-aware so the Cyrillic aliases fold the same way as the Latin ones."""
+    return re.sub(r"[^0-9a-zA-Zа-яА-Яъьюя]+", "", (name or "").lower(), flags=re.UNICODE)
 
 
 def _barsy_speditors() -> dict[str, dict]:
@@ -54,7 +72,7 @@ def _barsy_speditors() -> dict[str, dict]:
             continue
         name = str(r.get("speditor_name") or r.get("name") or "").strip()
         sid = r.get("speditor_id") or r.get("id")
-        key = _SPEDITOR_ALIASES.get(name.lower())
+        key = _SPEDITOR_ALIASES.get(_norm_speditor(name))
         if key and sid is not None:
             out[key] = {"speditor_id": int(sid), "barsy_name": name}
     return out

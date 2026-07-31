@@ -312,10 +312,25 @@ class Speedy(Courier):
             if not site_id:
                 raise CourierError("Спиди: не намерих населеното място на получателя.")
             rec["addressLocation"] = {"siteId": site_id}
+        svc: dict = {"serviceIds": [self.DEFAULT_SERVICE_ID], "autoAdjustPickupDate": True}
+        # 🚨 The COD service MUST be attached here too, not only in _service() (the shipment builder).
+        # Without it Speedy prices a parcel carrying no наложен платеж and returns the SAME total with
+        # and without COD — so the quote came back with cod_fee 0.00 while the real label was booked
+        # WITH the surcharge and we paid it. Quote path and booking path disagreeing is a silent
+        # per-order loss, on 55–60% of orders. `courierServicePayer` below is NOT a substitute: it
+        # decides who pays the courier fee, not what the COD surcharge is.
+        # Verified live 2026-07-31 (Свищов, 1kg, 13.50 EUR): 5.94 without → 6.25 with.
+        # NB the shape differs from _service(): calculate takes `serviceIds` (a LIST) while the
+        # shipment builder takes a singular `serviceId`. Only `additionalServices` is common — keep
+        # each envelope verbatim rather than factoring them together.
+        if shp.cod_amount > 0:
+            svc["additionalServices"] = {
+                "cod": {"amount": round(shp.cod_amount, 2), "currencyCode": CURRENCY,
+                        "processingType": "CASH"}}
         return {
             "language": "BG", "sender": {"clientId": self._sender().get("clientId")},
             "recipient": rec,
-            "service": {"serviceIds": [self.DEFAULT_SERVICE_ID], "autoAdjustPickupDate": True},
+            "service": svc,
             "content": {"parcelsCount": shp.parcels, "totalWeight": shp.weight_kg,
                         "contents": shp.contents, "package": "КАШОН"},
             "payment": {"courierServicePayer": "RECIPIENT" if shp.cod_amount > 0 else "SENDER"},

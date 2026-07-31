@@ -232,20 +232,37 @@ def _invoice_for_order(oid):
 _SPEDITORS = {"map": None}
 
 
+def _speditor_key(s):
+    """Normalise a courier name for matching: lowercase, strip everything that isn't a letter/digit.
+    The storefront sends machine keys ("boxnow"), Barsy stores display names ("BOX NOW") — an exact
+    lowercase compare misses on the space alone, and the failure is SILENT (no speditor_id → the waybill
+    is stamped with no courier attached). (fixed 2026-07-31)"""
+    return "".join(ch for ch in str(s or "").lower() if ch.isalnum())
+
+
 def _speditor_id(name):
-    """Courier NAME → Barsy speditor_id (AccountInputData wants the id). Case-insensitive, and tolerates the
-    Speedy/Спиди spelling split (Barsy registers it latin as "Speedy" while our couriers/labels say "Спиди").
-    Returns None if unknown — the caller then just omits the field rather than erroring."""
+    """Courier NAME → Barsy speditor_id (AccountInputData wants the id). Space/punctuation- and
+    case-insensitive, and tolerates the Speedy/Спиди spelling split (Barsy registers it latin as
+    "Speedy" while our couriers/labels say "Спиди"). Returns None if unknown — the caller omits the
+    field rather than erroring, so callers that CARE must check for None explicitly."""
     if _SPEDITORS["map"] is None:
         try:
-            _SPEDITORS["map"] = {str(x.get("speditor_name") or "").strip().lower(): x.get("speditor_id")
-                                 for x in (b.call("Speditors_getlist", {"filters": {}}) or [])}
+            m = {_speditor_key(x.get("speditor_name")): x.get("speditor_id")
+                 for x in (b.call("Speditors_getlist", {"filters": {}}) or [])}
         except Exception:
-            _SPEDITORS["map"] = {}
-        for alias, canon in (("спиди", "speedy"), ("speedy", "спиди"), ("econt", "еконт")):
-            if canon in _SPEDITORS["map"] and alias not in _SPEDITORS["map"]:
-                _SPEDITORS["map"][alias] = _SPEDITORS["map"][canon]
-    return _SPEDITORS["map"].get(str(name or "").strip().lower())
+            m = {}
+        # A failed or empty fetch must NOT be cached: caching it would poison every later lookup for
+        # the life of the process, so one transient Barsy error would silently strip the courier off
+        # every subsequent waybill. Return None (same as "unknown courier") but retry next call.
+        if not m:
+            return None
+        # cross-script aliases: our keys/labels vs Barsy's stored spelling
+        for alias, canon in (("спиди", "speedy"), ("speedy", "спиди"),
+                             ("econt", "еконт"), ("еконт", "econt")):
+            if canon in m and alias not in m:
+                m[alias] = m[canon]
+        _SPEDITORS["map"] = m
+    return _SPEDITORS["map"].get(_speditor_key(name))
 
 
 def _display_name(art):
@@ -349,6 +366,29 @@ def shopify_order_to_barsy(order, mode="sale", do_write=False):
         return {"status": "error", "reason": "no_order_id", "error": "no order id"}
     if _seen_order(oid):                                    # fast-path dedup (re-checked inside the lock)
         return {"status": "duplicate", "skipped": f"already seen {name}", "order_id": oid, "order_ref": name}
+
+    # PLATFORM INTAKE GUARDS. `issues` is attached by the storefront adapter (woo_orders.normalise) for
+    # faults visible on ITS side and invisible here: a blank/unvalidated courier office id (no waybill
+    # can be produced at all), or a fabricated shipping rate charged while the pricing service was down.
+    # The latter is why this cannot be folded into `total_mismatch` below — a made-up fee is INTERNALLY
+    # CONSISTENT, so Woo-total == Barsy-booked still holds while the customer was charged a price no
+    # courier ever quoted. External truth needs its own guard. Refuse BEFORE booking: a guard the intake
+    # never consults is not a guard, and this one was only ever enforced in the adapter's own tests until
+    # now. Refused orders are NOT passed to _record_order, so the order retries cleanly once the
+    # storefront corrects the meta rather than being permanently swallowed as a duplicate. (wired 2026-07-31)
+    # Any non-empty `issues` blocks. An entry missing its `reason` is MALFORMED, not absent: dropping
+    # it would book the order on the strength of a flag we failed to parse — fail-open on the exact
+    # class of silent degradation this guard exists to stop. Give it a name and refuse. (2026-07-31)
+    _issues = [dict(i) if isinstance(i, dict) else {"detail": str(i)} for i in (order.get("issues") or [])]
+    for _i in _issues:
+        _i.setdefault("reason", "unnamed_issue")
+    if _issues:
+        return {**{"status": "needs_review", "reason": _issues[0]["reason"]},
+                "order_ref": name, "order_id": oid,
+                "detail": {"issues": _issues},
+                "error": "; ".join(f"{i['reason']}: {i.get('detail', '')}" for i in _issues)
+                         + " — sale NOT booked",
+                "needs_review": True}
 
     cat = _catalog()
     rows, missing = [], []
