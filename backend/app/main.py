@@ -41,6 +41,7 @@ from .routers import (
     admin,
     assistant,
     auth_extra,
+    brand_registry,
     brands,
     carts,
     catalog,
@@ -155,6 +156,7 @@ app.include_router(products.router)
 app.include_router(catalog.router)
 app.include_router(carts.router)
 app.include_router(brands.router)
+app.include_router(brand_registry.router)
 app.include_router(orders.router)
 app.include_router(intake.router)
 app.include_router(intake_delivery.router)

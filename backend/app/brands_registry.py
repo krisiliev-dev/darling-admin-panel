@@ -122,6 +122,9 @@ def review_queue(reg: dict | None = None, limit: int = 500) -> list[dict]:
         rows.append({
             "prefix": p,
             "brand_id": v["brand_id"],
+            # always present, always False here by definition — a field that only appears once
+            # overridden would make the client infer state from its absence
+            "asserts": bool(v.get("asserts")),
             "canonical": b.get("canonical") or v["brand_id"],
             "legal_brand": v.get("legal_brand"),
             "owner": (m.get("legal_names") or [None])[0],

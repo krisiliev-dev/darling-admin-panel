@@ -21,6 +21,7 @@ const NAV: { to: string; label: string; roles?: string[] }[] = [
   { to: '/cod', label: 'Разчети' },
   { to: '/issues', label: 'Проблеми' },
   { to: '/brands', label: 'Брандове' },
+  { to: '/marki', label: 'Марки', roles: ['owner', 'manager'] },
   { to: '/kancelaria', label: 'Канцелария' },
   { to: '/posta', label: 'Поща' },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },

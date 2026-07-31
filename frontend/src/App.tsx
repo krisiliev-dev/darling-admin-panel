@@ -18,6 +18,7 @@ import { Brands } from './pages/Brands'
 import { Sklad } from './pages/Sklad'
 import { Kancelaria } from './pages/Kancelaria'
 import { Posta } from './pages/Posta'
+import { BrandRegistry } from './pages/BrandRegistry'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
 
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="brands" element={<Brands />} />
         <Route path="kancelaria" element={<Kancelaria />} />
         <Route path="posta" element={<Posta />} />
+        <Route path="marki" element={<BrandRegistry />} />
         <Route path="assistant" element={<Assistant />} />
         <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -449,3 +449,36 @@ class IssuedInvoice(Base):
     issued_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
     issued_by: Mapped[str] = mapped_column(String(255), default="")
+
+
+class BrandOverride(Base):
+    """A HUMAN correction to the machine-derived brand registry (#99).
+
+    The registry (`app/data/brands/brand_registry.json`) is regenerated freely by the pipeline and is
+    read-only here. Corrections live in this table and WIN at resolution time, so a regeneration can
+    never discard somebody's judgement — the failure already seen with `gazetteer.jsonl`, where
+    hand-edits were silently overwritten on the next build.
+
+    `scope` is 'prefix' or 'brand'; `ref` is the prefix string or brand_id. Only the fields actually
+    set are applied, so an override says "this one thing is wrong" rather than restating the record.
+
+    WHO and WHY are not decoration: flipping `asserts` on one prefix can re-brand thousands of
+    products, and an unattributable change to that is not something anyone can review later.
+    """
+    __tablename__ = "brand_override"
+    __table_args__ = (UniqueConstraint("scope", "ref", name="uq_brand_override_target"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scope: Mapped[str] = mapped_column(String(16), index=True)      # prefix | brand
+    ref: Mapped[str] = mapped_column(String(64), index=True)
+    # nullable = "not overridden"; a set value replaces the registry's
+    asserts: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    brand_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    canonical: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    aliases_json: Mapped[str | None] = mapped_column(Text, nullable=True)   # JSON list
+    role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    why: Mapped[str] = mapped_column(Text, default="")              # required by the endpoint
+    actor: Mapped[str] = mapped_column(String(255), default="")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
