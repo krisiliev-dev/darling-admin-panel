@@ -613,10 +613,16 @@ class Econt(Courier):
         # city in-process, and a 400-cap sliced the list alphabetically so most cities (incl. most of
         # София) were cut off before the filter (the ?city=София→1 bug). The office endpoint caches
         # per-TTL and caps the RESPONSE, so the wire payload stays bounded.
+        # Drop offices with no `code`. The storefront validates a customer's chosen office against
+        # this list and then books on the same field (`receiverOfficeCode`), so an entry with a null
+        # id is unbookable — but worse, it fails as `office_not_validated`, which reads as "the
+        # customer picked a bad office" rather than "the nomenclature had a hole". An error that
+        # blames a person for a data fault is worse than a louder one, because someone acts on it
+        # and rings the customer back. Unselectable is the honest behaviour. (Hermes, 2026-07-31)
         return [{"id": o.get("code"), "name": o.get("name"),
                  "address": o.get("address", {}).get("fullAddress", ""),
                  "city": o.get("address", {}).get("city", {}).get("name", "")}
-                for o in offices]
+                for o in offices if o.get("code") not in (None, "")]
 
     def payout_report(self, date_from, date_to):
         """Econt COD payout report for a period (наложен платеж / CD). Endpoint/field shape per Econt

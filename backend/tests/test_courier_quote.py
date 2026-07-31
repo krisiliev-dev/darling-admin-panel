@@ -70,3 +70,32 @@ def test_barsy_pseudo_speditors_stay_unmapped():
     fold onto a real courier — a wrong speditor_id on a sale is worse than none."""
     for raw in ("Поща", "От офис", "", "   "):
         assert _SPEDITOR_ALIASES.get(_norm_speditor(raw)) is None, raw
+
+
+# ---------------------------------------------------------------- unprovisioned carriers ---
+async def test_unprovisioned_carriers_are_404_not_a_guessed_price(client):
+    """The storefront probes the panel before quoting and registers NO shipping rate for a carrier
+    that 404s — so a missing courier is simply not offered, which costs nothing. A 200 with a zero or
+    estimated fee would make it BOOKABLE at a price nobody can honour, on every order. 404 is the
+    correct, safe answer for a carrier we cannot actually price."""
+    for carrier in ("boxnow", "sameday", "pigeon", "evropat"):
+        for path in (f"/api/public/couriers/{carrier}/offices?city=София",
+                     f"/api/public/couriers/{carrier}/quote?dest_type=door&city=София&weight_g=1000"):
+            r = await client.get(path, headers={"X-Office-Token": "wrong-on-purpose"})
+            # 404 (unknown carrier) or 401/403 (token) — never 200, and never a fee
+            assert r.status_code != 200, f"{path} returned 200 for an unprovisioned carrier"
+
+
+def test_econt_offices_drop_entries_without_a_code(monkeypatch):
+    """A null `code` becomes a null office id, which the storefront then fails as
+    `office_not_validated` — blaming the customer for a hole in Econt's nomenclature. Unselectable is
+    the honest outcome."""
+    from app.core import courier as cm
+    e = cm.Econt.__new__(cm.Econt)
+    monkeypatch.setattr(e, "_post", lambda *a, **k: {"offices": [
+        {"code": "5250", "name": "Свищов", "address": {"fullAddress": "ул. 1", "city": {"name": "Свищов"}}},
+        {"code": None, "name": "Без код", "address": {"fullAddress": "?", "city": {"name": "Свищов"}}},
+        {"code": "", "name": "Празен код", "address": {"fullAddress": "?", "city": {"name": "Свищов"}}},
+    ]})
+    out = e.offices()
+    assert [o["id"] for o in out] == ["5250"]
