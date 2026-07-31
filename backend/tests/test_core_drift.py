@@ -3,7 +3,16 @@
 prove it FIRES — on real drift, and on its own failure."""
 import pathlib
 
+import pytest
+
 from app import core_drift
+
+# CI has no ../agent-pipeline sibling and therefore no real pipeline.db. Tests that need a
+# populated catalogue are skipped there rather than faked — a green test against an empty
+# database would assert nothing and would have missed the very bug it exists to catch.
+_SIBLING = pathlib.Path(__file__).resolve().parents[3] / "agent-pipeline"
+needs_catalogue = pytest.mark.skipif(
+    not (_SIBLING / "pipeline.db").exists(), reason="no real catalogue (CI)")
 
 
 def test_clean_when_the_loaded_module_matches_the_repo():
@@ -64,6 +73,7 @@ def test_real_content_change_still_detected_under_crlf(tmp_path, monkeypatch):
     assert [d["module"] for d in core_drift.core_drift()] == ["courier"]
 
 
+@needs_catalogue
 def test_a_product_can_actually_be_read_after_the_split():
     """THE test the first attempt at #98 lacked. It asserted CORE_ROOT still pointed at the sibling —
     which was true — and shipped a build whose catalogue reads failed with 'no such table: products',
@@ -76,6 +86,7 @@ def test_a_product_can_actually_be_read_after_the_split():
     assert n > 0, f"catalogue query returned {n} rows — the data root is wrong"
 
 
+@needs_catalogue
 def test_no_empty_database_is_left_beside_the_vendored_modules():
     """sqlite CREATES a missing file, so a wrong DB_PATH leaves an empty database that says 'no such
     table' today and reads as an EMPTY CATALOGUE after any migration — a wrong answer with no error."""

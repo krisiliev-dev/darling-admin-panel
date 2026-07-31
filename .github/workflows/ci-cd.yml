@@ -91,3 +91,32 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
           ssh -i ~/.ssh/id_ed25519 "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
             'bash /home/darling/product-review/admin-panel/deploy.sh'
+
+      # POST-DEPLOY SMOKE CHECK. CI itself cannot run this: the runner has no ../agent-pipeline sibling
+      # and therefore no real catalogue, so the tests that would catch a broken data root are skipped
+      # there. Only the deployed app has the data, which makes this the one place the check is real.
+      #
+      # Added after a change passed 979 tests and CI, deployed green, reported "healthy", and left
+      # production unable to query its own catalogue. A deploy that reports success while the app cannot
+      # read its data is precisely the failure this task exists to close.
+      - name: Verify the deployed app can read its catalogue
+        run: |
+          sleep 15
+          BODY=$(curl -sS --max-time 30 https://panel.darlinghome.bg/api/health)
+          echo "$BODY"
+          python3 - "$BODY" <<'PY'
+          import json, sys
+          d = json.loads(sys.argv[1])
+          bad = []
+          if d.get("db") != "ok":
+              bad.append(f'db={d.get("db")!r}')
+          if not (d.get("db_products") or 0) > 0:
+              bad.append(f'db_products={d.get("db_products")!r} (data root wrong?)')
+          if d.get("core_drift"):
+              bad.append(f'core_drift={[x.get("module") for x in d["core_drift"]]} '
+                         '(running shared-core code the deploy did not carry)')
+          if bad:
+              print("::error::deployed app unhealthy: " + "; ".join(bad))
+              sys.exit(1)
+          print(f'ok — db reachable, {d["db_products"]} products, no core drift')
+          PY
