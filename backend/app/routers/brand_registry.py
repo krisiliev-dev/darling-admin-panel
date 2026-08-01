@@ -231,8 +231,12 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
                         exc_info=True)
             known, enriched_codes, catalog_available = {}, set(), False
     snap_names = reg.snapshot_names()
+    # ORIGINAL names ALWAYS (owner, 2026-08-02; probe_cards_gap2): tasks' product
+    # names are the PROCESSED ones for 11,776 of 11,785 matched rows — the snapshot's
+    # current dbo_Goods raw name outranks every db source; db names only fill codes
+    # outside the sellable set (which ship no snapshot name).
     cards = [{"code": c,
-              "name": (known.get(c) or {}).get("name") or snap_names.get(c),
+              "name": snap_names.get(c) or (known.get(c) or {}).get("name"),
               "photo": (known.get(c) or {}).get("photo"),
               "enriched": c in enriched_codes} for c in codes]
     # review UX: photographed products first, then named, then bare codes
