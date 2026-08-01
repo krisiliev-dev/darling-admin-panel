@@ -41,7 +41,9 @@ test.describe('Марки — brand registry', () => {
     await page.goto('/marki')
     await page.getByRole('button', { name: /Потвърди Qlux за префикс 380012345/ }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog).toContainText('412 продукта')
+    // Sellable-first (owner rule, 2026-08-01): the blast radius is stated in products
+    // we can actually sell — the dialog says "продаваеми продукта", not bare "продукта".
+    await expect(dialog).toContainText('412 продаваеми продукта')
     await dialog.getByRole('button', { name: 'Потвърди марката' }).click()
     await expect.poll(() => sent).toMatchObject({ scope: 'prefix', ref: '380012345', asserts: true })
   })
