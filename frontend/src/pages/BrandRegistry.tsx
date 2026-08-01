@@ -30,7 +30,7 @@ type BrandListRow = {
   prefixes: string[]; asserting_prefixes: string[]; overridden: string[]
 }
 type Card = { code: string; name: string | null; photo: string | null; enriched: boolean }
-type PrefixProducts = { total: number; returned: number; items: Card[] }
+type PrefixProducts = { total: number; returned: number; items: Card[]; catalog_available?: boolean }
 
 export function BrandRegistry() {
   const { me } = useAuth()
@@ -264,6 +264,9 @@ function PrefixCards({ data, onZoom }: { data: PrefixProducts; onZoom: (url: str
     <>
       <p className="font-type" style={{ fontSize: '.7rem', color: 'var(--pencil)', margin: '0 0 .4rem' }}>
         {data.total} продукта{data.total > data.returned ? ` · показани първите ${data.returned}` : ''}
+        {data.catalog_available === false && (
+          <span style={{ color: 'var(--red)' }}> · каталогът не е достъпен — показани са само кодове</span>
+        )}
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(11rem, 1fr))', gap: '.4rem' }}>
         {data.items.map((p) => (

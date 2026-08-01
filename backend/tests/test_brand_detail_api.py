@@ -87,3 +87,23 @@ async def test_prefix_products_answers_or_fails_loudly(staff_client):
 async def test_prefix_products_unknown_prefix_is_refused(staff_client):
     r = await staff_client.get("/api/brand-registry/prefix/000000000/products")
     assert r.status_code == 404
+
+
+async def test_missing_catalogue_degrades_to_code_only_cards(staff_client, monkeypatch):
+    """The code list is the fact (snapshot-derived); names/photos are garnish from the catalogue.
+    An unreachable catalogue must degrade to code-only cards with catalog_available=False —
+    never a 500 (which is what CI hit: sqlite invented an empty db and 'no such table' escaped)."""
+    from app.routers import brand_registry as br
+
+    def _boom():
+        raise RuntimeError("catalogue unreachable (simulated)")
+    monkeypatch.setattr(br.core_db, "connect", _boom)
+
+    q = (await staff_client.get("/api/brand-registry/review?limit=1")).json()["queue"]
+    r = await staff_client.get(f"/api/brand-registry/prefix/{q[0]['prefix']}/products?limit=3")
+    assert r.status_code in (200, 503)          # 503 only for a missing SNAPSHOT, not the catalogue
+    if r.status_code == 200:
+        d = r.json()
+        assert d["catalog_available"] is False  # the state is NAMED, not disguised as 'unenriched'
+        for it in d["items"]:
+            assert it["enriched"] is False and it["name"] is None

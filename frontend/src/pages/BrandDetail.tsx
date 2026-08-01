@@ -32,7 +32,7 @@ type Detail = {
 }
 type ProductsResp = {
   total: number; returned: number; items: { code: string; name: string | null; enriched: boolean }[]
-  asserting_prefixes: string[]
+  asserting_prefixes: string[]; catalog_available?: boolean
 }
 
 const KIND_OPTIONS: [string, string][] = [
@@ -269,6 +269,9 @@ export function BrandDetail() {
             <p style={{ color: 'var(--pencil)', fontSize: '.78rem', margin: '0 0 .5rem' }}>
               {prods.total} продукта под маркиращите префикси{prods.total > prods.returned ? ` (показани първите ${prods.returned})` : ''}.
               Редакция — от страницата на продукта.
+              {prods.catalog_available === false && (
+                <span style={{ color: 'var(--red)' }}> Каталогът не е достъпен — показани са само кодове.</span>
+              )}
             </p>
             <div style={{ display: 'grid', gap: '.25rem' }}>
               {prods.items.map((p) => (

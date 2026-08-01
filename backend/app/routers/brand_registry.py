@@ -12,6 +12,7 @@ Two properties this surface exists to preserve:
     product under it, and that number belongs in front of the person clicking, not in a report after.
 """
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -25,6 +26,7 @@ from ..db import get_async_session
 from ..models import BrandOverride, User
 from ..users import current_active_user, current_owner
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/brand-registry", tags=["brand-registry"])
 
 
@@ -122,43 +124,56 @@ async def brand_products(brand_id: str, limit: int = Query(300, ge=1, le=2000),
 
     codes = sorted(c for c, plist in cmap.items() if any(p in effective for p in plist))
     total, codes = len(codes), codes[:limit]
+    items, catalog_available = _product_cards(codes)
     return {"brand_id": brand_id, "total": total, "returned": len(codes),
-            "asserting_prefixes": sorted(effective), "items": _product_cards(codes),
-            "snapshot": reg.codes_meta()}
+            "asserting_prefixes": sorted(effective), "items": items,
+            "catalog_available": catalog_available, "snapshot": reg.codes_meta()}
 
 
-def _product_cards(codes: list[str]) -> list[dict]:
+def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
     """code → {code, name, photo, enriched} for the codes the panel knows (the v2-processed
     subset); unknown codes still return as code-only cards — a product outside pipeline.db is
-    still the brand's product, and hiding it would undercount."""
+    still the brand's product, and hiding it would undercount.
+
+    Returns (cards, catalog_available). The CODE LIST is the fact here (it comes from the
+    snapshot); names/photos are display garnish from the catalogue DB. So an unreachable or
+    empty catalogue degrades to code-only cards with `catalog_available=False` — three states,
+    never a 500, and never "unenriched" standing in for "we could not look". (CI has no
+    catalogue at all, and sqlite invents an EMPTY db for a missing file rather than erroring —
+    the exact pathology in the handoffs — so this path is not theoretical.)"""
     known: dict[str, dict] = {}
+    catalog_available = True
     if codes:
-        con = core_db.connect()
         try:
-            for i in range(0, len(codes), 400):
-                chunk = codes[i:i + 400]
-                q = ",".join("?" * len(chunk))
-                for code, fj in con.execute(
-                        f"SELECT code, fields_json FROM products WHERE code IN ({q})", chunk):
-                    try:
-                        f = json.loads(fj or "{}")
-                    except ValueError:
-                        f = {}
-                    photo = f.get("Снимки")
-                    if isinstance(photo, str):
-                        photo = photo.split(",")[0].strip() or None
-                        if photo and not photo.startswith("http"):
+            con = core_db.connect()
+            try:
+                for i in range(0, len(codes), 400):
+                    chunk = codes[i:i + 400]
+                    q = ",".join("?" * len(chunk))
+                    for code, fj in con.execute(
+                            f"SELECT code, fields_json FROM products WHERE code IN ({q})", chunk):
+                        try:
+                            f = json.loads(fj or "{}")
+                        except ValueError:
+                            f = {}
+                        photo = f.get("Снимки")
+                        if isinstance(photo, str):
+                            photo = photo.split(",")[0].strip() or None
+                            if photo and not photo.startswith("http"):
+                                photo = None
+                        else:
                             photo = None
-                    else:
-                        photo = None
-                    known[code] = {"name": f.get("Наименование"), "photo": photo}
-    # a card per code, in stable order; the panel-known ones carry name+photo
-        finally:
-            con.close()
-    return [{"code": c,
-             "name": (known.get(c) or {}).get("name"),
-             "photo": (known.get(c) or {}).get("photo"),
-             "enriched": c in known} for c in codes]
+                        known[code] = {"name": f.get("Наименование"), "photo": photo}
+            finally:
+                con.close()
+        except Exception:  # noqa: BLE001 — sqlite3.Error, db.connect refusal, missing table
+            log.warning("catalogue unavailable for product cards — returning code-only cards",
+                        exc_info=True)
+            known, catalog_available = {}, False
+    return ([{"code": c,
+              "name": (known.get(c) or {}).get("name"),
+              "photo": (known.get(c) or {}).get("photo"),
+              "enriched": c in known} for c in codes], catalog_available)
 
 
 @router.get("/prefix/{prefix}/products")
@@ -178,8 +193,10 @@ async def prefix_products(prefix: str, limit: int = Query(60, ge=1, le=500),
             "би излъгал, че префиксът не засяга продукти.")
     codes = sorted(c for c, plist in cmap.items() if prefix in plist)
     total, codes = len(codes), codes[:limit]
+    items, catalog_available = _product_cards(codes)
     return {"prefix": prefix, "total": total, "returned": len(codes),
-            "items": _product_cards(codes), "snapshot": reg.codes_meta()}
+            "items": items, "catalog_available": catalog_available,
+            "snapshot": reg.codes_meta()}
 
 
 @router.get("/review")
