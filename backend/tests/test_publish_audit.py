@@ -63,3 +63,30 @@ async def test_missing_connector_fn_is_501(owner_client, monkeypatch):
 
 async def test_requires_auth(client):
     assert (await client.get("/api/publish-audit")).status_code == 401
+
+
+async def test_zero_price_blocks_publishing(owner_client, monkeypatch):
+    """Owner invariant (2026-08-02): price 0 never goes live. An explicit variant price of 0
+    blocks; an unreadable one blocks as price_unknown (fail closed on money); a variant with
+    NO price field falls back to the snapshot's Microinvest zero-price list."""
+    await _seed_codes("0185186", "0177001")
+    variants = [
+        {"variant_id": "1", "sku": "0185186", "product_title": "А", "product_status": "ACTIVE",
+         "tracked": True, "policy": "DENY", "on_hand": 1, "price": 0},
+        {"variant_id": "2", "sku": "0185186", "product_title": "Б", "product_status": "ACTIVE",
+         "tracked": True, "policy": "DENY", "on_hand": 1, "price": "n/a"},
+        {"variant_id": "3", "sku": "0177001", "product_title": "В", "product_status": "ACTIVE",
+         "tracked": True, "policy": "DENY", "on_hand": 1},   # no price field → snapshot answers
+        {"variant_id": "4", "sku": "0185186", "product_title": "Г", "product_status": "ACTIVE",
+         "tracked": True, "policy": "DENY", "on_hand": 1, "price": "4,90"},
+    ]
+    monkeypatch.setattr(pa_module.connector, "list_sellable_variants", lambda: variants,
+                        raising=False)
+    monkeypatch.setattr(pa_module.reg, "zero_price_codes", lambda: {"0177001"})
+
+    b = (await owner_client.get("/api/publish-audit")).json()
+    assert b["by_issue"]["zero_price"] == 2          # explicit 0 + snapshot-flagged
+    assert b["by_issue"]["price_unknown"] == 1
+    assert b["ready"] == 1                           # only the 4,90 variant
+    flags = {v["variant_id"]: v["blocked"] for v in b["variants"]}
+    assert flags == {"1": True, "2": True, "3": True}

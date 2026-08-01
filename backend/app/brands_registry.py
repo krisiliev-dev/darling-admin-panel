@@ -36,6 +36,7 @@ _sellable_cache: set | None = None
 _sellable_prefix_counts: dict | None = None
 _matched_cache: set | None = None
 _matched_prefix_counts: dict | None = None
+_zero_price_cache: set | None = None
 _names_cache: dict | None = None
 
 
@@ -179,9 +180,10 @@ def codes_map(*, force: bool = False) -> dict | None:
                    "sellable": len(data.get("sellable") or []),
                    "matched": len(data.get("matched") or [])}
     global _sellable_cache, _sellable_prefix_counts, _names_cache
-    global _matched_cache, _matched_prefix_counts
+    global _matched_cache, _matched_prefix_counts, _zero_price_cache
     _sellable_cache = set(data.get("sellable") or [])
     _matched_cache = set(data.get("matched") or [])
+    _zero_price_cache = set(data.get("zero_price") or [])
     _names_cache = data.get("names") or {}
     _sellable_prefix_counts = None
     _matched_prefix_counts = None
@@ -248,6 +250,16 @@ def matched_prefix_counts() -> dict | None:
                     counts[p] = counts.get(p, 0) + 1
         _matched_prefix_counts = counts
     return _matched_prefix_counts
+
+
+def zero_price_codes() -> set | None:
+    """Sellable codes whose Microinvest price is 0 — the go-live guard's input
+    (owner invariant, 2026-08-02: nothing priced 0 reaches website or till).
+    None when the snapshot is absent — an unknown list must read as "cannot
+    check", never as "no zero-price products"."""
+    if codes_map() is None:
+        return None
+    return _zero_price_cache or set()
 
 
 def codes_meta() -> dict:

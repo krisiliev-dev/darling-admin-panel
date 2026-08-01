@@ -10,6 +10,8 @@ import { Sheet } from './Paper'
 const ISSUE_BG: Record<string, string> = {
   no_sku: 'без SKU', sku_not_in_barsy: 'SKU липсва в Barsy', not_tracked: 'без следене на наличност',
   not_active: 'чернова (не е публикуван)', policy_continue: 'позволява презапис (бекордер)',
+  zero_price: 'цена 0 — спира се от продажба (is_for_sale=0)',
+  price_unknown: 'цена неизвестна — блокиран (проверка невъзможна)',
 }
 
 function Stat({ n, label, tone }: { n: number; label: string; tone: string }) {

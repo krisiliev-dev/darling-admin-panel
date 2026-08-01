@@ -13,6 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from .. import brands_registry as reg
+from .. import pricing_guard
 from ..core import connector
 from ..db import get_async_session
 from ..models import ProductCache, User
@@ -21,16 +23,35 @@ from ..users import current_active_user
 router = APIRouter(prefix="/api/publish-audit", tags=["publish-audit"])
 
 # issues that BLOCK publishing (policy_continue is a note, not a blocker — some products are backorderable)
-_BLOCKERS = {"no_sku", "sku_not_in_barsy", "not_tracked", "not_active"}
+_BLOCKERS = {"no_sku", "sku_not_in_barsy", "not_tracked", "not_active",
+             "zero_price", "price_unknown"}
 
 
-def _issues(v: dict, barsy_codes: set[str]) -> list[str]:
+def _intkey(s: str) -> str:
+    s = str(s).strip()
+    return str(int(s)) if s.isdigit() else s
+
+
+def _issues(v: dict, barsy_codes: set[str], zp_int: set | None) -> list[str]:
     out: list[str] = []
     sku = str(v.get("sku") or "").strip()
     if not sku:
         out.append("no_sku")
     elif sku not in barsy_codes:
         out.append("sku_not_in_barsy")
+    # zero-price go-live guard (owner invariant, 2026-08-02): an explicit variant
+    # price is judged by pricing_guard (0 → zero_price, unreadable → price_unknown —
+    # fail closed on money); without one, the snapshot answers for the SKU. zp_int
+    # None means "snapshot absent — cannot check", which must NOT silently pass:
+    # the snapshot-missing state already 503s the Марки endpoints and is surfaced.
+    if "price" in v:
+        g = pricing_guard.gate(v.get("price"))
+        if g["state"] == pricing_guard.FORCED_INACTIVE:
+            out.append("zero_price")
+        elif g["state"] == pricing_guard.BLOCKED:
+            out.append("price_unknown")
+    elif sku and zp_int is not None and _intkey(sku) in zp_int:
+        out.append("zero_price")
     if not v.get("tracked"):
         out.append("not_tracked")
     if str(v.get("product_status") or "").upper() != "ACTIVE":
@@ -56,11 +77,13 @@ async def publish_audit(
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Shopify недостъпен: {str(e)[:160]}")
 
+    zp = reg.zero_price_codes()
+    zp_int = None if zp is None else {_intkey(c) for c in zp}
     rows = []
     by_issue: dict[str, int] = {}
     ready = 0
     for v in (variants or []):
-        iss = _issues(v, codes)
+        iss = _issues(v, codes, zp_int)
         blocking = [i for i in iss if i in _BLOCKERS]
         if not blocking:
             ready += 1
