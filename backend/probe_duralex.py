@@ -11,6 +11,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 os.environ.setdefault("REVIEW_IMAGES_DIR", r"C:\Users\lora_\darling\image-work\originals")
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from app.main import app  # noqa: E402
 from app.users import current_active_user  # noqa: E402
 
