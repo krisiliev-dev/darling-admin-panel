@@ -122,10 +122,13 @@ async def brand_products(brand_id: str, limit: int = Query(300, ge=1, le=2000),
         if asserts:
             effective.add(p)
 
-    codes = sorted(c for c, plist in cmap.items() if any(p in effective for p in plist))
+    all_codes = sorted(c for c, plist in cmap.items() if any(p in effective for p in plist))
+    sell = reg.sellable_codes() or set()
+    codes = [c for c in all_codes if c in sell]     # owner rule: count what we can SELL
     total, codes = len(codes), codes[:limit]
     items, catalog_available = _product_cards(codes)
     return {"brand_id": brand_id, "total": total, "returned": len(codes),
+            "catalog_total": len(all_codes),
             "asserting_prefixes": sorted(effective), "items": items,
             "catalog_available": catalog_available, "snapshot": reg.codes_meta()}
 
@@ -184,29 +187,12 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
                 task_spell = {c: t_map.get(_intkey(c), c) for c in codes}
                 back_prod = {v: k for k, v in prod_spell.items()}
                 back_task = {v: k for k, v in task_spell.items()}
-                want = list(prod_spell.values())
-                for i in range(0, len(want), 400):
-                    chunk = want[i:i + 400]
-                    q = ",".join("?" * len(chunk))
-                    for dbcode, fj in con.execute(
-                            f"SELECT code, fields_json FROM products WHERE code IN ({q})", chunk):
-                        code = back_prod.get(str(dbcode), str(dbcode))
-                        try:
-                            f = json.loads(fj or "{}")
-                        except ValueError:
-                            f = {}
-                        known[code] = {"name": f.get("Наименование"),
-                                       "photo": _first_url(f.get("Снимки"))}
-                        enriched_codes.add(code)
-                # fallback: the ORIGINALS — raw Microinvest name + the supplier's own photo URL
-                # (tasks table). For judging "what IS this product" during review the original is
-                # exactly right; coverage is near-total (14,255/14,292 names, 13,225 photo URLs)
-                # versus the enriched subset.
-                missing = [task_spell[c] for c in codes
-                           if not (known.get(c) or {}).get("name")
-                           or not (known.get(c) or {}).get("photo")]
-                for i in range(0, len(missing), 300):
-                    chunk = missing[i:i + 300]
+                # PRIMARY source: the ORIGINALS (owner rule, 2026-08-01) — the raw Microinvest
+                # name and the supplier's own photo. The review question is "what IS this
+                # product", and the original answers it; the enriched draft is opinion.
+                want_t = list(task_spell.values())
+                for i in range(0, len(want_t), 300):
+                    chunk = want_t[i:i + 300]
                     q = ",".join("?" * len(chunk))
                     for dbcode, tj in con.execute(
                             f"SELECT code, task_json FROM tasks WHERE code IN ({q})", chunk):
@@ -218,17 +204,33 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
                         gt = t.get("ground_truth") or {}
                         raw_name = ((t.get("product") or {}).get("Наименование") or "").strip()
                         supplier_name = (gt.get("BG име (доставчик)") or "").strip()
+                        known[code] = {"name": raw_name or supplier_name or None,
+                                       "photo": _first_url(gt.get("Снимка"))}
+                # FALLBACK + enriched marker: the draft fills only what the originals lack
+                want_p = list(prod_spell.values())
+                for i in range(0, len(want_p), 400):
+                    chunk = want_p[i:i + 400]
+                    q = ",".join("?" * len(chunk))
+                    for dbcode, fj in con.execute(
+                            f"SELECT code, fields_json FROM products WHERE code IN ({q})", chunk):
+                        code = back_prod.get(str(dbcode), str(dbcode))
+                        try:
+                            f = json.loads(fj or "{}")
+                        except ValueError:
+                            f = {}
+                        enriched_codes.add(code)
                         row = known.setdefault(code, {"name": None, "photo": None})
-                        row["name"] = row["name"] or raw_name or supplier_name or None
-                        row["photo"] = row["photo"] or _first_url(gt.get("Снимка"))
+                        row["name"] = row["name"] or f.get("Наименование")
+                        row["photo"] = row["photo"] or _first_url(f.get("Снимки"))
             finally:
                 con.close()
         except Exception:  # noqa: BLE001 — sqlite3.Error, db.connect refusal, missing table
             log.warning("catalogue unavailable for product cards — returning code-only cards",
                         exc_info=True)
             known, enriched_codes, catalog_available = {}, set(), False
+    snap_names = reg.snapshot_names()
     cards = [{"code": c,
-              "name": (known.get(c) or {}).get("name"),
+              "name": (known.get(c) or {}).get("name") or snap_names.get(c),
               "photo": (known.get(c) or {}).get("photo"),
               "enriched": c in enriched_codes} for c in codes]
     # review UX: photographed products first, then named, then bare codes
@@ -259,10 +261,13 @@ async def prefix_products(prefix: str, limit: int = Query(60, ge=1, le=500),
             "Липсва снимката код→префикс (code_prefixes.json). Генерирай я с "
             "pipeline-v3/export_panel_snapshots.py и деплойни — без нея списъкът "
             "би излъгал, че префиксът не засяга продукти.")
-    codes = sorted(c for c, plist in cmap.items() if prefix in plist)
+    all_codes = sorted(c for c, plist in cmap.items() if prefix in plist)
+    sell = reg.sellable_codes() or set()
+    codes = [c for c in all_codes if c in sell]     # owner rule: count what we can SELL
     total, codes = len(codes), codes[:limit]
     items, catalog_available = _product_cards(codes)
     return {"prefix": prefix, "total": total, "returned": len(codes),
+            "catalog_total": len(all_codes),
             "items": items, "catalog_available": catalog_available,
             "snapshot": reg.codes_meta()}
 

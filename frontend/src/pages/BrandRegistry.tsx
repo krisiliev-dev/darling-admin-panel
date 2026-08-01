@@ -22,6 +22,7 @@ type Row = {
   prefix: string; brand_id: string; canonical: string; asserts: boolean
   legal_brand: string | null; owner: string | null; role: string | null
   reason: string | null; src: string | null; product_count: number
+  sellable_count?: number | null
   overridden: string[]; overridden_by?: string; overridden_why?: string
 }
 type BrandListRow = {
@@ -30,7 +31,7 @@ type BrandListRow = {
   prefixes: string[]; asserting_prefixes: string[]; overridden: string[]
 }
 type Card = { code: string; name: string | null; photo: string | null; enriched: boolean }
-type PrefixProducts = { total: number; returned: number; items: Card[]; catalog_available?: boolean }
+type PrefixProducts = { total: number; returned: number; items: Card[]; catalog_available?: boolean; catalog_total?: number }
 
 export function BrandRegistry() {
   const { me } = useAuth()
@@ -52,22 +53,22 @@ export function BrandRegistry() {
     setOpen((o) => ({ ...o, [prefix]: now }))
     if (now && !cards[prefix]) {
       setCards((c) => ({ ...c, [prefix]: 'loading' }))
-      api.get<PrefixProducts>(`/api/brand-registry/prefix/${encodeURIComponent(prefix)}/products?limit=60`)
+      api.get<PrefixProducts>(`/api/brand-registry/prefix/${encodeURIComponent(prefix)}/products?limit=500`)
         .then((d) => setCards((c) => ({ ...c, [prefix]: d })))
         .catch((e) => setCards((c) => ({ ...c, [prefix]: { error: e instanceof ApiError ? e.message : 'Списъкът не се зареди.' } })))
     }
   }
 
   const decide = async (r: Row, assertIt: boolean) => {
-    const n = r.product_count
+    const n = typeof r.sellable_count === 'number' ? r.sellable_count : r.product_count
     if (!(await confirm({
       danger: !assertIt,
       confirmLabel: assertIt ? 'Потвърди марката' : 'Отхвърли',
       title: `${r.canonical} · префикс ${r.prefix}`,
       // the number in front of the decision — the same click without it is a different decision
       message: assertIt
-        ? `Ще маркира ${n} продукта с „${r.canonical}“.\n\nПотвърждаваш, че тази марка е вярна за този префикс?`
-        : `Ще остави ${n} продукта без марка от този префикс.\n\nОтхвърляш предложението?`,
+        ? `Ще маркира ${n} продаваеми продукта с „${r.canonical}“.\n\nПотвърждаваш, че тази марка е вярна за този префикс?`
+        : `Ще остави ${n} продаваеми продукта без марка от този префикс.\n\nОтхвърляш предложението?`,
     }))) return
     setBusy(r.prefix); setMsg('')
     try {
@@ -183,7 +184,14 @@ export function BrandRegistry() {
                     <div style={{ fontSize: '.85rem' }}>
                       <span className="font-type" style={{ fontWeight: 700 }}>{r.canonical}</span>
                       <span style={{ color: 'var(--pencil)' }}> · префикс {r.prefix}</span>
-                      <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.product_count} продукта</span>
+                      {typeof r.sellable_count === 'number' ? (
+                        <>
+                          <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.sellable_count} продаваеми</span>
+                          <span style={{ color: 'var(--pencil)' }}> ({r.product_count} в каталога)</span>
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.product_count} продукта</span>
+                      )}
                     </div>
                     <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
                       {r.owner || '—'}{r.role ? ` · ${r.role}` : ''}{r.reason ? ` · ${r.reason}` : ''}
@@ -253,23 +261,30 @@ export function BrandRegistry() {
   )
 }
 
-// small product cards under an expanded review row: thumbnail (click to enlarge), name, code
+// small product cards under an expanded review row: thumbnail (click to enlarge), name, code.
+// Products with NO data anywhere (never matched to a supplier — ~35% of the catalogue) fold
+// into a compact code strip: 94 grey boxes would read as "broken" when the truth is "unmatched".
 function PrefixCards({ data, onZoom }: { data: PrefixProducts; onZoom: (url: string) => void }) {
+  const [showBare, setShowBare] = useState(false)
   if (data.total === 0) {
     return <p className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: 0 }}>
-      Този префикс не покрива продукти в каталога.
+      Този префикс не покрива продаваеми продукти{typeof data.catalog_total === 'number' && data.catalog_total > 0 ? ` (${data.catalog_total} в каталога, извън продажбения асортимент)` : ''}.
     </p>
   }
+  const covered = data.items.filter((p) => p.name || p.photo)
+  const bare = data.items.filter((p) => !p.name && !p.photo)
   return (
     <>
       <p className="font-type" style={{ fontSize: '.7rem', color: 'var(--pencil)', margin: '0 0 .4rem' }}>
-        {data.total} продукта{data.total > data.returned ? ` · показани първите ${data.returned}` : ''}
+        {data.total} продаваеми{typeof data.catalog_total === 'number' && data.catalog_total > data.total ? ` (${data.catalog_total} в каталога общо)` : ''}
+        {bare.length > 0 ? ` · ${bare.length} без данни` : ''}
+        {data.total > data.returned ? ` · показани първите ${data.returned}` : ''}
         {data.catalog_available === false && (
           <span style={{ color: 'var(--red)' }}> · каталогът не е достъпен — показани са само кодове</span>
         )}
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(11rem, 1fr))', gap: '.4rem' }}>
-        {data.items.map((p) => (
+        {covered.map((p) => (
           <div key={p.code} style={{
             display: 'flex', gap: '.45rem', alignItems: 'center', border: '1px solid var(--line)',
             borderRadius: 3, padding: '.3rem .4rem', background: 'var(--paper2)',
@@ -288,12 +303,24 @@ function PrefixCards({ data, onZoom }: { data: PrefixProducts; onZoom: (url: str
               <div className="font-type" style={{ fontSize: '.68rem', fontWeight: 700 }}>{p.code}</div>
               <div style={{ fontSize: '.72rem', color: p.name ? 'var(--ink)' : 'var(--pencil)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                 title={p.name || undefined}>
-                {p.name || '(необработен)'}
+                {p.name || '(без данни)'}
               </div>
             </div>
           </div>
         ))}
       </div>
+      {bare.length > 0 && (
+        <div style={{ marginTop: '.45rem' }}>
+          <button className="btn-paper" style={{ fontSize: '.66rem' }} onClick={() => setShowBare(!showBare)}>
+            {showBare ? 'скрий' : 'покажи'} {bare.length} кода без данни {showBare ? '▴' : '▾'}
+          </button>
+          {showBare && (
+            <p className="font-type" style={{ fontSize: '.68rem', color: 'var(--pencil)', margin: '.35rem 0 0', lineHeight: 1.7 }}>
+              {bare.map((p) => p.code).join(' · ')}
+            </p>
+          )}
+        </div>
+      )}
     </>
   )
 }
