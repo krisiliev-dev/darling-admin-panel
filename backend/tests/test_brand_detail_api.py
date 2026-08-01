@@ -106,4 +106,7 @@ async def test_missing_catalogue_degrades_to_code_only_cards(staff_client, monke
         d = r.json()
         assert d["catalog_available"] is False  # the state is NAMED, not disguised as 'unenriched'
         for it in d["items"]:
-            assert it["enriched"] is False and it["name"] is None
+            # identity survives a dead catalogue: since the snapshot ships raw Microinvest
+            # names (2026-08-02), a sellable product keeps its NAME even here — only the
+            # DB-derived garnish (enrichment, photos) may vanish.
+            assert it["enriched"] is False and it["photo"] is None

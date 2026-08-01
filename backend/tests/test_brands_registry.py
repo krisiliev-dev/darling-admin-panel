@@ -67,7 +67,11 @@ def test_brands_carry_blast_radius():
 
 
 def test_review_queue_is_ordered_by_what_rides_on_the_decision():
+    """Sellable-first (owner rule, 2026-08-01): what rides on the decision is the products we can
+    actually SELL, so the queue orders by sellable_count first, catalogue count as tiebreak. The
+    two orderings genuinely differ in the shipped snapshot (a row with more catalogue codes can
+    carry fewer sellable ones) — asserting bare product_count order would re-freeze the old rule."""
     q = br.review_queue(limit=50)
-    assert q and [r["product_count"] for r in q] == sorted(
-        (r["product_count"] for r in q), reverse=True)
+    keys = [(-r["sellable_count"], -r["product_count"]) for r in q]
+    assert q and keys == sorted(keys)
     assert all(r.get("reason") is not None or r.get("src") for r in q)   # never an unexplained guess
