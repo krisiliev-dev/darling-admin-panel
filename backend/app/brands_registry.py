@@ -37,6 +37,7 @@ _sellable_prefix_counts: dict | None = None
 _matched_cache: set | None = None
 _matched_prefix_counts: dict | None = None
 _zero_price_cache: set | None = None
+_image_codes_cache: set | None = None
 _names_cache: dict | None = None
 
 
@@ -250,6 +251,20 @@ def matched_prefix_counts() -> dict | None:
                     counts[p] = counts.get(p, 0) + 1
         _matched_prefix_counts = counts
     return _matched_prefix_counts
+
+
+def image_codes() -> set | None:
+    """Int-key codes with a locally-stored original (image_index.json). None when
+    the index is absent — "cannot check" must never read as "no photos exist".
+    Owner rule (2026-08-02): no photo → sellable at the till, BLOCKED for the
+    website; this set is what the publish audit checks against."""
+    global _image_codes_cache
+    if _image_codes_cache is None:
+        p = _CODEMAP_PATH.parent / "image_index.json"
+        if not p.exists():
+            return None
+        _image_codes_cache = set(json.loads(p.read_text(encoding="utf-8")))
+    return _image_codes_cache
 
 
 def zero_price_codes() -> set | None:

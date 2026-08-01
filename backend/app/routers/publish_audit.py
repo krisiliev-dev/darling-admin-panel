@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/publish-audit", tags=["publish-audit"])
 
 # issues that BLOCK publishing (policy_continue is a note, not a blocker — some products are backorderable)
 _BLOCKERS = {"no_sku", "sku_not_in_barsy", "not_tracked", "not_active",
-             "zero_price", "price_unknown"}
+             "zero_price", "price_unknown", "no_photo"}
 
 
 def _intkey(s: str) -> str:
@@ -32,7 +32,8 @@ def _intkey(s: str) -> str:
     return str(int(s)) if s.isdigit() else s
 
 
-def _issues(v: dict, barsy_codes: set[str], zp_int: set | None) -> list[str]:
+def _issues(v: dict, barsy_codes: set[str], zp_int: set | None,
+            img_int: set | None) -> list[str]:
     out: list[str] = []
     sku = str(v.get("sku") or "").strip()
     if not sku:
@@ -52,6 +53,11 @@ def _issues(v: dict, barsy_codes: set[str], zp_int: set | None) -> list[str]:
             out.append("price_unknown")
     elif sku and zp_int is not None and _intkey(sku) in zp_int:
         out.append("zero_price")
+    # no-photo WEBSITE blocker (owner, 2026-08-02): sellable at the till, but an
+    # imageless product must not go online. img_int None = index absent = cannot
+    # check — no issue is invented (same contract as the zero-price snapshot).
+    if sku and img_int is not None and _intkey(sku) not in img_int:
+        out.append("no_photo")
     if not v.get("tracked"):
         out.append("not_tracked")
     if str(v.get("product_status") or "").upper() != "ACTIVE":
@@ -79,11 +85,13 @@ async def publish_audit(
 
     zp = reg.zero_price_codes()
     zp_int = None if zp is None else {_intkey(c) for c in zp}
+    img = reg.image_codes()
+    img_int = None if img is None else {_intkey(c) for c in img}
     rows = []
     by_issue: dict[str, int] = {}
     ready = 0
     for v in (variants or []):
-        iss = _issues(v, codes, zp_int)
+        iss = _issues(v, codes, zp_int, img_int)
         blocking = [i for i in iss if i in _BLOCKERS]
         if not blocking:
             ready += 1

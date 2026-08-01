@@ -12,6 +12,7 @@ const ISSUE_BG: Record<string, string> = {
   not_active: 'чернова (не е публикуван)', policy_continue: 'позволява презапис (бекордер)',
   zero_price: 'цена 0 — спира се от продажба (is_for_sale=0)',
   price_unknown: 'цена неизвестна — блокиран (проверка невъзможна)',
+  no_photo: 'без снимка — само на касата, не и в сайта',
 }
 
 function Stat({ n, label, tone }: { n: number; label: string; tone: string }) {
