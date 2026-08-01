@@ -13,7 +13,8 @@ const PER = 100
 // cache so filtering by name/код/доставчик/категория/цена/атрибут is instant. Price is read-only.
 export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   const [facets, setFacets] = useState<CacheFacets | null>(null)
-  const [q, setQ] = useState('')
+  // deep-linkable search: /products?q=<код> preselects the query (used by Марки → продукти на марка)
+  const [q, setQ] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '')
   const [supplier, setSupplier] = useState('')
   const [category, setCategory] = useState('')
   const [priceMin, setPriceMin] = useState('')

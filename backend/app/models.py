@@ -478,6 +478,11 @@ class BrandOverride(Base):
     aliases_json: Mapped[str | None] = mapped_column(Text, nullable=True)   # JSON list
     role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # brand-scope extras (2026-08-01, brand detail editor): a human can vouch a brand as real
+    # (`confirmed`) or reclassify it (`kind`, e.g. 'supplier_label' — a label whose brand is a
+    # PER-PRODUCT question and must never be asserted per-prefix). Nullable = "not overridden".
+    confirmed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     why: Mapped[str] = mapped_column(Text, default="")              # required by the endpoint
     actor: Mapped[str] = mapped_column(String(255), default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(

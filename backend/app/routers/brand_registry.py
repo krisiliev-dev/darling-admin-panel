@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import brands_registry as reg
 from ..audit import log_action
+from ..core import db as core_db
 from ..db import get_async_session
 from ..models import BrandOverride, User
 from ..users import current_active_user, current_owner
@@ -67,9 +68,118 @@ async def summary(_: User = Depends(current_active_user)):
 async def brands(_: User = Depends(current_active_user),
                  session: AsyncSession = Depends(get_async_session)):
     ov = await _overrides(session)
-    rows = [_apply(b, ov.get(("brand", b["brand_id"])), ("canonical", "note"))
+    rows = [_apply(b, ov.get(("brand", b["brand_id"])), ("canonical", "note", "confirmed", "kind"))
             for b in reg.brands()]
     return {"brands": rows, "count": len(rows)}
+
+
+@router.get("/brand/{brand_id}")
+async def brand_detail(brand_id: str, _: User = Depends(current_active_user),
+                       session: AsyncSession = Depends(get_async_session)):
+    """One brand, fully: its registry fields (⊕ the human override, labelled), every prefix that
+    names it — asserting and suggestions alike — and the manufacturers behind them. The edit screen
+    is built on this, so everything carries enough context to decide, not just to display."""
+    d = reg.brand_detail(brand_id)
+    if d is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава марка в регистъра.")
+    ov = await _overrides(session)
+    out = _apply(d, ov.get(("brand", brand_id)), ("canonical", "note", "confirmed", "kind"))
+    out["prefixes"] = [_apply(r, ov.get(("prefix", r["prefix"])), ("brand_id", "asserts"))
+                       for r in d["prefixes"]]
+    return out
+
+
+@router.get("/brand/{brand_id}/products")
+async def brand_products(brand_id: str, limit: int = Query(300, ge=1, le=2000),
+                         _: User = Depends(current_active_user),
+                         session: AsyncSession = Depends(get_async_session)):
+    """The products this brand labels TODAY, i.e. under its effectively-asserting prefixes
+    (registry ⊕ overrides). Read-only here by design — products are edited on their own page.
+
+    Fails LOUD (503) when the code→prefix snapshot is missing: an empty list would claim
+    "this brand has no products", which is a different fact entirely."""
+    r = reg.load()
+    if brand_id not in (r.get("brands") or {}):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава марка в регистъра.")
+    cmap = reg.codes_map()
+    if cmap is None:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Липсва снимката код→префикс (code_prefixes.json). Генерирай я с "
+            "pipeline-v3/export_panel_snapshots.py и деплойни — без нея списъкът "
+            "би излъгал, че марката няма продукти.")
+    ov = await _overrides(session)
+
+    effective: set[str] = set()
+    for p, v in (r.get("prefixes") or {}).items():
+        o = ov.get(("prefix", p))
+        bid = (o.brand_id if (o and o.brand_id is not None) else v.get("brand_id"))
+        if bid != brand_id:
+            continue
+        asserts = (o.asserts if (o and o.asserts is not None) else bool(v.get("asserts")))
+        if asserts:
+            effective.add(p)
+
+    codes = sorted(c for c, plist in cmap.items() if any(p in effective for p in plist))
+    total, codes = len(codes), codes[:limit]
+    return {"brand_id": brand_id, "total": total, "returned": len(codes),
+            "asserting_prefixes": sorted(effective), "items": _product_cards(codes),
+            "snapshot": reg.codes_meta()}
+
+
+def _product_cards(codes: list[str]) -> list[dict]:
+    """code → {code, name, photo, enriched} for the codes the panel knows (the v2-processed
+    subset); unknown codes still return as code-only cards — a product outside pipeline.db is
+    still the brand's product, and hiding it would undercount."""
+    known: dict[str, dict] = {}
+    if codes:
+        con = core_db.connect()
+        try:
+            for i in range(0, len(codes), 400):
+                chunk = codes[i:i + 400]
+                q = ",".join("?" * len(chunk))
+                for code, fj in con.execute(
+                        f"SELECT code, fields_json FROM products WHERE code IN ({q})", chunk):
+                    try:
+                        f = json.loads(fj or "{}")
+                    except ValueError:
+                        f = {}
+                    photo = f.get("Снимки")
+                    if isinstance(photo, str):
+                        photo = photo.split(",")[0].strip() or None
+                        if photo and not photo.startswith("http"):
+                            photo = None
+                    else:
+                        photo = None
+                    known[code] = {"name": f.get("Наименование"), "photo": photo}
+    # a card per code, in stable order; the panel-known ones carry name+photo
+        finally:
+            con.close()
+    return [{"code": c,
+             "name": (known.get(c) or {}).get("name"),
+             "photo": (known.get(c) or {}).get("photo"),
+             "enriched": c in known} for c in codes]
+
+
+@router.get("/prefix/{prefix}/products")
+async def prefix_products(prefix: str, limit: int = Query(60, ge=1, le=500),
+                          _: User = Depends(current_active_user)):
+    """The products a PREFIX decision affects — the review queue's expandable evidence. Read-only.
+    Same loud-failure rule as the brand list: a missing snapshot is a 503, never an empty 200."""
+    r = reg.load()
+    if prefix not in (r.get("prefixes") or {}):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такъв префикс в регистъра.")
+    cmap = reg.codes_map()
+    if cmap is None:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Липсва снимката код→префикс (code_prefixes.json). Генерирай я с "
+            "pipeline-v3/export_panel_snapshots.py и деплойни — без нея списъкът "
+            "би излъгал, че префиксът не засяга продукти.")
+    codes = sorted(c for c, plist in cmap.items() if prefix in plist)
+    total, codes = len(codes), codes[:limit]
+    return {"prefix": prefix, "total": total, "returned": len(codes),
+            "items": _product_cards(codes), "snapshot": reg.codes_meta()}
 
 
 @router.get("/review")
@@ -95,6 +205,8 @@ class OverrideIn(BaseModel):
     aliases: list[str] | None = None
     role: str | None = Field(default=None, max_length=32)
     note: str | None = None
+    confirmed: bool | None = None
+    kind: str | None = Field(default=None, max_length=32)
 
 
 @router.get("/blast-radius")
@@ -123,13 +235,17 @@ async def set_override(req: OverrideIn, actor: User = Depends(current_owner),
     which is a business decision about how the catalogue reads, not a system-administration one."""
     if req.scope == "prefix" and req.ref not in (reg.load().get("prefixes") or {}):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такъв префикс в регистъра.")
+    if req.scope == "brand" and req.ref not in (reg.load().get("brands") or {}):
+        # same reasoning as the prefix check: an override against a target that does not exist
+        # would sit forever, silently applying to nothing
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава марка в регистъра.")
     row = (await session.execute(
         select(BrandOverride).where(BrandOverride.scope == req.scope,
                                     BrandOverride.ref == req.ref))).scalar_one_or_none()
     if row is None:
         row = BrandOverride(scope=req.scope, ref=req.ref)
         session.add(row)
-    for f in ("asserts", "brand_id", "canonical", "role", "note"):
+    for f in ("asserts", "brand_id", "canonical", "role", "note", "confirmed", "kind"):
         v = getattr(req, f)
         if v is not None:
             setattr(row, f, v)

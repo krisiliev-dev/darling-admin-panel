@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { useAuth } from '../lib/auth'
@@ -23,15 +24,39 @@ type Row = {
   reason: string | null; src: string | null; product_count: number
   overridden: string[]; overridden_by?: string; overridden_why?: string
 }
+type BrandListRow = {
+  brand_id: string; canonical: string; aliases: string[]; confirmed: boolean
+  kind?: string | null; product_count: number
+  prefixes: string[]; asserting_prefixes: string[]; overridden: string[]
+}
+type Card = { code: string; name: string | null; photo: string | null; enriched: boolean }
+type PrefixProducts = { total: number; returned: number; items: Card[] }
 
 export function BrandRegistry() {
   const { me } = useAuth()
   const isOwner = me?.role === 'owner'
   const { data: sum } = useApi<Summary>('/api/brand-registry/summary')
   const { data: rev, loading, reload } = useApi<{ queue: Row[] }>('/api/brand-registry/review?limit=300')
+  const { data: lst, loading: lstLoading } = useApi<{ brands: BrandListRow[] }>('/api/brand-registry/brands')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState('')
+  const [bq, setBq] = useState('')
+  // expandable review rows: prefix -> products (or 'loading' / an error string)
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [cards, setCards] = useState<Record<string, PrefixProducts | 'loading' | { error: string }>>({})
+  const [lightbox, setLightbox] = useState<string | null>(null)
   const confirm = useConfirm()
+
+  const toggleRow = (prefix: string) => {
+    const now = !open[prefix]
+    setOpen((o) => ({ ...o, [prefix]: now }))
+    if (now && !cards[prefix]) {
+      setCards((c) => ({ ...c, [prefix]: 'loading' }))
+      api.get<PrefixProducts>(`/api/brand-registry/prefix/${encodeURIComponent(prefix)}/products?limit=60`)
+        .then((d) => setCards((c) => ({ ...c, [prefix]: d })))
+        .catch((e) => setCards((c) => ({ ...c, [prefix]: { error: e instanceof ApiError ? e.message : 'Списъкът не се зареди.' } })))
+    }
+  }
 
   const decide = async (r: Row, assertIt: boolean) => {
     const n = r.product_count
@@ -85,6 +110,59 @@ export function BrandRegistry() {
         </Sheet>
       )}
 
+      <Sheet clip="right">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.6rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '.5rem' }}>
+          <h3 style={{ fontSize: '1rem', margin: 0 }}>Всички марки</h3>
+          <input className="input-paper" style={{ width: '15rem' }} placeholder="търси марка или синоним…"
+            value={bq} onChange={(e) => setBq(e.target.value)} />
+        </div>
+        <p style={{ color: 'var(--pencil)', fontSize: '.8rem', margin: '0 0 .6rem' }}>
+          Клик върху марка отваря пълния ѝ редактор — данни, префикси и продукти.
+        </p>
+        {lstLoading && !lst ? <Loading /> : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
+              <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
+                <th style={{ padding: '.3rem' }}>Марка</th>
+                <th style={{ padding: '.3rem', textAlign: 'right' }}>Продукти</th>
+                <th style={{ padding: '.3rem', textAlign: 'right' }}>Префикси (маркиращи)</th>
+                <th style={{ padding: '.3rem' }}>Вид</th>
+                <th style={{ padding: '.3rem' }}></th>
+              </tr></thead>
+              <tbody>
+                {(lst?.brands || []).filter((b) => {
+                  if (!bq.trim()) return true
+                  const hay = [b.canonical, b.brand_id, ...(b.aliases || [])].join(' ').toLowerCase()
+                  return hay.includes(bq.trim().toLowerCase())
+                }).map((b) => (
+                  <tr key={b.brand_id} style={{ borderBottom: '1px dashed var(--line)' }}>
+                    <td style={{ padding: '.3rem' }}>
+                      <Link to={`/marki/${encodeURIComponent(b.brand_id)}`} style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                        {b.canonical}
+                      </Link>
+                      {b.confirmed ? ' ✓' : ''}
+                      {b.overridden.length > 0 && <span title="има ръчна корекция" style={{ color: 'var(--ready)' }}> ✎</span>}
+                    </td>
+                    <td style={{ padding: '.3rem', textAlign: 'right' }}>{b.product_count}</td>
+                    <td style={{ padding: '.3rem', textAlign: 'right', color: 'var(--pencil)' }}>
+                      {b.prefixes.length} ({b.asserting_prefixes.length})
+                    </td>
+                    <td style={{ padding: '.3rem', color: 'var(--pencil)', fontSize: '.72rem' }}>
+                      {b.kind === 'supplier_label' ? 'етикет на доставчик' : (b.kind || '—')}
+                    </td>
+                    <td style={{ padding: '.3rem', textAlign: 'right' }}>
+                      <Link to={`/marki/${encodeURIComponent(b.brand_id)}`} className="btn-paper" style={{ fontSize: '.7rem', textDecoration: 'none' }}>
+                        отвори
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Sheet>
+
       <Sheet>
         <h3 style={{ fontSize: '1rem', marginBottom: '.2rem' }}>За преглед</h3>
         <p style={{ color: 'var(--pencil)', fontSize: '.8rem', margin: '0 0 .7rem' }}>
@@ -97,42 +175,61 @@ export function BrandRegistry() {
           <div style={{ display: 'grid', gap: '.4rem' }}>
             {rows.map((r) => (
               <div key={r.prefix} style={{
-                display: 'grid', gridTemplateColumns: '1fr auto', gap: '.6rem', alignItems: 'center',
-                border: '1px solid var(--line)', borderRadius: 3, padding: '.45rem .6rem',
+                border: '1px solid var(--line)', borderRadius: 3,
                 background: r.overridden.length ? 'var(--paper2)' : 'var(--paper)',
               }}>
-                <div style={{ display: 'grid', gap: '.15rem' }}>
-                  <div style={{ fontSize: '.85rem' }}>
-                    <span className="font-type" style={{ fontWeight: 700 }}>{r.canonical}</span>
-                    <span style={{ color: 'var(--pencil)' }}> · префикс {r.prefix}</span>
-                    <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.product_count} продукта</span>
-                  </div>
-                  <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
-                    {r.owner || '—'}{r.role ? ` · ${r.role}` : ''}{r.reason ? ` · ${r.reason}` : ''}
-                    {r.src ? ` · източник: ${r.src}` : ''}
-                  </div>
-                  {r.overridden.length > 0 && (
-                    <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--ready)' }}>
-                      ✓ решено ръчно ({r.asserts ? 'маркира' : 'не маркира'})
-                      {r.overridden_by ? ` · ${r.overridden_by}` : ''}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '.6rem', alignItems: 'center', padding: '.45rem .6rem' }}>
+                  <div style={{ display: 'grid', gap: '.15rem' }}>
+                    <div style={{ fontSize: '.85rem' }}>
+                      <span className="font-type" style={{ fontWeight: 700 }}>{r.canonical}</span>
+                      <span style={{ color: 'var(--pencil)' }}> · префикс {r.prefix}</span>
+                      <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.product_count} продукта</span>
                     </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '.35rem' }}>
-                  {r.overridden.length > 0 ? (
-                    <button className="btn-paper" style={{ fontSize: '.7rem' }} disabled={!isOwner || busy === r.prefix}
-                      onClick={() => void undo(r)}>върни</button>
-                  ) : (
-                    <>
+                    <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
+                      {r.owner || '—'}{r.role ? ` · ${r.role}` : ''}{r.reason ? ` · ${r.reason}` : ''}
+                      {r.src ? ` · източник: ${r.src}` : ''}
+                    </div>
+                    {r.overridden.length > 0 && (
+                      <div className="font-type" style={{ fontSize: '.72rem', color: 'var(--ready)' }}>
+                        ✓ решено ръчно ({r.asserts ? 'маркира' : 'не маркира'})
+                        {r.overridden_by ? ` · ${r.overridden_by}` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '.35rem' }}>
+                    <button className="btn-paper" style={{ fontSize: '.7rem' }}
+                      aria-expanded={!!open[r.prefix]}
+                      aria-label={`Продукти под префикс ${r.prefix}`}
+                      onClick={() => toggleRow(r.prefix)}>
+                      продукти {open[r.prefix] ? '▴' : '▾'}
+                    </button>
+                    {r.overridden.length > 0 ? (
                       <button className="btn-paper" style={{ fontSize: '.7rem' }} disabled={!isOwner || busy === r.prefix}
-                        aria-label={`Потвърди ${r.canonical} за префикс ${r.prefix}`}
-                        onClick={() => void decide(r, true)}>потвърди</button>
-                      <button className="btn-paper btn-red" style={{ fontSize: '.7rem' }} disabled={!isOwner || busy === r.prefix}
-                        aria-label={`Отхвърли ${r.canonical} за префикс ${r.prefix}`}
-                        onClick={() => void decide(r, false)}>отхвърли</button>
-                    </>
-                  )}
+                        onClick={() => void undo(r)}>върни</button>
+                    ) : (
+                      <>
+                        <button className="btn-paper" style={{ fontSize: '.7rem' }} disabled={!isOwner || busy === r.prefix}
+                          aria-label={`Потвърди ${r.canonical} за префикс ${r.prefix}`}
+                          onClick={() => void decide(r, true)}>потвърди</button>
+                        <button className="btn-paper btn-red" style={{ fontSize: '.7rem' }} disabled={!isOwner || busy === r.prefix}
+                          aria-label={`Отхвърли ${r.canonical} за префикс ${r.prefix}`}
+                          onClick={() => void decide(r, false)}>отхвърли</button>
+                      </>
+                    )}
+                  </div>
                 </div>
+                {open[r.prefix] && (
+                  <div style={{ borderTop: '1px dashed var(--line)', padding: '.5rem .6rem', background: 'var(--paper)' }}>
+                    {cards[r.prefix] === 'loading' || !cards[r.prefix] ? <Loading /> :
+                      'error' in (cards[r.prefix] as object) ? (
+                        <p className="font-type" style={{ fontSize: '.74rem', color: 'var(--red)', margin: 0 }}>
+                          {(cards[r.prefix] as { error: string }).error}
+                        </p>
+                      ) : (
+                        <PrefixCards data={cards[r.prefix] as PrefixProducts} onZoom={setLightbox} />
+                      )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -143,6 +240,57 @@ export function BrandRegistry() {
           </p>
         )}
       </Sheet>
+
+      {lightbox && (
+        <div role="dialog" aria-label="Снимка на продукт" onClick={() => setLightbox(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(30,25,18,.82)', zIndex: 60,
+          display: 'grid', placeItems: 'center', cursor: 'zoom-out',
+        }}>
+          <img src={lightbox} alt="" style={{ maxWidth: '88vw', maxHeight: '88vh', borderRadius: 4, background: '#fff' }} />
+        </div>
+      )}
     </div>
+  )
+}
+
+// small product cards under an expanded review row: thumbnail (click to enlarge), name, code
+function PrefixCards({ data, onZoom }: { data: PrefixProducts; onZoom: (url: string) => void }) {
+  if (data.total === 0) {
+    return <p className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: 0 }}>
+      Този префикс не покрива продукти в каталога.
+    </p>
+  }
+  return (
+    <>
+      <p className="font-type" style={{ fontSize: '.7rem', color: 'var(--pencil)', margin: '0 0 .4rem' }}>
+        {data.total} продукта{data.total > data.returned ? ` · показани първите ${data.returned}` : ''}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(11rem, 1fr))', gap: '.4rem' }}>
+        {data.items.map((p) => (
+          <div key={p.code} style={{
+            display: 'flex', gap: '.45rem', alignItems: 'center', border: '1px solid var(--line)',
+            borderRadius: 3, padding: '.3rem .4rem', background: 'var(--paper2)',
+          }}>
+            {p.photo ? (
+              <img src={p.photo} alt={p.name || p.code} loading="lazy"
+                onClick={() => onZoom(p.photo!)}
+                style={{ width: 44, height: 44, objectFit: 'contain', background: '#fff', borderRadius: 2, cursor: 'zoom-in', flexShrink: 0 }} />
+            ) : (
+              <div className="font-type" style={{
+                width: 44, height: 44, display: 'grid', placeItems: 'center', flexShrink: 0,
+                border: '1px dashed var(--line)', borderRadius: 2, fontSize: '.55rem', color: 'var(--pencil)', textAlign: 'center',
+              }}>без снимка</div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div className="font-type" style={{ fontSize: '.68rem', fontWeight: 700 }}>{p.code}</div>
+              <div style={{ fontSize: '.72rem', color: p.name ? 'var(--ink)' : 'var(--pencil)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                title={p.name || undefined}>
+                {p.name || '(необработен)'}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
