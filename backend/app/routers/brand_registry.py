@@ -142,6 +142,7 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
     catalogue at all, and sqlite invents an EMPTY db for a missing file rather than erroring —
     the exact pathology in the handoffs — so this path is not theoretical.)"""
     known: dict[str, dict] = {}
+    enriched_codes: set[str] = set()
     catalog_available = True
     if codes:
         try:
@@ -156,24 +157,49 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
                             f = json.loads(fj or "{}")
                         except ValueError:
                             f = {}
-                        photo = f.get("Снимки")
-                        if isinstance(photo, str):
-                            photo = photo.split(",")[0].strip() or None
-                            if photo and not photo.startswith("http"):
-                                photo = None
-                        else:
-                            photo = None
-                        known[code] = {"name": f.get("Наименование"), "photo": photo}
+                        known[code] = {"name": f.get("Наименование"),
+                                       "photo": _first_url(f.get("Снимки"))}
+                        enriched_codes.add(code)
+                # fallback: the ORIGINALS — raw Microinvest name + the supplier's own photo URL
+                # (tasks table). For judging "what IS this product" during review the original is
+                # exactly right; coverage is near-total (14,255/14,292 names, 13,225 photo URLs)
+                # versus the enriched subset.
+                missing = [c for c in codes
+                           if not (known.get(c) or {}).get("name")
+                           or not (known.get(c) or {}).get("photo")]
+                for i in range(0, len(missing), 300):
+                    chunk = missing[i:i + 300]
+                    q = ",".join("?" * len(chunk))
+                    for code, tj in con.execute(
+                            f"SELECT code, task_json FROM tasks WHERE code IN ({q})", chunk):
+                        try:
+                            t = json.loads(tj or "{}")
+                        except ValueError:
+                            t = {}
+                        gt = t.get("ground_truth") or {}
+                        raw_name = ((t.get("product") or {}).get("Наименование") or "").strip()
+                        supplier_name = (gt.get("BG име (доставчик)") or "").strip()
+                        row = known.setdefault(code, {"name": None, "photo": None})
+                        row["name"] = row["name"] or raw_name or supplier_name or None
+                        row["photo"] = row["photo"] or _first_url(gt.get("Снимка"))
             finally:
                 con.close()
         except Exception:  # noqa: BLE001 — sqlite3.Error, db.connect refusal, missing table
             log.warning("catalogue unavailable for product cards — returning code-only cards",
                         exc_info=True)
-            known, catalog_available = {}, False
+            known, enriched_codes, catalog_available = {}, set(), False
     return ([{"code": c,
               "name": (known.get(c) or {}).get("name"),
               "photo": (known.get(c) or {}).get("photo"),
-              "enriched": c in known} for c in codes], catalog_available)
+              "enriched": c in enriched_codes} for c in codes], catalog_available)
+
+
+def _first_url(v) -> str | None:
+    """First http(s) URL out of a possibly comma-separated string field; None otherwise."""
+    if not isinstance(v, str):
+        return None
+    first = v.split(",")[0].strip()
+    return first if first.startswith("http") else None
 
 
 @router.get("/prefix/{prefix}/products")
