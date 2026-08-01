@@ -130,6 +130,36 @@ async def brand_products(brand_id: str, limit: int = Query(300, ge=1, le=2000),
             "catalog_available": catalog_available, "snapshot": reg.codes_meta()}
 
 
+_ALIAS_CACHE: dict = {"ts": 0.0, "tasks": {}, "products": {}}
+
+
+def _intkey(s: str) -> str:
+    s = s.strip()
+    return str(int(s)) if s.isdigit() else s
+
+
+def _alias_maps(con) -> tuple[dict, dict]:
+    """int-value -> the table's OWN spelling of a code, per table, cached ~10 min.
+
+    The catalogue's code spellings are inconsistent about leading zeros ACROSS SOURCES
+    ('131680' in tasks vs '0131680' in barcodes.jsonl, '58' vs '058'), so an exact-string
+    join silently loses thousands of legitimate matches. Same-value aliasing recovers
+    them without guessing padding widths."""
+    import time as _time
+    if _time.monotonic() - _ALIAS_CACHE["ts"] < 600 and _ALIAS_CACHE["tasks"]:
+        return _ALIAS_CACHE["tasks"], _ALIAS_CACHE["products"]
+    t_map: dict = {}
+    p_map: dict = {}
+    for (c,) in con.execute("SELECT code FROM tasks"):
+        s = str(c)
+        t_map.setdefault(_intkey(s), s)
+    for (c,) in con.execute("SELECT code FROM products"):
+        s = str(c)
+        p_map.setdefault(_intkey(s), s)
+    _ALIAS_CACHE.update(ts=_time.monotonic(), tasks=t_map, products=p_map)
+    return t_map, p_map
+
+
 def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
     """code → {code, name, photo, enriched} for the codes the panel knows (the v2-processed
     subset); unknown codes still return as code-only cards — a product outside pipeline.db is
@@ -148,11 +178,19 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
         try:
             con = core_db.connect()
             try:
-                for i in range(0, len(codes), 400):
-                    chunk = codes[i:i + 400]
+                t_map, p_map = _alias_maps(con)
+                # resolve each requested code to each table's own spelling (leading-zero chaos)
+                prod_spell = {c: p_map.get(_intkey(c), c) for c in codes}
+                task_spell = {c: t_map.get(_intkey(c), c) for c in codes}
+                back_prod = {v: k for k, v in prod_spell.items()}
+                back_task = {v: k for k, v in task_spell.items()}
+                want = list(prod_spell.values())
+                for i in range(0, len(want), 400):
+                    chunk = want[i:i + 400]
                     q = ",".join("?" * len(chunk))
-                    for code, fj in con.execute(
+                    for dbcode, fj in con.execute(
                             f"SELECT code, fields_json FROM products WHERE code IN ({q})", chunk):
+                        code = back_prod.get(str(dbcode), str(dbcode))
                         try:
                             f = json.loads(fj or "{}")
                         except ValueError:
@@ -164,14 +202,15 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
                 # (tasks table). For judging "what IS this product" during review the original is
                 # exactly right; coverage is near-total (14,255/14,292 names, 13,225 photo URLs)
                 # versus the enriched subset.
-                missing = [c for c in codes
+                missing = [task_spell[c] for c in codes
                            if not (known.get(c) or {}).get("name")
                            or not (known.get(c) or {}).get("photo")]
                 for i in range(0, len(missing), 300):
                     chunk = missing[i:i + 300]
                     q = ",".join("?" * len(chunk))
-                    for code, tj in con.execute(
+                    for dbcode, tj in con.execute(
                             f"SELECT code, task_json FROM tasks WHERE code IN ({q})", chunk):
+                        code = back_task.get(str(dbcode), str(dbcode))
                         try:
                             t = json.loads(tj or "{}")
                         except ValueError:
@@ -188,10 +227,13 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
             log.warning("catalogue unavailable for product cards — returning code-only cards",
                         exc_info=True)
             known, enriched_codes, catalog_available = {}, set(), False
-    return ([{"code": c,
+    cards = [{"code": c,
               "name": (known.get(c) or {}).get("name"),
               "photo": (known.get(c) or {}).get("photo"),
-              "enriched": c in enriched_codes} for c in codes], catalog_available)
+              "enriched": c in enriched_codes} for c in codes]
+    # review UX: photographed products first, then named, then bare codes
+    cards.sort(key=lambda i: (i["photo"] is None, i["name"] is None, i["code"]))
+    return (cards, catalog_available)
 
 
 def _first_url(v) -> str | None:
