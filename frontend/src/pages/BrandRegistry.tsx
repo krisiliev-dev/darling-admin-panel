@@ -23,6 +23,7 @@ type Row = {
   legal_brand: string | null; owner: string | null; role: string | null
   reason: string | null; src: string | null; product_count: number
   sellable_count?: number | null
+  matched_count?: number | null
   overridden: string[]; overridden_by?: string; overridden_why?: string
 }
 type BrandListRow = {
@@ -60,15 +61,16 @@ export function BrandRegistry() {
   }
 
   const decide = async (r: Row, assertIt: boolean) => {
-    const n = typeof r.sellable_count === 'number' ? r.sellable_count : r.product_count
+    const n = typeof r.matched_count === 'number' ? r.matched_count
+      : typeof r.sellable_count === 'number' ? r.sellable_count : r.product_count
     if (!(await confirm({
       danger: !assertIt,
       confirmLabel: assertIt ? 'Потвърди марката' : 'Отхвърли',
       title: `${r.canonical} · префикс ${r.prefix}`,
       // the number in front of the decision — the same click without it is a different decision
       message: assertIt
-        ? `Ще маркира ${n} продаваеми продукта с „${r.canonical}“.\n\nПотвърждаваш, че тази марка е вярна за този префикс?`
-        : `Ще остави ${n} продаваеми продукта без марка от този префикс.\n\nОтхвърляш предложението?`,
+        ? `Ще маркира ${n} съвпаднали продукта с „${r.canonical}“.\n\nПотвърждаваш, че тази марка е вярна за този префикс?`
+        : `Ще остави ${n} съвпаднали продукта без марка от този префикс.\n\nОтхвърляш предложението?`,
     }))) return
     setBusy(r.prefix); setMsg('')
     try {
@@ -184,9 +186,9 @@ export function BrandRegistry() {
                     <div style={{ fontSize: '.85rem' }}>
                       <span className="font-type" style={{ fontWeight: 700 }}>{r.canonical}</span>
                       <span style={{ color: 'var(--pencil)' }}> · префикс {r.prefix}</span>
-                      {typeof r.sellable_count === 'number' ? (
+                      {typeof r.matched_count === 'number' ? (
                         <>
-                          <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.sellable_count} продаваеми</span>
+                          <span style={{ color: 'var(--red)', fontWeight: 700 }}> · {r.matched_count} съвпаднали</span>
                           <span style={{ color: 'var(--pencil)' }}> ({r.product_count} в каталога)</span>
                         </>
                       ) : (
@@ -268,7 +270,7 @@ function PrefixCards({ data, onZoom }: { data: PrefixProducts; onZoom: (url: str
   const [showBare, setShowBare] = useState(false)
   if (data.total === 0) {
     return <p className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', margin: 0 }}>
-      Този префикс не покрива продаваеми продукти{typeof data.catalog_total === 'number' && data.catalog_total > 0 ? ` (${data.catalog_total} в каталога, извън продажбения асортимент)` : ''}.
+      Този префикс не покрива съвпаднали продукти{typeof data.catalog_total === 'number' && data.catalog_total > 0 ? ` (${data.catalog_total} в каталога, извън продажбения асортимент)` : ''}.
     </p>
   }
   const covered = data.items.filter((p) => p.name || p.photo)
@@ -276,7 +278,7 @@ function PrefixCards({ data, onZoom }: { data: PrefixProducts; onZoom: (url: str
   return (
     <>
       <p className="font-type" style={{ fontSize: '.7rem', color: 'var(--pencil)', margin: '0 0 .4rem' }}>
-        {data.total} продаваеми{typeof data.catalog_total === 'number' && data.catalog_total > data.total ? ` (${data.catalog_total} в каталога общо)` : ''}
+        {data.total} съвпаднали{typeof data.catalog_total === 'number' && data.catalog_total > data.total ? ` (${data.catalog_total} в каталога общо)` : ''}
         {bare.length > 0 ? ` · ${bare.length} без данни` : ''}
         {data.total > data.returned ? ` · показани първите ${data.returned}` : ''}
         {data.catalog_available === false && (

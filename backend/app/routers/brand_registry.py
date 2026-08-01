@@ -123,8 +123,9 @@ async def brand_products(brand_id: str, limit: int = Query(300, ge=1, le=2000),
             effective.add(p)
 
     all_codes = sorted(c for c, plist in cmap.items() if any(p in effective for p in plist))
-    sell = reg.sellable_codes() or set()
-    codes = [c for c in all_codes if c in sell]     # owner rule: count what we can SELL
+    mat = reg.matched_codes() or set()
+    codes = [c for c in all_codes if c in mat]      # owner rule (2026-08-02): Марки
+    # works with MATCHED products — the ones that HAVE supplier data
     total, codes = len(codes), codes[:limit]
     items, catalog_available = _product_cards(codes)
     return {"brand_id": brand_id, "total": total, "returned": len(codes),
@@ -220,7 +221,8 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
                             f = {}
                         enriched_codes.add(code)
                         row = known.setdefault(code, {"name": None, "photo": None})
-                        row["name"] = row["name"] or f.get("Наименование")
+                        # draft names are PROCESSED — Марки shows ORIGINAL Microinvest
+                        # names only (owner rule, 2026-08-02); a draft may still lend a photo
                         row["photo"] = row["photo"] or _first_url(f.get("Снимки"))
             finally:
                 con.close()
@@ -262,8 +264,9 @@ async def prefix_products(prefix: str, limit: int = Query(60, ge=1, le=500),
             "pipeline-v3/export_panel_snapshots.py и деплойни — без нея списъкът "
             "би излъгал, че префиксът не засяга продукти.")
     all_codes = sorted(c for c, plist in cmap.items() if prefix in plist)
-    sell = reg.sellable_codes() or set()
-    codes = [c for c in all_codes if c in sell]     # owner rule: count what we can SELL
+    mat = reg.matched_codes() or set()
+    codes = [c for c in all_codes if c in mat]      # owner rule (2026-08-02): Марки
+    # works with MATCHED products — the ones that HAVE supplier data
     total, codes = len(codes), codes[:limit]
     items, catalog_available = _product_cards(codes)
     return {"prefix": prefix, "total": total, "returned": len(codes),

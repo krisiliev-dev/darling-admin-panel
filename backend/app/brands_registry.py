@@ -34,6 +34,8 @@ _codes_cache: dict | None = None
 _codes_meta: dict | None = None
 _sellable_cache: set | None = None
 _sellable_prefix_counts: dict | None = None
+_matched_cache: set | None = None
+_matched_prefix_counts: dict | None = None
 _names_cache: dict | None = None
 
 
@@ -144,15 +146,19 @@ def review_queue(reg: dict | None = None, limit: int = 500) -> list[dict]:
             "evidence": (v.get("extra") or {}),
         })
     sc = sellable_prefix_counts()
+    mc = matched_prefix_counts()
     for r in rows:
         # None (snapshot missing) stays None — the client shows the registry count alone
         # rather than a fake zero; a missing mapping and "no sellable products" differ.
         r["sellable_count"] = None if sc is None else sc.get(r["prefix"], 0)
+        r["matched_count"] = None if mc is None else mc.get(r["prefix"], 0)
     if sc is None:
         rows.sort(key=lambda r: -r["product_count"])
     else:
-        # owner rule: review time follows SELLABLE impact; catalogue count breaks ties
-        rows.sort(key=lambda r: (-(r["sellable_count"] or 0), -r["product_count"]))
+        # owner rule (2026-08-02): review time follows MATCHED impact — the products
+        # Марки actually works with; sellable then catalogue counts break ties
+        rows.sort(key=lambda r: (-(r["matched_count"] or 0),
+                                 -(r["sellable_count"] or 0), -r["product_count"]))
     return rows[:limit]
 
 
@@ -170,11 +176,15 @@ def codes_map(*, force: bool = False) -> dict | None:
     data = json.loads(_CODEMAP_PATH.read_text(encoding="utf-8"))
     _codes_cache = data.get("codes") or {}
     _codes_meta = {"generated": data.get("_generated"), "products": data.get("products"),
-                   "sellable": len(data.get("sellable") or [])}
+                   "sellable": len(data.get("sellable") or []),
+                   "matched": len(data.get("matched") or [])}
     global _sellable_cache, _sellable_prefix_counts, _names_cache
+    global _matched_cache, _matched_prefix_counts
     _sellable_cache = set(data.get("sellable") or [])
+    _matched_cache = set(data.get("matched") or [])
     _names_cache = data.get("names") or {}
     _sellable_prefix_counts = None
+    _matched_prefix_counts = None
     return _codes_cache
 
 
@@ -210,6 +220,34 @@ def sellable_prefix_counts() -> dict | None:
                     counts[p] = counts.get(p, 0) + 1
         _sellable_prefix_counts = counts
     return _sellable_prefix_counts
+
+
+def matched_codes() -> set | None:
+    """Codes with a supplier MATCH (photo + names exist) — the Марки working set
+    (owner rule, 2026-08-02): brand review shows the products we HAVE data for,
+    not the bare catalogue. None when the snapshot is absent — same honesty
+    contract as codes_map()."""
+    if codes_map() is None:
+        return None
+    return _matched_cache or set()
+
+
+def matched_prefix_counts() -> dict | None:
+    """prefix -> number of MATCHED products carrying it. None when the snapshot
+    is absent. Cached; rebuilt when the snapshot reloads."""
+    global _matched_prefix_counts
+    cmap = codes_map()
+    if cmap is None:
+        return None
+    if _matched_prefix_counts is None:
+        counts: dict = {}
+        mat = _matched_cache or set()
+        for code, plist in cmap.items():
+            if code in mat:
+                for p in plist:
+                    counts[p] = counts.get(p, 0) + 1
+        _matched_prefix_counts = counts
+    return _matched_prefix_counts
 
 
 def codes_meta() -> dict:

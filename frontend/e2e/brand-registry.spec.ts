@@ -9,9 +9,10 @@ const SUMMARY = {
 const QUEUE = { queue: [
   { prefix: '380012345', brand_id: 'qlux', canonical: 'Qlux', asserts: false, legal_brand: null,
     owner: 'КЮ ЛУКС ООД', role: 'importer_distributor', reason: 'propagated', src: 'scrape',
-    product_count: 412, overridden: [] },
+    product_count: 412, sellable_count: 412, matched_count: 412, overridden: [] },
   { prefix: '380099999', brand_id: 'hobby', canonical: 'Hobby Life', asserts: true, legal_brand: null,
     owner: null, role: null, reason: null, src: 'gs1', product_count: 7,
+    sellable_count: 7, matched_count: 7,
     overridden: ['asserts'], overridden_by: 'owner@darling.bg', overridden_why: 'проверено' },
 ] }
 
@@ -41,9 +42,9 @@ test.describe('Марки — brand registry', () => {
     await page.goto('/marki')
     await page.getByRole('button', { name: /Потвърди Qlux за префикс 380012345/ }).click()
     const dialog = page.getByRole('dialog')
-    // Sellable-first (owner rule, 2026-08-01): the blast radius is stated in products
-    // we can actually sell — the dialog says "продаваеми продукта", not bare "продукта".
-    await expect(dialog).toContainText('412 продаваеми продукта')
+    // Matched-first (owner rule, 2026-08-02): the blast radius is stated in the products
+    // Марки actually works with — matched ones — so the copy reads "съвпаднали продукта".
+    await expect(dialog).toContainText('412 съвпаднали продукта')
     await dialog.getByRole('button', { name: 'Потвърди марката' }).click()
     await expect.poll(() => sent).toMatchObject({ scope: 'prefix', ref: '380012345', asserts: true })
   })
