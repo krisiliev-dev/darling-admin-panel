@@ -27,6 +27,14 @@ import sys
 # uses _vendor (its sibling exists); keep _vendor in sync if those 9 modules change.
 _AGENT_PIPELINE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "agent-pipeline"))
+# Reorg 2026-08-01: on dev machines the connector modules were extracted out of
+# agent-pipeline into a sibling `connector/` (C:\Users\lora_\darling\connector), and
+# pipeline.db moved to a sibling `data/`. The box keeps the old layout until Phase B,
+# so BOTH spellings are probed, old one first — behaviour there is unchanged.
+_CONNECTOR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "connector"))
+_DATA_DB = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "pipeline.db"))
 _VENDOR = os.path.join(os.path.dirname(__file__), "_vendor")
 # MODULE PATH and DATA ROOT are deliberately SEPARATE (task #98, 2026-07-31).
 #
@@ -46,7 +54,12 @@ _VENDOR = os.path.join(os.path.dirname(__file__), "_vendor")
 # to create a missing file there — an explicitly configured path that does not exist is always a
 # misconfiguration, never a first run, and sqlite would otherwise leave an empty database that reports
 # "no such table" today and an empty CATALOGUE after any migration.
-CORE_ROOT = _AGENT_PIPELINE if os.path.isdir(_AGENT_PIPELINE) else _VENDOR   # data lives here
+if os.path.isdir(_AGENT_PIPELINE):
+    CORE_ROOT = _AGENT_PIPELINE          # box (until Phase B): old layout, data lives here
+elif os.path.isdir(_CONNECTOR):
+    CORE_ROOT = _CONNECTOR               # reorged dev machine (and box after Phase B)
+else:
+    CORE_ROOT = _VENDOR                  # standalone checkout (CI)
 
 _MODULE_DIR = _VENDOR if os.path.isdir(_VENDOR) else CORE_ROOT               # code comes from here
 if _MODULE_DIR in sys.path:
@@ -63,6 +76,11 @@ if CORE_ROOT not in sys.path:
 # refuses a configured-but-missing path by design, so we leave it on its own default there.
 if os.path.isdir(_AGENT_PIPELINE):
     os.environ.setdefault("PIPELINE_DB", os.path.join(_AGENT_PIPELINE, "pipeline.db"))
+elif os.path.isfile(_DATA_DB):
+    # reorged layout: the catalogue lives in ../../data/pipeline.db. Only set when the
+    # file actually EXISTS — db.py refuses a configured-but-missing path by design, and
+    # with no sibling data at all (CI) we leave db.py on its own default exactly as before.
+    os.environ.setdefault("PIPELINE_DB", _DATA_DB)
 
 # --- the shared surface -------------------------------------------------------------
 import db                     # noqa: E402  system-of-record (SQLite; the one DB the panel reads)
