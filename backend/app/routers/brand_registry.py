@@ -13,8 +13,11 @@ Two properties this surface exists to preserve:
 """
 import json
 import logging
+import os
+import pathlib
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -235,13 +238,51 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
     # names are the PROCESSED ones for 11,776 of 11,785 matched rows — the snapshot's
     # current dbo_Goods raw name outranks every db source; db names only fill codes
     # outside the sellable set (which ship no snapshot name).
+    # LOCAL originals first (owner, 2026-08-02): we hold downloaded copies for
+    # 11,231 matched products — supplier hotlinks (~15% dead) are the fallback,
+    # not the source. The endpoint URL is same-origin, so panel auth cookies apply.
+    idx = _image_index()
+    imgdir = _images_dir()
+
+    def _photo(c):
+        fn = idx.get(_intkey(c))
+        if imgdir is not None and fn and (imgdir / fn).is_file():
+            return f"/api/brand-registry/photo/{c}"
+        return (known.get(c) or {}).get("photo")
+
     cards = [{"code": c,
               "name": snap_names.get(c) or (known.get(c) or {}).get("name"),
-              "photo": (known.get(c) or {}).get("photo"),
+              "photo": _photo(c),
               "enriched": c in enriched_codes} for c in codes]
     # review UX: photographed products first, then named, then bare codes
     cards.sort(key=lambda i: (i["photo"] is None, i["name"] is None, i["code"]))
     return (cards, catalog_available)
+
+
+_IMG_INDEX: dict | None = None
+
+
+def _image_index() -> dict:
+    """int-key code -> local original filename (repo-shipped image_index.json).
+    Missing file → empty index, i.e. supplier-URL behaviour — never an error."""
+    global _IMG_INDEX
+    if _IMG_INDEX is None:
+        p = pathlib.Path(__file__).resolve().parents[1] / "data" / "brands" / "image_index.json"
+        try:
+            _IMG_INDEX = {str(k): str(v) for k, v in
+                          json.loads(p.read_text(encoding="utf-8")).items()}
+        except (FileNotFoundError, ValueError):
+            _IMG_INDEX = {}
+    return _IMG_INDEX
+
+
+def _images_dir() -> pathlib.Path | None:
+    """Where the downloaded originals live: REVIEW_IMAGES_DIR (dev) or the panel
+    box bind-mount default. None while the directory does not exist yet — cards
+    then fall back to supplier URLs, so the feature turns itself on when the
+    upload lands (owner: temporary store, deleted after the review)."""
+    p = pathlib.Path(os.environ.get("REVIEW_IMAGES_DIR") or "/app/review-images")
+    return p if p.is_dir() else None
 
 
 def _first_url(v) -> str | None:
@@ -250,6 +291,24 @@ def _first_url(v) -> str | None:
         return None
     first = v.split(",")[0].strip()
     return first if first.startswith("http") else None
+
+
+@router.get("/photo/{code}")
+async def review_photo(code: str, _: User = Depends(current_active_user)):
+    """The locally-stored ORIGINAL for a code. Serves by INDEX lookup only — the
+    filename never comes from the request, so there is no path to traverse. Each
+    404 names which piece is missing (index / store / file) instead of a bare 404."""
+    fn = _image_index().get(_intkey(code))
+    if not fn:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма локална снимка за този код.")
+    d = _images_dir()
+    if d is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "Хранилището с локални снимки още не е качено на този сървър.")
+    p = d / fn
+    if not p.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Файлът липсва в хранилището.")
+    return FileResponse(p)
 
 
 @router.get("/prefix/{prefix}/products")
