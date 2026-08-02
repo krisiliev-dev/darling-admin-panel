@@ -241,11 +241,11 @@ def _product_cards(codes: list[str]) -> tuple[list[dict], bool]:
     # LOCAL originals first (owner, 2026-08-02): we hold downloaded copies for
     # 11,231 matched products — supplier hotlinks (~15% dead) are the fallback,
     # not the source. The endpoint URL is same-origin, so panel auth cookies apply.
-    idx = _image_index()
+    idx = _image_map()
     imgdir = _images_dir()
 
     def _photo(c):
-        fn = idx.get(_intkey(c))
+        fn = idx.get(c)
         if imgdir is not None and fn and (imgdir / fn).is_file():
             return f"/api/brand-registry/photo/{c}"
         return (known.get(c) or {}).get("photo")
@@ -276,6 +276,24 @@ def _image_index() -> dict:
     return _IMG_INDEX
 
 
+_IMG_MAP: dict | None = None
+
+
+def _image_map() -> dict:
+    """code -> local filename, collision-safe (EXACT code, leading zeros kept).
+    Replaces the intkey lookup that made distinct codes (00851 vs 851) share an
+    image. Missing file -> empty map (supplier-URL fallback), never an error."""
+    global _IMG_MAP
+    if _IMG_MAP is None:
+        p = pathlib.Path(__file__).resolve().parents[1] / "data" / "brands" / "image_map.json"
+        try:
+            _IMG_MAP = {str(k): str(v) for k, v in
+                        json.loads(p.read_text(encoding="utf-8")).items()}
+        except (FileNotFoundError, ValueError):
+            _IMG_MAP = {}
+    return _IMG_MAP
+
+
 def _images_dir() -> pathlib.Path | None:
     """Where the downloaded originals live: REVIEW_IMAGES_DIR (dev) or the panel
     box bind-mount default. None while the directory does not exist yet — cards
@@ -298,7 +316,7 @@ async def review_photo(code: str, _: User = Depends(current_active_user)):
     """The locally-stored ORIGINAL for a code. Serves by INDEX lookup only — the
     filename never comes from the request, so there is no path to traverse. Each
     404 names which piece is missing (index / store / file) instead of a bare 404."""
-    fn = _image_index().get(_intkey(code))
+    fn = _image_map().get(code)
     if not fn:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма локална снимка за този код.")
     d = _images_dir()

@@ -174,16 +174,19 @@ function AddBrand({ onDone, setMsg }: { onDone: () => void; setMsg: (s: string) 
 }
 
 function UnbrandedTab() {
+  const PAGE = 200
   const [items, setItems] = useState<Unbranded[]>([])
   const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
   const [q, setQ] = useState(''); const [onlyMatched, setOnlyMatched] = useState(false)
   const [zoom, setZoom] = useState<string | null>(null)
-  const load = () => {
-    const p = new URLSearchParams({ limit: '300', q, only_matched: String(onlyMatched) })
+  const load = (off = offset) => {
+    const p = new URLSearchParams({ limit: String(PAGE), offset: String(off), q, only_matched: String(onlyMatched) })
     api.get<{ total: number; items: Unbranded[] }>(`/api/brands-v2/unbranded?${p}`)
       .then((d) => { setItems(d.items); setTotal(d.total) }).catch(() => {})
   }
-  useEffect(load, [onlyMatched])
+  useEffect(() => { load(offset) }, [onlyMatched, offset])
+  const search = () => { setOffset(0); load(0) }
   return (
     <>
       <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.85rem' }}>
@@ -191,11 +194,11 @@ function UnbrandedTab() {
         после по баркод-фамилия — за да изпъкнат групи от една марка.</p>
       <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', margin: '.3rem 0' }}>
         <input placeholder="търси код / име / доставчик…" value={q}
-          onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()}
+          onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()}
           style={{ ...inputStyle, flex: 1, margin: 0 }} />
-        <button style={btn} onClick={load}>Търси</button>
+        <button style={btn} onClick={search}>Търси</button>
         <label style={{ fontSize: '.8rem' }}>
-          <input type="checkbox" checked={onlyMatched} onChange={(e) => setOnlyMatched(e.target.checked)} /> само съвпаднали
+          <input type="checkbox" checked={onlyMatched} onChange={(e) => { setOnlyMatched(e.target.checked); setOffset(0) }} /> само съвпаднали
         </label>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
@@ -223,6 +226,12 @@ function UnbrandedTab() {
           ))}
         </tbody>
       </table>
+        <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', justifyContent: 'center', margin: '.6rem 0' }}>
+          <button style={btn} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>← Назад</button>
+          <span style={{ fontSize: '.8rem', color: 'var(--pencil)' }}>
+            {total === 0 ? '0' : `${offset + 1}–${Math.min(offset + PAGE, total)}`} от {total}</span>
+          <button style={btn} disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>Напред →</button>
+        </div>
       {zoom && <div onClick={() => setZoom(null)} style={{ position: 'fixed', inset: 0, background: '#000a',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20, cursor: 'zoom-out' }}>
         <img src={zoom} alt="" style={{ maxWidth: '90%', maxHeight: '90%', background: '#fff' }} /></div>}
