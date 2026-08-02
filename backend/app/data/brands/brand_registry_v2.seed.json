@@ -115,14 +115,7 @@
    "gs1_owner": "AMILIBIA Y DE LA IGLESIA S.A.",
    "logo": null,
    "prefixes": [
-    "841302302",
-    "841302308",
-    "841302312",
-    "841302314",
-    "841302317",
-    "841302321",
-    "841302322",
-    "841302323"
+    "841302317"
    ],
    "series": []
   },
@@ -169,8 +162,7 @@
     "869502442",
     "869502471",
     "869502484",
-    "869502485",
-    "869743180"
+    "869502485"
    ],
    "series": []
   },
@@ -709,8 +701,10 @@
    ]
   },
   "crystalex": {
-   "aliases": [],
-   "canonical": "CRYSTALEX",
+   "aliases": [
+    "CRYSTALEX"
+   ],
+   "canonical": "Crystalex",
    "gs1_owner": "Crystalex CZ, s.r.o.",
    "logo": null,
    "prefixes": [
@@ -887,8 +881,6 @@
    "gs1_owner": "ETİ GIDA SANAYİ VE TİCARET A.Ş.",
    "logo": null,
    "prefixes": [
-    "869053301",
-    "869053304",
     "869628701",
     "869628702",
     "869628705",
@@ -913,9 +905,10 @@
   },
   "duralex": {
    "aliases": [
-    "duralex scop sa"
+    "duralex scop sa",
+    "DURALEX"
    ],
-   "canonical": "DURALEX",
+   "canonical": "Duralex",
    "gs1_owner": "DURALEX SCOP SA",
    "logo": null,
    "prefixes": [
@@ -1025,7 +1018,9 @@
   },
   "enyayla": {
    "aliases": [
-    "sa"
+    "sa",
+    "şenyayla plasti̇k san.ve ti̇c.a.ş.",
+    "Senyayla"
    ],
    "canonical": "Şenyayla",
    "gs1_owner": "şenyayla",
@@ -1327,9 +1322,10 @@
   },
   "hisar": {
    "aliases": [
-    "hi̇sar çatal-kaşik ve paslanmaz madeni̇ eşya sanayi̇ ve ti̇caret a.ş."
+    "hi̇sar çatal-kaşik ve paslanmaz madeni̇ eşya sanayi̇ ve ti̇caret a.ş.",
+    "HISAR"
    ],
-   "canonical": "HISAR",
+   "canonical": "HİSAR",
    "gs1_owner": "HİSAR ÇATAL-KAŞIK VE PASLANMAZ MADENİ EŞYA SANAYİ VE TİCARET A.Ş.",
    "logo": null,
    "prefixes": [
@@ -1342,8 +1338,7 @@
     "869126150",
     "869126152",
     "869126157",
-    "869126166",
-    "869126170"
+    "869126166"
    ],
    "series": [
     "Aqua",
@@ -1376,10 +1371,7 @@
    "canonical": "Hobby life",
    "gs1_owner": "burdem",
    "logo": null,
-   "prefixes": [
-    "531025800",
-    "531999059"
-   ],
+   "prefixes": [],
    "series": []
   },
   "homedesign": {
@@ -1596,12 +1588,10 @@
     "800474013",
     "800474014",
     "800474019",
-    "800474039",
     "800474045",
     "800474050",
     "800474051",
     "800474053",
-    "800474090",
     "800474091"
    ],
    "series": [
@@ -2249,8 +2239,10 @@
    "series": []
   },
   "ocean": {
-   "aliases": [],
-   "canonical": "OCEAN",
+   "aliases": [
+    "OCEAN"
+   ],
+   "canonical": "Ocean",
    "gs1_owner": "Ocean Glass Public Co., Ltd.",
    "logo": null,
    "prefixes": [
@@ -2354,29 +2346,12 @@
    "prefixes": [],
    "series": []
   },
-  "ozti": {
-   "aliases": [],
-   "canonical": "OZTI",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": []
-  },
-  "oztiryakiler": {
-   "aliases": [
-    "özti̇ryaki̇ler madeni̇ eşya san.ve ti̇c. a.ş."
-   ],
-   "canonical": "Oztiryakiler",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": []
-  },
   "parmash": {
    "aliases": [
-    "parmash jsc"
+    "parmash jsc",
+    "PARMASH"
    ],
-   "canonical": "PARMASH",
+   "canonical": "Parmash",
    "gs1_owner": null,
    "logo": null,
    "prefixes": [
@@ -2514,13 +2489,7 @@
    "gs1_owner": "ERKA GIDA TEMİZLİK TARIM HAYV.SAN. TİC.LTD.ŞTİ.",
    "logo": null,
    "prefixes": [
-    "869676410",
-    "869676420",
-    "869676421",
-    "869676423",
-    "869676430",
-    "869676431",
-    "869676440"
+    "869676410"
    ],
    "series": []
   },
@@ -2572,19 +2541,7 @@
    "gs1_owner": "INTERNATIONAL COOKWARE SAS",
    "logo": null,
    "prefixes": [
-    "342647027",
-    "801038701",
-    "801038702",
-    "801038703",
-    "801038704",
-    "801038705",
-    "801038706",
-    "801038708",
-    "801038709",
-    "801038713",
-    "801038719",
-    "801038723",
-    "801038733"
+    "342647027"
    ],
    "series": [
     "Supreme"
@@ -2743,16 +2700,6 @@
     "S580E",
     "S585E"
    ]
-  },
-  "senyayla": {
-   "aliases": [
-    "şenyayla plasti̇k san.ve ti̇c.a.ş."
-   ],
-   "canonical": "Senyayla",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": []
   },
   "serinova": {
    "aliases": [],
@@ -3022,10 +2969,7 @@
    "gs1_owner": "DEMİREL PLASTİK VE KALIP SANAYİ ANONİM ŞİRKETİ",
    "logo": null,
    "prefixes": [
-    "869406402",
-    "869406404",
-    "869406405",
-    "869406410"
+    "869406404"
    ],
    "series": []
   },
@@ -3134,18 +3078,11 @@
    "series": []
   },
   "vertex": {
-   "aliases": [],
-   "canonical": "Vertex",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": []
-  },
-  "vertexjsc": {
    "aliases": [
-    "vertex-jsc"
+    "vertex-jsc",
+    "Vertex Jsc"
    ],
-   "canonical": "Vertex Jsc",
+   "canonical": "Vertex",
    "gs1_owner": null,
    "logo": null,
    "prefixes": [],
@@ -3373,7 +3310,10 @@
   },
   "ztiryakiler": {
    "aliases": [
-    "oz"
+    "oz",
+    "özti̇ryaki̇ler madeni̇ eşya san.ve ti̇c. a.ş.",
+    "Oztiryakiler",
+    "OZTI"
    ],
    "canonical": "Öztiryakiler",
    "gs1_owner": "öztiryaki",
