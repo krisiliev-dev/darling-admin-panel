@@ -1203,14 +1203,6 @@
    "prefixes": [],
    "series": []
   },
-  "hg": {
-   "aliases": [],
-   "canonical": "HG",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": []
-  },
   "hisar": {
    "aliases": [
     "hi̇sar çatal-kaşik ve paslanmaz madeni̇ eşya sanayi̇ ve ti̇caret a.ş."
@@ -1290,8 +1282,32 @@
   },
   "horecano": {
    "aliases": [
+    "bg",
+    "bh",
+    "br",
+    "cn",
+    "di",
+    "fim",
+    "fzd",
+    "gcc",
+    "gf",
+    "gx",
+    "hd",
+    "hg",
+    "hh",
     "horecano home",
-    "horecano-home"
+    "horecano-home",
+    "java",
+    "jw",
+    "jy",
+    "lp",
+    "mn",
+    "old",
+    "polywood",
+    "tb",
+    "top",
+    "wh",
+    "zd"
    ],
    "canonical": "HORECANO",
    "gs1_owner": null,
@@ -1309,6 +1325,7 @@
     "Bakery",
     "Basics",
     "Ben",
+    "Bermuda",
     "Black",
     "Bloom",
     "Buffet",
@@ -1321,11 +1338,14 @@
     "Cleaning",
     "Coral",
     "Crock",
+    "Economic",
     "Eko",
     "Faia",
+    "Family Table",
     "Florence",
     "Gold",
     "Gracy",
+    "Grey",
     "Havana",
     "Hella",
     "Home",
@@ -1344,11 +1364,14 @@
     "Miami",
     "Milan",
     "Natalie",
+    "Natural",
     "North",
     "Olala",
     "Old",
+    "Old Fashioned",
     "Pearl",
     "Petal",
+    "Polywood",
     "Premium",
     "Pro",
     "Pvc",
@@ -1363,6 +1386,7 @@
     "Shengya",
     "Shibui",
     "Show",
+    "Sierra Polaris",
     "Sigma",
     "Sydney",
     "Titanium",
@@ -2320,17 +2344,6 @@
    ],
    "series": []
   },
-  "polywood": {
-   "aliases": [],
-   "canonical": "POLYWOOD",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": [
-    "Grey",
-    "Natural"
-   ]
-  },
   "practic": {
    "aliases": [],
    "canonical": "PRACTIC",
@@ -2574,6 +2587,20 @@
     "Kayik"
    ]
   },
+  "siesta": {
+   "aliases": [
+    "si"
+   ],
+   "canonical": "Siesta",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Jamaica",
+    "Aruba",
+    "Miami"
+   ]
+  },
   "simonaggio": {
    "aliases": [
     "metalurgica simonaggio ltda",
@@ -2782,16 +2809,6 @@
     "869853253",
     "869853259"
    ],
-   "series": []
-  },
-  "top": {
-   "aliases": [
-    "top"
-   ],
-   "canonical": "TOP",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
    "series": []
   },
   "topkapi": {

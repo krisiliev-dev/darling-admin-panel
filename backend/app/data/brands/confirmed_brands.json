@@ -529,6 +529,146 @@
   "series": null,
   "tier": "barcode"
  },
+ "0103250": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103252": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103253": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103254": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103255": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103256": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103257": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103258": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103259": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103260": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103262": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103263": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103264": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0103268": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010382": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010383": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010384": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010386": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010387": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010388": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010390": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010392": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010393": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010394": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010396": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010397": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010398": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "010399": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
  "010400": {
   "brand": "Vitrum",
   "series": null,
@@ -585,7 +725,7 @@
   "tier": "namecode"
  },
  "0104117": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -1418,6 +1558,31 @@
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
+ },
+ "0108284": {
+  "brand": "HORECANO",
+  "series": "Family Table",
+  "tier": "namecode"
+ },
+ "0108285": {
+  "brand": "HORECANO",
+  "series": "Family Table",
+  "tier": "namecode"
+ },
+ "0108286": {
+  "brand": "HORECANO",
+  "series": "Family Table",
+  "tier": "namecode"
+ },
+ "0108287": {
+  "brand": "HORECANO",
+  "series": "Family Table",
+  "tier": "namecode"
+ },
+ "0108288": {
+  "brand": "HORECANO",
+  "series": "Family Table",
+  "tier": "namecode"
  },
  "010830": {
   "brand": "Cerutil",
@@ -4340,44 +4505,49 @@
   "tier": "scrape"
  },
  "011163": {
-  "brand": "OCEAN",
+  "brand": "Bonna",
   "series": null,
   "tier": "scrape"
  },
  "011164": {
-  "brand": "OCEAN",
+  "brand": "Bonna",
   "series": null,
   "tier": "scrape"
  },
  "011167": {
-  "brand": "OCEAN",
+  "brand": "Bonna",
   "series": null,
   "tier": "scrape"
  },
  "011177": {
-  "brand": "Bonna",
+  "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "011178": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "011179": {
-  "brand": "Bonna",
+  "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "011180": {
-  "brand": "Bonna",
+  "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "011182": {
-  "brand": "Bonna",
+  "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "011183": {
-  "brand": "Bonna",
+  "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "011191": {
   "brand": "Bonna",
@@ -6404,6 +6574,321 @@
   "series": "Classic",
   "tier": "name"
  },
+ "0114100": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114101": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114102": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114103": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114104": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114105": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114106": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114107": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114108": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114109": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114110": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114111": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114112": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114113": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114114": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114115": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114116": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114117": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114118": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114119": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114120": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114121": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114122": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114133": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114134": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114135": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114138": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114140": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114141": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114143": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114144": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114145": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114146": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114147": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114148": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114149": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114150": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114151": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114152": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114153": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114154": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114155": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114156": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114157": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114158": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114159": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114160": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114161": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114162": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114163": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114164": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114165": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114166": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114167": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114168": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114169": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114170": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114171": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0114172": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "011427": {
   "brand": "OCEAN",
   "series": "Vino",
@@ -6433,6 +6918,16 @@
   "brand": "OCEAN",
   "series": "Madison",
   "tier": "name"
+ },
+ "011498": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "011499": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0115124": {
   "brand": "Tevalli",
@@ -6856,7 +7351,7 @@
  },
  "0116135": {
   "brand": "HORECANO",
-  "series": null,
+  "series": "Grey",
   "tier": "name"
  },
  "0116136": {
@@ -7449,6 +7944,41 @@
   "series": null,
   "tier": "scrape"
  },
+ "0117142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0117224": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0117237": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0117238": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0117239": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "011726": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "011727": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0117272": {
   "brand": "HORECANO",
   "series": null,
@@ -7458,6 +7988,16 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "011728": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "011729": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0117377": {
   "brand": "HORECANO",
@@ -8754,6 +9294,311 @@
   "series": null,
   "tier": "scrape"
  },
+ "012100": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012101": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012102": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012103": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012104": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012105": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012106": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012107": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012108": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012109": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012110": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012112": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012113": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012114": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012115": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012116": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012117": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012118": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012119": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012120": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012121": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012122": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012123": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012124": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012125": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012126": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012127": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012128": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012129": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012130": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012131": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012132": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012133": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012134": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012135": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012138": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012140": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012141": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012143": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012144": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012145": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012147": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012148": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012149": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012154": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012157": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012158": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012159": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012160": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012161": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012162": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012163": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012164": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012165": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012166": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012167": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012168": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01219": {
   "brand": "Dunya",
   "series": null,
@@ -8794,125 +9639,205 @@
   "series": null,
   "tier": "name"
  },
+ "012301": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012302": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012303": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012304": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012305": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012306": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "012307": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012308": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012309": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012310": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012311": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012312": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012313": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012314": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012315": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012316": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012317": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012318": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012319": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012320": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012321": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012322": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012323": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012324": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012325": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012326": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012327": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012328": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012329": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "012330": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "012331": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012332": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012333": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012334": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012335": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012336": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012337": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012338": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012339": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012340": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "012341": {
   "brand": "HORECANO",
@@ -8934,6 +9859,61 @@
   "series": null,
   "tier": "name"
  },
+ "012346": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012347": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012348": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012349": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012350": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012353": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012354": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012355": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012356": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012357": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012358": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "012359": {
   "brand": "HORECANO",
   "series": null,
@@ -8943,6 +9923,26 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "012361": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012362": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012363": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "012364": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "012365": {
   "brand": "HORECANO",
@@ -9231,7 +10231,7 @@
  },
  "012455": {
   "brand": "HORECANO",
-  "series": null,
+  "series": "Grey",
   "tier": "name"
  },
  "012456": {
@@ -9306,7 +10306,7 @@
  },
  "012470": {
   "brand": "HORECANO",
-  "series": null,
+  "series": "Grey",
   "tier": "name"
  },
  "0124700": {
@@ -10770,62 +11770,62 @@
   "tier": "scrape"
  },
  "013201": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013202": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013203": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013204": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013205": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013206": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013207": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013208": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013209": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013210": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013211": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013212": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -10844,14 +11844,39 @@
   "series": "Vintage",
   "tier": "name"
  },
+ "0132128": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0132129": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0132130": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
  "0132131": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132132": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
+  "tier": "namecode"
+ },
+ "0132135": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0132136": {
+  "brand": "HORECANO",
+  "series": "Old",
   "tier": "namecode"
  },
  "0132137": {
@@ -10870,17 +11895,27 @@
   "tier": "name"
  },
  "013214": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
+ "0132140": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0132141": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
  "0132149": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132150": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -10895,42 +11930,42 @@
   "tier": "name"
  },
  "0132157": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132158": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132159": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013216": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132160": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132161": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132162": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132163": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -10945,17 +11980,17 @@
   "tier": "name"
  },
  "0132168": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0132169": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013217": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -10970,22 +12005,22 @@
   "tier": "name"
  },
  "013218": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013219": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013220": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013221": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -11000,187 +12035,187 @@
   "tier": "name"
  },
  "013223": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013224": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013225": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013226": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013227": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013228": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013229": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013231": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013232": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013233": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013234": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013235": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013236": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013238": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013239": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013240": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013241": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013242": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013243": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013244": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013245": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013246": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013247": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013248": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013249": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013253": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013254": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013255": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013256": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013257": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013258": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013260": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013263": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013265": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013271": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013273": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013274": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -11225,12 +12260,12 @@
   "tier": "name"
  },
  "013284": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "013285": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -11238,6 +12273,16 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "scrape"
+ },
+ "013297": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "013298": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
  },
  "0133251": {
   "brand": "Karizma",
@@ -11614,25 +12659,1355 @@
   "series": null,
   "tier": "barcode"
  },
+ "013401": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013402": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013403": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013404": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013405": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013406": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013407": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013408": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013409": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013410": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134100": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134102": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134103": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134104": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134105": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134106": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134107": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134109": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013411": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134110": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134111": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134112": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134113": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134114": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134116": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134117": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134118": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134119": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013412": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134120": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134121": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134122": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134123": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134124": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134125": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134126": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134127": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134128": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134129": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013413": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134130": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134131": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134132": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134133": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134134": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134135": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134138": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013414": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134140": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134141": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134143": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134144": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134145": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134146": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134147": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134148": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134149": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013415": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134150": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134151": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134152": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134153": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134154": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134155": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134156": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134157": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134158": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134159": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013416": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134160": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134161": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134162": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134163": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134164": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134165": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134166": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134167": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134168": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134169": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013417": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134170": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134171": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134172": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134173": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134174": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134175": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134176": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134177": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134178": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134179": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013418": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134180": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134181": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134182": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134183": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134184": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134186": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134187": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134188": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134189": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013419": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134190": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134191": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134192": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134193": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134194": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134195": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134196": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134197": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134198": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134199": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013420": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134200": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134201": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134202": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134203": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134205": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134206": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134207": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134208": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134209": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013421": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134210": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134211": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134212": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134213": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134215": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134216": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134217": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134218": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134219": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013422": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013423": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013424": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013425": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013426": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013427": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013428": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013429": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013430": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013431": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013432": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013433": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013434": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134348": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134349": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013435": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134350": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134351": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134352": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134353": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134354": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134355": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134356": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134357": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134358": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134359": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013436": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134360": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134361": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134362": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134363": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134364": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134365": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134366": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134367": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134368": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134369": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013437": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134370": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134371": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134372": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134373": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134374": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134375": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134376": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134377": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134378": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134379": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013438": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134380": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134381": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134382": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134383": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0134385": {
   "brand": "Stella",
   "series": null,
   "tier": "barcode"
  },
+ "0134386": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134387": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134388": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013439": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134390": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134392": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134393": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134399": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013440": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0134400": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0134401": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0134402": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "0134404": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134405": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134406": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134407": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134408": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134409": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013441": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134410": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134411": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134412": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134413": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134414": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0134415": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013442": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013443": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013444": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013445": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013446": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013447": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013448": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013449": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013450": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013451": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013452": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013453": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013454": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013455": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013456": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013457": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013458": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013459": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013460": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013461": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013462": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013463": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013464": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013465": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013466": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013467": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013468": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013469": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013470": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013471": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013472": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013473": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013474": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013475": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013476": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013477": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013479": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013481": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013482": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013483": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013484": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013485": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013486": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013487": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013488": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013489": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013490": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013491": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013492": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013493": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013494": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013495": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013496": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013497": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013498": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "013499": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0136100": {
   "brand": "Polaris",
@@ -17639,6 +20014,116 @@
   "series": null,
   "tier": "barcode"
  },
+ "013871": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013872": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013873": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013874": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013875": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013876": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013877": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013878": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013879": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013880": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013881": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013883": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013884": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013885": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013886": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013887": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013888": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013889": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013890": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013891": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013892": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "013893": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
  "0139150": {
   "brand": "HORECANO",
   "series": "Basics",
@@ -17834,20 +20319,930 @@
   "series": "Basics",
   "tier": "name"
  },
- "0142132": {
-  "brand": "OCEAN",
-  "series": null,
-  "tier": "scrape"
- },
- "0142133": {
-  "brand": "OCEAN",
-  "series": null,
-  "tier": "scrape"
- },
- "0142186": {
-  "brand": "OCEAN",
+ "014004": {
+  "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "014005": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014006": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014007": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014008": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014009": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014011": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014012": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014013": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0140134": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0140135": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0140136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0140137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014014": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014015": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014016": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014017": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014018": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014019": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014020": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014021": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014022": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014023": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014024": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014025": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014026": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014027": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014029": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014030": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014031": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014053": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014054": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014055": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014056": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014057": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014058": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014060": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014061": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014062": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014063": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014064": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014065": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014066": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014068": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014069": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014070": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014071": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014072": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014073": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014074": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014075": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014076": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014079": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014080": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014081": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014082": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014083": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "014201": {
+  "brand": "Siesta",
+  "series": "Jamaica",
+  "tier": "namecode"
+ },
+ "014203": {
+  "brand": "Siesta",
+  "series": "Aruba",
+  "tier": "namecode"
+ },
+ "014204": {
+  "brand": "Siesta",
+  "series": "Aruba",
+  "tier": "namecode"
+ },
+ "014205": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014206": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014207": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014208": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014209": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014210": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142100": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142101": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142102": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142103": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142104": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142105": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142106": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142107": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142108": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142109": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014211": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142110": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142111": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142112": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142113": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142114": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142115": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142116": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142117": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142118": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142119": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014212": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142120": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142121": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142122": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142123": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142124": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142125": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142126": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142127": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142128": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142129": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014213": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142130": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142131": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142132": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142133": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142134": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142135": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142136": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142137": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142138": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142139": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142140": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142141": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142142": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142143": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "0142144": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142145": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142146": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142147": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142148": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142149": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014215": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142150": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142151": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142152": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142153": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "0142154": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142155": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142156": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142157": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142158": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142159": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014216": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142160": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142161": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142162": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142163": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142164": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142165": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142166": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142167": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142168": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142169": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014217": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "0142170": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142171": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142172": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142173": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142174": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142175": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142176": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142177": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142178": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142179": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014218": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "0142180": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142181": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142182": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142183": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142184": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142185": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142186": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142187": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142188": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142189": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014219": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142190": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142191": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142192": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142193": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142194": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142195": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142196": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142197": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142198": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0142199": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014220": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014221": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014222": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014223": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014224": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014225": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014226": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014227": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014228": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014229": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014230": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "0142300": {
   "brand": "Novussi",
@@ -17899,6 +21294,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "014231": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142310": {
   "brand": "Novussi",
   "series": null,
@@ -17948,6 +21348,11 @@
   "brand": "Novussi",
   "series": null,
   "tier": "barcode"
+ },
+ "014232": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "0142320": {
   "brand": "Novussi",
@@ -17999,6 +21404,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "014233": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142330": {
   "brand": "Novussi",
   "series": null,
@@ -18048,6 +21458,11 @@
   "brand": "Novussi",
   "series": null,
   "tier": "barcode"
+ },
+ "014234": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "0142340": {
   "brand": "Novussi",
@@ -18099,6 +21514,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "014235": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142350": {
   "brand": "Novussi",
   "series": null,
@@ -18148,6 +21568,11 @@
   "brand": "Novussi",
   "series": null,
   "tier": "barcode"
+ },
+ "014236": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "0142360": {
   "brand": "Novussi",
@@ -18199,6 +21624,11 @@
   "series": null,
   "tier": "name"
  },
+ "014237": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142370": {
   "brand": "Novussi",
   "series": null,
@@ -18248,6 +21678,11 @@
   "brand": "HORECANO",
   "series": "Chicago",
   "tier": "name"
+ },
+ "014238": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "0142380": {
   "brand": "HORECANO",
@@ -18299,6 +21734,11 @@
   "series": "London",
   "tier": "name"
  },
+ "014239": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142390": {
   "brand": "HORECANO",
   "series": "London",
@@ -18348,6 +21788,11 @@
   "brand": "HORECANO",
   "series": "Tokyo",
   "tier": "name"
+ },
+ "014240": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "0142400": {
   "brand": "HORECANO",
@@ -18399,6 +21844,11 @@
   "series": "Aspen",
   "tier": "name"
  },
+ "014241": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142410": {
   "brand": "HORECANO",
   "series": "Aspen",
@@ -18449,6 +21899,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "014242": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
  "0142420": {
   "brand": "Novussi",
   "series": null,
@@ -18484,15 +21939,285 @@
   "series": null,
   "tier": "name"
  },
- "014254": {
-  "brand": "OCEAN",
+ "014243": {
+  "brand": "Siesta",
   "series": null,
-  "tier": "name"
+  "tier": "namecode"
+ },
+ "014244": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014245": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014246": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014247": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014248": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014249": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014250": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014251": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014252": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014253": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014254": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "014255": {
-  "brand": "OCEAN",
+  "brand": "Siesta",
   "series": null,
-  "tier": "name"
+  "tier": "namecode"
+ },
+ "014256": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014257": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014258": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014259": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014260": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014261": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014262": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014263": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014264": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014265": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014266": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014267": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014268": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014269": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014270": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014271": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014272": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014273": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014274": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014275": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014276": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014277": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014278": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014279": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014280": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014281": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014282": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014283": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014284": {
+  "brand": "Siesta",
+  "series": "Aruba",
+  "tier": "namecode"
+ },
+ "014285": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014286": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014287": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014288": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014289": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014290": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014291": {
+  "brand": "Siesta",
+  "series": "Miami",
+  "tier": "namecode"
+ },
+ "014293": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014294": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014295": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014296": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014297": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014298": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
+ },
+ "014299": {
+  "brand": "Siesta",
+  "series": null,
+  "tier": "namecode"
  },
  "014301": {
   "brand": "HORECANO",
@@ -23989,6 +27714,16 @@
   "series": null,
   "tier": "barcode"
  },
+ "0154332": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0154333": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
  "0154335": {
   "brand": "Stella",
   "series": null,
@@ -24078,6 +27813,11 @@
   "brand": "HORECANO",
   "series": "Voca",
   "tier": "name"
+ },
+ "0154443": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
  },
  "0154444": {
   "brand": "HORECANO",
@@ -28236,17 +31976,17 @@
  },
  "016184": {
   "brand": "HORECANO",
-  "series": "Wood",
+  "series": "Natural",
   "tier": "name"
  },
  "016185": {
   "brand": "HORECANO",
-  "series": "Wood",
+  "series": "Natural",
   "tier": "name"
  },
  "016186": {
   "brand": "HORECANO",
-  "series": "Wood",
+  "series": "Natural",
   "tier": "name"
  },
  "016188": {
@@ -28849,6 +32589,26 @@
   "series": null,
   "tier": "name"
  },
+ "0166252": {
+  "brand": "HORECANO",
+  "series": "White",
+  "tier": "name"
+ },
+ "0166253": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0166254": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0166255": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
  "0166264": {
   "brand": "Werzalit",
   "series": null,
@@ -28856,6 +32616,16 @@
  },
  "0166273": {
   "brand": "Werzalit",
+  "series": null,
+  "tier": "name"
+ },
+ "0166294": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0166295": {
+  "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
@@ -29189,6 +32959,91 @@
   "series": "Pearl",
   "tier": "name"
  },
+ "017108": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171100": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171101": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0171102": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171103": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171104": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171105": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171106": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171107": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171108": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171109": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171110": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171111": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171112": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171113": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171114": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171115": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171116": {
   "brand": "HORECANO",
   "series": "Gracy",
@@ -29208,6 +33063,11 @@
   "brand": "HORECANO",
   "series": "Gracy",
   "tier": "name"
+ },
+ "017112": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171120": {
   "brand": "HORECANO",
@@ -29233,6 +33093,11 @@
   "brand": "HORECANO",
   "series": "Gracy",
   "tier": "name"
+ },
+ "0171125": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "017114": {
   "brand": "HORECANO",
@@ -29504,10 +33369,55 @@
   "series": null,
   "tier": "scrape"
  },
+ "0171322": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171323": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171324": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171325": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171327": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0171328": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171329": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171330": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171333": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171334": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171335": {
   "brand": "HORECANO",
@@ -29519,10 +33429,30 @@
   "series": null,
   "tier": "name"
  },
+ "0171338": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171339": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171340": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0171341": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171342": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171343": {
   "brand": "HORECANO",
@@ -29534,15 +33464,30 @@
   "series": null,
   "tier": "name"
  },
+ "0171345": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171346": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
+ "0171347": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171348": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0171352": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171353": {
   "brand": "HORECANO",
@@ -29552,7 +33497,7 @@
  "0171354": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0171355": {
   "brand": "HORECANO",
@@ -29584,10 +33529,15 @@
   "series": "Carmen",
   "tier": "name"
  },
+ "0171360": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171361": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0171362": {
   "brand": "HORECANO",
@@ -29604,10 +33554,40 @@
   "series": null,
   "tier": "name"
  },
+ "0171365": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171366": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171367": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0171368": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171369": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171370": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171371": {
   "brand": "HORECANO",
@@ -29629,6 +33609,16 @@
   "series": null,
   "tier": "name"
  },
+ "0171375": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171376": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0171377": {
   "brand": "HORECANO",
   "series": null,
@@ -29643,6 +33633,16 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "017138": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171380": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171381": {
   "brand": "HORECANO",
@@ -29663,6 +33663,36 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0171385": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171386": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171387": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171388": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0171389": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0171390": {
   "brand": "HORECANO",
@@ -29688,6 +33718,11 @@
   "brand": "HORECANO",
   "series": "Pearl",
   "tier": "name"
+ },
+ "017158": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "017159": {
   "brand": "HORECANO",
@@ -29719,10 +33754,55 @@
   "series": "Old",
   "tier": "name"
  },
+ "017165": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017166": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017167": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017187": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "017194": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "017195": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017196": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017197": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017198": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "017199": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "017378": {
   "brand": "Dunya",
@@ -30234,6 +34314,16 @@
   "series": "Florence",
   "tier": "name"
  },
+ "018170": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018171": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018172": {
   "brand": "HORECANO",
   "series": "Florence",
@@ -30249,10 +34339,70 @@
   "series": "Home",
   "tier": "name"
  },
+ "018175": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018176": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018177": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018178": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018179": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018180": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018181": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018182": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018184": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018185": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018186": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018187": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018188": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "018189": {
   "brand": "HORECANO",
@@ -30359,6 +34509,11 @@
   "series": "Florence",
   "tier": "name"
  },
+ "0182100": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182102": {
   "brand": "HORECANO",
   "series": null,
@@ -30374,35 +34529,165 @@
   "series": "Florence",
   "tier": "name"
  },
+ "0182121": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182122": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182123": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182124": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182125": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182126": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182127": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
  },
- "018213": {
+ "0182128": {
   "brand": "HORECANO",
   "series": null,
+  "tier": "namecode"
+ },
+ "0182129": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018213": {
+  "brand": "Tescoma",
+  "series": null,
   "tier": "name"
+ },
+ "0182130": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182131": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182132": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182133": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
  },
+ "0182134": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182135": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018214": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182140": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182141": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182143": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182144": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0182145": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182146": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182147": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
  },
+ "0182148": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182149": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018215": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182150": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182151": {
   "brand": "HORECANO",
@@ -30417,7 +34702,7 @@
  "0182153": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0182154": {
   "brand": "HORECANO",
@@ -30439,10 +34724,30 @@
   "series": null,
   "tier": "name"
  },
+ "0182158": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018216": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182160": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0182161": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182162": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182163": {
   "brand": "HORECANO",
@@ -30454,6 +34759,11 @@
   "series": null,
   "tier": "name"
  },
+ "0182166": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182167": {
   "brand": "HORECANO",
   "series": null,
@@ -30463,6 +34773,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018217": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182170": {
   "brand": "HORECANO",
@@ -30484,6 +34799,11 @@
   "series": null,
   "tier": "name"
  },
+ "0182174": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182175": {
   "brand": "HORECANO",
   "series": null,
@@ -30494,10 +34814,55 @@
   "series": null,
   "tier": "name"
  },
+ "0182178": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018218": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018219": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
+ },
+ "0182198": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182199": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018220": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182200": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182201": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182202": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182203": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182204": {
   "brand": "HORECANO",
@@ -30523,6 +34888,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018221": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182210": {
   "brand": "HORECANO",
@@ -30574,6 +34944,16 @@
   "series": null,
   "tier": "name"
  },
+ "018222": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182221": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182223": {
   "brand": "HORECANO",
   "series": null,
@@ -30609,6 +34989,11 @@
   "series": null,
   "tier": "name"
  },
+ "018223": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182230": {
   "brand": "HORECANO",
   "series": null,
@@ -30643,6 +35028,16 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0182237": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182238": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182239": {
   "brand": "HORECANO",
@@ -30694,6 +35089,56 @@
   "series": "Petal",
   "tier": "name"
  },
+ "0182248": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182249": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018225": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182250": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182251": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182252": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182253": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182254": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182255": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182256": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182257": {
   "brand": "HORECANO",
   "series": "Titanium",
@@ -30708,6 +35153,11 @@
   "brand": "HORECANO",
   "series": "Titanium",
   "tier": "name"
+ },
+ "018226": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182260": {
   "brand": "HORECANO",
@@ -30744,10 +35194,80 @@
   "series": "Gold",
   "tier": "name"
  },
+ "0182267": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182268": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182269": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018227": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182270": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182271": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182272": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182273": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182274": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182275": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0182276": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0182277": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0182278": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018228": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018229": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182291": {
   "brand": "HORECANO",
@@ -30767,12 +35287,22 @@
  "0182297": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0182298": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "0182299": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018230": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0182306": {
   "brand": "HORECANO",
@@ -30784,20 +35314,130 @@
   "series": "Rustic",
   "tier": "name"
  },
+ "018231": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018232": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018233": {
   "brand": "HORECANO",
   "series": "Pearl",
   "tier": "name"
+ },
+ "018234": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018235": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "018236": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
+ "018237": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018238": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018239": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018240": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018241": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018242": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018243": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018244": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018245": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018246": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018247": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018248": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018249": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018250": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018251": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018252": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018253": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018254": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018255": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "018256": {
   "brand": "HORECANO",
@@ -30854,10 +35494,50 @@
   "series": "Natalie",
   "tier": "name"
  },
+ "018267": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018268": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018269": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018270": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018271": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018272": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018273": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018274": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018275": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "018277": {
   "brand": "HORECANO",
@@ -30869,10 +35549,50 @@
   "series": "Natalie",
   "tier": "name"
  },
+ "018279": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "018280": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018281": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018282": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018283": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018284": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018285": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018286": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018287": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "018288": {
   "brand": "HORECANO",
@@ -30883,6 +35603,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "018290": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "018291": {
   "brand": "HORECANO",
@@ -31971,7 +36696,7 @@
  },
  "0185173": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0185174": {
@@ -31986,7 +36711,7 @@
  },
  "0185176": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0185177": {
@@ -32001,7 +36726,7 @@
  },
  "0185179": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "018518": {
@@ -32021,7 +36746,7 @@
  },
  "0185182": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0185183": {
@@ -32036,7 +36761,7 @@
  },
  "0185185": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0185186": {
@@ -32051,7 +36776,7 @@
  },
  "0185191": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0185192": {
@@ -32309,10 +37034,240 @@
   "series": null,
   "tier": "name"
  },
+ "018802": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018804": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018805": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018806": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018810": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018811": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018812": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018813": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188138": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018814": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188140": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188141": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188143": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188144": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188145": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188146": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188147": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0188148": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018817": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018819": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018820": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018823": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018824": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018825": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018827": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018828": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018829": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018830": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018831": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018832": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018833": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018834": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018835": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018836": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018837": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018838": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018839": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01886": {
   "brand": "Bonna",
   "series": null,
   "tier": "scrape"
+ },
+ "018881": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018882": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018883": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018887": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "018888": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "018901": {
   "brand": "Hascevher",
@@ -33856,22 +38811,22 @@
  },
  "0189904": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0189905": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0189906": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0189908": {
   "brand": "HORECANO",
-  "series": "Home",
+  "series": "Grey",
   "tier": "name"
  },
  "0189909": {
@@ -34218,6 +39173,31 @@
   "brand": "Char-Broil",
   "series": null,
   "tier": "name"
+ },
+ "019039": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019041": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019042": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019044": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019048": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019056": {
   "brand": "PRACTIC",
@@ -36169,6 +41149,91 @@
   "series": null,
   "tier": "namecode"
  },
+ "019202": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019204": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019208": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019210": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019214": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019300": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019301": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019302": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019303": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019304": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019305": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019306": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019307": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019308": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019309": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019310": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01931000": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01931006": {
   "brand": "HORECANO",
   "series": null,
@@ -36299,6 +41364,11 @@
   "series": null,
   "tier": "name"
  },
+ "019311": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01931108": {
   "brand": "HORECANO",
   "series": null,
@@ -36408,6 +41478,11 @@
   "brand": "HORECANO",
   "series": "Basics",
   "tier": "name"
+ },
+ "019312": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "01931200": {
   "brand": "HORECANO",
@@ -36549,6 +41624,11 @@
   "series": "Faia",
   "tier": "name"
  },
+ "019313": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01931303": {
   "brand": "HORECANO",
   "series": "Old",
@@ -36609,6 +41689,11 @@
   "series": null,
   "tier": "name"
  },
+ "019314": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01931424": {
   "brand": "HORECANO",
   "series": null,
@@ -36653,6 +41738,11 @@
   "brand": "HORECANO",
   "series": "Sydney",
   "tier": "name"
+ },
+ "019315": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "01931522": {
   "brand": "HORECANO",
@@ -36709,10 +41799,115 @@
   "series": "Milan",
   "tier": "name"
  },
+ "019316": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019317": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019318": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019319": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019320": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019321": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019322": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019323": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019324": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019325": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019326": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019327": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019328": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019329": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019330": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019331": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019332": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019333": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019334": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0193543/0193731": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0193560": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193569": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0193581": {
   "brand": "HORECANO",
@@ -36744,10 +41939,35 @@
   "series": "Pvc",
   "tier": "name"
  },
+ "0193680": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193681": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193683": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193692": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0193704": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0193706": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0193720": {
   "brand": "HORECANO",
@@ -36758,6 +41978,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0193725": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0193733": {
   "brand": "HORECANO",
@@ -36814,6 +42039,116 @@
   "series": null,
   "tier": "name"
  },
+ "0193845": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193846": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193847": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193848": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193849": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193850": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193851": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193852": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193853": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193883": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193884": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193885": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193886": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193890": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193891": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193892": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193893": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193898": {
+  "brand": "HORECANO",
+  "series": "Home",
+  "tier": "namecode"
+ },
+ "0193920": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193921": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193922": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193923": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0193925": {
   "brand": "HORECANO",
   "series": "Shibui",
@@ -36828,6 +42163,66 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0193952": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0193957": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
+ "0193984": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193985": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193986": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193987": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193988": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193989": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193991": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193992": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193993": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0193994": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194001": {
   "brand": "HORECANO",
@@ -36984,100 +42379,630 @@
   "series": null,
   "tier": "barcode"
  },
+ "0194100": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194101": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194102": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194103": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194104": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194105": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194106": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194107": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194108": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194109": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019411": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
+ },
+ "0194110": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194111": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194112": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194113": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194114": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194115": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194116": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194117": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194118": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194119": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019412": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194120": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194121": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194122": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194123": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194124": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194125": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194126": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194127": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194128": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194129": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019413": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
+ },
+ "0194130": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194131": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194132": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194133": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194134": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194135": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194136": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194137": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194138": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194139": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019414": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194140": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194141": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194142": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194143": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194144": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194145": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194146": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194147": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194148": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194149": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019415": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
+ },
+ "0194150": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194151": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194152": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194153": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194154": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194155": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194156": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194157": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194158": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194159": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019416": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194161": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194162": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194163": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194164": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194165": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194166": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194167": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194168": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194169": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019417": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194170": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194171": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194172": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194174": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194175": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194176": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194177": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "0194178": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194179": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019418": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194180": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194181": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194182": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194183": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194184": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194185": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194186": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194187": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194188": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194189": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019419": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194190": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194191": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0194192": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0194193": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "0194194": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194195": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194196": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194197": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "0194199": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019420": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194200": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194201": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0194202": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
+ },
+ "0194203": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019421": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
  },
+ "0194210": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194211": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194212": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194213": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194214": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019422": {
   "brand": "Kos",
   "series": null,
   "tier": "barcode"
+ },
+ "0194222": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194223": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194224": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194225": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194226": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194227": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0194228": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194229": {
   "brand": "HORECANO",
@@ -37239,6 +43164,11 @@
   "series": "Capsule",
   "tier": "name"
  },
+ "019426": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194260": {
   "brand": "HORECANO",
   "series": "Capsule",
@@ -37288,6 +43218,11 @@
   "brand": "HORECANO",
   "series": "Bakery",
   "tier": "name"
+ },
+ "019427": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194270": {
   "brand": "HORECANO",
@@ -37339,6 +43274,11 @@
   "series": "Crock",
   "tier": "name"
  },
+ "019428": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194280": {
   "brand": "HORECANO",
   "series": "Crock",
@@ -37388,6 +43328,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "019429": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194290": {
   "brand": "HORECANO",
@@ -37439,6 +43384,11 @@
   "series": "Rocky",
   "tier": "name"
  },
+ "019430": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194300": {
   "brand": "HORECANO",
   "series": "Rocky",
@@ -37488,6 +43438,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "019431": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194310": {
   "brand": "HORECANO",
@@ -37539,6 +43494,11 @@
   "series": null,
   "tier": "name"
  },
+ "019432": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194320": {
   "brand": "HORECANO",
   "series": null,
@@ -37588,6 +43548,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "019433": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194330": {
   "brand": "HORECANO",
@@ -37639,6 +43604,11 @@
   "series": null,
   "tier": "name"
  },
+ "019434": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194340": {
   "brand": "HORECANO",
   "series": null,
@@ -37688,6 +43658,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "019435": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194350": {
   "brand": "HORECANO",
@@ -37739,6 +43714,11 @@
   "series": null,
   "tier": "name"
  },
+ "019436": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194360": {
   "brand": "HORECANO",
   "series": null,
@@ -37788,6 +43768,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "019437": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194370": {
   "brand": "HORECANO",
@@ -37839,6 +43824,11 @@
   "series": "Buffet",
   "tier": "name"
  },
+ "019438": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194380": {
   "brand": "HORECANO",
   "series": "Buffet",
@@ -37883,6 +43873,11 @@
   "brand": "HORECANO",
   "series": "Wicked",
   "tier": "name"
+ },
+ "019439": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0194390": {
   "brand": "HORECANO",
@@ -37932,7 +43927,7 @@
  "019440": {
   "brand": "HORECANO",
   "series": "Pvc",
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0194400": {
   "brand": "HORECANO",
@@ -37987,7 +43982,7 @@
  "019441": {
   "brand": "HORECANO",
   "series": "Service",
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0194410": {
   "brand": "HORECANO",
@@ -38039,6 +44034,11 @@
   "series": "Shibui",
   "tier": "name"
  },
+ "019442": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194420": {
   "brand": "HORECANO",
   "series": "Shibui",
@@ -38089,6 +44089,11 @@
   "series": null,
   "tier": "name"
  },
+ "019443": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0194430": {
   "brand": "HORECANO",
   "series": null,
@@ -38114,338 +44119,728 @@
   "series": null,
   "tier": "name"
  },
+ "019444": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019445": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019446": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019447": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019448": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019449": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019450": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019451": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019452": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019453": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019454": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019455": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019456": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019457": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019458": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019459": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019460": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019461": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019462": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019463": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019464": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019465": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019466": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019467": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019468": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019469": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019470": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019471": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019472": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019473": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019474": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019475": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019476": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019477": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
+ "019479": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019480": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019481": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019482": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019483": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019484": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019485": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019486": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019487": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019488": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019489": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019490": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019491": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019492": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019493": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019494": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019495": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019496": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019497": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019498": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019499": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019501": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019502": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019503": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019504": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019505": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019506": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019507": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019508": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019509": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019510": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019511": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019512": {
-  "brand": "HG",
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0195120": {
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195125": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195126": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195127": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195128": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195129": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019513": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195130": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195131": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195132": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195133": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195134": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195135": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195136": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195137": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195138": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195139": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019514": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195140": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195141": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019515": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019517": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Grey",
   "tier": "name"
  },
  "019520": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195203": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195293": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195294": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195295": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195310": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195311": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195312": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195313": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195314": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195315": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195316": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195317": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195327": {
-  "brand": "HG",
-  "series": null,
+  "brand": "HORECANO",
+  "series": "Grey",
   "tier": "namecode"
  },
  "0195333": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195334": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195335": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195336": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Natural",
   "tier": "name"
  },
  "0195337": {
-  "brand": "POLYWOOD",
-  "series": null,
-  "tier": "name"
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
  },
  "0195338": {
-  "brand": "POLYWOOD",
-  "series": null,
-  "tier": "name"
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
  },
  "0195339": {
-  "brand": "POLYWOOD",
-  "series": null,
-  "tier": "name"
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
  },
  "0195340": {
-  "brand": "POLYWOOD",
-  "series": null,
+  "brand": "HORECANO",
+  "series": "Polywood",
   "tier": "name"
  },
  "0195341": {
-  "brand": "POLYWOOD",
-  "series": null,
-  "tier": "name"
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
  },
  "0195342": {
-  "brand": "POLYWOOD",
-  "series": null,
-  "tier": "name"
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
  },
  "0195343": {
-  "brand": "POLYWOOD",
-  "series": null,
-  "tier": "name"
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
  },
  "0195344": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
+ },
+ "0195345": {
+  "brand": "HORECANO",
   "series": null,
-  "tier": "name"
+  "tier": "namecode"
+ },
+ "0195346": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0195347": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
+  "series": "Polywood",
+  "tier": "namecode"
+ },
+ "0195348": {
+  "brand": "HORECANO",
+  "series": "Pvc",
+  "tier": "namecode"
+ },
+ "0195349": {
+  "brand": "HORECANO",
+  "series": "Pvc",
+  "tier": "namecode"
+ },
+ "0195353": {
+  "brand": "HORECANO",
+  "series": "Economic",
+  "tier": "name"
+ },
+ "0195354": {
+  "brand": "HORECANO",
+  "series": "Economic",
+  "tier": "name"
+ },
+ "0195355": {
+  "brand": "HORECANO",
+  "series": "Bermuda",
+  "tier": "name"
+ },
+ "0195356": {
+  "brand": "HORECANO",
+  "series": "Bermuda",
+  "tier": "name"
+ },
+ "0195357": {
+  "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
+ "0195358": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195359": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195360": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195361": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195362": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195363": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195364": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195365": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195366": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195367": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195368": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195369": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "name"
+ },
+ "0195377": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0195378": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019540": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Grey",
   "tier": "name"
  },
  "0195428": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019543": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019544": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195442": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "0195443": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -38480,7 +44875,7 @@
   "tier": "name"
  },
  "019545": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -38510,382 +44905,437 @@
   "tier": "name"
  },
  "019546": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019547": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019549": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019566": {
-  "brand": "POLYWOOD",
+  "brand": "HORECANO",
   "series": "Grey",
   "tier": "name"
  },
+ "019567": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019568": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019570": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019571": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019572": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019573": {
+  "brand": "HORECANO",
+  "series": "Havana",
+  "tier": "namecode"
+ },
+ "019574": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019575": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019576": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019577": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "019579": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019580": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019581": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019582": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019583": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019584": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019585": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019586": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019587": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019588": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019589": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019590": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019591": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019592": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019593": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019594": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019595": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019596": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019597": {
-  "brand": "HG",
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019598": {
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019599": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019720": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019721": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019722": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019723": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019724": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019725": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019726": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019727": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019728": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019729": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019730": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019731": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019732": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019733": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019734": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019735": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019736": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019737": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019738": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019739": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019740": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019741": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019742": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019743": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019744": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019745": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019746": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019747": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019748": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019749": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019750": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019751": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019752": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019753": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019754": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019755": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019756": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019757": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019758": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019759": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019760": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019761": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019762": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019763": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019764": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019765": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019766": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019767": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019768": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019769": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019770": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
  "019771": {
-  "brand": "HG",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -38893,6 +45343,56 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "01981020": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981063": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981068": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981069": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981071": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981075": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981077": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981081": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981108": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981120": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "01981135": {
   "brand": "HORECANO",
@@ -38934,15 +45434,50 @@
   "series": null,
   "tier": "name"
  },
+ "0198119": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981198": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01981203": {
   "brand": "HORECANO",
   "series": "Shengya",
   "tier": "name"
  },
+ "01981219": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "01981220": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01981224": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "01981228": {
+  "brand": "HORECANO",
+  "series": "Shengya",
+  "tier": "namecode"
+ },
+ "01981231": {
+  "brand": "HORECANO",
+  "series": "Shengya",
+  "tier": "namecode"
+ },
+ "01981233": {
+  "brand": "HORECANO",
+  "series": "Black",
+  "tier": "namecode"
  },
  "01981252": {
   "brand": "HORECANO",
@@ -38963,6 +45498,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "01981273": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198128": {
   "brand": "HORECANO",
@@ -39069,6 +45609,11 @@
   "series": null,
   "tier": "name"
  },
+ "01981398": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01981399": {
   "brand": "HORECANO",
   "series": null,
@@ -39093,6 +45638,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "01981453": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "01981455": {
   "brand": "HORECANO",
@@ -39274,6 +45824,11 @@
   "series": null,
   "tier": "name"
  },
+ "0198155": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "01981554": {
   "brand": "HORECANO",
   "series": null,
@@ -39288,6 +45843,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0198156": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "01981571": {
   "brand": "HORECANO",
@@ -39444,6 +46004,11 @@
   "series": null,
   "tier": "name"
  },
+ "01981664": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
+ },
  "01981665": {
   "brand": "HORECANO",
   "series": "Old",
@@ -39458,6 +46023,11 @@
   "brand": "HORECANO",
   "series": "Old",
   "tier": "name"
+ },
+ "01981668": {
+  "brand": "HORECANO",
+  "series": "Old",
+  "tier": "namecode"
  },
  "01981669": {
   "brand": "HORECANO",
@@ -39643,6 +46213,11 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0198183": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "01981831": {
   "brand": "HORECANO",
@@ -39894,15 +46469,70 @@
   "series": null,
   "tier": "name"
  },
+ "0198244": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198247": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198261": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
+ "0198284": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198289": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0198325": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198334": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198335": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198337": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198338": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198339": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198340": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198341": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198343": {
   "brand": "HORECANO",
@@ -39924,10 +46554,105 @@
   "series": null,
   "tier": "name"
  },
+ "0198363": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198368": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
+ },
+ "0198388": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198391": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198394": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198395": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198432": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198437": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198438": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198439": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198452": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198453": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019849": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198501": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "019851": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198510": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198513": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198532": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198533": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198534": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198537": {
   "brand": "HORECANO",
@@ -39943,6 +46668,21 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0198542": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198548": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198566": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198572": {
   "brand": "HORECANO",
@@ -39963,6 +46703,61 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0198639": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198643": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198666": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198673": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198675": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198676": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198677": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198678": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198679": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198680": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198684": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198698": {
   "brand": "HORECANO",
@@ -39994,10 +46789,20 @@
   "series": null,
   "tier": "name"
  },
+ "0198742": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198744": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "0198745": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "019875": {
   "brand": "HORECANO",
@@ -40014,6 +46819,11 @@
   "series": null,
   "tier": "name"
  },
+ "0198780": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198781": {
   "brand": "HORECANO",
   "series": null,
@@ -40022,12 +46832,17 @@
  "0198782": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0198791": {
   "brand": "HORECANO",
   "series": "Uni",
   "tier": "name"
+ },
+ "019880": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198822": {
   "brand": "HORECANO",
@@ -40059,10 +46874,25 @@
   "series": null,
   "tier": "name"
  },
+ "0198848": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198880": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198881": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198884": {
   "brand": "HORECANO",
   "series": null,
-  "tier": "scrape"
+  "tier": "namecode"
  },
  "0198887": {
   "brand": "HORECANO",
@@ -40074,15 +46904,60 @@
   "series": null,
   "tier": "name"
  },
+ "0198911": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198934": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198936": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198947": {
+  "brand": "HORECANO",
+  "series": "Shengya",
+  "tier": "namecode"
+ },
+ "0198948": {
+  "brand": "HORECANO",
+  "series": "Shengya",
+  "tier": "namecode"
+ },
+ "0198950": {
+  "brand": "HORECANO",
+  "series": "Shengya",
+  "tier": "namecode"
+ },
  "0198953": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
  },
+ "0198964": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "0198968": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
+ },
+ "0198974": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "0198981": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
  },
  "0198985": {
   "brand": "HORECANO",
@@ -44149,6 +51024,26 @@
   "series": null,
   "tier": "barcode"
  },
+ "21051": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "21052": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "21056": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "21057": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "21072": {
   "brand": "COK",
   "series": null,
@@ -44599,6 +51494,16 @@
   "series": null,
   "tier": "namecode"
  },
+ "27379": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
+ "27382": {
+  "brand": "HORECANO",
+  "series": null,
+  "tier": "namecode"
+ },
  "285": {
   "brand": "Hobby life",
   "series": null,
@@ -44929,6 +51834,11 @@
   "series": null,
   "tier": "namecode"
  },
+ "419": {
+  "brand": "HORECANO",
+  "series": "Rose",
+  "tier": "namecode"
+ },
  "421": {
   "brand": "Hobby life",
   "series": null,
@@ -45190,7 +52100,7 @@
   "tier": "barcode"
  },
  "580": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
@@ -45220,7 +52130,7 @@
   "tier": "barcode"
  },
  "587": {
-  "brand": "TOP",
+  "brand": "HORECANO",
   "series": null,
   "tier": "namecode"
  },
