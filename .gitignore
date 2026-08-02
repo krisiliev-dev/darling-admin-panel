@@ -37,3 +37,5 @@ darling_core/_vendor/*token*.json
 # catalogue instead of failing. Never let one be committed. (2026-07-31)
 darling_core/_vendor/pipeline.db
 darling_core/_vendor/*.db
+
+backend/app/data/brands/brand_registry_v2.json
