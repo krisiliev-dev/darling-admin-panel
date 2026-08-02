@@ -67,6 +67,7 @@ export default function App() {
         <Route path="marki" element={<BrandRegistry />} />
         <Route path="marki/:brandId" element={<BrandDetail />} />
         <Route path="marki-v2" element={<BrandRegistryV2 />} />
+        <Route path="marki-v2/:brandId" element={<BrandRegistryV2 />} />
         <Route path="assistant" element={<Assistant />} />
         <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

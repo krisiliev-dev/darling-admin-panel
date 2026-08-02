@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
@@ -21,7 +22,15 @@ type Unbranded = {
 export default function BrandRegistryV2() {
   const { me } = useAuth()
   const owner = me?.role === 'owner'
+  const { brandId } = useParams()
   const [tab, setTab] = useState<'brands' | 'unbranded'>('brands')
+  if (brandId) return (
+    <main style={{ padding: '1rem', maxWidth: 1050, margin: '0 auto' }}>
+      <div className="sheet" style={{ padding: '1rem 1.2rem' }}>
+        <BrandDetailV2 id={brandId} owner={owner} />
+      </div>
+    </main>
+  )
   return (
     <main style={{ padding: '1rem', maxWidth: 1050, margin: '0 auto' }}>
       <h1 style={{ fontSize: '1.2rem' }}>Марки — опростен регистър (v2)</h1>
@@ -48,8 +57,8 @@ function BrandsTab({ owner }: { owner: boolean }) {
   const [rows, setRows] = useState<BrandV2[]>([])
   const [sum, setSum] = useState<SummaryV2 | null>(null)
   const [q, setQ] = useState('')
-  const [open, setOpen] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
+  const navigate = useNavigate()
 
   const reload = () => {
     api.get<SummaryV2>('/api/brands-v2/summary').then(setSum).catch(() => {})
@@ -57,13 +66,6 @@ function BrandsTab({ owner }: { owner: boolean }) {
   }
   useEffect(reload, [])
 
-  const patch = async (bid: string, body: Record<string, unknown>) => {
-    setMsg('')
-    try {
-      await api.patch(`/api/brands-v2/${encodeURIComponent(bid)}`, body)
-      reload()
-    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Промяната се провали.') }
-  }
   const shown = rows.filter((r) => !q || r.canonical.toLowerCase().includes(q.toLowerCase())
     || r.aliases.some((a) => a.includes(q.toLowerCase())))
 
@@ -85,33 +87,68 @@ function BrandsTab({ owner }: { owner: boolean }) {
         </tr></thead>
         <tbody>
           {shown.map((r) => (
-            <>
-              <tr key={r.id} style={{ borderBottom: '1px solid var(--line)', cursor: 'pointer' }}
-                onClick={() => setOpen(open === r.id ? null : r.id)}>
-                <td style={{ padding: '.4rem', fontWeight: 700 }}>{r.canonical}</td>
-                <td style={{ color: 'var(--red)', fontWeight: 700 }}>{r.product_count}</td>
-                <td>{r.prefixes.length}</td><td>{r.aliases.length}</td><td>{r.series.length}</td>
-              </tr>
-              {open === r.id && (
-                <tr><td colSpan={5} style={{ padding: '.5rem .8rem', background: '#fafbfc' }}>
-                  {r.gs1_owner && <div style={{ fontSize: '.78rem', color: 'var(--pencil)', marginBottom: '.3rem' }}>
-                    GS1 собственик: {r.gs1_owner}</div>}
-                  <ChipEdit label="Префикси" field="prefixes" values={r.prefixes} owner={owner}
-                    onAdd={(v) => patch(r.id, { add: { prefixes: [v] } })}
-                    onRemove={(v) => patch(r.id, { remove: { prefixes: [v] } })} />
-                  <ChipEdit label="Изписвания" field="aliases" values={r.aliases} owner={owner}
-                    onAdd={(v) => patch(r.id, { add: { aliases: [v] } })}
-                    onRemove={(v) => patch(r.id, { remove: { aliases: [v] } })} />
-                  <ChipEdit label="Серии" field="series" values={r.series} owner={owner}
-                    onAdd={(v) => patch(r.id, { add: { series: [v] } })}
-                    onRemove={(v) => patch(r.id, { remove: { series: [v] } })} />
-                  {owner && <RenameDelete row={r} onPatch={patch} onDone={reload} setMsg={setMsg} />}
-                </td></tr>
-              )}
-            </>
+            <tr key={r.id} style={{ borderBottom: '1px solid var(--line)', cursor: 'pointer' }}
+              onClick={() => navigate(`/marki-v2/${encodeURIComponent(r.id)}`)}>
+              <td style={{ padding: '.4rem', fontWeight: 700 }}>{r.canonical}</td>
+              <td style={{ color: 'var(--red)', fontWeight: 700 }}>{r.product_count}</td>
+              <td>{r.prefixes.length}</td><td>{r.aliases.length}</td><td>{r.series.length}</td>
+            </tr>
           ))}
         </tbody>
       </table>
+    </>
+  )
+}
+
+type ProdCard = { code: string; name: string | null; photo: string | null; series?: string }
+
+function BrandDetailV2({ id, owner }: { id: string; owner: boolean }) {
+  const navigate = useNavigate()
+  const [b, setB] = useState<BrandV2 | null>(null)
+  const [prods, setProds] = useState<{ total: number; catalog_available?: boolean; items: ProdCard[] }>({ total: 0, items: [] })
+  const [msg, setMsg] = useState('')
+  const reload = () => {
+    api.get<BrandV2>(`/api/brands-v2/${encodeURIComponent(id)}`).then(setB).catch(() => {})
+    api.get<{ total: number; catalog_available?: boolean; items: ProdCard[] }>(`/api/brands-v2/${encodeURIComponent(id)}/products?limit=600`).then(setProds).catch(() => {})
+  }
+  useEffect(reload, [id])
+  const patch = async (bid: string, body: Record<string, unknown>) => {
+    setMsg('')
+    try { await api.patch(`/api/brands-v2/${encodeURIComponent(bid)}`, body); reload() }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : 'Промяната се провали.') }
+  }
+  if (!b) return <p className="font-type" style={{ color: 'var(--pencil)' }}>Зареждане…</p>
+  return (
+    <>
+      <Link to="/marki-v2" style={{ fontSize: '.85rem', color: 'var(--acc, #0f62fe)' }}>← Всички марки</Link>
+      <h1 style={{ fontSize: '1.3rem', margin: '.3rem 0' }}>{b.canonical}</h1>
+      <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.85rem' }}>
+        {b.product_count} продукта · {b.prefixes.length} префикса · {b.aliases.length} изписвания · {b.series.length} серии</p>
+      {b.gs1_owner && <div style={{ fontSize: '.78rem', color: 'var(--pencil)', marginBottom: '.3rem' }}>GS1 собственик: {b.gs1_owner}</div>}
+      <ChipEdit label="Префикси" field="prefixes" values={b.prefixes} owner={owner}
+        onAdd={(v) => patch(b.id, { add: { prefixes: [v] } })} onRemove={(v) => patch(b.id, { remove: { prefixes: [v] } })} />
+      <ChipEdit label="Изписвания" field="aliases" values={b.aliases} owner={owner}
+        onAdd={(v) => patch(b.id, { add: { aliases: [v] } })} onRemove={(v) => patch(b.id, { remove: { aliases: [v] } })} />
+      <ChipEdit label="Серии" field="series" values={b.series} owner={owner}
+        onAdd={(v) => patch(b.id, { add: { series: [v] } })} onRemove={(v) => patch(b.id, { remove: { series: [v] } })} />
+      {owner && <RenameDelete row={b} onPatch={patch} onDone={() => navigate('/marki-v2')} setMsg={setMsg} />}
+      {msg && <p style={{ color: 'var(--red)' }}>{msg}</p>}
+      <h2 style={{ fontSize: '1rem', margin: '.9rem 0 .4rem' }}>Продукти ({prods.total})</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '.6rem' }}>
+        {prods.items.map((p) => (
+          <div key={p.code} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '.4rem', background: '#fff' }}>
+            <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {p.photo
+                ? <img src={p.photo} alt="" style={{ maxWidth: '100%', maxHeight: 110, objectFit: 'contain' }} />
+                : <span style={{ color: '#ccc', fontSize: '.75rem' }}>няма снимка</span>}
+            </div>
+            <div style={{ fontSize: '.78rem', marginTop: '.3rem', lineHeight: 1.25 }}>{p.name || p.code}</div>
+            <div style={{ fontFamily: 'monospace', fontSize: '.7rem', color: 'var(--pencil)' }}>
+              {p.code}{p.series ? ` · ${p.series}` : ''}</div>
+          </div>
+        ))}
+        {prods.items.length === 0 && <span style={{ color: '#999' }}>—</span>}
+      </div>
     </>
   )
 }

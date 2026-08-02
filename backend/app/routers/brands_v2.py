@@ -62,6 +62,31 @@ async def brand(bid: str, _: User = Depends(current_active_user)):
     return b
 
 
+@router.get("/{bid}/products")
+async def brand_products(bid: str, limit: int = Query(500, ge=1, le=3000),
+                         _: User = Depends(current_active_user)):
+    """Product cards (code, name, photo, series) for the products resolved to this brand."""
+    b = reg.brand(bid)
+    if b is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такава марка.")
+    canon = b["canonical"]
+    conf_path = _DATA / "confirmed_brands.json"
+    series_by: dict[str, str] = {}
+    codes: list[str] = []
+    if conf_path.is_file():
+        for code, v in json.loads(conf_path.read_text(encoding="utf-8")).items():
+            if v.get("brand") == canon:
+                codes.append(code)
+                series_by[code] = v.get("series") or ""
+    total = len(codes)
+    from .brand_registry import _product_cards
+    cards, catalog_available = _product_cards(sorted(codes)[:limit])
+    for c in cards:
+        c["series"] = series_by.get(c["code"], "")
+    return {"total": total, "returned": len(cards), "items": cards,
+            "catalog_available": catalog_available}
+
+
 class EditIn(BaseModel):
     canonical: str | None = Field(default=None, max_length=160)
     gs1_owner: str | None = None
