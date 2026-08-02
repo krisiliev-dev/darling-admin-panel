@@ -31,7 +31,9 @@ export default function BrandRegistryV2() {
         <button onClick={() => setTab('unbranded')} className={tab === 'unbranded' ? 'on' : ''}
           style={tabStyle(tab === 'unbranded')}>Без марка</button>
       </div>
-      {tab === 'brands' ? <BrandsTab owner={owner} /> : <UnbrandedTab />}
+      <div className="sheet" style={{ padding: '1rem 1.2rem', marginTop: '.3rem' }}>
+        {tab === 'brands' ? <BrandsTab owner={owner} /> : <UnbrandedTab />}
+      </div>
     </main>
   )
 }
