@@ -1047,42 +1047,42 @@
  "0109101": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109102": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109103": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109104": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109105": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109106": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109107": {
   "brand": "CRYSTALEX",
   "series": "Bar",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109108": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109109": {
   "brand": "CRYSTALEX",
@@ -1102,12 +1102,12 @@
  "0109112": {
   "brand": "CRYSTALEX",
   "series": "Swing",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109113": {
   "brand": "CRYSTALEX",
   "series": "Swing",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109114": {
   "brand": "CRYSTALEX",
@@ -1172,7 +1172,7 @@
  "0109127": {
   "brand": "CRYSTALEX",
   "series": "Siesta",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109128": {
   "brand": "CRYSTALEX",
@@ -1187,7 +1187,7 @@
  "0109130": {
   "brand": "CRYSTALEX",
   "series": "Siesta",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109131": {
   "brand": "CRYSTALEX",
@@ -1197,47 +1197,47 @@
  "0109132": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109133": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109134": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109135": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109136": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109137": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109138": {
   "brand": "CRYSTALEX",
   "series": "Viola",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109139": {
   "brand": "CRYSTALEX",
   "series": "Bar",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109140": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109141": {
   "brand": "CRYSTALEX",
@@ -1252,7 +1252,7 @@
  "0109143": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109144": {
   "brand": "CRYSTALEX",
@@ -1292,22 +1292,22 @@
  "0109151": {
   "brand": "CRYSTALEX",
   "series": "Bar",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109152": {
   "brand": "CRYSTALEX",
   "series": "Bar",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109153": {
   "brand": "CRYSTALEX",
   "series": "Bar",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109154": {
   "brand": "CRYSTALEX",
   "series": "Bar",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109155": {
   "brand": "CRYSTALEX",
@@ -1382,7 +1382,7 @@
  "0109169": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109170": {
   "brand": "CRYSTALEX",
@@ -1432,27 +1432,27 @@
  "0109187": {
   "brand": "CRYSTALEX",
   "series": "Gina",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109188": {
   "brand": "CRYSTALEX",
   "series": "Gina",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109189": {
   "brand": "CRYSTALEX",
   "series": "Gina",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109190": {
   "brand": "CRYSTALEX",
   "series": "Gina",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109191": {
   "brand": "CRYSTALEX",
   "series": "Gina",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109192": {
   "brand": "CRYSTALEX",
@@ -1477,22 +1477,22 @@
  "0109196": {
   "brand": "CRYSTALEX",
   "series": "Waterfall",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109197": {
   "brand": "CRYSTALEX",
   "series": "Waterfall",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109198": {
   "brand": "CRYSTALEX",
   "series": "Waterfall",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109199": {
   "brand": "CRYSTALEX",
   "series": "Waterfall",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109200": {
   "brand": "CRYSTALEX",
@@ -1502,12 +1502,12 @@
  "0109201": {
   "brand": "CRYSTALEX",
   "series": "Waterfall",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109202": {
   "brand": "CRYSTALEX",
   "series": "Waterfall",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109204": {
   "brand": "CRYSTALEX",
@@ -1517,27 +1517,27 @@
  "0109205": {
   "brand": "CRYSTALEX",
   "series": "Motion",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109206": {
   "brand": "CRYSTALEX",
   "series": "Motion",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109207": {
   "brand": "CRYSTALEX",
   "series": "Motion",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109208": {
   "brand": "CRYSTALEX",
   "series": "Rainbow",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109209": {
   "brand": "CRYSTALEX",
   "series": "Rainbow",
-  "tier": "name"
+  "tier": "barcode"
  },
  "010921": {
   "brand": "HORECANO",
@@ -1547,7 +1547,7 @@
  "0109210": {
   "brand": "CRYSTALEX",
   "series": "Rainbow",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109211": {
   "brand": "CRYSTALEX",
@@ -1617,7 +1617,7 @@
  "0109224": {
   "brand": "CRYSTALEX",
   "series": "Turbulence",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109225": {
   "brand": "CRYSTALEX",
@@ -1712,7 +1712,7 @@
  "0109347": {
   "brand": "CRYSTALEX",
   "series": "Vintage",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109348": {
   "brand": "CRYSTALEX",
@@ -1732,7 +1732,7 @@
  "0109351": {
   "brand": "CRYSTALEX",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109352": {
   "brand": "CRYSTALEX",
@@ -1797,82 +1797,82 @@
  "0109371": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109373": {
   "brand": "CRYSTALEX",
   "series": "Sandra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109374": {
   "brand": "CRYSTALEX",
   "series": "Sandra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109375": {
   "brand": "CRYSTALEX",
   "series": "Sandra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109376": {
   "brand": "CRYSTALEX",
   "series": "Kate",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109377": {
   "brand": "CRYSTALEX",
   "series": "Sandra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109378": {
   "brand": "CRYSTALEX",
   "series": "Sandra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109384": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109385": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109386": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109387": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109388": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109389": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109390": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109391": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109392": {
   "brand": "CRYSTALEX",
   "series": "Xtra",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109500": {
   "brand": "Vidivi",
@@ -1892,7 +1892,7 @@
  "0109503": {
   "brand": "Vidivi",
   "series": "Accademia",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109504": {
   "brand": "Vidivi",
@@ -1927,7 +1927,7 @@
  "0109510": {
   "brand": "Vidivi",
   "series": "Banquet",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109511": {
   "brand": "Vidivi",
@@ -1937,7 +1937,7 @@
  "0109512": {
   "brand": "Vidivi",
   "series": "Banquet",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109513": {
   "brand": "Vidivi",
@@ -1947,32 +1947,32 @@
  "0109514": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109515": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109516": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109517": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109518": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109519": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109520": {
   "brand": "Vidivi",
@@ -2002,7 +2002,7 @@
  "0109525": {
   "brand": "Vidivi",
   "series": "Diva",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109526": {
   "brand": "Vidivi",
@@ -2022,7 +2022,7 @@
  "0109529": {
   "brand": "Vidivi",
   "series": "Dolomiti",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109530": {
   "brand": "Vidivi",
@@ -2032,7 +2032,7 @@
  "0109531": {
   "brand": "Vidivi",
   "series": "Dolomiti",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109532": {
   "brand": "Vidivi",
@@ -2057,12 +2057,12 @@
  "0109536": {
   "brand": "Vidivi",
   "series": "Ducale",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109537": {
   "brand": "Vidivi",
   "series": "Ducale",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109538": {
   "brand": "Vidivi",
@@ -2072,27 +2072,27 @@
  "0109539": {
   "brand": "Vidivi",
   "series": "Ducale",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109540": {
   "brand": "Vidivi",
   "series": "Ducale",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109541": {
   "brand": "Vidivi",
   "series": "Fenice",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109542": {
   "brand": "Vidivi",
   "series": "Fenice",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109543": {
   "brand": "Vidivi",
   "series": "Fenice",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109544": {
   "brand": "Vidivi",
@@ -2107,7 +2107,7 @@
  "0109546": {
   "brand": "Vidivi",
   "series": "Full",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109547": {
   "brand": "Vidivi",
@@ -2117,12 +2117,12 @@
  "0109548": {
   "brand": "Vidivi",
   "series": "Leaf",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109549": {
   "brand": "Vidivi",
   "series": "Leaf",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109550": {
   "brand": "Vidivi",
@@ -2142,7 +2142,7 @@
  "0109553": {
   "brand": "Vidivi",
   "series": "Oasi",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109554": {
   "brand": "Vidivi",
@@ -2157,7 +2157,7 @@
  "0109556": {
   "brand": "Vidivi",
   "series": "Oasi",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109557": {
   "brand": "Vidivi",
@@ -2177,7 +2177,7 @@
  "0109560": {
   "brand": "Vidivi",
   "series": "Papaya",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109561": {
   "brand": "Vidivi",
@@ -2187,12 +2187,12 @@
  "0109562": {
   "brand": "Vidivi",
   "series": "Papaya",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109563": {
   "brand": "Vidivi",
   "series": "Papaya",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109564": {
   "brand": "Vidivi",
@@ -2202,22 +2202,22 @@
  "0109565": {
   "brand": "Vidivi",
   "series": "Rialto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109566": {
   "brand": "Vidivi",
   "series": "Rialto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109567": {
   "brand": "Vidivi",
   "series": "Rialto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109568": {
   "brand": "Vidivi",
   "series": "Rialto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109569": {
   "brand": "Vidivi",
@@ -2232,7 +2232,7 @@
  "0109571": {
   "brand": "Vidivi",
   "series": "Torcello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109572": {
   "brand": "Vidivi",
@@ -2247,7 +2247,7 @@
  "0109574": {
   "brand": "Vidivi",
   "series": "Torcello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109575": {
   "brand": "Vidivi",
@@ -2262,7 +2262,7 @@
  "0109577": {
   "brand": "Vidivi",
   "series": "Volubilis",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109578": {
   "brand": "Vidivi",
@@ -2272,7 +2272,7 @@
  "0109579": {
   "brand": "Vidivi",
   "series": "Volubilis",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109580": {
   "brand": "Vidivi",
@@ -2282,7 +2282,7 @@
  "0109581": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109582": {
   "brand": "Vidivi",
@@ -2307,12 +2307,12 @@
  "0109587": {
   "brand": "Vidivi",
   "series": "Rialto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109588": {
   "brand": "Vidivi",
   "series": "Rialto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109589": {
   "brand": "Vidivi",
@@ -2327,22 +2327,27 @@
  "0109592": {
   "brand": "Vidivi",
   "series": "Torcello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109594": {
   "brand": "Vidivi",
   "series": "Torcello",
   "tier": "barcode"
  },
+ "0109596": {
+  "brand": "Vidivi",
+  "series": "Rialto",
+  "tier": "barcode"
+ },
  "0109597": {
   "brand": "Vidivi",
   "series": "Baguette",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109598": {
   "brand": "Vidivi",
   "series": "Baguette",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109599": {
   "brand": "Vidivi",
@@ -2367,7 +2372,7 @@
  "0109603": {
   "brand": "Vidivi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109605": {
   "brand": "Vidivi",
@@ -2377,7 +2382,7 @@
  "0109606": {
   "brand": "Vidivi",
   "series": "Banquet",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109607": {
   "brand": "Vidivi",
@@ -2477,7 +2482,7 @@
  "0109627": {
   "brand": "Vidivi",
   "series": "Honey",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109628": {
   "brand": "Vidivi",
@@ -2537,12 +2542,12 @@
  "0109640": {
   "brand": "Vidivi",
   "series": "Concerto",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109641": {
   "brand": "Vidivi",
   "series": "Cuore",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109642": {
   "brand": "Vidivi",
@@ -2552,27 +2557,32 @@
  "0109643": {
   "brand": "Vidivi",
   "series": "Fenice",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109646": {
   "brand": "Vidivi",
   "series": "Prisma",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0109647": {
   "brand": "Vidivi",
   "series": "Prisma",
-  "tier": "name"
+  "tier": "barcode"
+ },
+ "0109648": {
+  "brand": "Vidivi",
+  "series": "Prisma",
+  "tier": "barcode"
  },
  "0109649": {
   "brand": "Vidivi",
   "series": "Torcello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011001": {
-  "brand": "Bonna",
+  "brand": "Bormioli",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
  },
  "011002": {
   "brand": "Bormioli",
@@ -2674,6 +2684,16 @@
   "series": null,
   "tier": "barcode"
  },
+ "0110195": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110196": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
  "011020": {
   "brand": "Bormioli",
   "series": null,
@@ -2690,9 +2710,9 @@
   "tier": "barcode"
  },
  "011022": {
-  "brand": "Bonna",
+  "brand": "Bormioli",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
  },
  "011023": {
   "brand": "Bormioli",
@@ -2749,6 +2769,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "011026": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
  "0110260": {
   "brand": "Bormioli",
   "series": null,
@@ -2785,44 +2810,44 @@
   "tier": "barcode"
  },
  "0110271": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "0110272": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "0110273": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "0110274": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "0110275": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "0110276": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "0110277": {
-  "brand": "Pompei",
-  "series": null,
+  "brand": "Bormioli",
+  "series": "Pompei",
   "tier": "name"
  },
  "011028": {
-  "brand": "OCEAN",
+  "brand": "Bormioli",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
  },
  "0110288": {
   "brand": "Bormioli",
@@ -2830,9 +2855,9 @@
   "tier": "barcode"
  },
  "011029": {
-  "brand": "OCEAN",
+  "brand": "Bormioli",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
  },
  "0110295": {
   "brand": "Bormioli",
@@ -2859,20 +2884,35 @@
   "series": null,
   "tier": "barcode"
  },
+ "0110310": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110311": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110313": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
  "0110316": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110317": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110318": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011032": {
   "brand": "Bormioli",
@@ -2880,9 +2920,14 @@
   "tier": "barcode"
  },
  "011033": {
-  "brand": "Bonna",
+  "brand": "Bormioli",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0110332": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
  },
  "0110333": {
   "brand": "Bormioli",
@@ -2890,6 +2935,16 @@
   "tier": "barcode"
  },
  "0110334": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110335": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110336": {
   "brand": "Bormioli",
   "series": null,
   "tier": "barcode"
@@ -2910,6 +2965,31 @@
   "tier": "barcode"
  },
  "0110340": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110341": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110342": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110343": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110344": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110345": {
   "brand": "Bormioli",
   "series": null,
   "tier": "barcode"
@@ -2945,6 +3025,11 @@
   "tier": "barcode"
  },
  "0110353": {
+  "brand": "Bormioli",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0110355": {
   "brand": "Bormioli",
   "series": null,
   "tier": "barcode"
@@ -2987,17 +3072,17 @@
  "0110396": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110397": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110398": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011041": {
   "brand": "Bormioli",
@@ -3007,7 +3092,7 @@
  "0110415": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110416": {
   "brand": "Bormioli",
@@ -3022,27 +3107,27 @@
  "0110424": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110425": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110426": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110427": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0110428": {
   "brand": "Bormioli",
   "series": "Frigoverre",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011045": {
   "brand": "Bonna",
@@ -3082,6 +3167,11 @@
  "011051": {
   "brand": "Bormioli",
   "series": "Prometeo",
+  "tier": "barcode"
+ },
+ "0110513": {
+  "brand": "Bormioli",
+  "series": null,
   "tier": "barcode"
  },
  "011052": {
@@ -3542,7 +3632,7 @@
  "011200": {
   "brand": "Cristar",
   "series": "Venecia",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112001": {
   "brand": "OCEAN",
@@ -3592,7 +3682,7 @@
  "011201": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112010": {
   "brand": "OCEAN",
@@ -3647,7 +3737,7 @@
  "011202": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112020": {
   "brand": "OCEAN",
@@ -3702,7 +3792,7 @@
  "011203": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112030": {
   "brand": "OCEAN",
@@ -3747,7 +3837,7 @@
  "011204": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112040": {
   "brand": "OCEAN",
@@ -3782,7 +3872,7 @@
  "011205": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112050": {
   "brand": "OCEAN",
@@ -3812,7 +3902,7 @@
  "011206": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112060": {
   "brand": "OCEAN",
@@ -3827,22 +3917,22 @@
  "011207": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011208": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011209": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011210": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112100": {
   "brand": "COK",
@@ -3892,7 +3982,7 @@
  "011211": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112110": {
   "brand": "COK",
@@ -3930,22 +4020,22 @@
   "tier": "name"
  },
  "0112117": {
-  "brand": "COK",
+  "brand": "Alorno",
   "series": null,
   "tier": "name"
  },
  "0112119": {
-  "brand": "COK",
+  "brand": "Alorno",
   "series": null,
   "tier": "name"
  },
  "011212": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112122": {
-  "brand": "COK",
+  "brand": "Alorno",
   "series": null,
   "tier": "name"
  },
@@ -3987,7 +4077,7 @@
  "011213": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112130": {
   "brand": "Atlantic",
@@ -4037,7 +4127,7 @@
  "011214": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112140": {
   "brand": "COK",
@@ -4137,7 +4227,7 @@
  "011216": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112160": {
   "brand": "COK",
@@ -4187,7 +4277,7 @@
  "011217": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112170": {
   "brand": "COK",
@@ -4225,14 +4315,14 @@
   "tier": "name"
  },
  "0112193": {
-  "brand": "COK",
+  "brand": "Alorno",
   "series": null,
   "tier": "name"
  },
  "011220": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112200": {
   "brand": "Cristar",
@@ -4252,52 +4342,52 @@
  "0112203": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112204": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112205": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112206": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112207": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112208": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112209": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011221": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112210": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112211": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112212": {
   "brand": "Cristar",
@@ -4307,27 +4397,27 @@
  "0112213": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112214": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112215": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112216": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112217": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112218": {
   "brand": "Cristar",
@@ -4342,92 +4432,92 @@
  "011222": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112220": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112221": {
   "brand": "Cristar",
   "series": "Mug",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112224": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112226": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112227": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112228": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112229": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011223": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112230": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112231": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112232": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112233": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112234": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112235": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112236": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112237": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011224": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112240": {
   "brand": "HORECANO",
@@ -4457,12 +4547,12 @@
  "011225": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011226": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112262": {
   "brand": "Nadír",
@@ -4482,7 +4572,7 @@
  "011227": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112271": {
   "brand": "Nadír",
@@ -4492,7 +4582,7 @@
  "011228": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112288": {
   "brand": "Marinex",
@@ -4502,7 +4592,7 @@
  "011229": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112290": {
   "brand": "Marinex",
@@ -4522,12 +4612,12 @@
  "011230": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011231": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112310": {
   "brand": "Nadír",
@@ -4547,7 +4637,7 @@
  "011232": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112320": {
   "brand": "Nadír",
@@ -4582,12 +4672,12 @@
  "0112329": {
   "brand": "Marinex",
   "series": "Forno",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011233": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112330": {
   "brand": "Marinex",
@@ -4632,17 +4722,17 @@
  "011234": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112341": {
   "brand": "Marinex",
   "series": "Forno",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112342": {
   "brand": "Marinex",
   "series": "Forno",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112344": {
   "brand": "Marinex",
@@ -4662,7 +4752,7 @@
  "011235": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112350": {
   "brand": "Termisil",
@@ -4692,12 +4782,12 @@
  "011236": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011237": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112373": {
   "brand": "HORECANO",
@@ -4732,7 +4822,7 @@
  "011238": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112380": {
   "brand": "HORECANO",
@@ -4782,7 +4872,7 @@
  "011239": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112395": {
   "brand": "HORECANO",
@@ -4847,17 +4937,17 @@
  "011242": {
   "brand": "Cristar",
   "series": "Brunello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011243": {
   "brand": "Cristar",
   "series": "Brunello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011244": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0112441": {
   "brand": "HORECANO",
@@ -4887,27 +4977,27 @@
  "011245": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011246": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011247": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011248": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011249": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011250": {
   "brand": "Cristar",
@@ -4927,22 +5017,22 @@
  "011253": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011254": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011255": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011256": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011258": {
   "brand": "Cristar",
@@ -4967,17 +5057,17 @@
  "011262": {
   "brand": "Cristar",
   "series": "Mug",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011263": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011264": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011266": {
   "brand": "Cristar",
@@ -4992,62 +5082,62 @@
  "011268": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011269": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011270": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011271": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011272": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011273": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011274": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011275": {
   "brand": "Cristar",
   "series": "Brunello",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011276": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011277": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011278": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011279": {
   "brand": "Cristar",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011280": {
   "brand": "OCEAN",
@@ -5082,7 +5172,7 @@
  "0112863": {
   "brand": "Inoxriv",
   "series": "Maxima",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011287": {
   "brand": "OCEAN",
@@ -5562,17 +5652,17 @@
  "011434": {
   "brand": "OCEAN",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011435": {
   "brand": "OCEAN",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011445": {
   "brand": "OCEAN",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011446": {
   "brand": "OCEAN",
@@ -5587,32 +5677,32 @@
  "0115125": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115126": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115127": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115128": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115129": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115130": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115131": {
   "brand": "Tevalli",
@@ -5622,32 +5712,32 @@
  "0115132": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115133": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115134": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115135": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115136": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115137": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115138": {
   "brand": "Tevalli",
@@ -5747,12 +5837,12 @@
  "0115157": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115158": {
   "brand": "Tevalli",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0115159": {
   "brand": "Tevalli",
@@ -6507,352 +6597,352 @@
  "0118100": {
   "brand": "BIZCOCHERA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118200": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118201": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118202": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118203": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118204": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118205": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118206": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118207": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118208": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118209": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118210": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118211": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118212": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118213": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118214": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118215": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118216": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118217": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118218": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118219": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118220": {
   "brand": "Inoxriv",
   "series": "Medea",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118221": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118222": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118223": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118224": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118225": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118226": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118227": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118228": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118229": {
   "brand": "Inoxriv",
   "series": "Annie",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118230": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118231": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118232": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118233": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118234": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118235": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118236": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118237": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118238": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118239": {
   "brand": "Inoxriv",
   "series": "Novecento",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118240": {
   "brand": "Inoxriv",
   "series": "Glamour",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118241": {
   "brand": "Inoxriv",
   "series": "Glamour",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118242": {
   "brand": "Inoxriv",
   "series": "Thema",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118243": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118244": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118245": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118246": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118247": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118248": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118249": {
   "brand": "Inoxriv",
   "series": "Eatitaly",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118250": {
   "brand": "Inoxriv",
   "series": "Star",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118251": {
   "brand": "Inoxriv",
   "series": "Star",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118252": {
   "brand": "Inoxriv",
   "series": "Star",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118253": {
   "brand": "Inoxriv",
   "series": "Star",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118254": {
   "brand": "Inoxriv",
   "series": "Profi",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118255": {
   "brand": "Inoxriv",
   "series": "York",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118256": {
   "brand": "Inoxriv",
   "series": "York",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118257": {
   "brand": "Inoxriv",
   "series": "York",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118258": {
   "brand": "Inoxriv",
   "series": "York",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118259": {
   "brand": "Inoxriv",
   "series": "York",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118260": {
   "brand": "Inoxriv",
   "series": "York",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118261": {
   "brand": "Inoxriv",
   "series": "Profi",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118262": {
   "brand": "Inoxriv",
   "series": "Premium",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118264": {
   "brand": "Inoxriv",
   "series": "Kitchen",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118265": {
   "brand": "Inoxriv",
   "series": "Love",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118266": {
   "brand": "Inoxriv",
   "series": "Love",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118267": {
   "brand": "Inoxriv",
   "series": "Italia",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118268": {
   "brand": "Inoxriv",
   "series": "Italia",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0118269": {
   "brand": "Inoxriv",
   "series": "Italia",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011827": {
   "brand": "Bonna",
@@ -6862,12 +6952,37 @@
  "0118270": {
   "brand": "Inoxriv",
   "series": "Italia",
-  "tier": "name"
+  "tier": "barcode"
+ },
+ "0118271": {
+  "brand": "Inoxriv",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0118272": {
+  "brand": "Inoxriv",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0118273": {
+  "brand": "Inoxriv",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0118274": {
+  "brand": "Inoxriv",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0118375": {
+  "brand": "Inoxriv",
+  "series": null,
+  "tier": "barcode"
  },
  "0118376": {
   "brand": "Inoxriv",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011841": {
   "brand": "Bonna",
@@ -6912,17 +7027,17 @@
  "011897": {
   "brand": "BIZCOCHERA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011898": {
   "brand": "BIZCOCHERA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011899": {
   "brand": "BIZCOCHERA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0119100": {
   "brand": "HORECANO",
@@ -6962,17 +7077,17 @@
  "011916": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011917": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011921": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011922": {
   "brand": "Sanremo",
@@ -7052,17 +7167,17 @@
  "011937": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011938": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011939": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011940": {
   "brand": "Bettanin",
@@ -7072,112 +7187,112 @@
  "011941": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011942": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011943": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011944": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011945": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011946": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011947": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011948": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011949": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011950": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011951": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011952": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011953": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011954": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011955": {
   "brand": "Sanremo",
   "series": "S580E",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011956": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011957": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011958": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011959": {
   "brand": "Sanremo",
   "series": "S585E",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011960": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011961": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011962": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011963": {
   "brand": "Sanremo",
@@ -7277,67 +7392,67 @@
  "011982": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011983": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011984": {
   "brand": "Sanremo",
   "series": "Push",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011985": {
   "brand": "Sanremo",
   "series": "Push",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011986": {
   "brand": "Sanremo",
   "series": "Push",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011987": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011988": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011989": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011990": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011991": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011992": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011993": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011994": {
   "brand": "Sanremo",
   "series": "Flor",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011995": {
   "brand": "Bettanin",
@@ -7347,27 +7462,37 @@
  "011996": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "011997": {
   "brand": "Sanremo",
   "series": "Push",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011998": {
   "brand": "Sanremo",
   "series": "Push",
-  "tier": "name"
+  "tier": "barcode"
  },
  "011999": {
   "brand": "Sanremo",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "012096": {
-  "brand": "HORECANO",
+  "brand": "ILSA",
   "series": null,
   "tier": "scrape"
+ },
+ "01219": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01220": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
  },
  "0122100": {
   "brand": "HORECANO",
@@ -7572,27 +7697,27 @@
  "012369": {
   "brand": "Pyrex",
   "series": "Supreme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "012376": {
   "brand": "Pyrex",
   "series": "Supreme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "012380": {
   "brand": "Pyrex",
   "series": "Supreme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "012381": {
   "brand": "Pyrex",
   "series": "Supreme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "012384": {
   "brand": "Pyrex",
   "series": "Supreme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "012428": {
   "brand": "HORECANO",
@@ -8244,6 +8369,36 @@
   "series": null,
   "tier": "barcode"
  },
+ "0130305": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0130307": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0130308": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0130309": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0130310": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0130311": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
  "0130313": {
   "brand": "Titiz",
   "series": null,
@@ -8274,6 +8429,16 @@
   "series": null,
   "tier": "barcode"
  },
+ "0130321": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0130340": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
  "0130349": {
   "brand": "Titiz",
   "series": null,
@@ -8289,2915 +8454,45 @@
   "series": null,
   "tier": "barcode"
  },
- "013101": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013102": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013103": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013104": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013105": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013106": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013108": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013109": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013110": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131100": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131101": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131103": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131105": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131106": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131107": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131108": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131109": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013111": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131110": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131111": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131112": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131113": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131114": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131115": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131116": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131117": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131118": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131119": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131120": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131121": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131122": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131123": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131124": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131125": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131126": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131127": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131128": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131129": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013113": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131130": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131131": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131132": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131133": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131134": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131135": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131136": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131137": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131138": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131139": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013114": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131142": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131143": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131144": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131145": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131147": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131149": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013115": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131150": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131152": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131154": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131155": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013116": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131160": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131161": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131162": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131163": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131164": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131165": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131166": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131167": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131168": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131170": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131171": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131172": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131173": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131174": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131177": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131179": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013118": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131186": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131187": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131188": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131190": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131191": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131193": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131194": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131195": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131196": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131197": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131198": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013120": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131200": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131201": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131204": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131205": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131207": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131208": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131209": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013121": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131210": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131211": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131212": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131213": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131214": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131215": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131216": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
  "0131217": {
   "brand": "Omega",
   "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0131218": {
   "brand": "Omega",
   "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0131219": {
   "brand": "Omega",
   "series": null,
-  "tier": "barcode"
- },
- "013122": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0131220": {
   "brand": "Omega",
   "series": null,
-  "tier": "barcode"
- },
- "0131221": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131222": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131227": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131228": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131229": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013123": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131232": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131233": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131234": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131235": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131236": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131237": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131238": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013124": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131240": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131241": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131242": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131243": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131244": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131247": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131248": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131249": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131250": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131252": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131253": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131254": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131256": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131257": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131259": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131261": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131262": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131264": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131265": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131266": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131267": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131268": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131269": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013127": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131270": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131271": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131272": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131273": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131274": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131275": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131276": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131277": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131278": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131279": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013128": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131280": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131281": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131284": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131285": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131287": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131288": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131289": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013129": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131290": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131291": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131292": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131293": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131294": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131295": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131297": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131298": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131299": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013130": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131300": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131301": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131302": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131306": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131307": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131308": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131309": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013131": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131310": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131311": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131312": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131313": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131314": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131315": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131316": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131317": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131318": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131319": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013132": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131320": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131321": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131322": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131323": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131324": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131325": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131326": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131327": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131328": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131329": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131330": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131331": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131332": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131333": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131334": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131335": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131336": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131337": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131338": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131339": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131340": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131341": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131343": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131344": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131345": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131346": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131347": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131348": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131350": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131357": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013136": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131361": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131362": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131363": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131364": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131365": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131367": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131368": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131369": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013137": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131370": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131371": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131372": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131373": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131374": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131375": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131376": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131377": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131378": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131379": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013138": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131380": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131381": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131382": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131383": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131384": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131386": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131387": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131388": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131389": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013139": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131390": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131391": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131392": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131393": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131394": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131395": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131396": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131397": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131398": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131399": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013140": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131400": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131402": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131403": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131404": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131405": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131406": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131407": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131408": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131409": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013141": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131410": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131411": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131412": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131413": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131414": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0131415": {
-  "brand": "Omega",
+  "brand": "Dunya",
   "series": null,
-  "tier": "barcode"
- },
- "0131416": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131417": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131418": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131419": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013142": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131420": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131421": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131423": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131424": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131425": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131426": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131427": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131428": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131429": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013143": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131432": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131433": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131434": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131435": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131436": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131437": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131438": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131439": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013144": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131440": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131441": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131442": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131443": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131444": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131445": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131446": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131447": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131448": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131449": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013145": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131450": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131460": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131461": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131462": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131463": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131464": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131465": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131466": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131467": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131468": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131469": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013147": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131470": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131471": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131472": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131473": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131474": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131475": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131476": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131477": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131478": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131479": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013148": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131480": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131481": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131482": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131483": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131484": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131486": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131487": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131488": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131489": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013149": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131490": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131491": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131492": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131493": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131494": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131495": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131496": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131497": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131498": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131499": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013150": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131500": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131501": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131502": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131503": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131504": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131505": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131506": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131507": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131508": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131509": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013151": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131510": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131511": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131512": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131513": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131514": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131515": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131516": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131517": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131518": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131519": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013152": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131520": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131521": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131522": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131523": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131524": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131525": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131526": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131527": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131528": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131529": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013153": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131532": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131534": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131535": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131536": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131537": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131538": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131539": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013154": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131540": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131541": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131543": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131545": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131546": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013155": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013156": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131560": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131561": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131562": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131563": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
+  "tier": "scrape"
  },
  "0131565": {
-  "brand": "Omega",
+  "brand": "Stella",
   "series": null,
-  "tier": "barcode"
- },
- "0131566": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131567": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131568": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131569": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013157": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131570": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131571": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131572": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131573": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131574": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131575": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131576": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131577": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131578": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013158": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131580": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131581": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131582": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131583": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131584": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131585": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131586": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131587": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131588": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131589": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013159": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131590": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131591": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131592": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131594": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131595": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131596": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131597": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131598": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131599": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131600": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131601": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131602": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131603": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131604": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131605": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131606": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131607": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131608": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131610": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131611": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131612": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131613": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131614": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131615": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131616": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131617": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131619": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131620": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131621": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131622": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131623": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131625": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131626": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131627": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131628": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131629": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013163": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131630": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0131631": {
-  "brand": "Omega",
+  "brand": "Okyanus",
   "series": null,
-  "tier": "barcode"
- },
- "0131632": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131633": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131634": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131635": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131636": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131637": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131638": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131641": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131643": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131646": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131647": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131649": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013165": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131650": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131654": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131655": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131656": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131660": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131661": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131662": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131663": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131664": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131666": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131667": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131668": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131669": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013167": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131670": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131671": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131672": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131673": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131674": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131676": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131678": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131679": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013168": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131680": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131681": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131682": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131683": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013169": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131698": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013170": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131701": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131702": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131703": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131706": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131707": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131708": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131709": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013171": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131710": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131713": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131714": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131717": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131718": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131719": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013172": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131720": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131722": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131723": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013173": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131733": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131734": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131735": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131736": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131737": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131738": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131739": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013174": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131745": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131747": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013175": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131752": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131754": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131755": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131758": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013176": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131767": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "0131768": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0131779": {
   "brand": "HORECANO",
   "series": null,
   "tier": "scrape"
- },
- "013179": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013180": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013181": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013182": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013183": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013184": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013185": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013186": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013187": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013189": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013190": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013191": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013192": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013193": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013194": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013195": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013197": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013198": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "013199": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
  },
  "0132122": {
   "brand": "HORECANO",
@@ -11624,10 +8919,65 @@
   "series": null,
   "tier": "scrape"
  },
+ "0136100": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361020": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
  "0136103": {
   "brand": "HENA",
   "series": null,
   "tier": "name"
+ },
+ "01361031": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361032": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361033": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361035": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361036": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361037": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361038": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361039": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361040": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "01361045": {
   "brand": "HORECANO",
@@ -11639,30 +8989,55 @@
   "series": null,
   "tier": "scrape"
  },
+ "01361051": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361052": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361053": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
  "01361069": {
   "brand": "HORECANO",
   "series": null,
   "tier": "scrape"
  },
+ "0136107": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136111": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
  "01361126": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361127": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361128": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361129": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361131": {
   "brand": "HORECANO",
@@ -11670,7 +9045,7 @@
   "tier": "scrape"
  },
  "01361136": {
-  "brand": "Polaris",
+  "brand": "OLIE",
   "series": null,
   "tier": "scrape"
  },
@@ -11709,6 +9084,11 @@
   "series": null,
   "tier": "name"
  },
+ "01361156": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
  "01361158": {
   "brand": "HENA",
   "series": null,
@@ -11722,25 +9102,165 @@
  "01361160": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361161": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361162": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01361163": {
   "brand": "Polaris",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
+ },
+ "01361166": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361167": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361168": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361171": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361172": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361173": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361175": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361176": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361177": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361178": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361179": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361180": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361181": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361182": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361183": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361184": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361185": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361187": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361188": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361189": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361190": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361191": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361192": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361193": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361194": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361195": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
  },
  "01361197": {
   "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361199": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361200": {
+  "brand": "Polaris",
   "series": null,
   "tier": "barcode"
  },
@@ -11764,10 +9284,30 @@
   "series": null,
   "tier": "name"
  },
+ "01361208": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361209": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
+ },
  "01361211": {
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "01361212": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361213": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "01361214": {
   "brand": "Granite",
@@ -11844,60 +9384,1740 @@
   "series": null,
   "tier": "scrape"
  },
- "01361249": {
-  "brand": "Bonna",
+ "01361243": {
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "01361244": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361245": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361246": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361249": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361253": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361290": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "01361291": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136150": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136151": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136152": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136153": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136154": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136156": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136158": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136160": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136162": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136163": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136164": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136165": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136166": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136167": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136169": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136170": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136171": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136172": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136173": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136174": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136175": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136176": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136177": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136181": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136182": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136183": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136184": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136185": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136186": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136187": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136188": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136190": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136191": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136193": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136194": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136195": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136196": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136197": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136198": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136199": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136201": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136203": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136206": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136207": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136208": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136209": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136210": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136211": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136212": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "0136213": {
-  "brand": "HORECANO",
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
  },
  "0136214": {
-  "brand": "HORECANO",
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136215": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136217": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136218": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136219": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013622": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136220": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136221": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136222": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136223": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136224": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136226": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013624": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136255": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136259": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136260": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136261": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136262": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136263": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136265": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136266": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136268": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136269": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136270": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136271": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136272": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136273": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "0136274": {
   "brand": "Zicco",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0136276": {
   "brand": "Zicco",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
+ },
+ "0136278": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136279": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136280": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136281": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136283": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136284": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136286": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136287": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136288": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136289": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136290": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136291": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136292": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136293": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136294": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136296": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136297": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136298": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136302": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136303": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136304": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "0136305": {
-  "brand": "HORECANO",
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136306": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136307": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136308": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136309": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136310": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136311": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136312": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136313": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136314": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136315": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136316": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136317": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136318": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136319": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136320": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136321": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136322": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136323": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136324": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136326": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136327": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136328": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136329": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136330": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136331": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136332": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136333": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136334": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136335": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136336": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136337": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136338": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136339": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136340": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136341": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136342": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136343": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136344": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136345": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136346": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136347": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136348": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136349": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136350": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136351": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136352": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136353": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136354": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136355": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136356": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136357": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136358": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136359": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136360": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136361": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136363": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136364": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136367": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136369": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136370": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136372": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136374": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136375": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136384": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136385": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136386": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136387": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136388": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136389": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136390": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136392": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136393": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136394": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136395": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136396": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136397": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136398": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136399": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136400": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136402": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136403": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136404": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136405": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136406": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136407": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136409": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136410": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136411": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136412": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136414": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136415": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136416": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136417": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136418": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136419": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013642": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136420": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136421": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136422": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136424": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136425": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136426": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136427": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136428": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "0136430": {
-  "brand": "HORECANO",
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136431": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136432": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136433": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136434": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136435": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136436": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136437": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136438": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136439": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136440": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136442": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136443": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136445": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136447": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136448": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136449": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013645": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136450": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136451": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136452": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "0136453": {
   "brand": "Bonna",
   "series": null,
   "tier": "scrape"
  },
- "0136474": {
-  "brand": "HORECANO",
+ "0136454": {
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136455": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136456": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136457": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136458": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136459": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136460": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136461": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136462": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136463": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136464": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136465": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136466": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136467": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136468": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136469": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013647": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136470": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136471": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136472": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136473": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136474": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136475": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136477": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136478": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136479": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "013648": {
   "brand": "HENA",
   "series": null,
   "tier": "barcode"
  },
- "0136490": {
-  "brand": "HORECANO",
+ "0136480": {
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136481": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136482": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136483": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136484": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136485": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136486": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136487": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136488": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136489": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136490": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136491": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136492": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136493": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136494": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136495": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136496": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136497": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136501": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136502": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136503": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136504": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136505": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136506": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136507": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136508": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136509": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136511": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136512": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136513": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136515": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136516": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136517": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136518": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136519": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136520": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136521": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136522": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136523": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136529": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136532": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136534": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136535": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136537": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136540": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136541": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136542": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136543": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136544": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136545": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136547": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136548": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136549": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136551": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136552": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136553": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136554": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136555": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136556": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136560": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136563": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136564": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136565": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136566": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136567": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136568": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136571": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136572": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136573": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136574": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136575": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136576": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136577": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136578": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136579": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136581": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136582": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136589": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136591": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136592": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136596": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136597": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136598": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136599": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136609": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
  },
  "0136633": {
   "brand": "OLIE",
@@ -11974,10 +11194,40 @@
   "series": null,
   "tier": "name"
  },
- "0136697": {
-  "brand": "HORECANO",
+ "0136692": {
+  "brand": "HENA",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136695": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136696": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136697": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136698": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136699": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013670": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
  },
  "0136700": {
   "brand": "OLIE",
@@ -11994,10 +11244,45 @@
   "series": null,
   "tier": "barcode"
  },
+ "0136703": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136706": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136710": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136718": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
  "013673": {
   "brand": "HENA",
   "series": null,
   "tier": "name"
+ },
+ "0136730": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136731": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136738": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "013674": {
   "brand": "HENA",
@@ -12005,9 +11290,19 @@
   "tier": "barcode"
  },
  "0136756": {
-  "brand": "HORECANO",
+  "brand": "Zicco",
   "series": null,
-  "tier": "scrape"
+  "tier": "barcode"
+ },
+ "0136769": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136770": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
  },
  "0136771": {
   "brand": "HORECANO",
@@ -12019,12 +11314,72 @@
   "series": null,
   "tier": "scrape"
  },
+ "0136773": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
  "0136775": {
   "brand": "HORECANO",
   "series": null,
   "tier": "scrape"
  },
+ "0136776": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136779": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136780": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136782": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136783": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136784": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136785": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0136786": {
+  "brand": "Zicco",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013683": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013684": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
  "013687": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013688": {
   "brand": "HENA",
   "series": null,
   "tier": "barcode"
@@ -12033,6 +11388,21 @@
   "brand": "HORECANO",
   "series": null,
   "tier": "name"
+ },
+ "013692": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013694": {
+  "brand": "HENA",
+  "series": null,
+  "tier": "barcode"
+ },
+ "013699": {
+  "brand": "Polaris",
+  "series": null,
+  "tier": "barcode"
  },
  "0137154": {
   "brand": "LIMA",
@@ -12357,17 +11727,17 @@
  "0142302": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142303": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142304": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142305": {
   "brand": "Novussi",
@@ -12377,17 +11747,17 @@
  "0142306": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142307": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142308": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142309": {
   "brand": "Novussi",
@@ -12397,7 +11767,7 @@
  "0142310": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142311": {
   "brand": "Novussi",
@@ -12407,27 +11777,27 @@
  "0142312": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142313": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142314": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142315": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142316": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142317": {
   "brand": "Novussi",
@@ -12447,7 +11817,7 @@
  "0142320": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142321": {
   "brand": "Novussi",
@@ -12487,12 +11857,12 @@
  "0142328": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142329": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142330": {
   "brand": "Novussi",
@@ -12507,7 +11877,7 @@
  "0142332": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142333": {
   "brand": "Novussi",
@@ -12517,12 +11887,12 @@
  "0142334": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142335": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142336": {
   "brand": "Novussi",
@@ -12677,7 +12047,7 @@
  "0142366": {
   "brand": "Novussi",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0142367": {
   "brand": "Novussi",
@@ -13047,12 +12417,12 @@
  "0143101": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143102": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143103": {
   "brand": "Bisetti",
@@ -13062,12 +12432,12 @@
  "0143104": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143105": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143106": {
   "brand": "Bisetti",
@@ -13077,17 +12447,17 @@
  "0143107": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143108": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143109": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014311": {
   "brand": "HORECANO",
@@ -13102,12 +12472,12 @@
  "0143111": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143112": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143113": {
   "brand": "Bisetti",
@@ -13122,7 +12492,7 @@
  "0143115": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0143116": {
   "brand": "Bisetti",
@@ -13262,42 +12632,42 @@
  "014374": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014375": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014376": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014377": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014378": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014379": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014390": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014391": {
   "brand": "Bisetti",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014392": {
   "brand": "Bisetti",
@@ -13537,47 +12907,47 @@
  "0144150": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144151": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144152": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144154": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144155": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144156": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144157": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144158": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144159": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014416": {
   "brand": "Pyrex",
@@ -13587,102 +12957,102 @@
  "0144160": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144161": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144162": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144163": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144164": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144165": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144166": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144167": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144168": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144169": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144170": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144171": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144172": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144173": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144174": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144175": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144176": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144177": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144178": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144179": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014418": {
   "brand": "Pyrex",
@@ -13692,52 +13062,52 @@
  "0144180": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144181": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144182": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144183": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144184": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144185": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144186": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144187": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144188": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144189": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014419": {
   "brand": "Pyrex",
@@ -13827,27 +13197,27 @@
  "0144205": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144206": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144207": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144208": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144209": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014421": {
   "brand": "Pyrex",
@@ -13857,52 +13227,52 @@
  "0144210": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144211": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144212": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144213": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144214": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144215": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144216": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144217": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144218": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144219": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "014422": {
   "brand": "Pyrex",
@@ -13912,27 +13282,27 @@
  "0144220": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144221": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144222": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144223": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144224": {
   "brand": "ILSA",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0144225": {
   "brand": "HORECANO",
@@ -14199,35 +13569,10 @@
   "series": null,
   "tier": "name"
  },
- "014622": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "014623": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "014625": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "014626": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
  "014628": {
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
- },
- "014673": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
  },
  "0147110": {
   "brand": "HORECANO",
@@ -14667,7 +14012,7 @@
  "0150231": {
   "brand": "Serinova",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0150232": {
   "brand": "Serinova",
@@ -14677,7 +14022,7 @@
  "0150233": {
   "brand": "Serinova",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0150245": {
   "brand": "Serinova",
@@ -14807,7 +14152,7 @@
  "0150320": {
   "brand": "Serinova",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0150321": {
   "brand": "Serinova",
@@ -14817,12 +14162,12 @@
  "0150322": {
   "brand": "Serinova",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0150323": {
   "brand": "Serinova",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0150328": {
   "brand": "Serinova",
@@ -14887,7 +14232,7 @@
  "0150366": {
   "brand": "Serinova",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151000": {
   "brand": "HORECANO",
@@ -15280,29 +14625,24 @@
   "tier": "name"
  },
  "0151118": {
-  "brand": "Sanremo",
+  "brand": "Dunya",
   "series": null,
   "tier": "scrape"
- },
- "0151199": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
  },
  "0151300": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151301": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151302": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151305": {
   "brand": "Dunya",
@@ -15312,132 +14652,132 @@
  "0151306": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151307": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151308": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151310": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151311": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151312": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151313": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151314": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151315": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151316": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151317": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151318": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151319": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151320": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151321": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151322": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151323": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151324": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151325": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151326": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151327": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151329": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151331": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151333": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151334": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151335": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151336": {
   "brand": "Dunya",
@@ -15517,17 +14857,17 @@
  "0151351": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151352": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151353": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151354": {
   "brand": "Dunya",
@@ -15537,22 +14877,22 @@
  "0151355": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151356": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151357": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151358": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151359": {
   "brand": "Dunya",
@@ -15587,22 +14927,22 @@
  "0151365": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151366": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151367": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151368": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151369": {
   "brand": "Dunya",
@@ -15617,17 +14957,17 @@
  "0151371": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151372": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151373": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151374": {
   "brand": "Dunya",
@@ -15637,12 +14977,12 @@
  "0151375": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151376": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151377": {
   "brand": "Dunya",
@@ -15652,22 +14992,22 @@
  "0151378": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151379": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151380": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151385": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151386": {
   "brand": "Dunya",
@@ -15677,12 +15017,12 @@
  "0151387": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151388": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151389": {
   "brand": "Dunya",
@@ -15692,12 +15032,12 @@
  "0151390": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151391": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151392": {
   "brand": "Dunya",
@@ -15707,7 +15047,7 @@
  "0151393": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151394": {
   "brand": "Dunya",
@@ -15717,7 +15057,7 @@
  "0151395": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151396": {
   "brand": "Dunya",
@@ -15727,42 +15067,42 @@
  "0151397": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151398": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151399": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151420": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151421": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151422": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151423": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151424": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151425": {
   "brand": "Dunya",
@@ -15847,7 +15187,7 @@
  "0151449": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151451": {
   "brand": "HORECANO",
@@ -15897,22 +15237,22 @@
  "0151550": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151551": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151552": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151553": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151554": {
   "brand": "Dunya",
@@ -15922,27 +15262,27 @@
  "0151555": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151556": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151560": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151561": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151563": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151564": {
   "brand": "Dunya",
@@ -15952,7 +15292,7 @@
  "0151565": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151566": {
   "brand": "Dunya",
@@ -15962,32 +15302,32 @@
  "0151567": {
   "brand": "Dunya",
   "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0151568": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151571": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151572": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151573": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151574": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151575": {
   "brand": "HORECANO",
@@ -16017,12 +15357,12 @@
  "0151628": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151629": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151630": {
   "brand": "Dunya",
@@ -16042,22 +15382,22 @@
  "0151637": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151638": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151639": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151640": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151641": {
   "brand": "Dunya",
@@ -16077,52 +15417,52 @@
  "0151670": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151671": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151672": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151674": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151675": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151676": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151677": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151678": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151679": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0151680": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015186": {
   "brand": "HORECANO",
@@ -16467,7 +15807,7 @@
  "0154278": {
   "brand": "Aura",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0154294": {
   "brand": "HORECANO",
@@ -16533,6 +15873,21 @@
   "brand": "HORECANO",
   "series": "Voca",
   "tier": "scrape"
+ },
+ "0154313": {
+  "brand": "Aura",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0154314": {
+  "brand": "Aura",
+  "series": null,
+  "tier": "barcode"
+ },
+ "0154316": {
+  "brand": "Aura",
+  "series": null,
+  "tier": "barcode"
  },
  "015432": {
   "brand": "Stella",
@@ -17807,12 +17162,12 @@
  "0157109": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157110": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157111": {
   "brand": "Perilla",
@@ -17832,22 +17187,22 @@
  "0157115": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157116": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157117": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157118": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157120": {
   "brand": "Perilla",
@@ -17862,22 +17217,22 @@
  "0157122": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157123": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157124": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157126": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157127": {
   "brand": "Perilla",
@@ -17912,17 +17267,17 @@
  "0157133": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157134": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157135": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157136": {
   "brand": "Perilla",
@@ -17987,7 +17342,7 @@
  "0157163": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0157166": {
   "brand": "HORECANO",
@@ -18037,42 +17392,42 @@
  "015769": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015770": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015771": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015772": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015773": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015774": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015775": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015776": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015777": {
   "brand": "Perilla",
@@ -18132,12 +17487,12 @@
  "015789": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015790": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015791": {
   "brand": "Perilla",
@@ -18157,12 +17512,12 @@
  "015794": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015795": {
   "brand": "Perilla",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "015796": {
   "brand": "Perilla",
@@ -18227,32 +17582,32 @@
  "0158102": {
   "brand": "LAV",
   "series": "Vlr",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158103": {
   "brand": "LAV",
   "series": "Vlr",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158104": {
   "brand": "LAV",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158105": {
   "brand": "LAV",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158106": {
   "brand": "LAV",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158109": {
   "brand": "LAV",
   "series": "Arh",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015811": {
   "brand": "LAV",
@@ -18262,7 +17617,7 @@
  "0158110": {
   "brand": "LAV",
   "series": "Arh",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158111": {
   "brand": "LAV",
@@ -18277,12 +17632,12 @@
  "0158125": {
   "brand": "LAV",
   "series": "Tok",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158127": {
   "brand": "LAV",
   "series": "Tok",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158129": {
   "brand": "LAV",
@@ -18297,17 +17652,17 @@
  "0158137": {
   "brand": "LAV",
   "series": "Odn",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158138": {
   "brand": "LAV",
   "series": "Odn",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158139": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015814": {
   "brand": "LAV",
@@ -18317,37 +17672,37 @@
  "0158140": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158141": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158142": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158143": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158144": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158145": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0158146": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015815": {
   "brand": "LAV",
@@ -18972,7 +18327,7 @@
  "0159136": {
   "brand": "LAV",
   "series": "Vir",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159137": {
   "brand": "LAV",
@@ -19227,7 +18582,7 @@
  "0159185": {
   "brand": "LAV",
   "series": "Zen",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159186": {
   "brand": "LAV",
@@ -19352,7 +18707,7 @@
  "0159209": {
   "brand": "LAV",
   "series": "Fam",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015921": {
   "brand": "LAV",
@@ -19362,12 +18717,12 @@
  "0159210": {
   "brand": "LAV",
   "series": "Fam",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159211": {
   "brand": "LAV",
   "series": "Fam",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159212": {
   "brand": "LAV",
@@ -19377,7 +18732,7 @@
  "0159213": {
   "brand": "LAV",
   "series": "Fam",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159214": {
   "brand": "LAV",
@@ -19662,12 +19017,12 @@
  "0159280": {
   "brand": "LAV",
   "series": "Brs",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159281": {
   "brand": "LAV",
   "series": "Com",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159284": {
   "brand": "LAV",
@@ -19687,7 +19042,7 @@
  "0159290": {
   "brand": "LAV",
   "series": "Veg",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159300": {
   "brand": "LAV",
@@ -19727,7 +19082,7 @@
  "0159311": {
   "brand": "LAV",
   "series": "Mis",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159313": {
   "brand": "LAV",
@@ -19742,7 +19097,7 @@
  "0159315": {
   "brand": "LAV",
   "series": "Lbr",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159316": {
   "brand": "LAV",
@@ -19762,7 +19117,7 @@
  "0159319": {
   "brand": "LAV",
   "series": "Srg",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159320": {
   "brand": "LAV",
@@ -19807,7 +19162,7 @@
  "0159329": {
   "brand": "LAV",
   "series": "Veg",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159330": {
   "brand": "LAV",
@@ -19832,7 +19187,7 @@
  "0159334": {
   "brand": "LAV",
   "series": "Joy",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159335": {
   "brand": "LAV",
@@ -19902,17 +19257,17 @@
  "0159350": {
   "brand": "LAV",
   "series": "Veg",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159355": {
   "brand": "LAV",
   "series": "Frs",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159356": {
   "brand": "LAV",
   "series": "Frs",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159359": {
   "brand": "LAV",
@@ -19987,7 +19342,7 @@
  "0159380": {
   "brand": "LAV",
   "series": "Nov",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159382": {
   "brand": "LAV",
@@ -20027,7 +19382,7 @@
  "0159399": {
   "brand": "LAV",
   "series": "Vir",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015940": {
   "brand": "LAV",
@@ -20037,12 +19392,12 @@
  "0159400": {
   "brand": "LAV",
   "series": "Vir",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159402": {
   "brand": "LAV",
   "series": "Empire",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015941": {
   "brand": "LAV",
@@ -20072,27 +19427,27 @@
  "0159415": {
   "brand": "LAV",
   "series": "Dur",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159416": {
   "brand": "LAV",
   "series": "Odn",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159417": {
   "brand": "LAV",
   "series": "Odn",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159418": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159419": {
   "brand": "LAV",
   "series": "Hln",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159420": {
   "brand": "LAV",
@@ -20107,12 +19462,12 @@
  "0159422": {
   "brand": "LAV",
   "series": "Tok",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159423": {
   "brand": "LAV",
   "series": "Odn",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159424": {
   "brand": "LAV",
@@ -20127,17 +19482,17 @@
  "0159433": {
   "brand": "LAV",
   "series": "Wave",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159434": {
   "brand": "LAV",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159436": {
   "brand": "LAV",
   "series": "Zoey",
-  "tier": "name"
+  "tier": "barcode"
  },
  "015944": {
   "brand": "LAV",
@@ -20147,32 +19502,32 @@
  "0159444": {
   "brand": "LAV",
   "series": "Wave",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159445": {
   "brand": "LAV",
   "series": "Cleo",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159446": {
   "brand": "LAV",
   "series": "Cleo",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159447": {
   "brand": "LAV",
   "series": "Rnd211",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159448": {
   "brand": "LAV",
   "series": "Rnd214",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159449": {
   "brand": "LAV",
   "series": "Rnd217",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0159453": {
   "brand": "LAV",
@@ -21364,11 +20719,6 @@
   "series": "Sud",
   "tier": "barcode"
  },
- "016892": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
  "016938": {
   "brand": "BRIO",
   "series": "Hard",
@@ -21919,16 +21269,6 @@
   "series": null,
   "tier": "name"
  },
- "017316": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "017358": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
  "017378": {
   "brand": "Dunya",
   "series": null,
@@ -21937,12 +21277,12 @@
  "017381": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017382": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017385": {
   "brand": "Dunya",
@@ -22087,27 +21427,27 @@
  "017441": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017445": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017446": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017447": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017448": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017449": {
   "brand": "Dunya",
@@ -22127,52 +21467,52 @@
  "017452": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017453": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017454": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017457": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017460": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017462": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017463": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017465": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017467": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "017468": {
   "brand": "Dunya",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01750": {
   "brand": "TOWER",
@@ -24544,6 +23884,11 @@
   "series": null,
   "tier": "name"
  },
+ "0189274": {
+  "brand": "Granite",
+  "series": null,
+  "tier": "barcode"
+ },
  "0189276": {
   "brand": "ELA",
   "series": null,
@@ -24558,6 +23903,11 @@
   "brand": "Granite",
   "series": null,
   "tier": "name"
+ },
+ "0189308": {
+  "brand": "Granite",
+  "series": null,
+  "tier": "barcode"
  },
  "0189309": {
   "brand": "Granite",
@@ -24637,7 +23987,7 @@
  "0189325": {
   "brand": "Granite",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0189327": {
   "brand": "Granite",
@@ -24749,6 +24099,11 @@
   "series": null,
   "tier": "name"
  },
+ "018967": {
+  "brand": "Granite",
+  "series": null,
+  "tier": "barcode"
+ },
  "018984": {
   "brand": "Granite",
   "series": null,
@@ -24788,11 +24143,6 @@
   "brand": "HORECANO",
   "series": "Home",
   "tier": "name"
- },
- "019010": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
  },
  "0190100": {
   "brand": "Sterk",
@@ -24982,7 +24332,7 @@
  "0190149": {
   "brand": "Char-Broil",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0190150": {
   "brand": "Char-Broil",
@@ -25002,12 +24352,12 @@
  "0190153": {
   "brand": "Char-Broil",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0190154": {
   "brand": "Char-Broil",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0190155": {
   "brand": "Char-Broil",
@@ -25092,17 +24442,17 @@
  "019056": {
   "brand": "PRACTIC",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "019057": {
   "brand": "PRACTIC",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "019058": {
   "brand": "PRACTIC",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "019082": {
   "brand": "Char-Broil",
@@ -25207,7 +24557,7 @@
  "0191560": {
   "brand": "HISAR",
   "series": "Argentina",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191561": {
   "brand": "HISAR",
@@ -25582,7 +24932,7 @@
  "0191635": {
   "brand": "HISAR",
   "series": "Nova",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191636": {
   "brand": "HISAR",
@@ -25602,7 +24952,7 @@
  "0191639": {
   "brand": "HISAR",
   "series": "Aqua",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191640": {
   "brand": "HISAR",
@@ -25822,7 +25172,7 @@
  "0191688": {
   "brand": "HISAR",
   "series": "Bahama",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191689": {
   "brand": "HISAR",
@@ -25862,7 +25212,7 @@
  "0191696": {
   "brand": "HISAR",
   "series": "Side",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191698": {
   "brand": "HISAR",
@@ -25882,7 +25232,7 @@
  "0191800": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191801": {
   "brand": "DIKE",
@@ -25902,42 +25252,42 @@
  "0191804": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191806": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191807": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191808": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191809": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191810": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191811": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191812": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191813": {
   "brand": "DIKE",
@@ -25957,7 +25307,7 @@
  "0191819": {
   "brand": "DIKE",
   "series": null,
-  "tier": "barcode"
+  "tier": "name"
  },
  "0191820": {
   "brand": "DIKE",
@@ -26007,47 +25357,47 @@
  "0191829": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191830": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191831": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191832": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191833": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191834": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191835": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191836": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191837": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191838": {
   "brand": "DIKE",
@@ -26077,7 +25427,7 @@
  "0191843": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191844": {
   "brand": "DIKE",
@@ -26102,7 +25452,7 @@
  "0191848": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191849": {
   "brand": "DIKE",
@@ -26127,17 +25477,17 @@
  "0191853": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191854": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191859": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191860": {
   "brand": "DIKE",
@@ -26152,7 +25502,7 @@
  "0191862": {
   "brand": "DIKE",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0191863": {
   "brand": "DIKE",
@@ -26247,17 +25597,17 @@
  "01931062": {
   "brand": "FOXY",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01931063": {
   "brand": "FOXY",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01931064": {
   "brand": "FOXY",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "01931070": {
   "brand": "HORECANO",
@@ -28000,7 +27350,7 @@
   "tier": "name"
  },
  "0195138": {
-  "brand": "OCEAN",
+  "brand": "Tevalli",
   "series": null,
   "tier": "scrape"
  },
@@ -29602,7 +28952,7 @@
  "0199130": {
   "brand": "Pirge",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199131": {
   "brand": "Pirge",
@@ -29622,12 +28972,12 @@
  "0199134": {
   "brand": "Pirge",
   "series": "Creme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199135": {
   "brand": "Pirge",
   "series": "Creme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199136": {
   "brand": "Pirge",
@@ -29812,7 +29162,7 @@
  "0199169": {
   "brand": "Pirge",
   "series": "Creme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019917": {
   "brand": "Pirge",
@@ -29837,7 +29187,7 @@
  "0199173": {
   "brand": "Pirge",
   "series": "Creme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199174": {
   "brand": "Pirge",
@@ -29857,7 +29207,7 @@
  "0199177": {
   "brand": "Pirge",
   "series": "Creme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199178": {
   "brand": "Pirge",
@@ -29877,12 +29227,12 @@
  "0199180": {
   "brand": "Pirge",
   "series": "Profi",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199181": {
   "brand": "Pirge",
   "series": "Profi",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199182": {
   "brand": "Pirge",
@@ -30022,7 +29372,7 @@
  "0199208": {
   "brand": "Pirge",
   "series": "Creme",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199209": {
   "brand": "Pirge",
@@ -30057,7 +29407,7 @@
  "0199214": {
   "brand": "Pirge",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199215": {
   "brand": "Pirge",
@@ -30117,7 +29467,7 @@
  "0199225": {
   "brand": "Pirge",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199226": {
   "brand": "Pirge",
@@ -30132,7 +29482,7 @@
  "0199228": {
   "brand": "Pirge",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199229": {
   "brand": "Pirge",
@@ -30232,12 +29582,12 @@
  "0199247": {
   "brand": "Pirge",
   "series": "Atlantik",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199248": {
   "brand": "Pirge",
   "series": "Atlantik",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199249": {
   "brand": "Pirge",
@@ -30247,7 +29597,7 @@
  "019925": {
   "brand": "Pirge",
   "series": "Duo",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199250": {
   "brand": "Pirge",
@@ -30267,7 +29617,7 @@
  "019926": {
   "brand": "Pirge",
   "series": "Duo",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019927": {
   "brand": "Pirge",
@@ -30592,17 +29942,17 @@
  "0199390": {
   "brand": "Pirge",
   "series": "Gastro",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199391": {
   "brand": "Pirge",
   "series": "Gastro",
-  "tier": "name"
+  "tier": "barcode"
  },
  "0199393": {
   "brand": "Pirge",
   "series": "Gastro",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019940": {
   "brand": "Pirge",
@@ -30767,27 +30117,27 @@
  "019972": {
   "brand": "Pirge",
   "series": "Pure",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019973": {
   "brand": "Pirge",
   "series": "Pure",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019974": {
   "brand": "Pirge",
   "series": "Pure",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019975": {
   "brand": "Pirge",
   "series": "Pure",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019976": {
   "brand": "Pirge",
   "series": "Pure",
-  "tier": "name"
+  "tier": "barcode"
  },
  "019977": {
   "brand": "Pirge",
@@ -30904,8 +30254,23 @@
   "series": "Duo",
   "tier": "name"
  },
+ "040065": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
  "05011": {
   "brand": "COK",
+  "series": null,
+  "tier": "barcode"
+ },
+ "054 ТЕК 142": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "054 ТЕК 143": {
+  "brand": "PRACTIC",
   "series": null,
   "tier": "barcode"
  },
@@ -31071,6 +30436,11 @@
  },
  "1-155": {
   "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1-1793": {
+  "brand": "FOXY",
   "series": null,
   "tier": "barcode"
  },
@@ -32109,45 +31479,85 @@
   "series": null,
   "tier": "name"
  },
+ "1142": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
  "1148": {
   "brand": "Titiz",
   "series": null,
   "tier": "scrape"
+ },
+ "11904": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
  },
  "127": {
   "brand": "TOWER",
   "series": null,
   "tier": "barcode"
  },
- "130080": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "130084": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "130388": {
+ "130035": {
   "brand": "Dunya",
   "series": null,
   "tier": "barcode"
  },
- "131400": {
-  "brand": "Omega",
+ "130126": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "130410": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "130962": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "131118": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "131130": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "131259": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "131323": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "131398": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "14153": {
+  "brand": "Dunya",
   "series": null,
   "tier": "barcode"
  },
  "1534": {
   "brand": "FOLY",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "1535": {
   "brand": "FOLY",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "15531": {
   "brand": "Titiz",
@@ -32159,13 +31569,43 @@
   "series": null,
   "tier": "scrape"
  },
+ "15945": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "15952": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "16015": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "16043": {
+  "brand": "Dunya",
+  "series": null,
+  "tier": "barcode"
+ },
+ "16873": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
+ "16927": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
  "171009": {
-  "brand": "POLYWOOD",
+  "brand": "Tramontina",
   "series": null,
   "tier": "name"
  },
  "171011": {
-  "brand": "POLYWOOD",
+  "brand": "Tramontina",
   "series": null,
   "tier": "name"
  },
@@ -32189,8 +31629,43 @@
   "series": null,
   "tier": "barcode"
  },
+ "1744": {
+  "brand": "Titiz",
+  "series": null,
+  "tier": "barcode"
+ },
  "1768": {
   "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1797": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1799": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1821": {
+  "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1822": {
+  "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1823": {
+  "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "1866": {
+  "brand": "FOXY",
   "series": null,
   "tier": "barcode"
  },
@@ -32299,6 +31774,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "201100": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
  "202109": {
   "brand": "Zambak",
   "series": null,
@@ -32325,9 +31805,9 @@
   "tier": "barcode"
  },
  "204619": {
-  "brand": "LIMA",
+  "brand": "Titiz",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "204655": {
   "brand": "Titiz",
@@ -32409,6 +31889,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "210216": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
  "21072": {
   "brand": "COK",
   "series": null,
@@ -32418,6 +31903,31 @@
   "brand": "BRIO",
   "series": "Aperitivo",
   "tier": "name"
+ },
+ "21258": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
+ "21259": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
+ "213": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
+ "213/22017": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
+ "21513": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
  },
  "218": {
   "brand": "TOWER",
@@ -32432,7 +31942,7 @@
  "220880": {
   "brand": "Ibili",
   "series": null,
-  "tier": "name"
+  "tier": "barcode"
  },
  "2214": {
   "brand": "TOWER",
@@ -32524,7 +32034,22 @@
   "series": null,
   "tier": "barcode"
  },
+ "245": {
+  "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "246": {
+  "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
  "254": {
+  "brand": "TOWER",
+  "series": null,
+  "tier": "barcode"
+ },
+ "264": {
   "brand": "TOWER",
   "series": null,
   "tier": "barcode"
@@ -32551,6 +32076,11 @@
  },
  "29017": {
   "brand": "Luminarc",
+  "series": null,
+  "tier": "barcode"
+ },
+ "3308": {
+  "brand": "FOXY",
   "series": null,
   "tier": "barcode"
  },
@@ -32684,6 +32214,31 @@
   "series": null,
   "tier": "barcode"
  },
+ "408": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
+ "408/22003": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
+ "409": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
+ "409/22005": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
+ "411-60/22605": {
+  "brand": "AMIG",
+  "series": null,
+  "tier": "barcode"
+ },
  "411-60/23773": {
   "brand": "AMIG",
   "series": null,
@@ -32734,8 +32289,8 @@
   "series": null,
   "tier": "barcode"
  },
- "443": {
-  "brand": "Omega",
+ "451": {
+  "brand": "TOWER",
   "series": null,
   "tier": "barcode"
  },
@@ -32806,11 +32361,6 @@
  },
  "57014": {
   "brand": "Luminarc",
-  "series": null,
-  "tier": "barcode"
- },
- "575": {
-  "brand": "Omega",
   "series": null,
   "tier": "barcode"
  },
@@ -33014,6 +32564,11 @@
   "series": null,
   "tier": "barcode"
  },
+ "899": {
+  "brand": "FOXY",
+  "series": null,
+  "tier": "barcode"
+ },
  "933": {
   "brand": "TOWER",
   "series": null,
@@ -33104,10 +32659,70 @@
   "series": null,
   "tier": "barcode"
  },
+ "NUN10/15508": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "NUN16/15528": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1304": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1308": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1309": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1312": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1313": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1314": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1315": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1316": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
+ "И04-1317": {
+  "brand": "PRACTIC",
+  "series": null,
+  "tier": "barcode"
+ },
  "И042-1073": {
   "brand": "Marinex",
   "series": null,
   "tier": "name"
+ },
+ "И050-1001": {
+  "brand": "Cristar",
+  "series": null,
+  "tier": "barcode"
  },
  "И08-1011": {
   "brand": "OCEAN",
@@ -33133,20 +32748,5 @@
   "brand": "Aura",
   "series": null,
   "tier": "name"
- },
- "И108507": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "И108543": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
- },
- "И108544": {
-  "brand": "Omega",
-  "series": null,
-  "tier": "barcode"
  }
 }

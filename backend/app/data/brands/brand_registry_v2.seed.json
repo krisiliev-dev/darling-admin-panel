@@ -125,6 +125,7 @@
     "841302314",
     "841302317",
     "841302321",
+    "841302322",
     "841302323"
    ],
    "series": []
@@ -227,9 +228,11 @@
   "aura": {
    "aliases": [],
    "canonical": "Aura",
-   "gs1_owner": null,
+   "gs1_owner": "MERKANT PAZARLAMA TİCARET ANONİM ŞİRKETİ",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "868115360"
+   ],
    "series": []
   },
   "bager": {
@@ -289,18 +292,27 @@
    "prefixes": [
     "801545700",
     "801545701",
+    "801545703",
+    "801545704",
+    "801545706",
+    "801545709",
     "801545717",
     "801545719",
-    "801545727"
+    "801545726",
+    "801545727",
+    "801545747",
+    "801545757"
    ],
    "series": []
   },
   "bizcochera": {
    "aliases": [],
    "canonical": "BIZCOCHERA",
-   "gs1_owner": null,
+   "gs1_owner": "G. Mantero e Figli Correnti Di Giuseppe Correnti sas",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "803310014"
+   ],
    "series": []
   },
   "bonna": {
@@ -323,12 +335,27 @@
    "aliases": [
     "ebro",
     "frigoverre",
+    "pompei",
     "prometeo"
    ],
    "canonical": "Bormioli",
-   "gs1_owner": "BORMIOLI LUIGI ESPAÑA, S.A.U.",
+   "gs1_owner": "Vicasa",
    "logo": null,
    "prefixes": [
+    "008795421",
+    "008795423",
+    "008795455",
+    "008795457",
+    "008795475",
+    "008795476",
+    "800113335",
+    "800113336",
+    "800113339",
+    "800113368",
+    "800113369",
+    "800113387",
+    "800113388",
+    "800890324",
     "841171201",
     "841171221",
     "841171223",
@@ -341,6 +368,7 @@
    "series": [
     "Ebro",
     "Frigoverre",
+    "Pompei",
     "Prometeo"
    ]
   },
@@ -459,9 +487,11 @@
   "charbroil": {
    "aliases": [],
    "canonical": "Char-Broil",
-   "gs1_owner": null,
+   "gs1_owner": "Char-Broil Europe GmbH",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "426054759"
+   ],
    "series": []
   },
   "chomik": {
@@ -534,9 +564,18 @@
   "cristar": {
    "aliases": [],
    "canonical": "Cristar",
-   "gs1_owner": null,
+   "gs1_owner": "CRISTAR TABLETOP S.A.S.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "770214720",
+    "770214721",
+    "770214722",
+    "770214723",
+    "770214724",
+    "770214725",
+    "770214726",
+    "789101700"
+   ],
    "series": [
     "Brunello",
     "Mug",
@@ -549,13 +588,36 @@
    "gs1_owner": "Crystalex CZ, s.r.o.",
    "logo": null,
    "prefixes": [
+    "859165135",
+    "859165148",
     "859165189",
+    "859165197",
+    "859340164",
+    "859340165",
     "859340166",
+    "859340167",
+    "859340168",
     "859340169",
+    "859340170",
+    "859340171",
     "859340172",
     "859340173",
+    "859340174",
+    "859340175",
     "859340179",
-    "859340180"
+    "859340180",
+    "859340182",
+    "859340185",
+    "859340190",
+    "859340193",
+    "859340195",
+    "859340197",
+    "859340198",
+    "859340701",
+    "859340702",
+    "859340703",
+    "859340710",
+    "859340711"
    ],
    "series": [
     "Amoroso",
@@ -629,10 +691,18 @@
   "dike": {
    "aliases": [],
    "canonical": "DIKE",
-   "gs1_owner": "FARK AHŞAP SAN. VE TİC.LTD.ŞTİ.",
+   "gs1_owner": "DİZDAR PASLANMAZ MUTFAK EŞYALARI SANAYİ VE TİCARET ANONİM ŞİRKETİ",
    "logo": null,
    "prefixes": [
-    "869623845"
+    "869523714",
+    "869523715",
+    "869523716",
+    "869523720",
+    "869523740",
+    "869623419",
+    "869623420",
+    "869623441",
+    "869623446"
    ],
    "series": []
   },
@@ -668,10 +738,28 @@
   "dunya": {
    "aliases": [],
    "canonical": "Dunya",
-   "gs1_owner": "DOĞUŞ BANYO AKSESUARLARI TEKSTİL GIDA İNŞ. SAN. VE TİC. LTD.ŞTİ.",
+   "gs1_owner": "ETİ GIDA SANAYİ VE TİCARET A.Ş.",
    "logo": null,
    "prefixes": [
-    "869763571"
+    "869053301",
+    "869053304",
+    "869628701",
+    "869628702",
+    "869628705",
+    "869628706",
+    "869628707",
+    "869628708",
+    "869628709",
+    "869628710",
+    "869628711",
+    "869628712",
+    "869628714",
+    "869628716",
+    "869628720",
+    "869628729",
+    "869628731",
+    "869628733",
+    "869628798"
    ],
    "series": [
     "Microline"
@@ -792,17 +880,23 @@
   "foly": {
    "aliases": [],
    "canonical": "FOLY",
-   "gs1_owner": null,
+   "gs1_owner": "BNM PLASTİK SANAYİ VE TİCARET ANONİM ŞİRKETİ",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "868265510"
+   ],
    "series": []
   },
   "foxy": {
    "aliases": [],
    "canonical": "FOXY",
-   "gs1_owner": null,
+   "gs1_owner": "安徽鑫民玻璃股份有限公司",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "695344050",
+    "695344051",
+    "695344059"
+   ],
    "series": []
   },
   "gastrocarry": {
@@ -864,9 +958,12 @@
   "granite": {
    "aliases": [],
    "canonical": "Granite",
-   "gs1_owner": null,
+   "gs1_owner": "HASCEVHER METAL SANAYİ VE TİCARET A.Ş.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "868046509",
+    "868046510"
+   ],
    "series": [
     "Grey",
     "Rosy",
@@ -925,13 +1022,25 @@
    "logo": null,
    "prefixes": [
     "869676100",
+    "869676103",
     "869676105",
+    "869676110",
+    "869676111",
+    "869676112",
+    "869676113",
     "869676114",
     "869676115",
     "869676116",
+    "869676130",
+    "869676135",
+    "869676136",
     "869676144",
     "869676153",
-    "869676154"
+    "869676154",
+    "869676172",
+    "869676173",
+    "869676192",
+    "869676193"
    ],
    "series": []
   },
@@ -972,10 +1081,15 @@
    "logo": null,
    "prefixes": [
     "869126100",
+    "869126102",
     "869126135",
     "869126138",
+    "869126139",
     "869126140",
+    "869126150",
     "869126152",
+    "869126157",
+    "869126166",
     "869126170"
    ],
    "series": [
@@ -1141,9 +1255,11 @@
   "ibili": {
    "aliases": [],
    "canonical": "Ibili",
-   "gs1_owner": null,
+   "gs1_owner": "IBILI MENAJE, S.A.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "841192207"
+   ],
    "series": []
   },
   "ikea": {
@@ -1157,9 +1273,15 @@
   "ilsa": {
    "aliases": [],
    "canonical": "ILSA",
-   "gs1_owner": null,
+   "gs1_owner": "Ilsa S.r.l.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "800040900",
+    "800040925",
+    "800040934",
+    "800040935",
+    "841259520"
+   ],
    "series": []
   },
   "innovagoods": {
@@ -1175,9 +1297,24 @@
     "inoxriv s.p.a."
    ],
    "canonical": "Inoxriv",
-   "gs1_owner": null,
+   "gs1_owner": "Inoxriv S.p.A.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "800474000",
+    "800474001",
+    "800474010",
+    "800474011",
+    "800474013",
+    "800474014",
+    "800474019",
+    "800474039",
+    "800474045",
+    "800474050",
+    "800474051",
+    "800474053",
+    "800474090",
+    "800474091"
+   ],
    "series": [
     "Annie",
     "Eatitaly",
@@ -1319,20 +1456,32 @@
    "prefixes": [
     "869295200",
     "869295201",
+    "869295202",
     "869295204",
     "869295205",
     "869295206",
     "869295207",
+    "869295208",
     "869295209",
     "869295210",
     "869295211",
+    "869295212",
     "869295213",
     "869295214",
     "869295215",
     "869295216",
+    "869295217",
     "869295218",
+    "869295219",
     "869295220",
-    "869295221"
+    "869295221",
+    "869295222",
+    "869295223",
+    "869295224",
+    "869295225",
+    "869295226",
+    "869295227",
+    "869295229"
    ],
    "series": [
     "Ada",
@@ -1597,9 +1746,12 @@
   "marinex": {
    "aliases": [],
    "canonical": "Marinex",
-   "gs1_owner": null,
+   "gs1_owner": "VERALLIA BRASIL S.A.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "789499310",
+    "789499317"
+   ],
    "series": [
     "Forno",
     "Opaline"
@@ -1705,7 +1857,10 @@
    "prefixes": [
     "869442600",
     "869442601",
-    "869442603"
+    "869442602",
+    "869442603",
+    "869442660",
+    "869442700"
    ],
    "series": []
   },
@@ -1715,6 +1870,9 @@
    "gs1_owner": "Ocean Glass Public Co., Ltd.",
    "logo": null,
    "prefixes": [
+    "885022200",
+    "885022211",
+    "885022213",
     "885022221",
     "885022222"
    ],
@@ -1778,21 +1936,9 @@
   "omega": {
    "aliases": [],
    "canonical": "Omega",
-   "gs1_owner": "IRAK PLASTİK SAN.VE TİC.A.Ş.",
+   "gs1_owner": null,
    "logo": null,
-   "prefixes": [
-    "869621900",
-    "869621910",
-    "869621920",
-    "869621932",
-    "869621933",
-    "869621934",
-    "869621935",
-    "869621936",
-    "869621937",
-    "869621939",
-    "869621940"
-   ],
+   "prefixes": [],
    "series": []
   },
   "ordene": {
@@ -1862,13 +2008,21 @@
   "perilla": {
    "aliases": [],
    "canonical": "Perilla",
-   "gs1_owner": "DOĞRULAR EV ÜRÜNLERİ ANONİM ŞİRKETİ",
+   "gs1_owner": "GÜRGIDA GIDA MAD.TOP.PAREKENDE CAFER ÖZYILDIRIM",
    "logo": null,
    "prefixes": [
+    "869191121",
+    "869191310",
+    "869191314",
+    "869191315",
+    "869191317",
+    "869191318",
     "869191320",
     "869191330",
+    "869191340",
     "869191361",
-    "869191370"
+    "869191370",
+    "869191380"
    ],
    "series": []
   },
@@ -1880,13 +2034,22 @@
    "gs1_owner": "YEŞİL YAYLA KESİCİ ALETLER VE MADE Nİ EŞYA SAN.VE TİC.LTD.ŞTİ.",
    "logo": null,
    "prefixes": [
+    "869561400",
+    "869561401",
+    "869561410",
+    "869561411",
     "869561431",
+    "869561436",
     "869561437",
     "869561438",
     "869561441",
     "869561443",
+    "869561448",
+    "869561461",
+    "869561462",
     "869561471",
     "869561481",
+    "869561482",
     "869561485"
    ],
    "series": [
@@ -1933,9 +2096,17 @@
   "polaris": {
    "aliases": [],
    "canonical": "Polaris",
-   "gs1_owner": null,
+   "gs1_owner": "ERKA GIDA TEMİZLİK TARIM HAYV.SAN. TİC.LTD.ŞTİ.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869676410",
+    "869676420",
+    "869676421",
+    "869676423",
+    "869676430",
+    "869676431",
+    "869676440"
+   ],
    "series": []
   },
   "polywood": {
@@ -1949,20 +2120,24 @@
     "Natural"
    ]
   },
-  "pompei": {
-   "aliases": [],
-   "canonical": "Pompei",
-   "gs1_owner": null,
-   "logo": null,
-   "prefixes": [],
-   "series": []
-  },
   "practic": {
    "aliases": [],
    "canonical": "PRACTIC",
-   "gs1_owner": null,
+   "gs1_owner": "PROSPERPLAST 1 Spółka z ograniczoną odpowiedzialnością",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "590519709",
+    "590519714",
+    "590519715",
+    "590519723",
+    "590519728",
+    "590519733",
+    "590519735",
+    "590519745",
+    "590519774",
+    "590519775",
+    "590519785"
+   ],
    "series": []
   },
   "primanova": {
@@ -1990,9 +2165,10 @@
     "international cookware sas"
    ],
    "canonical": "Pyrex",
-   "gs1_owner": "Antik Ars srl",
+   "gs1_owner": "INTERNATIONAL COOKWARE SAS",
    "logo": null,
    "prefixes": [
+    "342647027",
     "801038701",
     "801038702",
     "801038703",
@@ -2123,9 +2299,15 @@
     "sanremo s.a."
    ],
    "canonical": "Sanremo",
-   "gs1_owner": null,
+   "gs1_owner": "PINCEIS ATLAS S.A.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "789600380",
+    "789600385",
+    "789635900",
+    "789635901",
+    "789635902"
+   ],
    "series": [
     "Flor",
     "Push",
@@ -2146,9 +2328,11 @@
   "serinova": {
    "aliases": [],
    "canonical": "Serinova",
-   "gs1_owner": null,
+   "gs1_owner": "SERİNOVA PLASTİK SAN. DIŞ TİC.LTD.ŞTİ.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869864448"
+   ],
    "series": [
     "Daisy",
     "Kayik"
@@ -2300,9 +2484,11 @@
   "tevalli": {
    "aliases": [],
    "canonical": "Tevalli",
-   "gs1_owner": null,
+   "gs1_owner": "TÜRŞEMSAN ŞEMSİYE VE PLASTİK SAN. VE TİC.LTD.ŞTİ.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869744383"
+   ],
    "series": []
   },
   "thelittleflowersoapco": {
@@ -2318,9 +2504,10 @@
   "titiz": {
    "aliases": [],
    "canonical": "Titiz",
-   "gs1_owner": "ARMONİ PAZ.A.Ş.",
+   "gs1_owner": "KARCAM PLASTİK VE CAM SANAYİ TİCARET LTD.ŞTİ.",
    "logo": null,
    "prefixes": [
+    "868085830",
     "869853251",
     "869853253",
     "869853259"
@@ -2343,6 +2530,7 @@
    "prefixes": [
     "869406402",
     "869406404",
+    "869406405",
     "869406410"
    ],
    "series": []
@@ -2441,16 +2629,26 @@
   "vidivi": {
    "aliases": [],
    "canonical": "Vidivi",
-   "gs1_owner": "Vetrerie Riunite SpA",
+   "gs1_owner": "Cerve SpA",
    "logo": null,
    "prefixes": [
+    "800169194",
+    "800169195",
+    "800169196",
+    "802535804",
     "802535805",
     "802535814",
+    "802535815",
     "802535816",
+    "802535817",
     "802535818",
+    "802535820",
+    "802535821",
     "802535822",
     "802535823",
-    "802535824"
+    "802535824",
+    "802535825",
+    "802535860"
    ],
    "series": [
     "Accademia",
@@ -2608,9 +2806,16 @@
   "zicco": {
    "aliases": [],
    "canonical": "Zicco",
-   "gs1_owner": null,
+   "gs1_owner": "ALKAN ZÜCCACİYE SAN. VE TİC.LTD.ŞTİ.",
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869880470",
+    "869880471",
+    "869880472",
+    "869880473",
+    "869880474",
+    "869880476"
+   ],
    "series": []
   },
   "ziesto": {
