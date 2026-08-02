@@ -43,6 +43,7 @@ from .routers import (
     auth_extra,
     brand_registry,
     brands,
+    brands_v2,
     carts,
     catalog,
     cod,
@@ -156,6 +157,7 @@ app.include_router(products.router)
 app.include_router(catalog.router)
 app.include_router(carts.router)
 app.include_router(brands.router)
+app.include_router(brands_v2.router)
 app.include_router(brand_registry.router)
 app.include_router(orders.router)
 app.include_router(intake.router)

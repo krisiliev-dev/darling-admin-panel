@@ -1,0 +1,2662 @@
+{
+ "brands": {
+  "24bottles": {
+   "aliases": [],
+   "canonical": "24Bottles",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "adasevplastik": {
+   "aliases": [
+    "adasev plasti̇k sanayi̇ ve ti̇caret li̇mi̇ted şi̇rketi̇",
+    "adasev-plastik"
+   ],
+   "canonical": "AdaSev Plastik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "admit": {
+   "aliases": [],
+   "canonical": "Admit",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "agrirape": {
+   "aliases": [
+    "azienda agricola agrirape"
+   ],
+   "canonical": "Agrirape",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "akayplastik": {
+   "aliases": [
+    "akay plasti̇k ve teksti̇l sanayi̇ ti̇caret li̇mi̇ted şi̇rketi̇",
+    "akay-plastik"
+   ],
+   "canonical": "Akay Plastik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "akbas": {
+   "aliases": [],
+   "canonical": "Akbas",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "alform": {
+   "aliases": [],
+   "canonical": "Alform",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "alkan": {
+   "aliases": [
+    "alkan züccaci̇ye san. ve ti̇c.ltd.şti̇."
+   ],
+   "canonical": "Alkan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "alkanzccaciye": {
+   "aliases": [
+    "alkan-zuccaciye"
+   ],
+   "canonical": "Alkan Züccaciye",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "alorno": {
+   "aliases": [],
+   "canonical": "Alorno",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "altnbaak": {
+   "aliases": [
+    "altinbaşak mutf. eşy. san. ti̇c.ltd.şti̇.",
+    "altınbasak"
+   ],
+   "canonical": "Altınbaşak",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "amefa": {
+   "aliases": [],
+   "canonical": "AMEFA",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "amig": {
+   "aliases": [
+    "amilibia y de la iglesia s.a."
+   ],
+   "canonical": "AMIG",
+   "gs1_owner": "AMILIBIA Y DE LA IGLESIA S.A.",
+   "logo": null,
+   "prefixes": [
+    "841302302",
+    "841302308",
+    "841302312",
+    "841302314",
+    "841302317",
+    "841302321",
+    "841302323"
+   ],
+   "series": []
+  },
+  "anchorhocking": {
+   "aliases": [
+    "anchor-hocking"
+   ],
+   "canonical": "Anchor Hocking",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ansan": {
+   "aliases": [
+    "ansan metal ve plasti̇k san. ve ti̇c. ltd. şti̇."
+   ],
+   "canonical": "ANSAN",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "apollo": {
+   "aliases": [],
+   "canonical": "Apollo",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "aquaoptima": {
+   "aliases": [
+    "aqua-optima"
+   ],
+   "canonical": "Aqua Optima",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "arcoroc": {
+   "aliases": [],
+   "canonical": "Arcoroc",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "arian": {
+   "aliases": [],
+   "canonical": "Arian",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "arianlion": {
+   "aliases": [
+    "arian-lion"
+   ],
+   "canonical": "Arian Lion",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "asrnplastik": {
+   "aliases": [
+    "asrin plasti̇k ve kalip sanayi̇ ve ti̇caret anoni̇m şi̇rketi̇",
+    "asrın-plastik"
+   ],
+   "canonical": "Asrın Plastik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "atlantic": {
+   "aliases": [
+    "atlantik"
+   ],
+   "canonical": "Atlantic",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "atlasmelamin": {
+   "aliases": [
+    "atlas-melamin"
+   ],
+   "canonical": "Atlas Melamin",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "aura": {
+   "aliases": [],
+   "canonical": "Aura",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bager": {
+   "aliases": [
+    "bager plasti̇k san. ti̇c. ltd.şti̇."
+   ],
+   "canonical": "Bager",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bastplastic": {
+   "aliases": [
+    "bast-plastic"
+   ],
+   "canonical": "BAST PLASTIC",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "beissier": {
+   "aliases": [
+    "beissier s.a."
+   ],
+   "canonical": "Beissier",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "belisima": {
+   "aliases": [],
+   "canonical": "Belisima",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bettanin": {
+   "aliases": [],
+   "canonical": "Bettanin",
+   "gs1_owner": "BETTANIN IND S.A.",
+   "logo": null,
+   "prefixes": [
+    "789600101",
+    "789600102"
+   ],
+   "series": []
+  },
+  "bisetti": {
+   "aliases": [],
+   "canonical": "Bisetti",
+   "gs1_owner": "Pepper Style By Bisetti srl",
+   "logo": null,
+   "prefixes": [
+    "801545700",
+    "801545701",
+    "801545717",
+    "801545719",
+    "801545727"
+   ],
+   "series": []
+  },
+  "bizcochera": {
+   "aliases": [],
+   "canonical": "BIZCOCHERA",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bonna": {
+   "aliases": [],
+   "canonical": "Bonna",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "boriana": {
+   "aliases": [],
+   "canonical": "Boriana",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bormioli": {
+   "aliases": [
+    "ebro",
+    "frigoverre",
+    "prometeo"
+   ],
+   "canonical": "Bormioli",
+   "gs1_owner": "BORMIOLI LUIGI ESPAÑA, S.A.U.",
+   "logo": null,
+   "prefixes": [
+    "841171201",
+    "841171221",
+    "841171223",
+    "841171237",
+    "841171255",
+    "841171257",
+    "841171275",
+    "841171276"
+   ],
+   "series": [
+    "Ebro",
+    "Frigoverre",
+    "Prometeo"
+   ]
+  },
+  "bormiolirocco": {
+   "aliases": [
+    "bormioli-rocco"
+   ],
+   "canonical": "Bormioli Rocco",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "brio": {
+   "aliases": [],
+   "canonical": "BRIO",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Acacia",
+    "Aperitivo",
+    "Black",
+    "Copper",
+    "Easi",
+    "Easy",
+    "Emalica",
+    "Emalika",
+    "Gold",
+    "Hard",
+    "Inox",
+    "Metallica",
+    "Mocca",
+    "Safe",
+    "Salt",
+    "Spirit",
+    "Stone",
+    "Uno",
+    "Yamato"
+   ]
+  },
+  "burdem": {
+   "aliases": [
+    "burdem - plastik doo"
+   ],
+   "canonical": "Burdem",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bursev": {
+   "aliases": [],
+   "canonical": "Bursev",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "bythome": {
+   "aliases": [
+    "byt-home"
+   ],
+   "canonical": "Byt Home",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cansan": {
+   "aliases": [],
+   "canonical": "Cansan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cavallo": {
+   "aliases": [
+    "cavallo srl"
+   ],
+   "canonical": "Cavallo",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cegecoalarslu": {
+   "aliases": [
+    "cegeco-alar-s-l-u"
+   ],
+   "canonical": "Cegeco & Alar S L U",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cerutil": {
+   "aliases": [],
+   "canonical": "Cerutil",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cerutilceramicasutilitariaslda": {
+   "aliases": [
+    "cerutil-ceramicas-utilitarias-lda"
+   ],
+   "canonical": "Cerutil - Ceramicas Utilitarias Lda",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "charbroil": {
+   "aliases": [],
+   "canonical": "Char-Broil",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "chomik": {
+   "aliases": [],
+   "canonical": "Chomik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cigo": {
+   "aliases": [],
+   "canonical": "CIGO",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cncontinental": {
+   "aliases": [
+    "cn-continental"
+   ],
+   "canonical": "CN Continental",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "cok": {
+   "aliases": [],
+   "canonical": "COK",
+   "gs1_owner": "TÜRKİYE ŞİŞE VE CAM FABRİKALARI ANONİM ŞİRKETİ",
+   "logo": null,
+   "prefixes": [
+    "068067804",
+    "068067805",
+    "068067806",
+    "068067808",
+    "068067809",
+    "068067811",
+    "068067814",
+    "068067815",
+    "068067819",
+    "068067820",
+    "068067826",
+    "068067827",
+    "068067837",
+    "869335704",
+    "869335705",
+    "869335706",
+    "869335708",
+    "869335709",
+    "869335711",
+    "869335714",
+    "869335715",
+    "869335719",
+    "869335720",
+    "869335726",
+    "869335727",
+    "869335737"
+   ],
+   "series": [
+    "Bistro",
+    "Ceramica",
+    "Elba",
+    "Lola",
+    "Zar"
+   ]
+  },
+  "cristar": {
+   "aliases": [],
+   "canonical": "Cristar",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Brunello",
+    "Mug",
+    "Venecia"
+   ]
+  },
+  "crystalex": {
+   "aliases": [],
+   "canonical": "CRYSTALEX",
+   "gs1_owner": "Crystalex CZ, s.r.o.",
+   "logo": null,
+   "prefixes": [
+    "859165189",
+    "859340166",
+    "859340169",
+    "859340172",
+    "859340173",
+    "859340179",
+    "859340180"
+   ],
+   "series": [
+    "Amoroso",
+    "Angela",
+    "Bar",
+    "Blues",
+    "Bolero",
+    "Club",
+    "Crazy",
+    "Flamenco",
+    "Gina",
+    "Giselle",
+    "Grace",
+    "Grappa",
+    "Harmony",
+    "Jive",
+    "Kate",
+    "Motion",
+    "Neon",
+    "Rainbow",
+    "Samba",
+    "Sandra",
+    "Siesta",
+    "Specials",
+    "Swing",
+    "Turbulence",
+    "Vintage",
+    "Viola",
+    "Waterfall",
+    "Xtra"
+   ]
+  },
+  "dancook": {
+   "aliases": [],
+   "canonical": "DANCOOK",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "dannyhome": {
+   "aliases": [
+    "danny-home"
+   ],
+   "canonical": "Danny Home",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "daydrap": {
+   "aliases": [
+    "day-drap"
+   ],
+   "canonical": "DAY DRAP",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "deli": {
+   "aliases": [
+    "得力"
+   ],
+   "canonical": "Deli",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "dike": {
+   "aliases": [],
+   "canonical": "DIKE",
+   "gs1_owner": "FARK AHŞAP SAN. VE TİC.LTD.ŞTİ.",
+   "logo": null,
+   "prefixes": [
+    "869623845"
+   ],
+   "series": []
+  },
+  "dim": {
+   "aliases": [
+    "dim",
+    "di̇m orman ve ahşap endüstri̇ mamul.san. ve ti̇c.ltd.şti̇."
+   ],
+   "canonical": "DİM",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "dreamfarm": {
+   "aliases": [],
+   "canonical": "Dreamfarm",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "drinkdesign": {
+   "aliases": [
+    "drinkdesign"
+   ],
+   "canonical": "Drink&Design",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "dunya": {
+   "aliases": [],
+   "canonical": "Dunya",
+   "gs1_owner": "DOĞUŞ BANYO AKSESUARLARI TEKSTİL GIDA İNŞ. SAN. VE TİC. LTD.ŞTİ.",
+   "logo": null,
+   "prefixes": [
+    "869763571"
+   ],
+   "series": [
+    "Microline"
+   ]
+  },
+  "duralex": {
+   "aliases": [
+    "duralex scop sa"
+   ],
+   "canonical": "DURALEX",
+   "gs1_owner": "DURALEX SCOP SA",
+   "logo": null,
+   "prefixes": [
+    "355019010",
+    "355019018",
+    "355019020",
+    "355019040",
+    "355019050",
+    "355019094"
+   ],
+   "series": [
+    "Manhattan"
+   ]
+  },
+  "easylife": {
+   "aliases": [
+    "easy-life"
+   ],
+   "canonical": "EASY LIFE",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ecemetal": {
+   "aliases": [
+    "ece metal san. ve ti̇c. ltd.şti̇.",
+    "ece-metal"
+   ],
+   "canonical": "Ece Metal",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ecloth": {
+   "aliases": [],
+   "canonical": "E-Cloth",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "efay": {
+   "aliases": [],
+   "canonical": "Efay",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ela": {
+   "aliases": [],
+   "canonical": "ELA",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "elbulgaria": {
+   "aliases": [],
+   "canonical": "elbulgaria",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ellif": {
+   "aliases": [],
+   "canonical": "Ellif",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "emsan": {
+   "aliases": [],
+   "canonical": "Emsan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "eurostep": {
+   "aliases": [],
+   "canonical": "Eurostep",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "evimsan": {
+   "aliases": [],
+   "canonical": "Evimsan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "fissler": {
+   "aliases": [],
+   "canonical": "Fissler",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "foly": {
+   "aliases": [],
+   "canonical": "FOLY",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "foxy": {
+   "aliases": [],
+   "canonical": "FOXY",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "gastrocarry": {
+   "aliases": [],
+   "canonical": "GastroCarry",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "gastrocups": {
+   "aliases": [],
+   "canonical": "GastroCups",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "gastroplast": {
+   "aliases": [],
+   "canonical": "GastroPlast",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "gpbatteries": {
+   "aliases": [
+    "gp-batteries"
+   ],
+   "canonical": "GP Batteries",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "gralporselen": {
+   "aliases": [
+    "gural-porselen",
+    "heri̇ş serami̇k ve turi̇zm san.a.ş."
+   ],
+   "canonical": "Güral Porselen",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "grammy": {
+   "aliases": [],
+   "canonical": "Grammy",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Blue",
+    "Green"
+   ]
+  },
+  "granite": {
+   "aliases": [],
+   "canonical": "Granite",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Grey",
+    "Rosy",
+    "Wood"
+   ]
+  },
+  "greenbank": {
+   "aliases": [
+    "green-bank"
+   ],
+   "canonical": "GREEN BANK",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "guzzini": {
+   "aliases": [],
+   "canonical": "Guzzini",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hario": {
+   "aliases": [],
+   "canonical": "Hario",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "harmonytime": {
+   "aliases": [
+    "harmony ti̇me plasti̇k ve hedi̇yeli̇k eşya sanayi̇ ti̇caret li̇mi̇ted şi̇rketi̇",
+    "harmony-time"
+   ],
+   "canonical": "Harmony Time",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hascevher": {
+   "aliases": [],
+   "canonical": "Hascevher",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hena": {
+   "aliases": [],
+   "canonical": "HENA",
+   "gs1_owner": "ARBEL BAKLİYAT HUBUBAT SANAYİ VE TİCARET ANONİM ŞİRKETİ",
+   "logo": null,
+   "prefixes": [
+    "869676100",
+    "869676105",
+    "869676114",
+    "869676115",
+    "869676116",
+    "869676144",
+    "869676153",
+    "869676154"
+   ],
+   "series": []
+  },
+  "herevin": {
+   "aliases": [
+    "solmazer ev gereçleri̇ sanayi̇ anoni̇m şi̇rketi̇"
+   ],
+   "canonical": "Herevin",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hfmdefne": {
+   "aliases": [
+    "hfm-defne"
+   ],
+   "canonical": "HFM DEFNE",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hg": {
+   "aliases": [],
+   "canonical": "HG",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hisar": {
+   "aliases": [
+    "hi̇sar çatal-kaşik ve paslanmaz madeni̇ eşya sanayi̇ ve ti̇caret a.ş."
+   ],
+   "canonical": "HISAR",
+   "gs1_owner": "HİSAR ÇATAL-KAŞIK VE PASLANMAZ MADENİ EŞYA SANAYİ VE TİCARET A.Ş.",
+   "logo": null,
+   "prefixes": [
+    "869126100",
+    "869126135",
+    "869126138",
+    "869126140",
+    "869126152",
+    "869126170"
+   ],
+   "series": [
+    "Aqua",
+    "Argentina",
+    "Bahama",
+    "Florence",
+    "Lara",
+    "Marmaris",
+    "Mercury",
+    "Miami",
+    "Milano",
+    "Nova",
+    "Side",
+    "Topkapi"
+   ]
+  },
+  "hmd": {
+   "aliases": [],
+   "canonical": "HMD",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hobbylife": {
+   "aliases": [
+    "hobby-life"
+   ],
+   "canonical": "Hobby life",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "homedesign": {
+   "aliases": [
+    "home-design"
+   ],
+   "canonical": "Home Design",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "homeperfect": {
+   "aliases": [
+    "home-perfect"
+   ],
+   "canonical": "Home Perfect",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "horecano": {
+   "aliases": [],
+   "canonical": "HORECANO",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Alas",
+    "Alira",
+    "Alora",
+    "Amber",
+    "Aning",
+    "Arizona",
+    "Aspen",
+    "Bailey",
+    "Bakery",
+    "Basics",
+    "Ben",
+    "Black",
+    "Bloom",
+    "Buffet",
+    "Capsule",
+    "Carmen",
+    "Charm",
+    "Chef",
+    "Chicago",
+    "Classic",
+    "Cleaning",
+    "Coral",
+    "Crock",
+    "Eko",
+    "Faia",
+    "Florence",
+    "Gold",
+    "Gracy",
+    "Havana",
+    "Hella",
+    "Home",
+    "Honeycomb",
+    "Horeca",
+    "Indy",
+    "Iris",
+    "Ivy",
+    "Jazz",
+    "Kids",
+    "Laguna",
+    "London",
+    "Lux",
+    "Mehndi",
+    "Meteor",
+    "Miami",
+    "Milan",
+    "Natalie",
+    "North",
+    "Olala",
+    "Old",
+    "Pearl",
+    "Petal",
+    "Premium",
+    "Pro",
+    "Pvc",
+    "Quinn",
+    "Ren",
+    "Rocky",
+    "Rose",
+    "Ruby",
+    "Rustic",
+    "Saffron",
+    "Service",
+    "Shengya",
+    "Shibui",
+    "Show",
+    "Sigma",
+    "Sydney",
+    "Titanium",
+    "Tokyo",
+    "Traditions",
+    "Uni",
+    "Vintage",
+    "Vision",
+    "Voca",
+    "Wabi",
+    "White",
+    "Wicked",
+    "Wood"
+   ]
+  },
+  "horecanohome": {
+   "aliases": [
+    "horecano-home"
+   ],
+   "canonical": "HORECANO HOME",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "hunter": {
+   "aliases": [
+    "hunter diş ti̇caret ve sanayi̇ anoni̇m şi̇rketi̇"
+   ],
+   "canonical": "Hunter",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ibili": {
+   "aliases": [],
+   "canonical": "Ibili",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ikea": {
+   "aliases": [],
+   "canonical": "IKEA",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ilsa": {
+   "aliases": [],
+   "canonical": "ILSA",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "innovagoods": {
+   "aliases": [],
+   "canonical": "InnovaGoods",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "inoxriv": {
+   "aliases": [
+    "inoxriv s.p.a."
+   ],
+   "canonical": "Inoxriv",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Annie",
+    "Eatitaly",
+    "Glamour",
+    "Italia",
+    "Kitchen",
+    "Love",
+    "Maxima",
+    "Medea",
+    "Novecento",
+    "Premium",
+    "Profi",
+    "Star",
+    "Thema",
+    "York"
+   ]
+  },
+  "isilplast": {
+   "aliases": [],
+   "canonical": "Isilplast",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "josephjoseph": {
+   "aliases": [
+    "joseph-joseph"
+   ],
+   "canonical": "Joseph Joseph",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kale": {
+   "aliases": [],
+   "canonical": "Kale",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "karakaya": {
+   "aliases": [],
+   "canonical": "Karakaya",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kaveh": {
+   "aliases": [
+    "bolour-e kaveh co."
+   ],
+   "canonical": "Kaveh",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "keramika": {
+   "aliases": [
+    "ünsa madenci̇li̇k turi̇zm enerji̇ serami̇k orman ürünleri̇ elektri̇k üreti̇m sanayi̇ ve ti̇caret anoni̇m"
+   ],
+   "canonical": "Keramika",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kiliclarcatalkasik": {
+   "aliases": [
+    "kiliclar-catal-kasik"
+   ],
+   "canonical": "Kiliclar Catal Kasik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kililar": {
+   "aliases": [
+    "kiliclar"
+   ],
+   "canonical": "KILIÇLAR",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kitchenaid": {
+   "aliases": [],
+   "canonical": "KitchenAid",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "koblenz": {
+   "aliases": [],
+   "canonical": "Koblenz",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "koziol": {
+   "aliases": [],
+   "canonical": "Koziol",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kulsan": {
+   "aliases": [],
+   "canonical": "Kulsan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "kulsanmeleminplast": {
+   "aliases": [
+    "kulsan-melemin-plast"
+   ],
+   "canonical": "Kulsan Melemin Plast",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "lav": {
+   "aliases": [],
+   "canonical": "LAV",
+   "gs1_owner": "GÜROK TURİZM MADENCİLİK A.Ş.",
+   "logo": null,
+   "prefixes": [
+    "869295200",
+    "869295201",
+    "869295204",
+    "869295205",
+    "869295206",
+    "869295207",
+    "869295209",
+    "869295210",
+    "869295211",
+    "869295213",
+    "869295214",
+    "869295215",
+    "869295216",
+    "869295218",
+    "869295220",
+    "869295221"
+   ],
+   "series": [
+    "Ada",
+    "Adr",
+    "Ajd",
+    "Aln",
+    "Aly",
+    "Ang",
+    "Aras",
+    "Arg",
+    "Arh",
+    "Ars",
+    "Artemiss1",
+    "Ary",
+    "Atm",
+    "Ayd",
+    "Ayr",
+    "Azn",
+    "Bar",
+    "Bdg",
+    "Berry",
+    "Blk",
+    "Blo120",
+    "Bodega",
+    "Brm",
+    "Bro",
+    "Brs",
+    "Brt",
+    "Bur",
+    "Cleo",
+    "Com",
+    "Cre",
+    "Crm",
+    "Cubes",
+    "Def",
+    "Des",
+    "Dia",
+    "Dml",
+    "Drn",
+    "Duo",
+    "Dur",
+    "Elg",
+    "Elit",
+    "Ell",
+    "Els",
+    "Empire",
+    "Fam",
+    "Fio",
+    "Fon",
+    "Fro",
+    "Frs",
+    "Frt",
+    "Fst",
+    "Gai",
+    "Glo",
+    "Glt",
+    "Her211",
+    "Hln",
+    "Hpl",
+    "Ice",
+    "Joy",
+    "Jul",
+    "Kar",
+    "Keo",
+    "Klasik",
+    "Klb",
+    "Krn",
+    "Kyf",
+    "Lal",
+    "Lbr",
+    "Lig",
+    "Liz",
+    "Lna",
+    "Lun",
+    "Mar",
+    "May",
+    "Mia",
+    "Mis",
+    "Mon",
+    "Mst",
+    "Nar",
+    "Nec",
+    "Nev",
+    "Non",
+    "Nov",
+    "Nrd",
+    "Odn",
+    "Oli",
+    "Orn",
+    "Perge",
+    "Pet",
+    "Pom",
+    "Pra",
+    "Premier",
+    "Pst",
+    "Ren",
+    "Rnd211",
+    "Rnd214",
+    "Rnd217",
+    "Rng",
+    "Roma",
+    "Rst",
+    "Ser82",
+    "Srg",
+    "Stela",
+    "Stripe",
+    "Sud",
+    "Suma",
+    "Tas",
+    "Teo",
+    "Tok",
+    "Tra",
+    "Tru",
+    "Tua",
+    "Veg",
+    "Ven",
+    "Vir",
+    "Vlr",
+    "Vtl",
+    "Wave",
+    "Zen",
+    "Zoey",
+    "Zpl"
+   ]
+  },
+  "lavena": {
+   "aliases": [
+    "lavena jsc"
+   ],
+   "canonical": "Lavena",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "leifheit": {
+   "aliases": [],
+   "canonical": "Leifheit",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "lenox": {
+   "aliases": [],
+   "canonical": "Lenox",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "lima": {
+   "aliases": [],
+   "canonical": "LIMA",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "lku": {
+   "aliases": [
+    "lekue"
+   ],
+   "canonical": "Lékué",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "locklock": {
+   "aliases": [
+    "locklock"
+   ],
+   "canonical": "LOCK&LOCK",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "lova": {
+   "aliases": [
+    "ümeyi̇r fati̇h günan lova plasti̇k"
+   ],
+   "canonical": "Lova",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "luigibormioli": {
+   "aliases": [
+    "bormioli luigi",
+    "bormioli luigi españa, s.a.u.",
+    "luigi-bormioli"
+   ],
+   "canonical": "Luigi Bormioli",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "luminarc": {
+   "aliases": [],
+   "canonical": "Luminarc",
+   "gs1_owner": "ARC Holdings",
+   "logo": null,
+   "prefixes": [
+    "088331407",
+    "088331415",
+    "088331431",
+    "088331451",
+    "088331452",
+    "088331455",
+    "088331457",
+    "088331461",
+    "088331462",
+    "088331463",
+    "088331464",
+    "088331466",
+    "088331467",
+    "088331469",
+    "088331471",
+    "088331472",
+    "088331473",
+    "088331474",
+    "088331475",
+    "088331476",
+    "088331478",
+    "088331479",
+    "088331480",
+    "088331488",
+    "088331489",
+    "088331493",
+    "088331494",
+    "088331497"
+   ],
+   "series": [
+    "Diwali",
+    "Evolutions"
+   ]
+  },
+  "mak": {
+   "aliases": [
+    "mak-milcho & aneta kalenovi ltd"
+   ],
+   "canonical": "MAK",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "mareli": {
+   "aliases": [
+    "mareli ltd"
+   ],
+   "canonical": "Mareli",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "marinex": {
+   "aliases": [],
+   "canonical": "Marinex",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Forno",
+    "Opaline"
+   ]
+  },
+  "melodyhouseware": {
+   "aliases": [
+    "melody-houseware",
+    "sali̇h can - cns plasti̇k"
+   ],
+   "canonical": "Melody Houseware",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "metplas": {
+   "aliases": [],
+   "canonical": "Metplas",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "mexon": {
+   "aliases": [],
+   "canonical": "Mexon",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "miran": {
+   "aliases": [],
+   "canonical": "Mira-N",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "mizan": {
+   "aliases": [
+    "mi̇zan plasti̇k ayşe şahi̇n"
+   ],
+   "canonical": "Mizan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "mothercare": {
+   "aliases": [],
+   "canonical": "Mothercare",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "muratplastik": {
+   "aliases": [
+    "murat-plastik"
+   ],
+   "canonical": "Murat Plastik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "nadr": {
+   "aliases": [
+    "nadir"
+   ],
+   "canonical": "Nadír",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Alambic",
+    "Americano",
+    "Celebra",
+    "Fiore",
+    "Lights",
+    "Prestige"
+   ]
+  },
+  "netlon": {
+   "aliases": [
+    "net çeli̇k hayvancilik ve süt ürünleri̇ sanayi̇ ve ti̇caret li̇mi̇ted şi̇rketi̇"
+   ],
+   "canonical": "Netlon",
+   "gs1_owner": "REMETTA EV VE YAŞAM ÜRÜNLERİ SANAYİ TİCARET LİMİTED ŞİRKETİ",
+   "logo": null,
+   "prefixes": [
+    "869923452"
+   ],
+   "series": []
+  },
+  "novussi": {
+   "aliases": [],
+   "canonical": "Novussi",
+   "gs1_owner": "FATİH PLASTİK SAN.VE TİC.LTD.ŞTİ.",
+   "logo": null,
+   "prefixes": [
+    "869442600",
+    "869442601",
+    "869442603"
+   ],
+   "series": []
+  },
+  "ocean": {
+   "aliases": [],
+   "canonical": "OCEAN",
+   "gs1_owner": "Ocean Glass Public Co., Ltd.",
+   "logo": null,
+   "prefixes": [
+    "885022221",
+    "885022222"
+   ],
+   "series": [
+    "Classic",
+    "Connexion",
+    "Craftmhan",
+    "Lexington",
+    "Madison",
+    "Munich",
+    "Pulse",
+    "Sante",
+    "Sip",
+    "Society",
+    "Vino"
+   ]
+  },
+  "okyanus": {
+   "aliases": [],
+   "canonical": "Okyanus",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "okyanushome": {
+   "aliases": [
+    "okyanus mutfak eşyalari sanayi̇ ve diş ti̇caret li̇mi̇ted şi̇rketi̇",
+    "okyanus-home"
+   ],
+   "canonical": "Okyanus Home",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "olie": {
+   "aliases": [],
+   "canonical": "OLIE",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "olina": {
+   "aliases": [],
+   "canonical": "Olina",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "omcan": {
+   "aliases": [],
+   "canonical": "OMCAN",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "omega": {
+   "aliases": [],
+   "canonical": "Omega",
+   "gs1_owner": "IRAK PLASTİK SAN.VE TİC.A.Ş.",
+   "logo": null,
+   "prefixes": [
+    "869621900",
+    "869621910",
+    "869621920",
+    "869621932",
+    "869621933",
+    "869621934",
+    "869621935",
+    "869621936",
+    "869621937",
+    "869621939",
+    "869621940"
+   ],
+   "series": []
+  },
+  "ordene": {
+   "aliases": [],
+   "canonical": "Ordene",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "oxford": {
+   "aliases": [],
+   "canonical": "OXFORD",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ozhavan": {
+   "aliases": [
+    "oz-havan"
+   ],
+   "canonical": "Oz Havan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ozti": {
+   "aliases": [],
+   "canonical": "OZTI",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "oztiryakiler": {
+   "aliases": [
+    "özti̇ryaki̇ler madeni̇ eşya san.ve ti̇c. a.ş."
+   ],
+   "canonical": "Oztiryakiler",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "parmash": {
+   "aliases": [
+    "parmash jsc"
+   ],
+   "canonical": "PARMASH",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "perilis": {
+   "aliases": [
+    "perilis treiding ltd"
+   ],
+   "canonical": "Perilis",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "perilla": {
+   "aliases": [],
+   "canonical": "Perilla",
+   "gs1_owner": "DOĞRULAR EV ÜRÜNLERİ ANONİM ŞİRKETİ",
+   "logo": null,
+   "prefixes": [
+    "869191320",
+    "869191330",
+    "869191361",
+    "869191370"
+   ],
+   "series": []
+  },
+  "pirge": {
+   "aliases": [
+    "yeşi̇l yayla kesi̇ci̇ aletler ve made ni̇ eşya san.ve ti̇c.ltd.şti̇."
+   ],
+   "canonical": "Pirge",
+   "gs1_owner": "YEŞİL YAYLA KESİCİ ALETLER VE MADE Nİ EŞYA SAN.VE TİC.LTD.ŞTİ.",
+   "logo": null,
+   "prefixes": [
+    "869561431",
+    "869561437",
+    "869561438",
+    "869561441",
+    "869561443",
+    "869561471",
+    "869561481",
+    "869561485"
+   ],
+   "series": [
+    "Atlantik",
+    "Creme",
+    "Delux",
+    "Duo",
+    "Ecco",
+    "Gastro",
+    "Pratik",
+    "Profi",
+    "Pure",
+    "Steak"
+   ]
+  },
+  "planetgecko": {
+   "aliases": [
+    "planet-gecko"
+   ],
+   "canonical": "Planet Gecko",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "plastart": {
+   "aliases": [],
+   "canonical": "Plastart",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "plastport": {
+   "aliases": [
+    "plastport plasti̇k san. ve ti̇c. a.ş."
+   ],
+   "canonical": "Plastport",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "polaris": {
+   "aliases": [],
+   "canonical": "Polaris",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "polywood": {
+   "aliases": [],
+   "canonical": "POLYWOOD",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Grey",
+    "Natural"
+   ]
+  },
+  "pompei": {
+   "aliases": [],
+   "canonical": "Pompei",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "practic": {
+   "aliases": [],
+   "canonical": "PRACTIC",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "primanova": {
+   "aliases": [
+    "prima-nova"
+   ],
+   "canonical": "Prima Nova",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "prosperplast": {
+   "aliases": [
+    "prosperplast 1 spółka z ograniczoną odpowiedzialnością"
+   ],
+   "canonical": "Prosperplast",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "pyrex": {
+   "aliases": [
+    "international cookware sas"
+   ],
+   "canonical": "Pyrex",
+   "gs1_owner": "Antik Ars srl",
+   "logo": null,
+   "prefixes": [
+    "801038701",
+    "801038702",
+    "801038703",
+    "801038704",
+    "801038705",
+    "801038706",
+    "801038708",
+    "801038709",
+    "801038713",
+    "801038719",
+    "801038723",
+    "801038733"
+   ],
+   "series": [
+    "Supreme"
+   ]
+  },
+  "qlux": {
+   "aliases": [
+    "qlux ideas mutfak eşyalari sanayi̇ ve ti̇caert anoni̇m şi̇rekti̇"
+   ],
+   "canonical": "Qlux",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "relevi": {
+   "aliases": [],
+   "canonical": "Relevi",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "renga": {
+   "aliases": [],
+   "canonical": "Renga",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ressy": {
+   "aliases": [
+    "resita ltd"
+   ],
+   "canonical": "Ressy",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "rice": {
+   "aliases": [],
+   "canonical": "RICE",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "riedel": {
+   "aliases": [],
+   "canonical": "RIEDEL",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "rolldrap": {
+   "aliases": [
+    "roll-drap"
+   ],
+   "canonical": "ROLL DRAP",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "rosenthal": {
+   "aliases": [],
+   "canonical": "Rosenthal",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "royalwinton": {
+   "aliases": [
+    "royal-winton"
+   ],
+   "canonical": "Royal Winton",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "rubella": {
+   "aliases": [
+    "rubella beauty  jsc"
+   ],
+   "canonical": "Rubella",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "sanne": {
+   "aliases": [],
+   "canonical": "Sanne",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "sano": {
+   "aliases": [
+    "sano brunos enterprises ltd."
+   ],
+   "canonical": "Sano",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "sanremo": {
+   "aliases": [
+    "sanremo s.a."
+   ],
+   "canonical": "Sanremo",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Flor",
+    "Push",
+    "S580E",
+    "S585E"
+   ]
+  },
+  "senyayla": {
+   "aliases": [
+    "şenyayla plasti̇k san.ve ti̇c.a.ş."
+   ],
+   "canonical": "Senyayla",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "serinova": {
+   "aliases": [],
+   "canonical": "Serinova",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Daisy",
+    "Kayik"
+   ]
+  },
+  "simonaggio": {
+   "aliases": [
+    "metalurgica simonaggio ltda"
+   ],
+   "canonical": "Simonaggio",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "spiderman": {
+   "aliases": [],
+   "canonical": "Spider-Man",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "steelpan": {
+   "aliases": [
+    "steel-pan"
+   ],
+   "canonical": "Steel Pan",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "steklarnahrastnikdruzbazaproizvodnjosteklenihizdelkov": {
+   "aliases": [
+    "steklarna-hrastnik-druzba-za-proizvodnjo-steklenih-izdelkov"
+   ],
+   "canonical": "STEKLARNA HRASTNIK druzba za proizvodnjo steklenih izdelkov",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "stella": {
+   "aliases": [
+    "stella pack",
+    "stella pack s.a."
+   ],
+   "canonical": "Stella",
+   "gs1_owner": "MERCANLAR MUTFAK EŞYALARI SAN. VE TİC. A.Ş.",
+   "logo": null,
+   "prefixes": [
+    "869797500"
+   ],
+   "series": []
+  },
+  "sterk": {
+   "aliases": [],
+   "canonical": "Sterk",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": [
+    "Stcm"
+   ]
+  },
+  "stylebox": {
+   "aliases": [
+    "style-box"
+   ],
+   "canonical": "STYLE BOX",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "sunplast": {
+   "aliases": [
+    "sun plasti̇k ev gereçleri̇ sanayi̇ ve ti̇caret li̇mi̇ted şi̇rketi̇"
+   ],
+   "canonical": "Sunplast",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "suntel": {
+   "aliases": [
+    "suntel banyo mutfak aksesuarlari sanayi̇ ti̇caret li̇mi̇ted şi̇rketi̇"
+   ],
+   "canonical": "Suntel",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "teavana": {
+   "aliases": [],
+   "canonical": "Teavana",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "tefal": {
+   "aliases": [],
+   "canonical": "Tefal",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "teknotel": {
+   "aliases": [
+    "yavuz pres metal sanayi̇ ve ti̇caret li̇mi̇ted şi̇rketi̇"
+   ],
+   "canonical": "Tekno-tel",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "termisil": {
+   "aliases": [
+    "wol"
+   ],
+   "canonical": "Termisil",
+   "gs1_owner": "TERMISIL GLASS SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+   "logo": null,
+   "prefixes": [
+    "590142300",
+    "590142301"
+   ],
+   "series": [
+    "Classic",
+    "Grillidrop",
+    "Maja",
+    "Maya"
+   ]
+  },
+  "tescoma": {
+   "aliases": [],
+   "canonical": "Tescoma",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "tevalli": {
+   "aliases": [],
+   "canonical": "Tevalli",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "thelittleflowersoapco": {
+   "aliases": [
+    "the-little-flower-soap-co"
+   ],
+   "canonical": "The Little Flower Soap Co.",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "titiz": {
+   "aliases": [],
+   "canonical": "Titiz",
+   "gs1_owner": "ARMONİ PAZ.A.Ş.",
+   "logo": null,
+   "prefixes": [
+    "869853251",
+    "869853253",
+    "869853259"
+   ],
+   "series": []
+  },
+  "topkapi": {
+   "aliases": [],
+   "canonical": "TOPKAPI",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "tower": {
+   "aliases": [],
+   "canonical": "TOWER",
+   "gs1_owner": "DEMİREL PLASTİK VE KALIP SANAYİ ANONİM ŞİRKETİ",
+   "logo": null,
+   "prefixes": [
+    "869406402",
+    "869406404",
+    "869406410"
+   ],
+   "series": []
+  },
+  "tramontina": {
+   "aliases": [],
+   "canonical": "Tramontina",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "tuffex": {
+   "aliases": [
+    "topçu plasti̇k san. ve diş ti̇c. ltd.şti̇."
+   ],
+   "canonical": "Tuffex",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "tupperware": {
+   "aliases": [],
+   "canonical": "Tupperware",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "uniglass": {
+   "aliases": [],
+   "canonical": "Uniglass",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "unknown": {
+   "aliases": [],
+   "canonical": "陆良县甘和食品厂",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "varta": {
+   "aliases": [],
+   "canonical": "Varta",
+   "gs1_owner": "VARTA Consumer Batteries GmbH & Co. KGaA",
+   "logo": null,
+   "prefixes": [
+    "400849627",
+    "400849652",
+    "400849655",
+    "400849656",
+    "400849657",
+    "400849663",
+    "400849665",
+    "400849667",
+    "400849677"
+   ],
+   "series": [
+    "Electronics",
+    "Longlife"
+   ]
+  },
+  "verda": {
+   "aliases": [
+    "avşar emaye san.ve ti̇c.a.ş."
+   ],
+   "canonical": "Verda",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "vertex": {
+   "aliases": [],
+   "canonical": "Vertex",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "vertexjsc": {
+   "aliases": [
+    "vertex-jsc"
+   ],
+   "canonical": "Vertex Jsc",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "vidivi": {
+   "aliases": [],
+   "canonical": "Vidivi",
+   "gs1_owner": "Vetrerie Riunite SpA",
+   "logo": null,
+   "prefixes": [
+    "802535805",
+    "802535814",
+    "802535816",
+    "802535818",
+    "802535822",
+    "802535823",
+    "802535824"
+   ],
+   "series": [
+    "Accademia",
+    "Baguette",
+    "Banquet",
+    "Campiello",
+    "Canova",
+    "Carre",
+    "Chef",
+    "Concerto",
+    "Cuore",
+    "Diva",
+    "Dolomiti",
+    "Ducale",
+    "Fenice",
+    "Full",
+    "Honey",
+    "Leaf",
+    "Mix",
+    "Oasi",
+    "Papaya",
+    "Prisma",
+    "Rialto",
+    "Torcello",
+    "Volubilis"
+   ]
+  },
+  "vileda": {
+   "aliases": [],
+   "canonical": "Vileda",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "villeroyboch": {
+   "aliases": [
+    "villeroy-boch"
+   ],
+   "canonical": "Villeroy & Boch",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "violethouse": {
+   "aliases": [
+    "kastamonu plasti̇k-hasan hüseyi̇n yilmazer",
+    "violet-house"
+   ],
+   "canonical": "Violet House",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "vistaalegre": {
+   "aliases": [
+    "vista-alegre"
+   ],
+   "canonical": "Vista Alegre",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "vitross": {
+   "aliases": [],
+   "canonical": "Vitross",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "werzalit": {
+   "aliases": [],
+   "canonical": "Werzalit",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "wilton": {
+   "aliases": [],
+   "canonical": "Wilton",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "winco": {
+   "aliases": [],
+   "canonical": "Winco",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "wmf": {
+   "aliases": [],
+   "canonical": "WMF",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "yelmen": {
+   "aliases": [
+    "yelmen plasti̇k mehmet yelmen"
+   ],
+   "canonical": "Yelmen",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "zambak": {
+   "aliases": [],
+   "canonical": "Zambak",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "zepter": {
+   "aliases": [],
+   "canonical": "Zepter",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "zerplastik": {
+   "aliases": [
+    "ozer-plastik",
+    "öz-er plasti̇k san.ve ti̇c.ltd.şti̇."
+   ],
+   "canonical": "Özer Plastik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "zgenplastik": {
+   "aliases": [
+    "ozgen-plastik",
+    "özgen plasti̇k hasan özgen"
+   ],
+   "canonical": "Özgen Plastik",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "zicco": {
+   "aliases": [],
+   "canonical": "Zicco",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "ziesto": {
+   "aliases": [
+    "ziesto jsc"
+   ],
+   "canonical": "Ziesto",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "купроемайл": {
+   "aliases": [
+    "купро-емаил"
+   ],
+   "canonical": "Купро Емайл",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "пармаш": {
+   "aliases": [],
+   "canonical": "Пармаш",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "стальэмаль": {
+   "aliases": [],
+   "canonical": "Стальэмаль",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "четпром": {
+   "aliases": [],
+   "canonical": "Четпром",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  }
+ },
+ "schema_version": 2
+}

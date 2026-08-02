@@ -19,6 +19,7 @@ import { Sklad } from './pages/Sklad'
 import { Kancelaria } from './pages/Kancelaria'
 import { Posta } from './pages/Posta'
 import { BrandRegistry } from './pages/BrandRegistry'
+import BrandRegistryV2 from './pages/BrandRegistryV2'
 import { BrandDetail } from './pages/BrandDetail'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="posta" element={<Posta />} />
         <Route path="marki" element={<BrandRegistry />} />
         <Route path="marki/:brandId" element={<BrandDetail />} />
+        <Route path="marki-v2" element={<BrandRegistryV2 />} />
         <Route path="assistant" element={<Assistant />} />
         <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
