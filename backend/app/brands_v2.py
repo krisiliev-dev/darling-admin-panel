@@ -20,7 +20,8 @@ def _load_reg() -> dict:
 
 def _counts() -> tuple[Counter, Counter]:
     """(products_per_brand, by_tier) from confirmed_brands.json — {} when absent."""
-    prod, tier = Counter(), Counter()
+    prod: Counter = Counter()
+    tier: Counter = Counter()
     if _CONF.exists():
         for c in json.loads(_CONF.read_text(encoding="utf-8")).values():
             prod[c["brand"]] += 1
