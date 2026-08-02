@@ -8,13 +8,13 @@ import pathlib
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import brands_v2 as reg
 from ..audit import log_action
 from ..db import get_async_session
 from ..models import User
 from ..users import current_active_user, current_owner
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/brands-v2", tags=["brands-v2"])
 _DATA = pathlib.Path(__file__).resolve().parents[1] / "data" / "brands"
