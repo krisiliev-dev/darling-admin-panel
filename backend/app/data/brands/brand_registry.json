@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "_generated": "2026-07-31T21:53:21",
+ "_generated": "2026-08-02T03:52:43",
  "_note": "Source of truth. gazetteer.jsonl / ean_prefix_cache.jsonl are DERIVED — edit here and re-run build_registry.py, never the derived files.",
  "brands": {
   "luminarc": {
@@ -2581,7 +2581,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 630
+   "product_count": 641
   },
   "unknown-380013159": {
    "legal_names": [
@@ -2594,7 +2594,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 666
+   "product_count": 674
   },
   "unknown-380013150": {
    "legal_names": [
@@ -2607,7 +2607,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 560
+   "product_count": 570
   },
   "unknown-380013152": {
    "legal_names": [
@@ -2620,7 +2620,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 707
+   "product_count": 720
   },
   "unknown-380013153": {
    "legal_names": [
@@ -2633,7 +2633,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 545
+   "product_count": 553
   },
   "unknown-380013155": {
    "legal_names": [
@@ -2646,7 +2646,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 312
+   "product_count": 315
   },
   "unknown-380016760": {
    "legal_names": [
@@ -2659,7 +2659,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 283
+   "product_count": 306
   },
   "unknown-380016762": {
    "legal_names": [
@@ -2672,7 +2672,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 156
+   "product_count": 158
   },
   "unknown-380016761": {
    "legal_names": [
@@ -2685,7 +2685,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 250
+   "product_count": 257
   },
   "unknown-380013158": {
    "legal_names": [
@@ -2711,7 +2711,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 295
+   "product_count": 301
   },
   "unknown-380013156": {
    "legal_names": [
@@ -2737,7 +2737,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 203
+   "product_count": 205
   },
   "unknown-380016763": {
    "legal_names": [
@@ -2765,7 +2765,7 @@
     "pirge"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 2
   },
   "unknown-869676038": {
    "legal_names": [
@@ -2810,7 +2810,7 @@
     "titiz"
    ],
    "evidence": [],
-   "product_count": 7
+   "product_count": 8
   },
   "unknown-869676112": {
    "legal_names": [
@@ -3185,7 +3185,7 @@
     "dunya"
    ],
    "evidence": [],
-   "product_count": 15
+   "product_count": 33
   },
   "unknown-770214720": {
    "legal_names": [
@@ -3260,7 +3260,7 @@
     "crystalex"
    ],
    "evidence": [],
-   "product_count": 15
+   "product_count": 17
   },
   "unknown-852976851": {
    "legal_names": [
@@ -3365,7 +3365,7 @@
     "alkan-zuccaciye"
    ],
    "evidence": [],
-   "product_count": 20
+   "product_count": 26
   },
   "unknown-168580100": {
    "legal_names": [
@@ -3575,7 +3575,7 @@
     "dunya"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 2
   },
   "unknown-859340703": {
    "legal_names": [
@@ -3605,7 +3605,7 @@
     "pirge"
    ],
    "evidence": [],
-   "product_count": 82
+   "product_count": 84
   },
   "unknown-869295211": {
    "legal_names": [
@@ -3635,7 +3635,7 @@
     "planet-gecko"
    ],
    "evidence": [],
-   "product_count": 61
+   "product_count": 72
   },
   "unknown-696635896": {
    "legal_names": [
@@ -3650,7 +3650,7 @@
     "horecano"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 2
   },
   "unknown-869676036": {
    "legal_names": [
@@ -3894,7 +3894,7 @@
     "serinova"
    ],
    "evidence": [],
-   "product_count": 88
+   "product_count": 103
   },
   "unknown-789621189": {
    "legal_names": [
@@ -3924,7 +3924,7 @@
     "crystalex"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 2
   },
   "unknown-869561400": {
    "legal_names": [
@@ -3969,7 +3969,7 @@
     "dunya"
    ],
    "evidence": [],
-   "product_count": 8
+   "product_count": 13
   },
   "unknown-869561436": {
    "legal_names": [
@@ -4119,7 +4119,7 @@
     "horecano"
    ],
    "evidence": [],
-   "product_count": 43
+   "product_count": 44
   },
   "unknown-869442404": {
    "legal_names": [
@@ -4344,7 +4344,7 @@
     "novussi"
    ],
    "evidence": [],
-   "product_count": 12
+   "product_count": 13
   },
   "unknown-800474053": {
    "legal_names": [
@@ -4445,7 +4445,7 @@
     "hisar"
    ],
    "evidence": [],
-   "product_count": 13
+   "product_count": 14
   },
   "unknown-801545757": {
    "legal_names": [
@@ -4535,7 +4535,7 @@
     "novussi"
    ],
    "evidence": [],
-   "product_count": 5
+   "product_count": 6
   },
   "unknown-801545727": {
    "legal_names": [
@@ -4790,7 +4790,7 @@
     "horecano"
    ],
    "evidence": [],
-   "product_count": 22
+   "product_count": 23
   },
   "unknown-841259520": {
    "legal_names": [
@@ -5180,7 +5180,7 @@
     "hisar"
    ],
    "evidence": [],
-   "product_count": 23
+   "product_count": 30
   },
   "unknown-868046510": {
    "legal_names": [
@@ -6005,7 +6005,7 @@
     "lav"
    ],
    "evidence": [],
-   "product_count": 3
+   "product_count": 4
   },
   "unknown-869126166": {
    "legal_names": [
@@ -6620,7 +6620,7 @@
     "lav"
    ],
    "evidence": [],
-   "product_count": 18
+   "product_count": 19
   },
   "unknown-801509415": {
    "legal_names": [
@@ -6680,7 +6680,7 @@
     "serinova"
    ],
    "evidence": [],
-   "product_count": 5
+   "product_count": 6
   },
   "unknown-690136838": {
    "legal_names": [
@@ -6830,7 +6830,7 @@
     "horecano"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 2
   },
   "unknown-859340168": {
    "legal_names": [
@@ -6950,7 +6950,7 @@
     "horecano"
    ],
    "evidence": [],
-   "product_count": 105
+   "product_count": 106
   },
   "steel-pan-srl": {
    "legal_names": [
@@ -7627,7 +7627,7 @@
     "dunya"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 2
   },
   "unknown-590142301": {
    "legal_names": [
@@ -7642,7 +7642,7 @@
     "wol"
    ],
    "evidence": [],
-   "product_count": 36
+   "product_count": 37
   },
   "unknown-859165148": {
    "legal_names": [
@@ -8257,7 +8257,7 @@
     "crystalex"
    ],
    "evidence": [],
-   "product_count": 30
+   "product_count": 32
   },
   "unknown-852976825": {
    "legal_names": [
@@ -8437,7 +8437,7 @@
     "crystalex"
    ],
    "evidence": [],
-   "product_count": 13
+   "product_count": 16
   },
   "unknown-869652249": {
    "legal_names": [
@@ -8692,7 +8692,7 @@
     "lav"
    ],
    "evidence": [],
-   "product_count": 57
+   "product_count": 58
   },
   "unknown-869624441": {
    "legal_names": [
@@ -8917,7 +8917,7 @@
     "horecano"
    ],
    "evidence": [],
-   "product_count": 1
+   "product_count": 3
   },
   "unknown-697085975": {
    "legal_names": [
@@ -9022,7 +9022,7 @@
     "lav"
    ],
    "evidence": [],
-   "product_count": 11
+   "product_count": 12
   },
   "unknown-869623441": {
    "legal_names": [
@@ -9067,7 +9067,7 @@
     "novussi"
    ],
    "evidence": [],
-   "product_count": 33
+   "product_count": 36
   },
   "unknown-770214722": {
    "legal_names": [
@@ -9262,7 +9262,7 @@
     "titiz"
    ],
    "evidence": [],
-   "product_count": 155
+   "product_count": 160
   },
   "heris-seramik-ve-turizm-sanas": {
    "legal_names": [
@@ -9291,7 +9291,7 @@
     "https://ambiente.messefrankfurt.com/frankfurt/en/exhibitor-search.detail.html/gueral-porselen---heris-seramik-ve-turizm-san-as.html",
     "https://www.dnb.com/business-directory/company-profiles.heris_seramik_ve_turizm_sanayi_anonim_sirketi.1020e73c663010fbdea2697ac26b68c1.html"
    ],
-   "product_count": 383
+   "product_count": 421
   },
   "alkan-zuccaciye-san-ve-ticltdsti": {
    "legal_names": [
@@ -9315,7 +9315,7 @@
     "https://alkanzuccaciye.com/",
     "https://www.chefmarket.com.tr/marka/alkan"
    ],
-   "product_count": 267
+   "product_count": 352
   },
   "demirel-plastik-ve-kalip-sanayi-anonim-sirketi": {
    "legal_names": [
@@ -9350,7 +9350,7 @@
     "renga"
    ],
    "evidence": [],
-   "product_count": 240
+   "product_count": 245
   },
   "irak-plastik-sanve-ticas": {
    "legal_names": [
@@ -9383,7 +9383,7 @@
     "home-design"
    ],
    "evidence": [],
-   "product_count": 635
+   "product_count": 637
   },
   "efay-ltd": {
    "legal_names": [
@@ -9494,7 +9494,7 @@
     "https://www.senyayla.com.tr/kurumsal/hakkimizda",
     "https://www.trendyol.com/senyayla-plastik-x-b146758"
    ],
-   "product_count": 132
+   "product_count": 136
   },
   "armoni-pazarlama-ve-plastik-santic-as": {
    "legal_names": [
@@ -9507,7 +9507,7 @@
    ],
    "brands": [],
    "evidence": [],
-   "product_count": 49
+   "product_count": 53
   },
   "中国物品编码中心": {
    "legal_names": [
@@ -9723,7 +9723,7 @@
     "metplas"
    ],
    "evidence": [],
-   "product_count": 47
+   "product_count": 77
   },
   "kulsan-melemin-plastsanve-ticas": {
    "legal_names": [
@@ -9751,7 +9751,7 @@
     "kulsan-melemin-plast"
    ],
    "evidence": [],
-   "product_count": 149
+   "product_count": 192
   },
   "isilplast-plastik-sanayi-ve-ticaret-anonim-sirketi": {
    "legal_names": [
@@ -9799,7 +9799,7 @@
     "kiliclar-catal-kasik"
    ],
    "evidence": [],
-   "product_count": 108
+   "product_count": 111
   },
   "sano-brunos-enterprises-ltd": {
    "legal_names": [
@@ -10423,7 +10423,7 @@
     "https://bormioliluigi.com/glassware/en/company-who",
     "https://luigibormioliusa.com/"
    ],
-   "product_count": 67
+   "product_count": 68
   },
   "parmash-jsc": {
    "legal_names": [
@@ -10682,7 +10682,7 @@
     "https://www.ansan.com.tr/en/about-us/",
     "https://www.ansan.com.tr/en/houseware/"
    ],
-   "product_count": 115
+   "product_count": 116
   },
   "senturk-plassantemel-yanik": {
    "legal_names": [
@@ -11194,7 +11194,7 @@
     "https://www.antikars.it/",
     "https://www.casalinghierrebisrl.it/antik-ars-srl-m-168.html"
    ],
-   "product_count": 80
+   "product_count": 81
   },
   "yelmen-plastik-mehmet-yelmen": {
    "legal_names": [
@@ -11291,7 +11291,7 @@
     "https://madeinua.org/catalog/tovary-dlia-domu/posud/novomoskovskyj-posud/",
     "https://dokuhni.ua/uk/brand/tm-epos-novomoskovskaya-posuda"
    ],
-   "product_count": 157
+   "product_count": 158
   },
   "withheld-469046002": {
    "legal_names": [
@@ -11778,7 +11778,7 @@
     "https://www.leonesrl.com/",
     "https://it.linkedin.com/company/leone-srl"
    ],
-   "product_count": 15
+   "product_count": 16
   },
   "新会市杜阮味精食品加工厂": {
    "legal_names": [
@@ -12163,7 +12163,7 @@
     "https://www.okyanushome.com/hakkimizda",
     "https://www.trendyol.com/okyanus-home-x-b146047"
    ],
-   "product_count": 13
+   "product_count": 14
   },
   "诸暨市超依袜厂": {
    "legal_names": [
@@ -21116,7 +21116,7 @@
     "spread": 635,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 630
+   "product_count": 641
   },
   "380013159": {
    "mfr_id": "unknown-380013159",
@@ -21130,7 +21130,7 @@
     "spread": 666,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 666
+   "product_count": 674
   },
   "380013150": {
    "mfr_id": "unknown-380013150",
@@ -21144,7 +21144,7 @@
     "spread": 562,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 560
+   "product_count": 570
   },
   "380013152": {
    "mfr_id": "unknown-380013152",
@@ -21158,7 +21158,7 @@
     "spread": 707,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 707
+   "product_count": 720
   },
   "380013153": {
    "mfr_id": "unknown-380013153",
@@ -21172,7 +21172,7 @@
     "spread": 545,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 545
+   "product_count": 553
   },
   "380013155": {
    "mfr_id": "unknown-380013155",
@@ -21186,7 +21186,7 @@
     "spread": 312,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 312
+   "product_count": 315
   },
   "380016760": {
    "mfr_id": "unknown-380016760",
@@ -21200,7 +21200,7 @@
     "spread": 283,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 283
+   "product_count": 306
   },
   "380016762": {
    "mfr_id": "unknown-380016762",
@@ -21214,7 +21214,7 @@
     "spread": 156,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 156
+   "product_count": 158
   },
   "380016761": {
    "mfr_id": "unknown-380016761",
@@ -21228,7 +21228,7 @@
     "spread": 250,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 250
+   "product_count": 257
   },
   "380013158": {
    "mfr_id": "unknown-380013158",
@@ -21256,7 +21256,7 @@
     "spread": 295,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 295
+   "product_count": 301
   },
   "380013156": {
    "mfr_id": "unknown-380013156",
@@ -21284,7 +21284,7 @@
     "spread": 203,
     "ts": "2026-07-18T13:42:38"
    },
-   "product_count": 203
+   "product_count": 205
   },
   "380016763": {
    "mfr_id": "unknown-380016763",
@@ -21316,7 +21316,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 2
   },
   "869676038": {
    "mfr_id": "unknown-869676038",
@@ -21374,7 +21374,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 7
+   "product_count": 8
   },
   "869676112": {
    "mfr_id": "unknown-869676112",
@@ -21875,7 +21875,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 15
+   "product_count": 33
   },
   "770214720": {
    "mfr_id": "unknown-770214720",
@@ -21975,7 +21975,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 15
+   "product_count": 17
   },
   "852976851": {
    "mfr_id": "unknown-852976851",
@@ -22118,7 +22118,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 20
+   "product_count": 26
   },
   "168580100": {
    "mfr_id": "unknown-168580100",
@@ -22404,7 +22404,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 2
   },
   "859340703": {
    "mfr_id": "unknown-859340703",
@@ -22443,7 +22443,7 @@
     "ts": "2026-07-18T14:34:32",
     "gs1_inactive": true
    },
-   "product_count": 82
+   "product_count": 84
   },
   "869295211": {
    "mfr_id": "unknown-869295211",
@@ -22481,7 +22481,7 @@
    "extra": {
     "ts": "2026-07-18T14:34:33"
    },
-   "product_count": 61
+   "product_count": 72
   },
   "696635896": {
    "mfr_id": "unknown-696635896",
@@ -22499,7 +22499,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 2
   },
   "869676036": {
    "mfr_id": "unknown-869676036",
@@ -22803,7 +22803,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:53"
    },
-   "product_count": 17
+   "product_count": 30
   },
   "789621189": {
    "mfr_id": "unknown-789621189",
@@ -22844,7 +22844,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 2
   },
   "869561400": {
    "mfr_id": "unknown-869561400",
@@ -22914,7 +22914,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 8
+   "product_count": 13
   },
   "869561436": {
    "mfr_id": "unknown-869561436",
@@ -23109,7 +23109,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 43
+   "product_count": 44
   },
   "869442404": {
    "mfr_id": "unknown-869442404",
@@ -23407,7 +23407,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 12
+   "product_count": 13
   },
   "800474053": {
    "mfr_id": "unknown-800474053",
@@ -23518,7 +23518,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 13
+   "product_count": 14
   },
   "801545757": {
    "mfr_id": "unknown-801545757",
@@ -23644,7 +23644,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 5
+   "product_count": 6
   },
   "801545727": {
    "mfr_id": "unknown-801545727",
@@ -23997,7 +23997,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 22
+   "product_count": 23
   },
   "841259520": {
    "mfr_id": "unknown-841259520",
@@ -24522,7 +24522,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 23
+   "product_count": 30
   },
   "868046510": {
    "mfr_id": "unknown-868046510",
@@ -25600,7 +25600,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 3
+   "product_count": 4
   },
   "869126166": {
    "mfr_id": "unknown-869126166",
@@ -26441,7 +26441,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 18
+   "product_count": 19
   },
   "801509415": {
    "mfr_id": "unknown-801509415",
@@ -26519,7 +26519,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 5
+   "product_count": 6
   },
   "690136838": {
    "mfr_id": "unknown-690136838",
@@ -26721,7 +26721,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 2
   },
   "859340168": {
    "mfr_id": "unknown-859340168",
@@ -26881,7 +26881,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-19T19:25:05"
    },
-   "product_count": 105
+   "product_count": 106
   },
   "801509411": {
    "mfr_id": "steel-pan-srl",
@@ -27781,7 +27781,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 2
   },
   "590142301": {
    "mfr_id": "unknown-590142301",
@@ -27802,7 +27802,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 36
+   "product_count": 37
   },
   "859165148": {
    "mfr_id": "unknown-859165148",
@@ -28639,7 +28639,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 30
+   "product_count": 32
   },
   "852976825": {
    "mfr_id": "unknown-852976825",
@@ -28894,7 +28894,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 13
+   "product_count": 16
   },
   "869652249": {
    "mfr_id": "unknown-869652249",
@@ -29267,7 +29267,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 57
+   "product_count": 58
   },
   "869624441": {
    "mfr_id": "unknown-869624441",
@@ -29583,7 +29583,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 1
+   "product_count": 3
   },
   "697085975": {
    "mfr_id": "unknown-697085975",
@@ -29726,7 +29726,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 11
+   "product_count": 12
   },
   "869623441": {
    "mfr_id": "unknown-869623441",
@@ -29791,7 +29791,7 @@
     "needs_gs1_confirm": true,
     "ts": "2026-07-18T13:54:39"
    },
-   "product_count": 33
+   "product_count": 36
   },
   "770214722": {
    "mfr_id": "unknown-770214722",
@@ -30035,7 +30035,7 @@
    "extra": {
     "ts": "2026-07-18T14:34:32"
    },
-   "product_count": 155
+   "product_count": 160
   },
   "869185040": {
    "mfr_id": "heris-seramik-ve-turizm-sanas",
@@ -30048,7 +30048,7 @@
    "extra": {
     "ts": "2026-07-18T14:51:14"
    },
-   "product_count": 134
+   "product_count": 137
   },
   "869880474": {
    "mfr_id": "alkan-zuccaciye-san-ve-ticltdsti",
@@ -30062,7 +30062,7 @@
     "ts": "2026-07-18T14:51:14",
     "gs1_inactive": true
    },
-   "product_count": 129
+   "product_count": 180
   },
   "869406400": {
    "mfr_id": "demirel-plastik-ve-kalip-sanayi-anonim-sirketi",
@@ -30102,7 +30102,7 @@
     "ts": "2026-07-18T14:51:14",
     "gs1_inactive": true
    },
-   "product_count": 98
+   "product_count": 129
   },
   "869797503": {
    "mfr_id": "mercanlar-mutfak-esyalari-san-ve-tic-as",
@@ -30115,7 +30115,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:53"
    },
-   "product_count": 78
+   "product_count": 79
   },
   "869621934": {
    "mfr_id": "irak-plastik-sanve-ticas",
@@ -30128,7 +30128,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:52"
    },
-   "product_count": 106
+   "product_count": 108
   },
   "471294779": {
    "mfr_id": "efay-ltd",
@@ -30154,7 +30154,7 @@
    "extra": {
     "ts": "2026-07-18T14:51:14"
    },
-   "product_count": 112
+   "product_count": 121
   },
   "868128550": {
    "mfr_id": "surplast-plastik-sanayi-ve-dis-ticaret-limited-sirketi",
@@ -30218,7 +30218,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:53"
    },
-   "product_count": 99
+   "product_count": 103
   },
   "868018647": {
    "mfr_id": "atlasform-servis-ekipmanlari-san-ve-ticltdsti",
@@ -30283,7 +30283,7 @@
    "extra": {
     "ts": "2026-07-18T14:51:14"
    },
-   "product_count": 49
+   "product_count": 53
   },
   "690000006": {
    "mfr_id": "中国物品编码中心",
@@ -30725,7 +30725,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:53"
    },
-   "product_count": 40
+   "product_count": 42
   },
   "695001413": {
    "mfr_id": "陆良县甘和食品厂",
@@ -31206,7 +31206,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:54"
    },
-   "product_count": 47
+   "product_count": 77
   },
   "869676000": {
    "mfr_id": "kulsan-melemin-plastsanve-ticas",
@@ -31219,7 +31219,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:54"
    },
-   "product_count": 46
+   "product_count": 86
   },
   "869676033": {
    "mfr_id": "kulsan-melemin-plastsanve-ticas",
@@ -31297,7 +31297,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:54"
    },
-   "product_count": 32
+   "product_count": 34
   },
   "869676001": {
    "mfr_id": "kulsan-melemin-plastsanve-ticas",
@@ -31310,7 +31310,7 @@
    "extra": {
     "ts": "2026-07-19T13:11:54"
    },
-   "product_count": 12
+   "product_count": 13
   },
   "869676003": {
    "mfr_id": "kulsan-melemin-plastsanve-ticas",
@@ -31440,7 +31440,7 @@
    "extra": {
     "ts": "2026-07-19T17:40:21"
    },
-   "product_count": 45
+   "product_count": 48
   },
   "869439505": {
    "mfr_id": "kiliclar-catal-kasik-madeni-mutfak-esyalari-sanve-ticltdsti",
@@ -32363,7 +32363,7 @@
     "preexisting_gazetteer"
    ],
    "suspect_sector": false,
-   "product_count": 33
+   "product_count": 35
   },
   "380020383": {
    "mfr_id": "egera-ltd",
@@ -32573,7 +32573,7 @@
     "example_ean": "8695024062763",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 27
+   "product_count": 28
   },
   "380016390": {
    "mfr_id": "mareli-ltd",
@@ -32700,7 +32700,7 @@
     "example_ean": "8691850452556",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 24
+   "product_count": 27
   },
   "868128551": {
    "mfr_id": "surplast-plastik-sanayi-ve-dis-ticaret-limited-sirketi",
@@ -32751,7 +32751,7 @@
     "example_ean": "8691850434668",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 21
+   "product_count": 33
   },
   "869185036": {
    "mfr_id": "heris-seramik-ve-turizm-sanas",
@@ -32821,7 +32821,7 @@
     "example_ean": "8698804761900",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 19
+   "product_count": 21
   },
   "590393603": {
    "mfr_id": "stella-pack-sa",
@@ -33030,7 +33030,7 @@
     "example_ean": "8691850784053",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 17
+   "product_count": 18
   },
   "531999059": {
    "mfr_id": "burdem-plastik-doo",
@@ -33419,7 +33419,7 @@
     "example_ean": "8010387030202",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 15
+   "product_count": 16
   },
   "869878226": {
    "mfr_id": "unsa-madencilik-turizm-enerji-seramik-orman-urunleri-elektrik-uretim-sanayi-ve-ticaret-anonim",
@@ -33953,7 +33953,7 @@
     "example_ean": "8698804705317",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 11
+   "product_count": 12
   },
   "770214725": {
    "mfr_id": "cristar-tabletop-sas",
@@ -34001,7 +34001,7 @@
     "example_ean": "8024112002013",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 11
+   "product_count": 12
   },
   "690389013": {
    "mfr_id": "新会市杜阮味精食品加工厂",
@@ -34192,7 +34192,7 @@
     "example_ean": "8691850444551",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 10
+   "product_count": 19
   },
   "729000028": {
    "mfr_id": "sano-brunos-enterprises-ltd",
@@ -35118,7 +35118,7 @@
     "preexisting_gazetteer"
    ],
    "suspect_sector": false,
-   "product_count": 7
+   "product_count": 8
   },
   "380015902": {
    "mfr_id": "el-bulgaria-ltd",
@@ -35475,7 +35475,7 @@
     "example_ean": "8699250171572",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 6
+   "product_count": 7
   },
   "841171257": {
    "mfr_id": "bormioli-luigi-espana-sau",
@@ -35514,7 +35514,7 @@
     "example_ean": "8411712754686",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 6
+   "product_count": 7
   },
   "695196741": {
    "mfr_id": "河南佳一日用制品股份有限公司",
@@ -35960,7 +35960,7 @@
     "example_ean": "8693135064409",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 5
+   "product_count": 7
   },
   "008795421": {
    "mfr_id": "vicasa",
@@ -38451,7 +38451,7 @@
     "example_ean": "4824042101206",
     "ts": "2026-07-31T15:06:48"
    },
-   "product_count": 3
+   "product_count": 4
   },
   "693520532": {
    "mfr_id": "得力集团有限公司",
