@@ -229,11 +229,34 @@
    "prefixes": [],
    "series": []
   },
+  "astonish": {
+   "aliases": [
+    "astonish"
+   ],
+   "canonical": "Astonish",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "004825629",
+    "506006021"
+   ],
+   "series": []
+  },
   "atlantic": {
    "aliases": [
     "atlantik"
    ],
    "canonical": "Atlantic",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
+  "atlas": {
+   "aliases": [
+    "atlas"
+   ],
+   "canonical": "Atlas",
    "gs1_owner": null,
    "logo": null,
    "prefixes": [],
@@ -364,6 +387,23 @@
    ],
    "series": []
   },
+  "bohemia": {
+   "aliases": [
+    "bohemia"
+   ],
+   "canonical": "Bohemia",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "859341001",
+    "859341004",
+    "859341007",
+    "859341070",
+    "859341095",
+    "859341098"
+   ],
+   "series": []
+  },
   "bonna": {
    "aliases": [],
    "canonical": "Bonna",
@@ -383,12 +423,20 @@
   "bormioli": {
    "aliases": [
     "bach",
+    "bartender",
+    "bistrot",
     "ebro",
+    "electra",
     "fido",
     "frigoverre",
     "nexo",
+    "novecento",
+    "officina",
     "pompei",
-    "prometeo"
+    "prometeo",
+    "quattro",
+    "sorgente",
+    "ypsilon"
    ],
    "canonical": "Bormioli",
    "gs1_owner": "Vicasa",
@@ -1019,6 +1067,16 @@
    "prefixes": [],
    "series": []
   },
+  "feronya": {
+   "aliases": [
+    "feronya"
+   ],
+   "canonical": "Feronya",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [],
+   "series": []
+  },
   "fissler": {
    "aliases": [],
    "canonical": "Fissler",
@@ -1135,6 +1193,21 @@
     "Blue",
     "Green"
    ]
+  },
+  "granit": {
+   "aliases": [
+    "granit"
+   ],
+   "canonical": "Granit",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "869360911",
+    "869360912",
+    "869360913",
+    "869360919"
+   ],
+   "series": []
   },
   "granite": {
    "aliases": [],
@@ -1356,7 +1429,14 @@
     "tb",
     "top",
     "wh",
-    "zd"
+    "zd",
+    "гр",
+    "дс",
+    "ин",
+    "кп",
+    "кс",
+    "ря",
+    "тк"
    ],
    "canonical": "HORECANO",
    "gs1_owner": null,
@@ -1950,9 +2030,14 @@
   },
   "luigibormioli": {
    "aliases": [
+    "birrateque",
     "bormioli luigi",
     "bormioli luigi españa, s.a.u.",
-    "luigi-bormioli"
+    "incanto",
+    "intenso",
+    "luigi-bormioli",
+    "mixology",
+    "speakeasies"
    ],
    "canonical": "Luigi Bormioli",
    "gs1_owner": null,
@@ -2369,6 +2454,18 @@
     "Steak"
    ]
   },
+  "planet": {
+   "aliases": [
+    "planet"
+   ],
+   "canonical": "Planet",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "868367250"
+   ],
+   "series": []
+  },
   "planetgecko": {
    "aliases": [
     "planet-gecko"
@@ -2389,9 +2486,23 @@
   },
   "plastport": {
    "aliases": [
+    "plasto",
+    "plastport",
     "plastport plasti̇k san. ve ti̇c. a.ş."
    ],
    "canonical": "Plastport",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "868085823"
+   ],
+   "series": []
+  },
+  "plenus": {
+   "aliases": [
+    "plenus"
+   ],
+   "canonical": "Plenus",
    "gs1_owner": null,
    "logo": null,
    "prefixes": [],
@@ -2707,7 +2818,6 @@
    "gs1_owner": "sürplast",
    "logo": null,
    "prefixes": [
-    "868085823",
     "868128550",
     "868128551",
     "868128552"
@@ -2882,6 +2992,19 @@
     "869853251",
     "869853253",
     "869853259"
+   ],
+   "series": []
+  },
+  "tognana": {
+   "aliases": [
+    "tognana"
+   ],
+   "canonical": "Tognana",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "800025752",
+    "805644442"
    ],
    "series": []
   },
