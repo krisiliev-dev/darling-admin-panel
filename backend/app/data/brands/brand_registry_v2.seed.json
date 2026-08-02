@@ -259,6 +259,16 @@
    ],
    "series": []
   },
+  "avar": {
+   "aliases": [],
+   "canonical": "Avşar",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "869176602"
+   ],
+   "series": []
+  },
   "bager": {
    "aliases": [
     "bager plasti̇k san. ti̇c. ltd.şti̇."
@@ -438,7 +448,10 @@
    "canonical": "BRIO",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "380013481",
+    "380013483"
+   ],
    "series": [
     "Acacia",
     "Aperitivo",
@@ -504,7 +517,16 @@
    "canonical": "Cavallo",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "800079800",
+    "800079805",
+    "800079809",
+    "800079818",
+    "800079835",
+    "800079839",
+    "800079850",
+    "800079855"
+   ],
    "series": []
   },
   "cegecoalarslu": {
@@ -791,6 +813,16 @@
    "prefixes": [],
    "series": []
   },
+  "drina": {
+   "aliases": [],
+   "canonical": "Drina",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "860600359"
+   ],
+   "series": []
+  },
   "drinkdesign": {
    "aliases": [
     "drinkdesign"
@@ -1073,12 +1105,24 @@
   "gralporselen": {
    "aliases": [
     "gural-porselen",
-    "heri̇ş serami̇k ve turi̇zm san.a.ş."
+    "heri̇ş serami̇k ve turi̇zm san.a.ş.",
+    "гп"
    ],
    "canonical": "Güral Porselen",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869185016",
+    "869185034",
+    "869185036",
+    "869185041",
+    "869185043",
+    "869185044",
+    "869185045",
+    "869185046",
+    "869185047",
+    "869185078"
+   ],
    "series": []
   },
   "grammy": {
@@ -1190,7 +1234,12 @@
    "canonical": "Herevin",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869903810",
+    "869903811",
+    "869903812",
+    "869903813"
+   ],
    "series": []
   },
   "hfmdefne": {
@@ -1555,7 +1604,12 @@
    "canonical": "Keramika",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "868055000",
+    "868055033",
+    "868055097",
+    "869878226"
+   ],
    "series": []
   },
   "kiliclarcatalkasik": {
@@ -1841,6 +1895,19 @@
    "gs1_owner": null,
    "logo": null,
    "prefixes": [],
+   "series": []
+  },
+  "leone": {
+   "aliases": [],
+   "canonical": "Leone",
+   "gs1_owner": null,
+   "logo": null,
+   "prefixes": [
+    "802411200",
+    "802411210",
+    "802411220",
+    "802411263"
+   ],
    "series": []
   },
   "lima": {
@@ -2227,7 +2294,9 @@
    "canonical": "PARMASH",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "380020872"
+   ],
    "series": []
   },
   "perilis": {
@@ -2638,6 +2707,7 @@
    "gs1_owner": "sürplast",
    "logo": null,
    "prefixes": [
+    "868085823",
     "868128550",
     "868128551",
     "868128552"
@@ -2804,6 +2874,10 @@
    "gs1_owner": "KARCAM PLASTİK VE CAM SANAYİ TİCARET LTD.ŞTİ.",
    "logo": null,
    "prefixes": [
+    "868039829",
+    "868039855",
+    "868039856",
+    "868039879",
     "868085830",
     "869853251",
     "869853253",
@@ -3030,7 +3104,10 @@
    "canonical": "Violet House",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "869431300",
+    "869431301"
+   ],
    "series": []
   },
   "vistaalegre": {
@@ -3040,7 +3117,12 @@
    "canonical": "Vista Alegre",
    "gs1_owner": null,
    "logo": null,
-   "prefixes": [],
+   "prefixes": [
+    "560126602",
+    "560126646",
+    "560126676",
+    "560149582"
+   ],
    "series": []
   },
   "vitross": {
