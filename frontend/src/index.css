@@ -185,3 +185,14 @@ button { min-height: 24px; }
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
   .tilt-l, .tilt-r { transform: none; }
 }
+
+/* readability (owner 2026-08-03): page titles and tab buttons were light brown on the dark
+   textured desk — unreadable. Titles use ink; tabs get a paper chip so they read as controls. */
+.page-title, .sheet h1, .sheet h2, .sheet h3 { color: var(--ink); }
+h1, h2 { color: var(--ink); }
+.tab-btn, .tabs button {
+  color: var(--ink); background: var(--paper2); border: 1px solid var(--line);
+}
+.tab-btn[aria-selected="true"], .tabs button[aria-selected="true"] {
+  background: var(--paper); border-bottom-color: var(--paper); font-weight: 700;
+}

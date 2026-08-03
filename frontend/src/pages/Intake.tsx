@@ -5,6 +5,7 @@ import type { IntakeDraft, IntakeAttribute, DeliveryContext, DraftImageMeta, Sho
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { BrandPicker } from '../components/BrandPicker'
+import { InfoDot } from '../components/InfoDot'
 
 // Нов продукт — adding a product ALWAYS goes through one editor: FIRST the barcode + images, then a
 // button starts enrichment which fills the rest as editable suggestions (name, Shopify-taxonomy
@@ -157,6 +158,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const [enriched, setEnriched] = useState<boolean>(!!draft.completed || draft.status === 'enriched')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [selImg, setSelImg] = useState<number | null>(null)
+  const [research, setResearch] = useState<ResearchOut | null>(null)
   // size is split into H×W×D + volume; parse any previously-saved values back into the boxes
   const initSize = (k: string) => (draft.attributes || []).find((a) => a.key === k)?.value || ''
   const dnums = (initSize('Размери').match(/\d+(?:[.,]\d+)?/g) || [])
@@ -173,6 +175,8 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
     .then((r) => setImages(r.images)).catch(() => setImages([]))
   useEffect(() => { void loadImages() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { api.get<ResearchOut>(`/api/intake/drafts/${draft.id}/research`)
+    .then(setResearch).catch(() => setResearch(null)) }, [draft.id])
   useEffect(() => {
     if (!d.shopify_category_id) { setSchema([]); return }
     api.get<{ attributes: TaxAttribute[] }>(`/api/intake/shopify-categories/${d.shopify_category_id}/attributes`)
@@ -333,9 +337,20 @@ function ProductEditor({ draft, onDone, onCancel }: {
               <input autoFocus className="input-paper" value={d.barcode || ''}
                 placeholder="сканирай или въведи" onChange={(e) => setD({ ...d, barcode: e.target.value })} />
             </Field>
-            <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
-              {busy ? 'обогатява…' : '✨ Обогати'}
-            </button>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+              <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
+                {busy ? 'обогатява…' : '✨ Обогати'}
+              </button>
+              <InfoDot title="Автоматично попълване (AI)" width={400}>
+                <p style={{ margin: '0 0 .4rem' }}>
+                  Полетата се попълват автоматично от AI агенти. Те тръгват от снимката на продукта,
+                  баркода, марката и името от касата: разчитат етикета, търсят същата снимка в
+                  интернет (обратно търсене) и извличат данни от сайта на производителя или
+                  доставчика. Всичко е <em>предложение</em> — ти имаш последната дума.
+                </p>
+                <ResearchPanel data={research} />
+              </InfoDot>
+            </span>
           </div>
           {!canEnrich && <span className="pencil" style={{ fontSize: '.74rem' }}>въведи баркод, за да стартираш обогатяването</span>}
         </div>
@@ -364,10 +379,29 @@ function ProductEditor({ draft, onDone, onCancel }: {
         </div>
       </div>
 
-      <Field label="Описание">
+      <FieldWithInfo label="Описание" info={
+        <InfoDot title="Форматиране (Markdown)" width={360}>
+          <p style={{ margin: '0 0 .35rem' }}>Описанието се пише на Markdown — така излиза
+            правилно форматирано в сайта и помага за SEO.</p>
+          <table style={{ borderCollapse: 'collapse', fontSize: '.72rem' }}>
+            <tbody>
+              {[['**удебелен**', 'удебелен текст'],
+                ['*курсив*', 'курсив'],
+                ['- точка', 'списък с точки'],
+                ['1. точка', 'номериран списък'],
+                ['## Заглавие', 'подзаглавие'],
+                ['празен ред', 'нов абзац']].map(([a, b]) => (
+                  <tr key={a}>
+                    <td style={{ padding: '.12rem .5rem .12rem 0', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{a}</td>
+                    <td style={{ padding: '.12rem 0', color: 'var(--pencil)' }}>{b}</td>
+                  </tr>
+              ))}
+            </tbody>
+          </table>
+        </InfoDot>}>
         <textarea className="input-paper" rows={6} style={pencil('description', d.description)} value={d.description || ''}
           onChange={(e) => { mark('description'); setD({ ...d, description: e.target.value }) }} />
-      </Field>
+      </FieldWithInfo>
       {previewHtml.includes('<') && (
         <div style={{ border: '1px dashed var(--line)', borderRadius: 3, padding: '.6rem .8rem', fontSize: '.85rem', lineHeight: 1.45, background: '#fff' }}
           dangerouslySetInnerHTML={{ __html: previewHtml }} />
@@ -653,6 +687,71 @@ function ApprovedDrafts({ refreshKey, onEdit }: { refreshKey: number; onEdit: (d
         ))}
       </div>
     </Sheet>
+  )
+}
+
+type ResearchOut = {
+  notes?: string
+  sources?: { url?: string; title?: string }[]
+  facts?: Record<string, unknown>
+  type_en?: string
+  brand_confirmed?: boolean | null
+  confidence?: string
+  weight_basis?: string
+}
+
+// What the agents actually found — raw, so the human can confirm the sources are accurate.
+function ResearchPanel({ data }: { data: ResearchOut | null }) {
+  if (!data || (!data.notes && !(data.sources || []).length && !data.facts)) {
+    return <p className="pencil" style={{ margin: 0, fontSize: '.72rem' }}>
+      Няма запазени данни от агентите за този продукт.</p>
+  }
+  const facts = data.facts && Object.keys(data.facts).length ? data.facts : null
+  return (
+    <div style={{ borderTop: '1px solid var(--line)', paddingTop: '.4rem' }}>
+      {data.confidence && <div style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
+        увереност: {data.confidence}
+        {data.weight_basis ? ` · тегло: ${data.weight_basis === 'found' ? 'намерено' : 'преценка'}` : ''}
+      </div>}
+      {(data.sources || []).length > 0 && (
+        <div style={{ marginTop: '.3rem' }}>
+          <strong style={{ fontSize: '.72rem' }}>Източници</strong>
+          <ul style={{ margin: '.15rem 0 0', paddingLeft: '1rem' }}>
+            {(data.sources || []).slice(0, 8).map((s, i) => (
+              <li key={i} style={{ fontSize: '.72rem', wordBreak: 'break-all' }}>
+                <a href={s.url} target="_blank" rel="noreferrer">{s.title || s.url}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {data.notes && (
+        <div style={{ marginTop: '.35rem' }}>
+          <strong style={{ fontSize: '.72rem' }}>Бележки от проучването</strong>
+          <p style={{ margin: '.15rem 0 0', fontSize: '.72rem', color: 'var(--pencil)' }}>{data.notes}</p>
+        </div>
+      )}
+      {facts && (
+        <div style={{ marginTop: '.35rem' }}>
+          <strong style={{ fontSize: '.72rem' }}>Извлечени факти</strong>
+          <pre style={{ margin: '.15rem 0 0', fontSize: '.68rem', whiteSpace: 'pre-wrap', color: 'var(--pencil)' }}>
+            {JSON.stringify(facts, null, 1).slice(0, 900)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FieldWithInfo({ label, info, children }: { label: string; info: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'grid', gap: '.2rem' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+        <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
+        {info}
+      </span>
+      {children}
+    </div>
   )
 }
 

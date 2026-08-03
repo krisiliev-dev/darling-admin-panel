@@ -739,14 +739,42 @@ class SupplierRowIn(BaseModel):
     supplier_name: str = ""
 
 
+@lru_cache(maxsize=1)
+def _mi_supplier_names() -> tuple:
+    """Suppliers derived from Microinvest (each good's group / purchase partner) — the source of
+    the rows the pipeline attaches on import. Cached; empty tuple when the file isn't shipped."""
+    try:
+        p = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                         "data", "brands", "mi_suppliers_list.json")
+        with open(p, encoding="utf-8") as f:
+            return tuple(json.load(f))
+    except Exception:
+        return ()
+
+
 @router.get("/suppliers/known")
 def known_suppliers(user=Depends(current_active_user)):
     """The suppliers we actually have — the supplier field must restrict to these, not free text.
-    Sourced from the supplier catalogue (supplier_codes.jsonl)."""
+    Union of the supplier catalogue (supplier_codes.jsonl) and the Microinvest-derived list."""
     from ..services.supplier_catalog import supplier_catalog
-    names = sorted((supplier_catalog().get("by_supplier") or {}).keys(),
-                   key=lambda s: s.lower())
-    return {"suppliers": names}
+    names = set((supplier_catalog().get("by_supplier") or {}).keys()) | set(_mi_supplier_names())
+    return {"suppliers": sorted((n for n in names if n.strip()), key=lambda s: s.lower())}
+
+
+@router.get("/drafts/{draft_id}/research")
+async def draft_research(draft_id: int, user: User = Depends(current_active_user),
+                         session: AsyncSession = Depends(get_async_session)):
+    """What the enrichment agents found for this draft: the raw research notes that were folded
+    into the description, the pages the facts came from, and the extracted facts — so a human
+    can confirm the sources are accurate."""
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    try:
+        data = json.loads(getattr(d, "research_json", "") or "{}")
+    except ValueError:
+        data = {}
+    return data
 
 
 @router.get("/drafts/{draft_id}/suppliers")
@@ -790,6 +818,7 @@ async def add_supplier(draft_id: int, req: SupplierRowIn,
     # only ACTUAL suppliers we have — the field must not accept free-typed names (owner rule)
     from ..services.supplier_catalog import supplier_catalog
     known = {s.strip().lower() for s in (supplier_catalog().get("by_supplier") or {})}
+    known |= {s.strip().lower() for s in _mi_supplier_names()}
     if known and req.supplier.strip().lower() not in known:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Изберете съществуващ доставчик от списъка.")
