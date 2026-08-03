@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import type { IntakeDraft, IntakeAttribute, DeliveryContext, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
-import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { BrandPicker } from '../components/BrandPicker'
-import { useConfirm } from '../components/Confirm'
 
 // Нов продукт — adding a product ALWAYS goes through one editor: FIRST the barcode + images, then a
 // button starts enrichment which fills the rest as editable suggestions (name, Shopify-taxonomy
@@ -581,7 +579,7 @@ function LabeledNumber({ caption, ...rest }: { caption: string; value: string; o
 }
 
 // Searchable Shopify-taxonomy category picker (server-side search over the BG taxonomy).
-function TaxonomyPicker({ value, categoryId, onPick }: {
+function TaxonomyPicker({ value, onPick }: {
   value: string; categoryId: string; onPick: (id: string, path: string) => void
 }) {
   const [q, setQ] = useState('')
