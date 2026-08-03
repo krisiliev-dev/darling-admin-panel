@@ -127,11 +127,15 @@ def _stock_map() -> dict:
 # the low-tier Barsy per keystroke — and so attribute filters + bulk ops work over a selected set.
 import datetime as _dt
 import json as _json
+import logging
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import Float, cast, select
+from sqlalchemy import delete as _sa_delete
 
-from ..models import ProductCache
+from ..models import CatalogSyncState, ProductCache
+
+log = logging.getLogger("darling.catalog")
 
 
 def _numf(v):
@@ -237,14 +241,56 @@ def _sync_fetch() -> list[dict]:
     return out
 
 
+_PRUNE_MIN_FRACTION = 0.8    # a fetch smaller than this share of the cache is SHORT -> never prune
+_PRUNE_CHUNK = 500           # SQLite caps bound parameters per statement; delete in chunks
+
+
+async def _sync_state(session: AsyncSession) -> CatalogSyncState:
+    """The single catalog_sync_state row, created on first use. Caller commits."""
+    st = await session.get(CatalogSyncState, 1)
+    if st is None:
+        st = CatalogSyncState(id=1)
+        session.add(st)
+    return st
+
+
+async def record_cache_event(kind: str) -> None:
+    """Stamp a webhook-driven cache write (kind: updated | deleted). Between full reconciliations
+    this is the ONLY evidence the mirror is still being fed: a dead webhook subscription looks
+    exactly like a quiet day unless someone can see this timestamp go stale."""
+    from ..db import async_session_maker
+    async with async_session_maker() as session:
+        st = await _sync_state(session)
+        st.last_event_at = _dt.datetime.now(_dt.UTC)
+        st.last_event_kind = kind
+        await session.commit()
+
+
 @router.post("/sync")
 async def sync_cache(actor: User = Depends(require_roles("staff")),
                      session: AsyncSession = Depends(get_async_session)):
-    """Rebuild the local product cache from Barsy (manual trigger; also run nightly). One big
-    Articles_getlist + one Store_amounts, then upsert. Write-through keeps it fresh between syncs."""
-    data = await run_in_threadpool(_sync_fetch)
-    existing = {p.article_id: p for p in (await session.execute(select(ProductCache))).scalars().all()}
+    """Full RECONCILIATION of the local cache against Barsy: one big Articles_getlist + one
+    Store_amounts, upsert everything Barsy returned, then PRUNE the rows Barsy no longer has.
+    Webhooks keep the mirror live in real time; this is the safety net for events we missed.
+
+    The prune is the destructive half, so it is fail-CLOSED: it runs only when the fetch clearly
+    SUCCEEDED and looks complete - Barsy returned more than zero articles AND at least
+    _PRUNE_MIN_FRACTION of what we already hold. A throttled, short-paginated or half-failed read
+    returns fewer articles than the catalogue really has, and pruning on that would delete products
+    that exist. Upserting is non-destructive, so a short fetch still refreshes what it did return;
+    only the delete is skipped, loudly, and last_sync is NOT advanced (the mirror is still stale)."""
+    from sqlalchemy import func as _func
     now = _dt.datetime.now(_dt.UTC)
+    try:
+        data = await run_in_threadpool(_sync_fetch)
+    except Exception as e:
+        # A failed read tells us nothing about what Barsy holds -> touch nothing at all.
+        st = await _sync_state(session)
+        st.last_attempt, st.last_status = now, "error"
+        await session.commit()
+        log.exception("catalog sync: Barsy fetch failed; cache left untouched: %s", e)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy: {str(e)[:160]}")
+    existing = {p.article_id: p for p in (await session.execute(select(ProductCache))).scalars().all()}
     for d in data:
         p = existing.get(d["article_id"]) or ProductCache(article_id=d["article_id"])
         p.code, p.name, p.barcode = d["code"], d["name"], d["barcode"]
@@ -254,25 +300,69 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
         p.price, p.stock, p.min_stock, p.low = d["price"], d["stock"], d["min_stock"], d["low"]
         p.has_image = d["has_image"]
         p.attributes_json = _json.dumps(d["attributes"], ensure_ascii=False)
-        # universal free-text key — name, code, barcode, supplier, brand AND price (widen the index,
+        # universal free-text key - name, code, barcode, supplier, brand AND price (widen the index,
         # incl. price at 2dp so "19.90" or "19.9" both match)
         price_s = f"{d['price']:.2f}" if d["price"] is not None else ""
         p.search_lc = f"{d['name']} {d['code']} {d['barcode']} {d['supplier']} {d.get('brand','')} {price_s}".lower()
         p.attr_lc = "|".join(f"{x['key']}={x['value']}" for x in d["attributes"]).lower()
         p.updated_at = now
         session.add(p)
+    # --- prune: rows Barsy no longer returns, i.e. articles deleted in the ERP ---
+    fetched, cached = len(data), len(existing)
+    complete = fetched > 0 and fetched >= cached * _PRUNE_MIN_FRACTION
+    seen = {d["article_id"] for d in data}
+    gone = [aid for aid in existing if aid not in seen]
+    pruned = 0
+    if complete and gone:
+        for k in range(0, len(gone), _PRUNE_CHUNK):
+            await session.execute(_sa_delete(ProductCache).where(
+                ProductCache.article_id.in_(gone[k:k + _PRUNE_CHUNK])))
+        pruned = len(gone)
+    st = await _sync_state(session)
+    st.last_attempt, st.live_count, st.pruned = now, fetched, pruned
+    st.last_status = "ok" if complete else "short_fetch"
+    if complete:
+        st.last_sync = now          # only a complete, trusted pass counts as a real sync
     await session.commit()
-    await log_action(session, actor, "catalog.sync", detail=f"cached={len(data)}")
-    return {"synced": len(data)}
+    if not complete:
+        log.warning("catalog sync: Barsy returned %d articles for a cache of %d - REFUSED to prune "
+                    "%d row(s). A short fetch must never wipe the catalogue.", fetched, cached, len(gone))
+    await log_action(session, actor, "catalog.sync",
+                     detail=f"cached={fetched} pruned={pruned} status={st.last_status}")
+    total = (await session.execute(select(_func.count()).select_from(ProductCache))).scalar() or 0
+    out = {"synced": fetched, "pruned": pruned, "prune_refused": not complete, "cached_count": total}
+    if not complete:
+        out["note"] = "Синхронизацията е непълна — Barsy върна по-малко артикули от кеша; нищо не е изтрито."
+    return out
 
 
 @router.get("/cache-status")
 async def cache_status(user: User = Depends(current_active_user),
                        session: AsyncSession = Depends(get_async_session)):
+    """Freshness of the local mirror, for the catalogue tab's staleness line. Deliberately cheap and
+    Barsy-free - the UI polls this, and polling must never reach the ERP. `live_count` is what Barsy
+    returned at the LAST reconciliation, not a live count. Three different clocks, on purpose:
+    `last_sync` = last complete reconciliation, `last_event_at` = last webhook write-through,
+    `last_change` = newest row touch from any source."""
     from sqlalchemy import func as _func
     total = (await session.execute(select(_func.count()).select_from(ProductCache))).scalar() or 0
-    last = (await session.execute(select(_func.max(ProductCache.updated_at)))).scalar()
-    return {"count": total, "last_sync": last.isoformat() if last else None}
+    last_change = (await session.execute(select(_func.max(ProductCache.updated_at)))).scalar()
+    st = await session.get(CatalogSyncState, 1)
+
+    def _iso(v):
+        return v.isoformat() if v else None
+    return {
+        "count": total,                       # `count` is the key the existing UI reads - kept
+        "cached_count": total,
+        "live_count": st.live_count if st else None,
+        "last_sync": _iso(st.last_sync) if st else None,
+        "last_attempt": _iso(st.last_attempt) if st else None,
+        "last_status": (st.last_status if st else "") or "",
+        "pruned": st.pruned if st else 0,
+        "last_change": _iso(last_change),
+        "last_event_at": _iso(st.last_event_at) if st else None,
+        "last_event_kind": (st.last_event_kind if st else "") or "",
+    }
 
 
 @router.get("/search")
@@ -603,23 +693,37 @@ def _cache_fields(a: dict) -> dict:
             "attr_lc": "|".join(f"{x['key']}={x['value']}" for x in attrs).lower()}
 
 
-async def refresh_cache_for_code(code: str) -> bool:
-    """Re-fetch ONE article from Barsy and upsert its cache row — the write-through target for the
-    Barsy article.updated webhook (keeps the cache fresh for changes made outside the panel)."""
+async def sync_cache_for_code(code: str) -> str:
+    """Bring ONE article's cache row in step with Barsy. Returns THREE states, never a boolean:
+      'updated' - Barsy returned the article; its row was upserted.
+      'missing' - Barsy answered cleanly and has no such code; the article is gone from the ERP.
+      'error'   - we could not ask Barsy, or it answered something we cannot read.
+    The distinction is load-bearing: ONLY 'missing' may delete a cache row. Collapsing a failed ERP
+    read into the same falsy value as "the article is gone" would let one bad connection empty the
+    whole catalogue."""
     if not code:
-        return False
+        return "error"
     from ..db import async_session_maker
 
     def _fetch():
         rows = barsy.call("Articles_getlist", {"filters": {"code": str(code)}, "length": 3,
-                          "extra_properties": {"article_details": 1, "picture_url": 1, "has_attributes": 1}}) or []
-        for a in rows:
-            if str(a.get("code")) == str(code):
-                return a
-        return rows[0] if rows else None
-    a = await run_in_threadpool(_fetch)
-    if not a or a.get("article_id") is None:
-        return False
+                          "extra_properties": {"article_details": 1, "picture_url": 1, "has_attributes": 1}})
+        if not isinstance(rows, list):
+            # An unreadable answer is NOT proof of absence, and errors must never delete.
+            raise TypeError(f"Articles_getlist returned {type(rows).__name__}, expected list")
+        return rows
+    try:
+        rows = await run_in_threadpool(_fetch)
+    except Exception as e:
+        log.warning("catalog: Barsy read for %s failed (%s) - cache row left untouched.", code, e)
+        return "error"
+    if not rows:
+        return "missing"                       # clean answer, no such article -> it is gone
+    # Barsy's code filter can match more than the exact code, so prefer the exact row; falling back
+    # to the first row keeps the old write-through behaviour and, importantly, never deletes.
+    a = next((r for r in rows if str(r.get("code")) == str(code)), rows[0])
+    if a.get("article_id") is None:
+        return "error"
     f = _cache_fields(a)
     async with async_session_maker() as session:
         p = await session.get(ProductCache, a["article_id"]) or ProductCache(article_id=a["article_id"])
@@ -633,7 +737,27 @@ async def refresh_cache_for_code(code: str) -> bool:
         p.updated_at = _dt.datetime.now(_dt.UTC)
         session.add(p)
         await session.commit()
-    return True
+    return "updated"
+
+
+async def refresh_cache_for_code(code: str) -> bool:
+    """Back-compat wrapper (True only when the row was refreshed). Prefer sync_cache_for_code: this
+    boolean cannot tell "the article is gone" from "Barsy did not answer", and that difference
+    decides whether a row may be deleted."""
+    return (await sync_cache_for_code(code)) == "updated"
+
+
+async def delete_cache_for_code(code: str) -> int:
+    """Drop the cache row(s) for an article that no longer exists in Barsy; returns rows removed.
+    Idempotent - a repeat delivery removes nothing and is not an error. Callers must have proof of
+    absence from Barsy first (sync_cache_for_code == 'missing'); this function does not check."""
+    if not code:
+        return 0
+    from ..db import async_session_maker
+    async with async_session_maker() as session:
+        res = await session.execute(_sa_delete(ProductCache).where(ProductCache.code == str(code)))
+        await session.commit()
+        return int(res.rowcount or 0)
 
 
 @router.get("/promos")

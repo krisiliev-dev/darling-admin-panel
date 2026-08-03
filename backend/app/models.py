@@ -507,3 +507,28 @@ class BrandOverride(Base):
     actor: Mapped[str] = mapped_column(String(255), default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+
+
+class CatalogSyncState(Base):
+    """Health of the ProductCache mirror - exactly ONE row (id=1).
+
+    Barsy stays the system of record; product_cache is only a snapshot of it. The failure this table
+    exists to expose is a SILENT one: a cache that has not been reconciled since its first sync still
+    looks perfectly fresh in the UI, which is how 38 articles deleted in Barsy went on being shown in
+    the panel for days. Staleness is the thing to watch, not errors - so the timestamps live here and
+    the catalogue tab reads them.
+
+    last_sync advances ONLY after a reconciliation we trusted enough to prune on; a short/failed
+    Barsy fetch deliberately leaves it where it was, so the UI keeps showing the real age.
+    """
+    __tablename__ = "catalog_sync_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    last_sync: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_attempt: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status: Mapped[str] = mapped_column(String(32), default="")     # ok | short_fetch | error
+    live_count: Mapped[int] = mapped_column(default=0)      # articles Barsy returned on the last fetch
+    pruned: Mapped[int] = mapped_column(default=0)          # rows removed by the last reconciliation
+    # last webhook-driven cache write - the real-time freshness signal BETWEEN reconciliations
+    last_event_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_event_kind: Mapped[str] = mapped_column(String(32), default="")

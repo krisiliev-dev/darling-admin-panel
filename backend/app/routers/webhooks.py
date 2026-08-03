@@ -297,16 +297,79 @@ def _barsy_code(payload) -> str:
     return ""
 
 
-async def _process_barsy_article(code: str, live: bool):
-    """ONE fan-out for a Barsy article.updated event: (a) refresh the local product cache row so
-    search/filter stay fresh, (b) mirror name/price to Shopify. Panel owns the single subscription."""
-    # (a) refresh the local product cache — always (independent of webhooks_live)
+# Barsy's webhook events are COARSE - one per ENTITY, not per action: `articles`(1),
+# `articles_availability`(9), `categories`(6), `accounts`(2), `clientorders`(3), `clients`(4)
+# (connector BARSY_EVENTS, subscribed via `Webhooks_subscribe {event_type_id, url}`). So there is NO
+# verified "article deleted" event to subscribe to: a delete arrives on the SAME `articles` event and
+# only the payload could say so. Barsy's docs do not describe that payload and we have never captured
+# a real delete, so we refuse to bet on one field name:
+#   1. we accept a delete HINT under any of several plausible keys (defensive, UNVERIFIED), and
+#   2. we let BARSY decide - every event re-reads the article, and an article the ERP no longer
+#      returns is gone whatever the payload said. That makes removal event-name-INDEPENDENT.
+# Markers we do not recognise are logged VERBATIM (once per distinct shape) so production tells us
+# what Barsy actually sends instead of us guessing a second time.
+_DELETE_WORDS = {"delete", "deleted", "remove", "removed", "destroy", "destroyed",
+                 "articles_delete", "article_deleted", "article.deleted", "d"}
+_EVENT_KEYS = ("event", "event_type", "event_name", "action", "operation", "op", "type", "change_type")
+_DELETE_FLAG_KEYS = ("delete_flag", "deleted", "is_deleted", "deleted_at")
+_SCOPE_KEYS = ("article", "data", "object", "payload")
+_seen_event_shapes: set[str] = set()      # bounded: log each unfamiliar marker shape once, not per event
+
+
+def _barsy_event(payload) -> str:
+    """'deleted' when the payload carries a delete HINT, else 'changed'. A hint is ONLY a hint - the
+    cache is reconciled against Barsy either way (see _process_barsy_article), so guessing wrong here
+    costs nothing in either direction."""
+    if not isinstance(payload, dict):
+        return "changed"
+    scopes = [payload] + [payload[k] for k in _SCOPE_KEYS if isinstance(payload.get(k), dict)]
+    unknown = {}
+    for sc in scopes:
+        for k in _DELETE_FLAG_KEYS:
+            if sc.get(k):
+                return "deleted"
+        for k in _EVENT_KEYS:
+            v = sc.get(k)
+            if v is None or isinstance(v, (dict, list)):
+                continue
+            if str(v).strip().lower() in _DELETE_WORDS:
+                return "deleted"
+            unknown[k] = v
+    if unknown:
+        shape = repr(sorted(unknown.items()))
+        if shape not in _seen_event_shapes:
+            if len(_seen_event_shapes) < 32:
+                _seen_event_shapes.add(shape)
+            log.info("Barsy article webhook: unrecognised event markers %s (treated as 'changed'; "
+                     "the cache is reconciled against Barsy regardless).", shape)
+    return "changed"
+
+
+async def _process_barsy_article(code: str, live: bool, event: str = "changed"):
+    """ONE fan-out for a Barsy `articles` event: (a) bring the local ProductCache row back in step
+    with Barsy in REAL TIME, (b) mirror name/price onto Shopify. Panel owns the single subscription.
+
+    (a) is idempotent and fail-CLOSED on removal: the row is deleted ONLY when Barsy positively
+    answers that it has no such article. A Barsy read that ERRORS leaves the row exactly as it was -
+    a broken ERP connection must never empty the catalogue. (b) is unchanged: dry-run unless
+    webhooks_live, and it already archives a Shopify product whose article is gone."""
+    # (a) real-time cache maintenance - always (independent of webhooks_live; panel-local data)
     try:
-        from .catalog import refresh_cache_for_code
-        ok = await refresh_cache_for_code(code)
-        log.info("Barsy article %s -> cache refresh: %s", code, ok)
+        from .catalog import delete_cache_for_code, record_cache_event, sync_cache_for_code
+        state = await sync_cache_for_code(code)            # updated | missing | error
+        if state == "missing":
+            removed = await delete_cache_for_code(code)
+            await record_cache_event("deleted")
+            log.info("Barsy article %s no longer exists in the ERP (payload hint=%s) -> %d cache "
+                     "row(s) removed.", code, event, removed)
+        elif state == "updated":
+            await record_cache_event("updated")
+            log.info("Barsy article %s -> cache row refreshed (payload hint=%s).", code, event)
+        else:
+            log.warning("Barsy article %s: ERP read failed -> cache row left UNTOUCHED (payload "
+                        "hint=%s). Nothing is ever deleted on a failed read.", code, event)
     except Exception as e:
-        log.exception("Barsy article %s cache refresh failed: %s", code, e)
+        log.exception("Barsy article %s cache maintenance failed: %s", code, e)
     # (b) mirror to Shopify (dry-run unless webhooks_live)
     try:
         result = await run_in_threadpool(connector.barsy_article_to_shopify, code, live)
@@ -317,9 +380,9 @@ async def _process_barsy_article(code: str, live: bool):
 
 @router.head("/barsy/article")
 async def barsy_article_probe() -> Response:
-    """Barsy's webhook-registration probe sends an HTTP HEAD and accepts 200–299/401/403/405/500/501.
+    """Barsy's webhook-registration probe sends an HTTP HEAD and accepts 200-299/401/403/405/500/501.
     Starlette's default 405 for HEAD-on-a-POST-route sets Content-Length to the JSON error body's size
-    but (correctly) sends no body on HEAD → the length/body mismatch makes strict clients (Barsy) fail
+    but (correctly) sends no body on HEAD -> the length/body mismatch makes strict clients (Barsy) fail
     with 'transfer closed with N bytes remaining'. An explicit empty 200 gives a clean, self-consistent
     response (Content-Length: 0) that the probe validates."""
     return Response(status_code=200)
@@ -327,24 +390,35 @@ async def barsy_article_probe() -> Response:
 
 @router.post("/barsy/article")
 async def barsy_article_receiver(request: Request, background: BackgroundTasks):
-    """Barsy article-changed webhook (POST) → refresh the local product cache AND mirror name/price onto
-    Shopify (see _process_barsy_article). Requires the shared token — X-Darling-Token header preferred,
-    ?token= accepted but deprecated (see _verify_barsy_token); else 401. NOTE: Barsy's registration
-    probe is a HEAD (handled by barsy_article_probe above → clean empty 200, no token needed); this POST
-    path is the real event delivery and IS token-gated. A token-valid POST with no article code (e.g. a
-    manual test) still 200s but processes nothing."""
+    """Barsy article-changed webhook (POST) -> keep the local product cache in step with Barsy in real
+    time (refresh on create/update, REMOVE on delete) AND mirror name/price onto Shopify (see
+    _process_barsy_article). Requires the shared token - X-Darling-Token header preferred, ?token=
+    accepted but deprecated (see _verify_barsy_token); else 401. NOTE: Barsy's registration probe is a
+    HEAD (handled by barsy_article_probe above -> clean empty 200, no token needed); this POST path is
+    the real event delivery and IS token-gated.
+
+    Everything token-valid answers 200, including a payload we cannot parse or that carries no article
+    code: a receiver that 500s on a surprising body earns a retry storm and teaches us nothing, while
+    the body itself gets logged so the unknown shape becomes readable. Nothing in the panel changes on
+    such a delivery."""
     if not _verify_barsy_token(request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token.")
     try:
         payload = await request.json()
     except Exception:
-        payload = {}
+        payload = None
+    if not isinstance(payload, dict):
+        log.warning("Barsy webhook: unparseable / non-object payload, ignored (nothing changed): %r",
+                    payload)
+        return {"ok": True, "code": "", "event": "", "live": _live(), "ignored": True}
     code = _barsy_code(payload)
+    event = _barsy_event(payload)
     if code:
-        background.add_task(_process_barsy_article, code, _live())
+        background.add_task(_process_barsy_article, code, _live(), event)
     else:
-        log.info("Barsy webhook: no article code in payload (likely a registration probe).")
-    return {"ok": True, "code": code, "live": _live()}
+        log.info("Barsy webhook: no article code in payload (likely a registration probe or an "
+                 "unknown shape); keys=%r", sorted(payload.keys()))
+    return {"ok": True, "code": code, "event": event, "live": _live()}
 
 
 # --- operator tools (owner-gated) ----------------------------------------------------
