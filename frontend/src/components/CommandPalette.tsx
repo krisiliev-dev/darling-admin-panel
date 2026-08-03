@@ -13,9 +13,12 @@ const COMMANDS: Command[] = [
   { label: 'Кошници', hint: 'активни + изоставени колички', to: '/carts' },
   { label: 'Разчети', hint: 'наложен платеж', to: '/cod' },
   { label: 'Продукти', hint: 'каталог · наличност · цени', to: '/products' },
-  { label: 'Ценообразуване', hint: 'доставна + надценка', to: '/products' },
+  { label: 'Ценообразуване', hint: 'доставна + надценка', to: '/products/pricing' },
+  { label: 'Брандове', hint: 'марки · за преглед · без марка', to: '/products/brands' },
+  { label: 'Именуване', hint: 'формулата за имената на продуктите', to: '/products/naming' },
   { label: 'Доставки', hint: 'приемане на стока', to: '/purchasing' },
   { label: 'Заявки', hint: 'поръчки към доставчици', to: '/zayavki' },
+  { label: 'Склад', hint: 'зареждане · изписване · движения', to: '/sklad' },
 ]
 
 export function CommandPalette() {

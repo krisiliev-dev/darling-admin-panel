@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mockApi, MANAGER } from './helpers'
 
 // Марки (#99) — the owner's hand-review queue over the machine-derived brand registry.
+// Since the 2026-08-03 consolidation it is the „За преглед“ tab of Продукти → Брандове.
 const SUMMARY = {
   brands: 232, manufacturers: 1269, prefixes: 1774,
   asserting_prefixes: 182, suggestions: 465, products_under_asserting_prefixes: 3674,
@@ -17,7 +18,13 @@ const QUEUE = { queue: [
 ] }
 
 async function mock(page: import('@playwright/test').Page, extra: Record<string, unknown> = {}) {
-  await mockApi(page, { '/api/brand-registry/summary': SUMMARY, '/api/brand-registry/review': QUEUE, ...extra })
+  // the Брандове tab opens on Марки (v2) and only then switches to За преглед, so v2 is mocked too
+  await mockApi(page, {
+    '/api/brand-registry/summary': SUMMARY, '/api/brand-registry/review': QUEUE,
+    '/api/brands-v2/summary': { schema_version: 2, brands: 0, brands_with_prefixes: 0, total_prefixes: 0, total_series: 0, branded_products: 0, by_tier: {} },
+    '/api/brands-v2': { brands: [] },
+    ...extra,
+  })
 }
 
 test.describe('Марки — brand registry', () => {
@@ -25,7 +32,8 @@ test.describe('Марки — brand registry', () => {
     // Products with barcodes under several prefixes are counted under each, so summing the per-prefix
     // column overstates the catalogue. The page must say which number it is showing.
     await mock(page)
-    await page.goto('/marki')
+    await page.goto('/products/brands')
+    await page.getByRole('tab', { name: 'За преглед' }).click()
     const main = page.getByRole('main')
     await expect(main.getByText('465')).toBeVisible()
     await expect(main.getByText('3674')).toBeVisible()
@@ -39,7 +47,8 @@ test.describe('Марки — brand registry', () => {
     await page.route('**/api/brand-registry/override', (r) => {
       sent = r.request().postDataJSON(); return r.fulfill({ json: { ok: true } })
     })
-    await page.goto('/marki')
+    await page.goto('/products/brands')
+    await page.getByRole('tab', { name: 'За преглед' }).click()
     await page.getByRole('button', { name: /Потвърди Qlux за префикс 380012345/ }).click()
     const dialog = page.getByRole('dialog')
     // Matched-first (owner rule, 2026-08-02): the blast radius is stated in the products
@@ -51,7 +60,8 @@ test.describe('Марки — brand registry', () => {
 
   test('an already-decided row is labelled as human-set and can be undone', async ({ page }) => {
     await mock(page)
-    await page.goto('/marki')
+    await page.goto('/products/brands')
+    await page.getByRole('tab', { name: 'За преглед' }).click()
     await expect(page.getByText(/решено ръчно/)).toBeVisible()
     await expect(page.getByText('owner@darling.bg')).toBeVisible()
     await expect(page.getByRole('button', { name: 'върни' })).toBeVisible()
@@ -60,7 +70,8 @@ test.describe('Марки — brand registry', () => {
   test('a manager can look but not decide', async ({ page }) => {
     // One confirmation re-brands thousands of products — a business decision, owner-only.
     await mock(page, { '/api/users/me': MANAGER })
-    await page.goto('/marki')
+    await page.goto('/products/brands')
+    await page.getByRole('tab', { name: 'За преглед' }).click()
     await expect(page.getByRole('button', { name: /Потвърди Qlux/ })).toBeDisabled()
     await expect(page.getByText(/Само собственикът може да решава/)).toBeVisible()
   })

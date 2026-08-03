@@ -12,11 +12,20 @@ const SHELL_OK = {
   '/api/carts': { active_count: 0, abandoned_count: 0, active: [], abandoned: [] },
 }
 
+// After the 2026-08-03 consolidation the owner's nav is SHORTER on purpose: Брандове/Марки are
+// tabs in Продукти, Доставки/Заявки are tabs in Склад (which owner/manager can reach).
 const NAV: [string, string][] = [
   ['Начало', '/'], ['Анализи', '/analytics'], ['Онлайн поръчки', '/orders'], ['Кошници', '/carts'],
-  ['Продукти', '/products'], ['Нов продукт', '/intake'], ['Доставки', '/purchasing'], ['Заявки', '/zayavki'],
-  ['Склад', '/sklad'], ['Разчети', '/cod'], ['Брандове', '/brands'], ['Канцелария', '/kancelaria'],
+  ['Продукти', '/products'], ['Нов продукт', '/intake'],
+  ['Склад', '/sklad'], ['Разчети', '/cod'], ['Канцелария', '/kancelaria'],
   ['Настройки', '/settings'],
+]
+
+// ...and the retired destinations must still be REACHABLE - a consolidation that quietly loses a
+// page is a regression, not a simplification.
+const RETIRED: [string, RegExp][] = [
+  ['/brands', /\/products\/brands$/], ['/marki', /\/products\/brands$/],
+  ['/marki-v2', /\/products\/brands$/], ['/pricing', /\/products\/pricing$/],
 ]
 
 test.describe('Navigation shell', () => {
@@ -27,6 +36,14 @@ test.describe('Navigation shell', () => {
       const link = page.getByRole('link', { name: label, exact: true })
       await expect(link, `nav link "${label}"`).toBeVisible()
       await expect(link, `href for "${label}"`).toHaveAttribute('href', path)
+    }
+  })
+
+  test('a retired page URL lands on its new tab instead of 404ing', async ({ page }) => {
+    await mockApi(page, SHELL_OK)
+    for (const [from, to] of RETIRED) {
+      await page.goto(from)
+      await expect(page, `${from} should redirect`).toHaveURL(to)
     }
   })
 

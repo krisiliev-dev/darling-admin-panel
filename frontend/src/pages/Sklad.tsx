@@ -3,6 +3,9 @@ import { api, ApiError } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote } from '../components/PageHeader'
+import { FolderTabs, FolderBody } from '../components/Tabs'
+import { Deliveries } from './Deliveries'
+import { Zayavki } from './Zayavki'
 import { useConfirm } from '../components/Confirm'
 
 // Склад — store operations against Barsy: Движения (ledger), Зареждане (goods-in), Изписване (write-off),
@@ -17,7 +20,9 @@ type WriteResult = {
   barsy_body?: unknown; result?: unknown; warnings?: string[]
 }
 
+// The order follows the real sequence: ask the supplier -> goods arrive -> stock goes in.
 const TABS = [
+  ['zayavki', 'Заявки'], ['deliveries', 'Доставки'],
   ['load', 'Зареждане'], ['writeoff', 'Изписване'], ['transfer', 'Прехвърляне'],
   ['revision', 'Ревизия'], ['storno', 'Сторно'], ['movements', 'Движения'],
 ] as const
@@ -359,7 +364,7 @@ export function Sklad() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Склад" subtitle="складови операции — зареждане, изписване, прехвърляне, сторно, движения" />
+      <PageHeader title="Склад" subtitle="заявки, доставки, зареждане, изписване, прехвърляне, сторно, движения" />
 
       {/* the pickers silently fall back to an empty list on a failed fetch — say so, or staff build a
           write against a склад/причина that isn't there */}
@@ -371,19 +376,14 @@ export function Sklad() {
         </p>
       )}
 
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-        {TABS.map(([id, label]) => (
-          <button key={id} onClick={() => { setTab(id); reset() }}
-            style={{
-              padding: '0.4rem 0.9rem', borderRadius: 8,
-              background: tab === id ? 'var(--ink)' : 'transparent',
-              color: tab === id ? 'var(--paper)' : 'var(--ink)',
-              border: '1px solid var(--ink)', fontWeight: tab === id ? 700 : 400,
-            }}>{label}</button>
-        ))}
-      </div>
+      <FolderTabs tabs={TABS.map(([id, label]) => ({ key: id, label }))} active={tab}
+        onSelect={(k) => { setTab(k as Tab); reset() }} />
 
-      {tab === 'movements' ? (
+      {tab === 'zayavki' ? (
+        <FolderBody tabKey={tab}><Zayavki embedded /></FolderBody>
+      ) : tab === 'deliveries' ? (
+        <FolderBody tabKey={tab}><Deliveries embedded /></FolderBody>
+      ) : tab === 'movements' ? (
         <Sheet clip="left">
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input className="input-paper" placeholder="код на артикул" value={movCode}

@@ -34,7 +34,7 @@ type BrandListRow = {
 type Card = { code: string; name: string | null; photo: string | null; enriched: boolean }
 type PrefixProducts = { total: number; returned: number; items: Card[]; catalog_available?: boolean; catalog_total?: number }
 
-export function BrandRegistry() {
+export function BrandRegistry({ embedded = false }: { embedded?: boolean } = {}) {
   const { me } = useAuth()
   const isOwner = me?.role === 'owner'
   const { data: sum } = useApi<Summary>('/api/brand-registry/summary')
@@ -94,7 +94,7 @@ export function BrandRegistry() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Марки" subtitle="регистър на марките — машинни предложения и ръчни корекции" />
+      {!embedded && <PageHeader title="Марки" subtitle="регистър на марките — машинни предложения и ръчни корекции" />}
       {msg && <div className="font-type" role="alert" style={{ fontSize: '.8rem', color: 'var(--red)' }}>{msg}</div>}
 
       {sum && (
@@ -184,7 +184,9 @@ export function BrandRegistry() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '.6rem', alignItems: 'center', padding: '.45rem .6rem' }}>
                   <div style={{ display: 'grid', gap: '.15rem' }}>
                     <div style={{ fontSize: '.85rem' }}>
-                      <span className="font-type" style={{ fontWeight: 700 }}>{r.canonical}</span>
+                      <Link to={`/marki/${encodeURIComponent(r.brand_id)}`} className="font-type"
+                      style={{ fontWeight: 700, color: 'var(--ink)' }}
+                      title="всички префикси и продукти на тази марка">{r.canonical}</Link>
                       <span style={{ color: 'var(--pencil)' }}> · префикс {r.prefix}</span>
                       {typeof r.matched_count === 'number' ? (
                         <>

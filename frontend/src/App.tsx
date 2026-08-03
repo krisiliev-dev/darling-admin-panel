@@ -14,13 +14,12 @@ import { Intake } from './pages/Intake'
 import { Products } from './pages/Products'
 import { Deliveries } from './pages/Deliveries'
 import { Zayavki } from './pages/Zayavki'
-import { Brands } from './pages/Brands'
 import { Sklad } from './pages/Sklad'
 import { Kancelaria } from './pages/Kancelaria'
 import { Posta } from './pages/Posta'
-import { BrandRegistry } from './pages/BrandRegistry'
-import BrandRegistryV2 from './pages/BrandRegistryV2'
 import { BrandDetail } from './pages/BrandDetail'
+// still routed: /marki-v2/:brandId is the per-brand detail the Брандове tab links into
+import BrandRegistryV2 from './pages/BrandRegistryV2'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
 
@@ -55,19 +54,21 @@ export default function App() {
         <Route path="cod" element={<Cod />} />
         <Route path="issues" element={<Issues />} />
         <Route path="products" element={<Products />} />
+        <Route path="products/:tab" element={<Products />} />
         {/* old paths keep working (bookmarks / deep-links) → unified Продукти */}
         <Route path="inventory" element={<Products />} />
         <Route path="catalog" element={<Products />} />
-        <Route path="pricing" element={<Products />} />
+        <Route path="pricing" element={<Navigate to="/products/pricing" replace />} />
         <Route path="purchasing" element={<Deliveries />} />
         <Route path="zayavki" element={<Zayavki />} />
         <Route path="sklad" element={canManage ? <Sklad /> : <Navigate to="/" replace />} />
-        <Route path="brands" element={<Brands />} />
+        {/* Брандове / Марки / Марки v2 are ONE tab now — old links land there */}
+        <Route path="brands" element={<Navigate to="/products/brands" replace />} />
         <Route path="kancelaria" element={<Kancelaria />} />
         <Route path="posta" element={<Posta />} />
-        <Route path="marki" element={<BrandRegistry />} />
+        <Route path="marki" element={<Navigate to="/products/brands" replace />} />
         <Route path="marki/:brandId" element={<BrandDetail />} />
-        <Route path="marki-v2" element={<BrandRegistryV2 />} />
+        <Route path="marki-v2" element={<Navigate to="/products/brands" replace />} />
         <Route path="marki-v2/:brandId" element={<BrandRegistryV2 />} />
         <Route path="assistant" element={<Assistant />} />
         <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />

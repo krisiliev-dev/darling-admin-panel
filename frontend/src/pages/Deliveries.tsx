@@ -16,10 +16,10 @@ import { useConfirm } from '../components/Confirm'
 
 const WAREHOUSES = [{ id: 1, name: 'Основен склад' }]   // one for now; the model supports more
 
-export function Deliveries() {
+export function Deliveries({ embedded = false }: { embedded?: boolean } = {}) {
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      <PageHeader title="Доставки" subtitle="приемане на стока" />
+      {!embedded && <PageHeader title="Доставки" subtitle="приемане на стока" />}
       <Receiving />
     </div>
   )

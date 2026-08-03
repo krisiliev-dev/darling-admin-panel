@@ -15,7 +15,7 @@ import { Sheet } from '../components/Paper'
 
 const eur = (n: number) => n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
-export function Zayavki() {
+export function Zayavki({ embedded = false }: { embedded?: boolean } = {}) {
   const [openSupplier, setOpenSupplier] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const bump = () => setRefresh((n) => n + 1)
@@ -23,7 +23,7 @@ export function Zayavki() {
   if (openSupplier) return <ZayavkaDetail supplier={openSupplier} onBack={() => { setOpenSupplier(null); bump() }} />
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      <PageHeader title="Заявки" subtitle="поръчки към доставчици" />
+      {!embedded && <PageHeader title="Заявки" subtitle="поръчки към доставчици" />}
       <NoSupplierNudge />
       <InsightCards onAdded={bump} />
       <SupplierList key={refresh} onOpen={setOpenSupplier} />

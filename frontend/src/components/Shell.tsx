@@ -8,20 +8,24 @@ import { CommandPalette } from './CommandPalette'
 import { FloatingAssistant } from './FloatingAssistant'
 
 // Menu is by JOB, not by table (design spec). Packer lands in shipping; owner sees all.
-const NAV: { to: string; label: string; roles?: string[] }[] = [
+// `hideFor` exists for ONE case: a destination that became a tab somewhere the role can already
+// reach. Склад is owner/manager-only, so Доставки and Заявки become tabs there for those two and
+// stay top-level entries for staff/packer - the consolidation must not quietly take away a page
+// somebody was using.
+const NAV: { to: string; label: string; roles?: string[]; hideFor?: string[] }[] = [
   { to: '/', label: 'Начало' },
   { to: '/analytics', label: 'Анализи' },
   { to: '/orders', label: 'Онлайн поръчки' },
   { to: '/carts', label: 'Кошници' },
   { to: '/products', label: 'Продукти' },
   { to: '/intake', label: 'Нов продукт' },
-  { to: '/purchasing', label: 'Доставки' },
-  { to: '/zayavki', label: 'Заявки' },
+  { to: '/purchasing', label: 'Доставки', hideFor: ['owner', 'manager'] },
+  { to: '/zayavki', label: 'Заявки', hideFor: ['owner', 'manager'] },
   { to: '/sklad', label: 'Склад', roles: ['owner', 'manager'] },
   { to: '/cod', label: 'Разчети' },
   { to: '/issues', label: 'Проблеми' },
-  { to: '/brands', label: 'Брандове' },
-  { to: '/marki', label: 'Марки', roles: ['owner', 'manager'] },
+  // Брандове + Марки (+ Марки v2) are tabs inside Продукти now — one destination, not
+  // three near-synonyms in the nav bar.
   { to: '/kancelaria', label: 'Канцелария' },
   { to: '/posta', label: 'Поща' },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
@@ -44,7 +48,10 @@ export function Shell() {
     return () => clearInterval(t)
   }, [])
 
-  const visible = NAV.filter((n) => !n.roles || (me && n.roles.includes(me.role)) || me?.role === 'owner')
+  const visible = NAV.filter((n) => {
+    if (n.hideFor && me && n.hideFor.includes(me.role)) return false
+    return !n.roles || (me && n.roles.includes(me.role)) || me?.role === 'owner'
+  })
 
   return (
     <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>

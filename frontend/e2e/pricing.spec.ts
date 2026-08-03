@@ -21,7 +21,7 @@ test.describe('Ценообразуване — repricing tab', () => {
     await page.goto('/products')
 
     // switch from Каталог to the Ценообразуване tab
-    await page.getByRole('button', { name: 'Ценообразуване' }).click()
+    await page.getByRole('tab', { name: 'Ценообразуване' }).click()
 
     // the repricing controls + the flagged item render
     await expect(page.getByPlaceholder(/търси по име или код/)).toBeVisible()

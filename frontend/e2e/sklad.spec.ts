@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { mockApi } from './helpers'
 
-// Склад — store operations against Barsy (Зареждане/Изписване/Прехвърляне/Ревизия/Сторно/Движения).
+// Склад — store operations against Barsy. Since 2026-08-03 it also holds Заявки and Доставки:
+// ordering, receiving and moving stock is one job at one desk. The tabs are real ARIA tabs.
 // Every write is gated; while the gate is OFF the backend DRY-RUNS and returns the exact Barsy body, which
 // the page shows so staff can inspect before go-live. We verify tab switching, the write-off VAT warning,
 // the read-only Движения search, and a load dry-run rendering the "Пробно" result card.
@@ -17,13 +18,13 @@ async function mockSklad(page: import('@playwright/test').Page, extra: Record<st
 }
 
 test.describe('Склад — store operations', () => {
-  test('renders the six operation tabs with Зареждане active', async ({ page }) => {
+  test('renders every Склад tab (incl. the absorbed Заявки/Доставки) with Зареждане active', async ({ page }) => {
     await mockSklad(page)
     await page.goto('/sklad')
     const main = page.getByRole('main')
     await expect(main.getByText('Склад').first()).toBeVisible()
-    for (const t of ['Зареждане', 'Изписване', 'Прехвърляне', 'Ревизия', 'Сторно', 'Движения']) {
-      await expect(main.getByRole('button', { name: t })).toBeVisible()
+    for (const t of ['Заявки', 'Доставки', 'Зареждане', 'Изписване', 'Прехвърляне', 'Ревизия', 'Сторно', 'Движения']) {
+      await expect(main.getByRole('tab', { name: t })).toBeVisible()
     }
     // default (load) tab shows the line editor + submit
     await expect(main.getByPlaceholder('article_id')).toBeVisible()
@@ -33,7 +34,7 @@ test.describe('Склад — store operations', () => {
   test('Изписване tab shows the VAT (чл.79) warning and a reason picker', async ({ page }) => {
     await mockSklad(page)
     await page.goto('/sklad')
-    await page.getByRole('button', { name: 'Изписване' }).click()
+    await page.getByRole('tab', { name: 'Изписване' }).click()
     await expect(page.getByText(/чл\.79 ЗДДС/)).toBeVisible()
     // the reason picker rendered with its Barsy-sourced options (document default)
     await expect(page.getByLabel('Причина за изписване по подразбиране')).toBeVisible()
@@ -48,14 +49,14 @@ test.describe('Склад — store operations', () => {
   test('Сторно tab exposes the storeload-id reference field', async ({ page }) => {
     await mockSklad(page)
     await page.goto('/sklad')
-    await page.getByRole('button', { name: 'Сторно' }).click()
+    await page.getByRole('tab', { name: 'Сторно' }).click()
     await expect(page.getByPlaceholder(/ID на зареждане за сторниране/)).toBeVisible()
   })
 
   test('Движения is a read-only ledger search with an empty state', async ({ page }) => {
     await mockSklad(page, { '/api/store-ops/movements': { movements: [], errors: [] } })
     await page.goto('/sklad')
-    await page.getByRole('button', { name: 'Движения' }).click()
+    await page.getByRole('tab', { name: 'Движения' }).click()
     await page.getByPlaceholder('код на артикул').fill('A1')
     await page.getByRole('button', { name: 'Търси' }).click()
     await expect(page.getByText('Няма движения за този артикул.')).toBeVisible()
@@ -87,7 +88,7 @@ test.describe('Склад — store operations', () => {
       return r.fulfill({ json: { ok: true, dry_run: true, method: 'Revisions_save', barsy_body: { mode: 'changes' } } })
     })
     await page.goto('/sklad')
-    await page.getByRole('button', { name: 'Ревизия' }).click()
+    await page.getByRole('tab', { name: 'Ревизия' }).click()
     await page.getByLabel(/Артикул \(ID\), ред 1/).fill('5')
     await page.getByLabel(/Преброено количество, ред 1/).fill('7')
 
@@ -111,7 +112,7 @@ test.describe('Склад — store operations', () => {
     // ever read the same, operators learn to click through the one that matters.
     await mockSklad(page, { '/api/store-ops/revision/close': { ok: true, dry_run: true, method: 'Revisions_save' } })
     await page.goto('/sklad')
-    await page.getByRole('button', { name: 'Ревизия' }).click()
+    await page.getByRole('tab', { name: 'Ревизия' }).click()
     await page.getByLabel(/Артикул \(ID\), ред 1/).fill('5')
     await page.getByLabel(/Преброено количество, ред 1/).fill('7')
     await page.getByLabel(/Резолюция.*ред 1/).fill('1')
