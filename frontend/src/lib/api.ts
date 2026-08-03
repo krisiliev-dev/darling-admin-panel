@@ -181,6 +181,7 @@ export interface IntakeDraft {
   category: string
   shopify_category_id?: string
   brand?: string
+  series?: string
   name: string
   attributes: IntakeAttribute[]
   description: string

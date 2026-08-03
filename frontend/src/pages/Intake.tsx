@@ -114,7 +114,7 @@ function ProductEditorScreen({ draft, onBack, onDone }: {
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       <button className="btn-paper" onClick={onBack} style={{ justifySelf: 'start' }}>← Назад към списъка</button>
       <PageHeader title={draft.delivery_line_id ? 'Довърши продукта' : 'Нов продукт'}
-        subtitle="баркод + снимки → обогатяване → готов продукт в Barsy" />
+        subtitle="попълни продукта и го добави" />
       <ProductEditor draft={draft} onDone={onDone} onCancel={onBack} />
     </div>
   )
@@ -135,6 +135,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const [images, setImages] = useState<DraftImageMeta[]>([])
   const [enriched, setEnriched] = useState<boolean>(!!draft.completed || draft.status === 'enriched')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [selImg, setSelImg] = useState<number | null>(null)
   // size is split into H×W×D + volume; parse any previously-saved values back into the boxes
   const initSize = (k: string) => (draft.attributes || []).find((a) => a.key === k)?.value || ''
   const dnums = (initSize('Размери').match(/\d+(?:[.,]\d+)?/g) || [])
@@ -220,7 +221,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
         `/api/intake/drafts/${draft.id}`, {
           code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
           name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
-          brand: d.brand || '', description: d.description || '', attributes: sized,
+          brand: d.brand || '', series: d.series || '', description: d.description || '', attributes: sized,
           meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
           oversell: !!d.oversell, weight_kg: d.weight_kg || '',
         })
@@ -233,114 +234,127 @@ function ProductEditor({ draft, onDone, onCancel }: {
   }
 
   const eyebrow = { fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 700 } as React.CSSProperties
+  const mainImg = images.find((im) => im.id === selImg) || images[0] || null
+  const imgUrl = (id: number) => `/api/intake/drafts/${draft.id}/images/${id}`
+  // the description is stored as MARKDOWN (for SEO) — render a light preview so the reviewer
+  // sees roughly what the storefront will show (headings, bold, lists)
+  const previewHtml = mdToHtml(d.description || '')
   return (
-    <div style={{ border: '1px solid var(--red)', borderRadius: 3, padding: '.9rem', background: 'var(--paper)', display: 'grid', gap: '.7rem' }}>
-      {/* STEP 1 — the first fields: barcode + images (mandatory) */}
-      <div className="font-type" style={eyebrow}>1 · Първи данни</div>
-      <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
-        <Field label="Баркод (GS1)"><input autoFocus className="input-paper" value={d.barcode || ''}
-          placeholder="сканирай или въведи" onChange={(e) => setD({ ...d, barcode: e.target.value })} /></Field>
-      </div>
-      <div>
-        <span className="font-type" style={eyebrow}>Снимки · задължителни</span>
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '.3rem' }}>
-          {images.map((im) => (
-            <span key={im.id} style={{ position: 'relative' }}>
-              <img src={`/api/intake/drafts/${draft.id}/images/${im.id}`} alt={im.filename}
-                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
-              <button onClick={() => void removeImage(im.id)} title="премахни" style={{ position: 'absolute', top: -6, right: -6, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: '.7rem', lineHeight: 1 }}>✕</button>
-            </span>
-          ))}
-          <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
-            + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => void addImages(e.target.files)} />
-          </label>
-        </div>
-        {images.length === 0 && <span className="pencil" style={{ fontSize: '.74rem' }}>качи поне една снимка на продукта</span>}
-      </div>
-
-      {/* enrichment trigger — gated on the first fields */}
-      <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
-          {busy ? 'обогатява…' : enriched ? '↻ Обогати наново' : '✨ Започни обогатяване'}
-        </button>
-        {!enriched && <button className="btn-paper" onClick={() => setEnriched(true)}>попълни ръчно</button>}
-        {!canEnrich && <span className="pencil" style={{ fontSize: '.78rem' }}>въведи баркод, за да стартираш обогатяването</span>}
-      </div>
-      <p className="pencil" style={{ fontSize: '.74rem', margin: 0 }}>
-        ✎ Пайплайнът (GS1 по баркода + обратно търсене по снимка + AI) предлага име, категория, атрибути,
-        описание и meta. Предложенията са в молив — имаш последната дума.
-      </p>
-
-      {/* STEP 2 — suggestions (editable). Order: category → attributes → name (name composes from them). */}
-      {enriched && (
-        <>
-          <div className="font-type" style={eyebrow}>2 · Предложения — прегледай и коригирай</div>
-          <Field label="Бранд">
-            <BrandPicker value={d.brand || ''} onPick={(b) => setD({ ...d, brand: b })} />
-          </Field>
-          <Field label="Наличност">
-            <label style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', fontSize: '.82rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={!!d.oversell}
-                onChange={(e) => setD({ ...d, oversell: e.target.checked })} style={{ marginTop: '.2rem' }} />
-              <span>Може да се поръча и без наличност (доставка по заявка / дропшип — клиентът се уведомява за по-дълъг срок).</span>
+    <div style={{ border: '1px solid var(--red)', borderRadius: 3, padding: '1rem', background: 'var(--paper)', display: 'grid', gap: '.9rem' }}>
+      {/* top: gallery LEFT · core fields RIGHT (storefront-like) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) minmax(290px, 1fr)', gap: '1.2rem', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gap: '.5rem' }}>
+          <div style={{ border: '1px solid var(--line)', borderRadius: 4, background: '#fff', height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {mainImg
+              ? <img src={imgUrl(mainImg.id)} alt={mainImg.filename} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              : <span className="pencil" style={{ fontSize: '.8rem' }}>качи поне една снимка на продукта</span>}
+          </div>
+          <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {images.map((im) => (
+              <span key={im.id} style={{ position: 'relative' }}>
+                <button onClick={() => setSelImg(im.id)} title={im.filename} style={{ padding: 0, background: 'none', cursor: 'pointer', borderRadius: 3, border: im.id === (mainImg ? mainImg.id : -1) ? '2px solid var(--red)' : '1px solid var(--line)' }}>
+                  <img src={imgUrl(im.id)} alt={im.filename} style={{ width: 56, height: 56, objectFit: 'cover', display: 'block', borderRadius: 2 }} />
+                </button>
+                <button onClick={() => void removeImage(im.id)} title="премахни" style={{ position: 'absolute', top: -6, right: -6, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: '.7rem', lineHeight: 1 }}>✕</button>
+              </span>
+            ))}
+            <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
+              + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => void addImages(e.target.files)} />
             </label>
-          </Field>
-          <Field label="Тегло (кг)">
-            <input className="input-paper" style={{ width: '8rem' }} inputMode="decimal" placeholder="напр. 0.55"
-              value={d.weight_kg || ''} onChange={(e) => setD({ ...d, weight_kg: e.target.value })} />
-          </Field>
-          <Field label="Категория (Shopify таксономия)">
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gap: '.6rem', alignContent: 'start' }}>
+          <Field label="Категория">
             <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}
               onPick={(id, path) => { mark('category'); setD({ ...d, shopify_category_id: id, category: path }) }} />
           </Field>
-          <div>
-            <span className="font-type" style={eyebrow}>Атрибути</span>
-            <div style={{ marginTop: '.3rem' }}>
-              <TaxonomyAttributes categoryId={d.shopify_category_id || ''} schema={schema} value={attrs}
-                onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
-            </div>
+          <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
+            <Field label="Марка">
+              <BrandPicker value={d.brand || ''} onPick={(b) => setD({ ...d, brand: b })} />
+            </Field>
+            <Field label="Серия">
+              <input className="input-paper" style={{ width: '9rem' }} value={d.series || ''}
+                onChange={(e) => setD({ ...d, series: e.target.value })} />
+            </Field>
           </div>
-          <div>
-            <span className="font-type" style={eyebrow}>Размери</span>
-            <div style={{ display: 'flex', gap: '.6rem', marginTop: '.3rem', flexWrap: 'wrap', alignItems: 'end' }}>
-              <LabeledNumber caption="Височина" unit="см" value={dimH} onChange={setDimH} />
-              <LabeledNumber caption="Широчина" unit="см" value={dimW} onChange={setDimW} />
-              <LabeledNumber caption="Дълбочина" unit="см" value={dimD} onChange={setDimD} />
-              <label style={{ display: 'grid', gap: '.15rem' }}>
-                <span className="font-type" style={{ fontSize: '.6rem', color: 'var(--pencil)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Обем</span>
-                <span style={{ display: 'inline-flex', gap: '.3rem' }}>
-                  <NumberField value={vol} onChange={setVol} placeholder="обем" width="5rem" />
-                  <select className="input-paper" style={{ width: '4rem' }} value={volUnit} onChange={(e) => setVolUnit(e.target.value)}>
-                    <option value="мл">мл</option><option value="л">л</option>
-                  </select>
-                </span>
-              </label>
-            </div>
-          </div>
-          <Field label="Търговско име (съставя се автоматично — редактирай при нужда)">
+          <Field label="Име">
             <input className="input-paper" style={pencil('name', d.name)} value={d.name}
-              onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} /></Field>
-          <Field label="Описание"><textarea className="input-paper" rows={3} style={pencil('description', d.description)} value={d.description || ''}
-            onChange={(e) => { mark('description'); setD({ ...d, description: e.target.value }) }} /></Field>
-          <Field label="Meta заглавие (SEO)"><input className="input-paper" style={pencil('meta_title', d.meta_title)} value={d.meta_title || ''}
-            onChange={(e) => { mark('meta_title'); setD({ ...d, meta_title: e.target.value }) }} /></Field>
-          <Field label="Meta описание (SEO)"><textarea className="input-paper" rows={2} style={pencil('meta_description', d.meta_description)} value={d.meta_description || ''}
-            onChange={(e) => { mark('meta_description'); setD({ ...d, meta_description: e.target.value }) }} /></Field>
-        </>
+              onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} />
+          </Field>
+          <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
+            <Field label="Цена"><NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} /></Field>
+            <Field label="Мярка">
+              <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
+                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </Field>
+            {d.code && <span className="pencil" style={{ fontSize: '.72rem', paddingBottom: '.3rem' }}>код {d.code}</span>}
+          </div>
+          <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
+            <Field label="Баркод (GS1)">
+              <input autoFocus className="input-paper" value={d.barcode || ''}
+                placeholder="сканирай или въведи" onChange={(e) => setD({ ...d, barcode: e.target.value })} />
+            </Field>
+            <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
+              {busy ? 'обогатява…' : '✨ Обогати'}
+            </button>
+          </div>
+          {!canEnrich && <span className="pencil" style={{ fontSize: '.74rem' }}>въведи баркод, за да стартираш обогатяването</span>}
+        </div>
+      </div>
+
+      {/* attributes (incl. size) span the full width below the halves */}
+      <div>
+        <span className="font-type" style={eyebrow}>Атрибути</span>
+        <div style={{ marginTop: '.3rem' }}>
+          <TaxonomyAttributes categoryId={d.shopify_category_id || ''} schema={schema} value={attrs}
+            onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
+        </div>
+        <div style={{ display: 'flex', gap: '.6rem', marginTop: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
+          <LabeledNumber caption="Височина" unit="см" value={dimH} onChange={setDimH} />
+          <LabeledNumber caption="Широчина" unit="см" value={dimW} onChange={setDimW} />
+          <LabeledNumber caption="Дълбочина" unit="см" value={dimD} onChange={setDimD} />
+          <label style={{ display: 'grid', gap: '.15rem' }}>
+            <span className="font-type" style={{ fontSize: '.6rem', color: 'var(--pencil)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Обем</span>
+            <span style={{ display: 'inline-flex', gap: '.3rem' }}>
+              <NumberField value={vol} onChange={setVol} placeholder="обем" width="5rem" />
+              <select className="input-paper" style={{ width: '4rem' }} value={volUnit} onChange={(e) => setVolUnit(e.target.value)}>
+                <option value="мл">мл</option><option value="л">л</option>
+              </select>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <Field label="Описание">
+        <textarea className="input-paper" rows={6} style={pencil('description', d.description)} value={d.description || ''}
+          onChange={(e) => { mark('description'); setD({ ...d, description: e.target.value }) }} />
+      </Field>
+      {previewHtml.includes('<') && (
+        <div style={{ border: '1px dashed var(--line)', borderRadius: 3, padding: '.6rem .8rem', fontSize: '.85rem', lineHeight: 1.45, background: '#fff' }}
+          dangerouslySetInnerHTML={{ __html: previewHtml }} />
       )}
 
-      {/* operational fields — price/unit are human; the CODE is assigned by Barsy on save */}
-      <div className="font-type" style={eyebrow}>Оперативни данни</div>
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
-        <Field label="Цена"><NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} /></Field>
-        <Field label="Мярка">
-          <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
-            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
+      <Field label="Meta заглавие">
+        <input className="input-paper" style={pencil('meta_title', d.meta_title)} value={d.meta_title || ''}
+          onChange={(e) => { mark('meta_title'); setD({ ...d, meta_title: e.target.value }) }} />
+      </Field>
+      <Field label="Meta описание">
+        <textarea className="input-paper" rows={2} style={pencil('meta_description', d.meta_description)} value={d.meta_description || ''}
+          onChange={(e) => { mark('meta_description'); setD({ ...d, meta_description: e.target.value }) }} />
+      </Field>
+
+      <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', alignItems: 'end' }}>
+        <Field label="Тегло (кг)">
+          <input className="input-paper" style={{ width: '8rem' }} inputMode="decimal" placeholder="напр. 0.55"
+            value={d.weight_kg || ''} onChange={(e) => setD({ ...d, weight_kg: e.target.value })} />
         </Field>
-        <span className="pencil" style={{ fontSize: '.74rem', paddingBottom: '.3rem' }}>
-          {d.code ? `Код (Barsy): ${d.code}` : 'Кодът се присвоява автоматично от Barsy при създаване.'}
-        </span>
+        <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer', paddingBottom: '.2rem' }}>
+          <input type="checkbox" checked={!!d.oversell}
+            onChange={(e) => setD({ ...d, oversell: e.target.checked })} />
+          <span>Може да се поръчва и без наличност (доставка по заявка)</span>
+        </label>
       </div>
 
       {draft.id != null && <SupplierTable draftId={draft.id} />}
@@ -352,10 +366,6 @@ function ProductEditor({ draft, onDone, onCancel }: {
           {draft.status === 'enriched' ? 'Добави продукт' : 'Запази'}</button>
         <button className="btn-paper" onClick={onCancel}>Отказ</button>
       </div>
-      <p className="pencil" style={{ fontSize: '.76rem', margin: 0 }}>
-        Запис създава продукта в Barsy и качва снимките. Цялата доставка се изпраща наведнъж, щом всичките ѝ
-        нови продукти са създадени.
-      </p>
     </div>
   )
 }
@@ -477,6 +487,29 @@ function TaxonomyAttributes({ categoryId, schema, value, onChange }: {
 // into them on save, so there's ONE formatted place for size instead of a duplicate unformatted box.
 const _SIZE_WORDS = ['размер', 'обем', 'вместимост', 'капацитет', 'диаметър', 'височин', 'широчин',
   'дълбочин', 'дължин', 'size', 'volume', 'capacity', 'dimension', 'height', 'width', 'depth', 'length', 'diameter']
+// minimal, safe markdown → HTML for the editor preview (headings, bold, italic, unordered
+// lists, paragraphs). Not a full parser — the storefront does the real rendering.
+function mdToHtml(md: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const inline = (s: string) => esc(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+  const out: string[] = []
+  let inList = false
+  for (const raw of md.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) { if (inList) { out.push('</ul>'); inList = false } continue }
+    const li = line.match(/^[-*]\s+(.*)/)
+    if (li) { if (!inList) { out.push('<ul>'); inList = true } out.push('<li>' + inline(li[1]) + '</li>'); continue }
+    if (inList) { out.push('</ul>'); inList = false }
+    const h = line.match(/^(#{1,3})\s+(.*)/)
+    if (h) { const n = h[1].length + 1; out.push('<h' + n + '>' + inline(h[2]) + '</h' + n + '>'); continue }
+    out.push('<p>' + inline(line) + '</p>')
+  }
+  if (inList) out.push('</ul>')
+  return out.join('')
+}
+
 const isSizeAttr = (name: string) => { const s = (name || '').toLowerCase(); return _SIZE_WORDS.some((w) => s.includes(w)) }
 const wantsVolume = (name: string) => /обем|вместимост|капацитет|volume|capacity/i.test(name || '')
 const wantsDim = (name: string) => /размер|размери|dimension|size|височин|широчин|дълбочин|дължин|диаметър|height|width|depth|length|diameter/i.test(name || '')

@@ -23,7 +23,7 @@ async function openEditor(page: import('@playwright/test').Page) {
   await expect(page.getByRole('main').getByText('Нов продукт').first()).toBeVisible()
   await page.getByRole('button', { name: '+ Добави продукт' }).click()
   // editor opened (step 1)
-  await expect(page.getByText('1 · Първи данни')).toBeVisible()
+  await expect(page.getByPlaceholder('сканирай или въведи')).toBeVisible()
 }
 
 test.describe('Нов продукт — intake editor guards', () => {
@@ -38,13 +38,12 @@ test.describe('Нов продукт — intake editor guards', () => {
   test('adding opens the editor with barcode + mandatory images', async ({ page }) => {
     await openEditor(page)
     await expect(page.getByText('Баркод (GS1)')).toBeVisible()
-    await expect(page.getByText('Снимки · задължителни')).toBeVisible()
     await expect(page.getByText('качи поне една снимка на продукта')).toBeVisible()
   })
 
   test('enrichment is gated on a barcode', async ({ page }) => {
     await openEditor(page)
-    const enrich = page.getByRole('button', { name: /Започни обогатяване/ })
+    const enrich = page.getByRole('button', { name: /Обогати/ })
     // no barcode yet → disabled + hint
     await expect(enrich).toBeDisabled()
     await expect(page.getByText('въведи баркод, за да стартираш обогатяването')).toBeVisible()

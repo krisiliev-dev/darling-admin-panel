@@ -74,7 +74,7 @@ async def test_push_sends_exactly_one_articles_create_with_the_full_envelope(
     assert art["barcode"] == "3800130123456" and isinstance(art["barcode"], str)
     assert art["actual_price"] == "12.50"                   # staff-entered, byte-for-byte (price policy)
     assert art["sale_below_zero"] == "YES"                  # oversell draft → backorderable
-    assert art["description_ml"] == {"bg_BG": "Голяма керамична купа за салата."}
+    assert art["description_ml"] == {"bg_BG": "<p>Голяма керамична купа за салата.</p>"}
     assert art["details"][0] == {"detail_name": "Марка", "detail_value": "Luminarc"}
     assert art["details"][1] == {"detail_name": "Материал", "detail_value": "керамика"}
     assert art["extra_data"] == {"seo_title": "Керамична купа",

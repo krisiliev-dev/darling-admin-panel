@@ -327,6 +327,7 @@ class ApproveRequest(BaseModel):
     category: str = ""
     shopify_category_id: str = ""
     brand: str = ""
+    series: str = ""
     description: str = ""
     attributes: list[Attribute] = []
     meta_title: str = ""
@@ -346,6 +347,7 @@ class DraftOut(BaseModel):
     category: str
     shopify_category_id: str = ""
     brand: str = ""
+    series: str = ""
     description: str
     attributes: list[Attribute]
     meta_title: str = ""
@@ -371,6 +373,7 @@ def _row_to_out(d: IntakeDraft, image_count: int = 0) -> DraftOut:
         name=d.name, category=d.category,
         shopify_category_id=getattr(d, "shopify_category_id", "") or "",
         brand=getattr(d, "brand", "") or "",
+        series=getattr(d, "series", "") or "",
         description=d.description,
         attributes=[Attribute(**a) for a in json.loads(d.attributes_json or "[]")],
         meta_title=getattr(d, "meta_title", "") or "", meta_description=getattr(d, "meta_description", "") or "",
@@ -500,7 +503,7 @@ async def approve(
         code=req.code.strip(), barcode=req.barcode.strip(), price=req.price.strip(),
         unit=req.unit or "бр", name=req.name.strip(), category=req.category,
         shopify_category_id=req.shopify_category_id.strip(), brand=req.brand.strip(),
-        description=req.description,
+        series=req.series.strip(), description=req.description,
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
         meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
         oversell=bool(req.oversell), weight_kg=req.weight_kg.strip(),
@@ -582,6 +585,7 @@ async def update_draft(
     d.category = req.category
     d.shopify_category_id = req.shopify_category_id.strip()
     d.brand = req.brand.strip()
+    d.series = req.series.strip()
     d.description = req.description
     d.attributes_json = json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False)
     d.meta_title = req.meta_title.strip()
@@ -779,6 +783,43 @@ async def _supplier_fields(session: AsyncSession, d: IntakeDraft, is_create: boo
     return out
 
 
+def _md_to_html(md: str) -> str:
+    """Light markdown → HTML for the shipped description (paragraphs, **bold**, *italic*,
+    - lists, ## headings). The panel stores/edits markdown (owner: SEO); Barsy/Woo want HTML."""
+    import html as _html
+    import re as _re
+    if not md:
+        return ""
+
+    def inline(s: str) -> str:
+        s = _html.escape(s)
+        s = _re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", s)
+        s = _re.sub(r"(^|[^*])\*([^*]+)\*", r"\1<em>\2</em>", s)
+        return s
+    out, in_list = [], False
+    for raw in md.splitlines():
+        line = raw.strip()
+        if not line:
+            if in_list:
+                out.append("</ul>"); in_list = False
+            continue
+        m = _re.match(r"^[-*]\s+(.*)", line)
+        if m:
+            if not in_list:
+                out.append("<ul>"); in_list = True
+            out.append("<li>" + inline(m.group(1)) + "</li>"); continue
+        if in_list:
+            out.append("</ul>"); in_list = False
+        h = _re.match(r"^(#{1,3})\s+(.*)", line)
+        if h:
+            n = len(h.group(1)) + 1
+            out.append(f"<h{n}>" + inline(h.group(2)) + f"</h{n}>"); continue
+        out.append("<p>" + inline(line) + "</p>")
+    if in_list:
+        out.append("</ul>")
+    return "".join(out)
+
+
 def _build_barsy_article(d: IntakeDraft) -> dict:
     """Map an approved draft to a Barsy Articles_create body (verified contract). The article `code`
     (our SKU) is assigned BY BARSY on create — we omit it so Barsy generates it and returns it. A code
@@ -797,7 +838,7 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
     # cat_id/master_cat_id in _save_to_barsy (the I/O path) so this builder stays pure, and it also
     # rides to Shopify via the connector/metafields at mirror time.
     if d.description:
-        art["description_ml"] = {"bg_BG": d.description}
+        art["description_ml"] = {"bg_BG": _md_to_html(d.description)}  # store markdown, ship HTML
     if d.barcode:
         art["barcode"] = d.barcode  # Barsy create rejects the array form (500) — send string
     if d.price:
@@ -809,6 +850,8 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
     # barsy_push._details). Prepend it, unless the attributes already carry a Марка row.
     if d.brand and not any(x["detail_name"] == "Марка" for x in details):
         details.insert(0, {"detail_name": "Марка", "detail_value": d.brand.strip()})
+    if getattr(d, "series", "") and not any(x["detail_name"] == "Серия" for x in details):
+        details.insert(1 if d.brand else 0, {"detail_name": "Серия", "detail_value": d.series.strip()})
     if details:
         art["details"] = details
     # SEO meta rides in the native per-article `extra_data` object (Barsy has no SEO fields);

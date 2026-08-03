@@ -68,6 +68,7 @@ class IntakeDraft(Base):
     # formal Shopify product-taxonomy id (e.g. "hg-11-2"); `category` holds the human breadcrumb
     shopify_category_id: Mapped[str] = mapped_column(String(64), default="")
     brand: Mapped[str] = mapped_column(String(128), default="")   # canonical brand (→ Shopify vendor)
+    series: Mapped[str] = mapped_column(String(128), default="")  # product series/collection (→ „Серия" detail)
     # orderable at <=0 stock (backorder / supplier dropship, e.g. Mira-N) → Barsy sale_below_zero='YES'
     oversell: Mapped[bool] = mapped_column(default=False)
     weight_kg: Mapped[str] = mapped_column(String(16), default="")  # kg, string → Barsy extra_data.weight_kg
