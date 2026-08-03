@@ -160,6 +160,10 @@ class Zayavka(Base):
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(255), default="")
+    # Barsy's own request id once the заявка has been pushed there (Requests_save). None = panel-only.
+    # It is what makes the push idempotent: a second push UPDATES that request instead of creating
+    # a second order for the same goods.
+    barsy_request_id: Mapped[int | None] = mapped_column(nullable=True, default=None)
     sent_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_via: Mapped[str] = mapped_column(String(32), default="")   # email | export
 

@@ -452,6 +452,32 @@ function SendPanel({ z, pref, onSent }: { z: ZayavkaDetailResp; pref: ZayavkaSup
       setMsg(`Изпратено към ${r.sent_to} ✓`); onSent()
     } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Изпращането се провали.') } finally { setBusy(false) }
   }
+  // Barsy path: the заявка becomes Barsy's own supplier-order document (`requests`), so the ERP
+  // holds the order and can convert it at receiving. With the write gate off the backend returns
+  // the exact body instead of writing — say that plainly rather than showing a fake success.
+  const toBarsy = async (alsoSend: boolean) => {
+    if (alsoSend && !email.trim()) { setMsg('Въведи имейл на доставчика.'); return }
+    if (!(await confirm({
+      confirmLabel: alsoSend ? 'Запиши и изпрати' : 'Запиши в Barsy',
+      title: alsoSend ? 'Заявка в Barsy + изпращане' : 'Заявка в Barsy',
+      message: `${z.lines.length} артикула към „${z.supplier}“ ще бъдат записани като заявка в Barsy` +
+        (alsoSend ? `\nи изпратени от Barsy към ${email} с неговата PDF заявка.` : '.') +
+        '\n\nАртикул, който го няма в Barsy, спира цялата заявка.',
+    }))) return
+    setBusy(true); setMsg('')
+    try {
+      await saveNotes()
+      const r = await api.post<{ dry_run?: boolean; gated?: boolean; barsy_request_id?: number; lines?: number; sent_to?: string }>(
+        `/api/zayavki/zayavka/${z.id}/to-barsy`, { confirm: true, send: alsoSend, to: email })
+      if (r.gated) {
+        setMsg(`Barsy запис е изключен — НИЩО не е записано (проверка на ${r.lines || 0} реда мина успешно).`)
+      } else {
+        setMsg(`Заявка № ${r.barsy_request_id} в Barsy` + (r.sent_to ? ` · изпратена към ${r.sent_to}` : '') + ' ✓')
+        if (alsoSend) onSent()
+      }
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът в Barsy се провали.') } finally { setBusy(false) }
+  }
+
   const exportUrl = (fmt: string) => `/api/zayavki/zayavka/${z.id}/export?fmt=${fmt}`
 
   return (
@@ -465,6 +491,10 @@ function SendPanel({ z, pref, onSent }: { z: ZayavkaDetailResp; pref: ZayavkaSup
             мин. поръчка €<input className="input-paper" style={{ width: '5rem' }} inputMode="decimal" value={minOrder || ''} onChange={(e) => setMinOrder(Number(e.target.value) || 0)} onBlur={saveNotes} />
           </label>
           <button className="btn-paper btn-red" onClick={() => void sendEmail()} disabled={busy}>{busy ? 'изпраща…' : '✉ Изпрати по имейл'}</button>
+          <button className="btn-paper" onClick={() => void toBarsy(false)} disabled={busy}
+            title="Заявката става документ в Barsy (Заявки - доставчици)">⇪ Запиши в Barsy</button>
+          <button className="btn-paper" onClick={() => void toBarsy(true)} disabled={busy}
+            title="Barsy записва заявката и я изпраща със собствената си PDF заявка">⇪✉ Barsy + изпрати</button>
           <a className="btn-paper" href={exportUrl('xlsx')} download>⤓ Excel</a>
           <a className="btn-paper" href={exportUrl('csv')} download>⤓ CSV</a>
           <button className="btn-paper" onClick={() => window.print()}>🖨 PDF / печат</button>

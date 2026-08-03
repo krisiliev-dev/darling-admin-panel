@@ -11,6 +11,7 @@ Data foundation: supplier_codes.jsonl (product → supplier(s) with their code +
 the historical sales seed (units/revenue/margin) for the insight cards.
 """
 import csv
+import datetime as _dt
 import io
 import re
 from functools import lru_cache
@@ -25,14 +26,19 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import log_action
 from ..core import barsy, barsy_write_live
 from ..db import get_async_session
-from ..models import SupplierPref, User, Zayavka, ZayavkaLine
+from ..models import ProductCache, SupplierPref, User, Zayavka, ZayavkaLine
+from ..services import barsy_requests
 from ..services.product_seed import products as _products
 from ..services.supplier_catalog import supplier_catalog as _supplier_catalog
 from ..services.supplier_catalog import suppliers_for as _suppliers_for
 from ..services.text import norm as _norm
+from ..upstream import upstream
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/zayavki", tags=["zayavki"])
+
+_GATED_REQ = ("Barsy \u0437\u0430\u043f\u0438\u0441 \u0435 \u0438\u0437\u043a\u043b\u044e\u0447\u0435\u043d (BARSY_WRITE_LIVE=0) \u2014 \u0437\u0430\u044f\u0432\u043a\u0430\u0442\u0430 \u041d\u0415 \u0435 \u0437\u0430\u043f\u0438\u0441\u0430\u043d\u0430 \u0432 ERP. "
+              "\u041f\u043e-\u0434\u043e\u043b\u0443 \u0435 \u0442\u043e\u0447\u043d\u043e\u0442\u043e \u0442\u044f\u043b\u043e, \u043a\u043e\u0435\u0442\u043e \u0431\u0438 \u0431\u0438\u043b\u043e \u0438\u0437\u043f\u0440\u0430\u0442\u0435\u043d\u043e.")
 
 _PERIOD_MONTHS = 54   # the historical seed spans ~2021-11 → 2026-07
 
@@ -587,3 +593,116 @@ async def list_zayavki(user: User = Depends(current_active_user),
                     "total": total, "created_at": z.created_at.isoformat() if z.created_at else None,
                     "sent_at": z.sent_at.isoformat() if z.sent_at else None})
     return {"zayavki": out}
+
+
+# ------------------------------------------------------- push to Barsy (`requests` entity) ---
+class ToBarsyRequest(BaseModel):
+    expected_delivery_date: str = ""   # „Дата за доставка"; "" = непосочена
+    notes: str = ""
+    send: bool = False                 # also let BARSY email the supplier its own PDF
+    to: str = ""                       # recipient override; else the supplier's saved address
+    confirm: bool = False
+
+
+async def _request_rows(session: AsyncSession, lines: list[ZayavkaLine]) -> tuple[list[dict], list[str]]:
+    """Map заявка lines onto Barsy request rows via the article cache.
+
+    Returns (rows, unresolved_codes). A line whose code has no Barsy article CANNOT be ordered, and
+    a supplier order that silently drops lines is worse than no order at all — so the caller
+    refuses the whole push rather than sending a partial one.
+    """
+    codes = [ln.code for ln in lines if ln.code]
+    found: dict[str, ProductCache] = {}
+    if codes:
+        rows = (await session.execute(
+            select(ProductCache).where(ProductCache.code.in_(codes)))).scalars().all()
+        found = {p.code: p for p in rows}
+    out, missing = [], []
+    for ln in lines:
+        art = found.get(ln.code)
+        if art is None:
+            missing.append(ln.code or ln.name or "?")
+            continue
+        out.append(barsy_requests.row(
+            art.article_id, art.name or ln.name, ln.qty,
+            delivery_price=ln.delivery_price or "",
+            detail_notes=ln.supplier_code and f"дост. код {ln.supplier_code}" or ""))
+    return out, missing
+
+
+@router.post("/zayavka/{zid}/to-barsy")
+async def zayavka_to_barsy(zid: int, req: ToBarsyRequest,
+                           actor: User = Depends(current_active_user),
+                           session: AsyncSession = Depends(get_async_session)):
+    """Create (or update) this заявка in Barsy as a `requests` document, optionally letting Barsy
+    email the supplier its own „Заявка за доставка" PDF.
+
+    Fail-closed in three places, because this is an order for goods and money:
+      • no Barsy supplier id → refuse (an order to nobody is not an order);
+      • any line whose code has no Barsy article → refuse the WHOLE push and name the codes;
+      • the write gate off → return the exact body that WOULD be sent, write nothing.
+    Re-pushing updates the same Barsy request (barsy_request_id) instead of ordering twice.
+    """
+    z = await session.get(Zayavka, zid)
+    if not z:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
+    if not z.supplier_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Доставчикът не е свързан с Barsy — добави Barsy доставчик в неговите настройки.")
+    lines = await _lines(session, zid)
+    if not lines:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Заявката е празна.")
+    rows, missing = await _request_rows(session, lines)
+    if missing:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Тези артикули ги няма в Barsy, затова заявката НЕ е изпратена: "
+                            + ", ".join(missing[:20]) + ("…" if len(missing) > 20 else ""))
+
+    body = barsy_requests.build_body(
+        int(z.supplier_id), z.supplier or "", rows,
+        request_id=z.barsy_request_id,
+        expected_delivery_date=req.expected_delivery_date or None,
+        notes=req.notes or z.notes or "", user_name=actor.email or None)
+
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED_REQ,
+                "would_send": body, "lines": len(rows)}
+    if not req.confirm:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Записът в Barsy е реално действие — потвърди с confirm=true.")
+
+    with upstream("Barsy заявка"):
+        request_id = await run_in_threadpool(barsy_requests.save, body)
+    z.barsy_request_id = int(request_id)
+    await session.commit()
+    await log_action(session, actor, "zayavki.to_barsy", target=f"zayavka-{zid}",
+                     detail=f"request_id={request_id} lines={len(rows)}")
+
+    sent_to = ""
+    if req.send:
+        to = (req.to or z.supplier_email or "").strip()
+        if not to:
+            # the заявка IS in Barsy now — say what happened and what did not, rather than
+            # rolling back an ERP document over a missing email address
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                f"Заявката е записана в Barsy (№ {request_id}), но няма имейл на доставчика — "
+                                "не е изпратена.")
+        with upstream("Barsy изпращане"):
+            await run_in_threadpool(barsy_requests.open_send_dialog, int(request_id))
+            await run_in_threadpool(
+                lambda: barsy_requests.send(
+                    int(request_id), to=to,
+                    subject="Заявка N:$request_id$ от $company_name$",
+                    body_html="На вниманието на $supplier_name$<br><br>"
+                              "Моля, потвърдете наличност и срок по прикачената заявка.<br><br>"
+                              "Поздрави,<br>$company_name$<br>$company_tel$"))
+        sent_to = to
+        z.status = "sent"
+        z.sent_via = "barsy"
+        z.sent_at = _dt.datetime.now(_dt.UTC)
+        await session.commit()
+        await log_action(session, actor, "zayavki.barsy_send", target=f"zayavka-{zid}",
+                         detail=f"request_id={request_id} to={to}")
+
+    return {"ok": True, "barsy_request_id": int(request_id), "lines": len(rows),
+            "sent_to": sent_to, "status": z.status}

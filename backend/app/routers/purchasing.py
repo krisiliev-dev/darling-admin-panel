@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Доставки — supplier orders, BARSY-FIRST. Barsy is the system of record, so:
+"""Доставки — RECEIVING goods, BARSY-FIRST. Barsy is the system of record, so:
   • suppliers            → Suppliers_getlist
   • product picker       → Articles_getlist (fills as approved products push to Barsy)
-  • Заявка / поръчка      → a DRAFT storeload (Storeloads_create action_type='save')
+  • очаквана доставка     → a DRAFT storeload (Storeloads_create action_type='save')
   • получена доставка     → Storeloads_close (quantities enter stock)
   • reorder suggestions  → Store_amounts (below minimum)
-Nothing supplier/order-related is stored locally — only a panel audit entry (governance)."""
+Nothing supplier/order-related is stored locally — only a panel audit entry (governance).
+
+NOT the place for a ЗАЯВКА. This module used to call a draft storeload a „заявка", which conflated
+two different documents: a storeload is goods ARRIVING, a заявка is goods being ASKED FOR. Barsy has
+its own supplier-order entity (`requests`) with its own Нови → Изпратени → Заредени lifecycle — see
+docs/BARSY_ZAYAVKI_CONTRACT.md and app/services/barsy_requests.py. Заявки live in routers/zayavki.py."""
 import datetime
 from functools import lru_cache
 
