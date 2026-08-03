@@ -94,23 +94,54 @@ async def test_known_suppliers_endpoint(staff_client):
 
 
 @pytest.mark.asyncio
-async def test_suggestions_come_from_catalogue_and_vanish_once_added(
-        staff_client, make_draft, monkeypatch):
+async def test_catalogue_suppliers_are_auto_added_once(staff_client, make_draft, monkeypatch):
+    """A product with a known code gets its catalogue suppliers AS ROWS on first load — no
+    suggestion buttons (owner 2026-08-03). A deliberate removal is respected: rows exist, so
+    the next load does NOT re-add."""
     from app.services import supplier_catalog as sc
     monkeypatch.setattr(sc, "supplier_catalog", lambda: {"by_supplier": {}, "by_code": {
         "019060": {"Мира-Н": {"code": "019060", "ref": "HC-1", "name": "Bowl", "dprice": 1.0},
                    "Ин Хаус": {"code": "019060", "ref": "IH-2", "name": "Купа", "dprice": 2.0}}}})
 
     did = await make_draft(name="Купа", code="019060", status="editing")
-    sug = (await staff_client.get(f"/api/intake/drafts/{did}/suppliers")).json()["suggestions"]
-    assert {s["supplier"] for s in sug} == {"Мира-Н", "Ин Хаус"}
-    assert next(s for s in sug if s["supplier"] == "Мира-Н")["supplier_code"] == "HC-1"
-
-    await staff_client.post(f"/api/intake/drafts/{did}/suppliers", json={
-        "supplier": "Мира-Н", "supplier_code": "HC-1", "supplier_name": "Bowl"})
     out = (await staff_client.get(f"/api/intake/drafts/{did}/suppliers")).json()
-    assert {s["supplier"] for s in out["suggestions"]} == {"Ин Хаус"}
-    assert [s["supplier"] for s in out["suppliers"]] == ["Мира-Н"]
+    assert out["suggestions"] == []
+    assert {s["supplier"] for s in out["suppliers"]} == {"Мира-Н", "Ин Хаус"}
+    assert next(s for s in out["suppliers"] if s["supplier"] == "Мира-Н")["supplier_code"] == "HC-1"
+
+    rid = next(s for s in out["suppliers"] if s["supplier"] == "Ин Хаус")["id"]
+    assert (await staff_client.delete(f"/api/intake/drafts/{did}/suppliers/{rid}")).status_code == 200
+    again = (await staff_client.get(f"/api/intake/drafts/{did}/suppliers")).json()["suppliers"]
+    assert [s["supplier"] for s in again] == ["Мира-Н"]   # removal respected, not re-added
+
+
+@pytest.mark.asyncio
+async def test_get_single_draft(staff_client, make_draft):
+    did = await make_draft(name="Чаша", status="enriched", price="3.20")
+    r = await staff_client.get(f"/api/intake/drafts/{did}")
+    assert r.status_code == 200 and r.json()["name"] == "Чаша" and r.json()["status"] == "enriched"
+    assert (await staff_client.get("/api/intake/drafts/909090")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stash_saves_fields_without_approving(staff_client, make_draft):
+    """Stash = save current work, change NOTHING else: status stays, no Barsy write, no image
+    requirement (it exists so leaving the editor mid-work loses nothing)."""
+    did = await make_draft(name="Старо име", status="enriched")
+    body = {"code": "", "barcode": "", "price": "9.99", "unit": "бр", "name": "Ново име",
+            "category": "", "shopify_category_id": "", "brand": "Bursev", "series": "",
+            "description": "тест", "attributes": [], "meta_title": "", "meta_description": ""}
+    r = await staff_client.patch(f"/api/intake/drafts/{did}/stash", json=body)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["name"] == "Ново име" and out["price"] == "9.99" and out["status"] == "enriched"
+    assert out["completed"] is False
+
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        d.status = "pushed"
+        await s.commit()
+    assert (await staff_client.patch(f"/api/intake/drafts/{did}/stash", json=body)).status_code == 409
 
 
 _LIVE = SimpleNamespace(delivery_barsy_live=True, barsy_min_profit_percent=0.0,

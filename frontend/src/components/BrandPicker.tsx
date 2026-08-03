@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 
 import { api } from '../lib/api'
 
-export function BrandPicker({ value, onPick }: { value: string; onPick: (b: string) => void }) {
+export function BrandPicker({ value, onPick, onCreateNew }: {
+  value: string; onPick: (b: string) => void; onCreateNew?: (name: string) => void }) {
   const [q, setQ] = useState(value)
   const [open, setOpen] = useState(false)
   const [opts, setOpts] = useState<{ name: string }[]>([])
@@ -23,6 +24,7 @@ export function BrandPicker({ value, onPick }: { value: string; onPick: (b: stri
   const add = async () => {
     const name = q.trim()
     if (!name) return
+    if (onCreateNew) { setOpen(false); onCreateNew(name); return }   // editor: stash + brand page
     setAdding(true)
     try { await api.post('/api/brands', { name }); onPick(name); setOpen(false); setKnown(true) }
     catch { /* ignore */ } finally { setAdding(false) }

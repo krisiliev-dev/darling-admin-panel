@@ -49,6 +49,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="analytics" element={<Dashboard />} />
         <Route path="intake" element={<Intake />} />
+        <Route path="intake/:draftId" element={<Intake />} />
         <Route path="orders" element={<Orders />} />
         <Route path="carts" element={<Carts />} />
         <Route path="cod" element={<Cod />} />

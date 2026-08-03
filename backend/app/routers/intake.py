@@ -530,6 +530,50 @@ async def list_drafts(
     return {"drafts": [_row_to_out(d, counts.get(d.id, 0)) for d in rows]}
 
 
+@router.get("/drafts/{draft_id}")
+async def get_draft(draft_id: int, user: User = Depends(current_active_user),
+                    session: AsyncSession = Depends(get_async_session)):
+    """One draft by id — backs the /intake/:draftId page (deep links, refresh)."""
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    n = (await _image_counts(session, [draft_id])).get(draft_id, 0)
+    return _row_to_out(d, n)
+
+
+@router.patch("/drafts/{draft_id}/stash")
+async def stash_draft(draft_id: int, req: ApproveRequest,
+                      actor: User = Depends(current_active_user),
+                      session: AsyncSession = Depends(get_async_session)):
+    """Save the editor's CURRENT state without approving: fields update, status stays, nothing
+    goes to Barsy, no image requirement. Used when the user must leave the editor mid-work
+    (e.g. to create a missing brand) so nothing is lost."""
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    if d.status == "pushed":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Вече е създадена в Barsy.")
+    d.code = req.code.strip() or d.code
+    d.barcode = req.barcode.strip() or d.barcode
+    d.price = req.price.strip()
+    d.unit = req.unit or "бр"
+    d.name = req.name.strip()
+    d.category = req.category
+    d.shopify_category_id = req.shopify_category_id.strip()
+    d.brand = req.brand.strip()
+    d.series = req.series.strip()
+    d.description = req.description
+    d.attributes_json = json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False)
+    d.meta_title = req.meta_title.strip()
+    d.meta_description = req.meta_description.strip()
+    d.oversell = bool(req.oversell)
+    d.weight_kg = req.weight_kg.strip()
+    await session.commit()
+    await session.refresh(d)
+    n = (await _image_counts(session, [draft_id])).get(draft_id, 0)
+    return _row_to_out(d, n)
+
+
 @router.get("/from-delivery")
 async def from_delivery(
     user: User = Depends(current_active_user),
@@ -716,17 +760,22 @@ async def list_suppliers(draft_id: int, actor: User = Depends(current_active_use
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
     rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == draft_id)
                                   .order_by(DraftSupplier.id))).scalars().all()
-    have = {r.supplier.strip().lower() for r in rows}
-    suggestions = []
-    if d.code:
+    # AUTO-ADD (owner 2026-08-03): when a product came from Microinvest/the catalogue, its
+    # supplier should simply BE in the table — no suggestion buttons. Materialize once, only
+    # when the draft has no rows yet, so a deliberate removal by staff stays removed... within
+    # one editing session (rows exist -> we never re-add).
+    if not rows and d.code:
         from ..services.supplier_catalog import suppliers_for
         for sup, info in suppliers_for(d.code).items():
-            if sup.strip().lower() not in have:
-                suggestions.append({"supplier": sup, "supplier_code": str(info.get("ref") or ""),
-                                    "supplier_name": info.get("name") or ""})
+            session.add(DraftSupplier(draft_id=draft_id, supplier=sup,
+                                      supplier_code=str(info.get("ref") or ""),
+                                      supplier_name=info.get("name") or ""))
+        await session.commit()
+        rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == draft_id)
+                                      .order_by(DraftSupplier.id))).scalars().all()
     return {"suppliers": [{"id": r.id, "supplier": r.supplier, "supplier_code": r.supplier_code,
                            "supplier_name": r.supplier_name} for r in rows],
-            "suggestions": suggestions}
+            "suggestions": []}
 
 
 @router.post("/drafts/{draft_id}/suppliers", status_code=status.HTTP_201_CREATED)

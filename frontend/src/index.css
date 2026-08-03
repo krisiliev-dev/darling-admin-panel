@@ -19,7 +19,8 @@
   --shadow:0 1px 1px rgba(0,0,0,.12),0 10px 24px rgba(30,22,10,.22);
   --type:"Courier New",Courier,monospace;
   --serif:Georgia,"Times New Roman",serif;
-  --hand:"Segoe Print","Bradley Hand","Comic Sans MS",cursive;
+  --hand:"Nunito","Segoe UI",system-ui,sans-serif; /* practicality > creativity: no cursive anywhere (owner 2026-08-03) */
+  --field:#ffffff;
 }
 @media (prefers-color-scheme:dark) {
   :root {
@@ -28,6 +29,7 @@
     --ink:#ece7db; --pencil:#b0a893; --pencil2:#847d6f;
     --red:#e0655c; --red-ink:#e26b62;
     --sticky:#b6a850; --sticky-edge:#9c8f3f;
+    --field:#2f2f2f;
     --tape:rgba(120,116,100,.32); --clip:#6d7278;
     --line:#454239; --rule:#3d4650;
     --ready:#5fbf85; --blocked:#e0655c; --pending:#d3b24e;
@@ -163,7 +165,7 @@ h1, h2, h3, .display { font-family: var(--type); font-weight: 700; letter-spacin
 .btn-red { background: var(--red); color: #fff; border-color: var(--red); }
 .btn-red:hover { color: #fff; filter: brightness(1.06); }
 .input-paper {
-  font-family: var(--type); background: var(--paper2); color: var(--ink);
+  font-family: var(--type); background: var(--field, #fff); color: var(--ink);
   border: 1px solid var(--line); border-radius: 2px; padding: .55rem .7rem; width: 100%;
 }
 .input-paper:focus { outline: 2px solid var(--red); outline-offset: 1px; }

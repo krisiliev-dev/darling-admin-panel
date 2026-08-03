@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import type { IntakeDraft, IntakeAttribute, DeliveryContext, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -15,21 +16,43 @@ import { useConfirm } from '../components/Confirm'
 const UNITS = ['бр', 'л', 'кг', 'м', 'м2', 'компл']
 
 export function Intake() {
-  const [editDraft, setEditDraft] = useState<IntakeDraft | null>(null)
+  const { draftId } = useParams()
+  const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const bump = () => setRefresh((n) => n + 1)
 
+  const openDraft = (d: IntakeDraft) => navigate(`/intake/${d.id}`, { state: { draft: d } })
   const addProduct = async () => {
     setAdding(true)
-    try { setEditDraft(await api.post<IntakeDraft>('/api/intake/drafts/blank', {})) }
+    try { openDraft(await api.post<IntakeDraft>('/api/intake/drafts/blank', {})) }
     catch { /* ignore */ } finally { setAdding(false) }
   }
 
-  if (editDraft) return <ProductEditorScreen draft={editDraft}
-    onBack={() => setEditDraft(null)} onDone={() => { setEditDraft(null); bump() }} />
-  return <WaitingList key={refresh} refreshKey={refresh} onEdit={setEditDraft}
+  if (draftId) return <ProductEditorRoute draftId={draftId}
+    onBack={() => { navigate('/intake'); bump() }} />
+  return <WaitingList key={refresh} refreshKey={refresh} onEdit={openDraft}
     onAdd={() => void addProduct()} adding={adding} />
+}
+
+// Loads the draft for /intake/:draftId — instantly from router state when we navigated here,
+// else by id (deep link / refresh).
+function ProductEditorRoute({ draftId, onBack }: { draftId: string; onBack: () => void }) {
+  const location = useLocation()
+  const fromState = (location.state as { draft?: IntakeDraft } | null)?.draft
+  const [draft, setDraft] = useState<IntakeDraft | null>(
+    fromState && String(fromState.id) === draftId ? fromState : null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    if (draft && String(draft.id) === draftId) return
+    setDraft(null)
+    api.get<IntakeDraft>(`/api/intake/drafts/${draftId}`)
+      .then(setDraft).catch(() => setErr('Продуктът не е намерен.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftId])
+  if (err) return <p style={{ color: 'var(--red)' }}>{err}</p>
+  if (!draft) return <Loading />
+  return <ProductEditorScreen draft={draft} onBack={onBack} onDone={onBack} />
 }
 
 // MAIN VIEW: delivery-sourced products grouped by delivery (checkmarked once done) + a manual add.
@@ -204,27 +227,43 @@ function ProductEditor({ draft, onDone, onCancel }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.shopify_category_id, d.brand, JSON.stringify(attrs), capacity, dimensions, touched.name])
 
+  const navigate2 = useNavigate()
+  const buildBody = () => {
+    const sizeAttrs = schema.filter((a) => isSizeAttr(a.name))
+    const sizeValue = (name: string) => [wantsDim(name) ? dimensions.trim() : '', wantsVolume(name) ? capacity.trim() : ''].filter(Boolean).join(', ')
+    const sizeRows = (sizeAttrs.length
+      ? sizeAttrs.map((a) => ({ key: a.name, value: sizeValue(a.name) }))
+      : [{ key: 'Размери', value: dimensions.trim() }, { key: 'Вместимост', value: capacity.trim() }]
+    ).filter((r) => r.value)
+    const sized = [...attrs.filter((a) => a.key.trim() && !isSizeAttr(a.key)), ...sizeRows]
+    return {
+      code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
+      name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
+      brand: d.brand || '', series: d.series || '', description: d.description || '', attributes: sized,
+      meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
+      oversell: !!d.oversell, weight_kg: d.weight_kg || '',
+    }
+  }
+  // create a missing brand: STASH the current work first (fields saved, status unchanged),
+  // then create it in the registry and go straight to its dedicated page.
+  const createBrandAndGo = async (name: string) => {
+    setBusy(true); setError('')
+    try {
+      await api.patch(`/api/intake/drafts/${draft.id}/stash`, buildBody())
+      const slug = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9\u0430-\u044f]/g, '')
+      const r = await api.post<{ id: string }>('/api/brands-v2', { id: slug, canonical: name })
+      navigate2(`/marki-v2/${encodeURIComponent(r.id)}`)
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Създаването на марката се провали.') }
+    finally { setBusy(false) }
+  }
+
   const save = async () => {
     if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
     setBusy(true); setError(''); setNote('')
     try {
-      // write the standardized size back into the leaf's size/volume attribute(s) (e.g. "Размер/Обем"),
-      // so there's no duplicate raw box; fall back to Размери/Вместимост when the leaf has none.
-      const sizeAttrs = schema.filter((a) => isSizeAttr(a.name))
-      const sizeValue = (name: string) => [wantsDim(name) ? dimensions.trim() : '', wantsVolume(name) ? capacity.trim() : ''].filter(Boolean).join(', ')
-      const sizeRows = (sizeAttrs.length
-        ? sizeAttrs.map((a) => ({ key: a.name, value: sizeValue(a.name) }))
-        : [{ key: 'Размери', value: dimensions.trim() }, { key: 'Вместимост', value: capacity.trim() }]
-      ).filter((r) => r.value)
-      const sized = [...attrs.filter((a) => a.key.trim() && !isSizeAttr(a.key)), ...sizeRows]
       const r = await api.put<{ barsy?: { live: boolean; created: boolean; note?: string; error?: string; delivery?: { sent: boolean } } }>(
-        `/api/intake/drafts/${draft.id}`, {
-          code: d.code, barcode: d.barcode || '', price: d.price || '', unit: d.unit || 'бр',
-          name: d.name, category: d.category || '', shopify_category_id: d.shopify_category_id || '',
-          brand: d.brand || '', series: d.series || '', description: d.description || '', attributes: sized,
-          meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
-          oversell: !!d.oversell, weight_kg: d.weight_kg || '',
-        })
+        `/api/intake/drafts/${draft.id}`, buildBody())
       const b = r.barsy
       if (b && !b.live) setNote(b.note || 'Записано (проба).')
       else if (b?.error) { setError(`Barsy: ${b.error}`); setBusy(false); return }
@@ -271,7 +310,8 @@ function ProductEditor({ draft, onDone, onCancel }: {
           </Field>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
             <Field label="Марка">
-              <BrandPicker value={d.brand || ''} onPick={(b) => setD({ ...d, brand: b })} />
+              <BrandPicker value={d.brand || ''} onPick={(b) => setD({ ...d, brand: b })}
+                onCreateNew={(name) => void createBrandAndGo(name)} />
             </Field>
             <Field label="Серия">
               <input className="input-paper" style={{ width: '9rem' }} value={d.series || ''}
@@ -289,7 +329,6 @@ function ProductEditor({ draft, onDone, onCancel }: {
                 {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </Field>
-            {d.code && <span className="pencil" style={{ fontSize: '.72rem', paddingBottom: '.3rem' }}>код {d.code}</span>}
           </div>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
             <Field label="Баркод (GS1)">
@@ -377,13 +416,12 @@ function SupplierTable({ draftId }: { draftId: number }) {
   type SupRow = { id: number; supplier: string; supplier_code: string; supplier_name: string }
   type SupSug = { supplier: string; supplier_code: string; supplier_name: string }
   const [rows, setRows] = useState<SupRow[]>([])
-  const [sugs, setSugs] = useState<SupSug[]>([])
   const [known, setKnown] = useState<string[]>([])
   const [nsup, setNsup] = useState('')
   const [ncode, setNcode] = useState('')
   const [nname, setNname] = useState('')
   const load = () => api.get<{ suppliers: SupRow[]; suggestions: SupSug[] }>(`/api/intake/drafts/${draftId}/suppliers`)
-    .then((r) => { setRows(Array.isArray(r.suppliers) ? r.suppliers : []); setSugs(Array.isArray(r.suggestions) ? r.suggestions : []) }).catch(() => { /* endpoint pre-deploy */ })
+    .then((r) => setRows(Array.isArray(r.suppliers) ? r.suppliers : [])).catch(() => { /* endpoint pre-deploy */ })
   useEffect(() => { void load() }, [draftId])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api.get<{ suppliers: string[] }>('/api/intake/suppliers/known')
     .then((r) => setKnown(Array.isArray(r.suppliers) ? r.suppliers : [])).catch(() => setKnown([])) }, [])
@@ -432,15 +470,6 @@ function SupplierTable({ draftId }: { draftId: number }) {
           </tr>
         </tbody>
       </table>
-      {sugs.length > 0 && (
-        <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.35rem', alignItems: 'center' }}>
-          <span className="pencil" style={{ fontSize: '.72rem' }}>Известни доставчици на този код:</span>
-          {sugs.map((g) => (
-            <button key={g.supplier} className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => void add(g)}>
-              + {g.supplier}{g.supplier_code ? ` (${g.supplier_code})` : ''}</button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -569,9 +598,16 @@ function TaxonomyPicker({ value, categoryId, onPick }: {
   }, [q, open])
   return (
     <div style={{ position: 'relative' }}>
-      <input className="input-paper" placeholder={value || 'търси категория…'} value={open ? q : value}
-        onFocus={() => { setOpen(true); setQ('') }} onChange={(e) => setQ(e.target.value)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {open ? (
+        <input autoFocus className="input-paper" placeholder="търси категория…" value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      ) : (
+        <button type="button" className="input-paper" onClick={() => { setOpen(true); setQ('') }}
+          style={{ textAlign: 'left', whiteSpace: 'normal', lineHeight: 1.4, cursor: 'pointer', color: value ? 'var(--ink)' : 'var(--pencil)' }}>
+          {value || 'търси категория…'}
+        </button>
+      )}
       {open && (
         <div style={{ position: 'absolute', zIndex: 10, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 3, maxHeight: '14rem', overflowY: 'auto', width: '100%', boxShadow: '2px 3px 7px rgba(0,0,0,.14)' }}>
           {!available && <div className="pencil" style={{ padding: '.4rem .5rem', fontSize: '.74rem' }}>таксономията не е налична на сървъра</div>}
@@ -583,69 +619,40 @@ function TaxonomyPicker({ value, categoryId, onPick }: {
           ))}
         </div>
       )}
-      {categoryId && <span className="pencil" style={{ fontSize: '.7rem' }}>Shopify id: {categoryId}</span>}
     </div>
   )
 }
 
 // -------------------------------------------------------------- standalone approved products ---
 function ApprovedDrafts({ refreshKey, onEdit }: { refreshKey: number; onEdit: (d: IntakeDraft) => void }) {
-  const { me } = useAuth()
   const [drafts, setDrafts] = useState<IntakeDraft[] | null>(null)
-  const [busy, setBusy] = useState<number | null>(null)
-  const [msg, setMsg] = useState('')
-  const confirm = useConfirm()
-
   const load = () => api.get<{ drafts: IntakeDraft[] }>('/api/intake/drafts')
     .then((d) => setDrafts(d.drafts)).catch(() => setDrafts([]))
   useEffect(() => { void load() }, [refreshKey])
 
-  const push = async (d: IntakeDraft) => {
-    if (d.id == null) return
-    if (!(await confirm({ danger: true, confirmLabel: 'Създай в Barsy', message: `Създаване на „${d.name}“ (код ${d.code}) в Barsy? Това е реален запис в ERP.` }))) return
-    setBusy(d.id); setMsg('')
-    try {
-      const r = await api.post<{ barsy_article_id: number }>(`/api/intake/drafts/${d.id}/push-barsy`, { confirm: true })
-      setMsg(`„${d.name}“ създадена в Barsy (article_id ${r.barsy_article_id}).`)
-      await load()
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : 'Създаването се провали.')
-    } finally { setBusy(null) }
-  }
-
   if (!drafts || drafts.length === 0) return null
-  const isOwner = me?.role === 'owner'
 
   return (
     <Sheet>
       <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Продукти, чакащи одобрение</h3>
-      {msg && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--ink)', marginBottom: '.5rem' }}>{msg}</div>}
       <div style={{ display: 'grid', gap: '.4rem' }}>
-        {drafts.map((d) => {
-          const pushed = d.status === 'pushed'
-          return (
-            <div key={d.id} style={{
-              display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.7rem', alignItems: 'center',
-              border: '1px solid var(--line)', borderRadius: 2, padding: '.5rem .7rem', background: 'var(--paper2)',
-            }}>
-              <button onClick={() => onEdit(d)} style={{ textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-                <span className="font-type" style={{ fontWeight: 700 }}>{d.name || '(без име)'}</span>
-                <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}>
-                  {' '}· код {d.code || '—'} · {d.price ? d.price + ' €' : 'без цена'} · {d.category?.split('>').pop()?.trim()}
-                </span>
-              </button>
-              <span className="font-type" style={{ fontSize: '.7rem', color: pushed ? 'var(--ready)' : 'var(--pending)' }}>
-                {pushed ? `в Barsy #${d.barsy_article_id}` : d.status === 'enriched' ? 'попълнен от AI · чака одобрение' : 'чака'}
+        {drafts.map((d) => (
+          <button key={d.id} onClick={() => onEdit(d)} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.7rem',
+            textAlign: 'left', border: '1px solid var(--line)', borderRadius: 2,
+            padding: '.5rem .7rem', background: 'var(--paper2)', cursor: 'pointer',
+          }}>
+            <span>
+              <span className="font-type" style={{ fontWeight: 700 }}>{d.name || '(без име)'}</span>
+              <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}>
+                {' '}· {d.price ? d.price + ' €' : 'без цена'} · {d.category?.split('>').pop()?.trim() || 'без категория'}
               </span>
-              {isOwner && !pushed && (
-                <button className="btn-paper" disabled={busy === d.id || !d.code}
-                  title={!d.code ? 'нужен е код' : ''} onClick={() => void push(d)}>
-                  {busy === d.id ? 'създава…' : 'Създай в Barsy'}
-                </button>
-              )}
-            </div>
-          )
-        })}
+            </span>
+            <span style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.78rem', whiteSpace: 'nowrap' }}>
+              {d.status === 'pushed' ? 'в Barsy' : 'прегледай →'}
+            </span>
+          </button>
+        ))}
       </div>
     </Sheet>
   )

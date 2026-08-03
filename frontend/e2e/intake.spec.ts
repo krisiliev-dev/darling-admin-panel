@@ -17,6 +17,8 @@ async function openEditor(page: import('@playwright/test').Page) {
     '/api/intake/from-delivery': { drafts: [] },
     '/api/intake/drafts/blank': BLANK_DRAFT,
     '/api/intake/drafts/1/images': { images: [] },
+    '/api/intake/drafts/1/suppliers': { suppliers: [], suggestions: [] },
+    '/api/intake/drafts/1': BLANK_DRAFT,
     '/api/intake/drafts': { drafts: [] },
   })
   await page.goto('/intake')
