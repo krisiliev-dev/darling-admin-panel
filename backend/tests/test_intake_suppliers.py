@@ -14,6 +14,16 @@ from app.db import async_session_maker
 from app.models import IntakeDraft
 
 
+@pytest.fixture(autouse=True)
+def _known_suppliers(monkeypatch):
+    """The supplier field restricts to actual suppliers — give the suite a fixed known set so it
+    doesn't depend on the bundled supplier_codes.jsonl. (Tests needing other data patch on top.)"""
+    from app.services import supplier_catalog as sc
+    monkeypatch.setattr(sc, "supplier_catalog",
+                        lambda: {"by_supplier": {"Мира-Н": [], "Анис": [], "Ин Хаус": []},
+                                 "by_code": {}})
+
+
 async def _set_status(draft_id: int, status: str) -> None:
     async with async_session_maker() as s:
         d = await s.get(IntakeDraft, draft_id)
@@ -61,6 +71,26 @@ async def test_supplier_input_guards(staff_client, make_draft):
                                 json={"supplier": "   "})
     assert r.status_code == 400
     assert (await staff_client.get("/api/intake/drafts/424242/suppliers")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_supplier_must_be_a_known_supplier(staff_client, make_draft):
+    """Free-typed / unknown suppliers are refused — only actual suppliers we have."""
+    did = await make_draft(name="Y", status="editing")
+    r = await staff_client.post(f"/api/intake/drafts/{did}/suppliers",
+                                json={"supplier": "Няма такъв доставчик ООД"})
+    assert r.status_code == 400
+    ok = await staff_client.post(f"/api/intake/drafts/{did}/suppliers",
+                                 json={"supplier": "Анис"})
+    assert ok.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_known_suppliers_endpoint(staff_client):
+    r = await staff_client.get("/api/intake/suppliers/known")
+    assert r.status_code == 200
+    names = r.json()["suppliers"]
+    assert "Анис" in names and "Мира-Н" in names
 
 
 @pytest.mark.asyncio

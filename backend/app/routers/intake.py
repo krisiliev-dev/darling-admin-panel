@@ -695,6 +695,16 @@ class SupplierRowIn(BaseModel):
     supplier_name: str = ""
 
 
+@router.get("/suppliers/known")
+def known_suppliers(user=Depends(current_active_user)):
+    """The suppliers we actually have — the supplier field must restrict to these, not free text.
+    Sourced from the supplier catalogue (supplier_codes.jsonl)."""
+    from ..services.supplier_catalog import supplier_catalog
+    names = sorted((supplier_catalog().get("by_supplier") or {}).keys(),
+                   key=lambda s: s.lower())
+    return {"suppliers": names}
+
+
 @router.get("/drafts/{draft_id}/suppliers")
 async def list_suppliers(draft_id: int, actor: User = Depends(current_active_user),
                          session: AsyncSession = Depends(get_async_session)):
@@ -728,6 +738,12 @@ async def add_supplier(draft_id: int, req: SupplierRowIn,
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
     if not req.supplier.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дай име на доставчика.")
+    # only ACTUAL suppliers we have — the field must not accept free-typed names (owner rule)
+    from ..services.supplier_catalog import supplier_catalog
+    known = {s.strip().lower() for s in (supplier_catalog().get("by_supplier") or {})}
+    if known and req.supplier.strip().lower() not in known:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Изберете съществуващ доставчик от списъка.")
     existing = (await session.execute(select(DraftSupplier).where(
         DraftSupplier.draft_id == draft_id))).scalars().all()
     want = req.supplier.strip().lower()                  # Python fold — SQLite LOWER is ASCII-only

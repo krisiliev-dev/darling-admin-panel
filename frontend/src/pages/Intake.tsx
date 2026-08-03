@@ -378,12 +378,15 @@ function SupplierTable({ draftId }: { draftId: number }) {
   type SupSug = { supplier: string; supplier_code: string; supplier_name: string }
   const [rows, setRows] = useState<SupRow[]>([])
   const [sugs, setSugs] = useState<SupSug[]>([])
+  const [known, setKnown] = useState<string[]>([])
   const [nsup, setNsup] = useState('')
   const [ncode, setNcode] = useState('')
   const [nname, setNname] = useState('')
   const load = () => api.get<{ suppliers: SupRow[]; suggestions: SupSug[] }>(`/api/intake/drafts/${draftId}/suppliers`)
     .then((r) => { setRows(Array.isArray(r.suppliers) ? r.suppliers : []); setSugs(Array.isArray(r.suggestions) ? r.suggestions : []) }).catch(() => { /* endpoint pre-deploy */ })
   useEffect(() => { void load() }, [draftId])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { api.get<{ suppliers: string[] }>('/api/intake/suppliers/known')
+    .then((r) => setKnown(Array.isArray(r.suppliers) ? r.suppliers : [])).catch(() => setKnown([])) }, [])
   const add = async (row: SupSug) => {
     if (!row.supplier.trim()) return
     try { await api.post(`/api/intake/drafts/${draftId}/suppliers`, row); setNsup(''); setNcode(''); setNname(''); await load() }
@@ -414,7 +417,12 @@ function SupplierTable({ draftId }: { draftId: number }) {
             </tr>
           ))}
           <tr style={{ borderTop: '1px solid var(--line)' }}>
-            <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="доставчик" value={nsup} onChange={(e) => setNsup(e.target.value)} /></td>
+            <td style={{ padding: '.25rem .3rem' }}>
+              <select className="input-paper" value={nsup} onChange={(e) => setNsup(e.target.value)}>
+                <option value="">избери доставчик…</option>
+                {known.map((sn) => <option key={sn} value={sn}>{sn}</option>)}
+              </select>
+            </td>
             <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="код" value={ncode} onChange={(e) => setNcode(e.target.value)} /></td>
             <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="име при доставчика" value={nname} onChange={(e) => setNname(e.target.value)} /></td>
             <td style={{ padding: '.25rem .3rem', textAlign: 'right' }}>
