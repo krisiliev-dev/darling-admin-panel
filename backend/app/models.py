@@ -100,6 +100,22 @@ class DraftImage(Base):
         DateTime(timezone=True), server_default=func.now())
 
 
+class DraftSupplier(Base):
+    """A supplier row on an intake draft: who supplies this product, under what code of THEIRS,
+    and what THEY call it. A product can have several suppliers; staff can add/remove/edit rows.
+    On Barsy create the first row with a code becomes ref_num and differing supplier names become
+    search aliases (same traceability the delivery path always had)."""
+    __tablename__ = "draft_suppliers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    draft_id: Mapped[int] = mapped_column(index=True)
+    supplier: Mapped[str] = mapped_column(String(255), default="")        # supplier display name
+    supplier_code: Mapped[str] = mapped_column(String(128), default="")   # THEIR article code
+    supplier_name: Mapped[str] = mapped_column(String(255), default="")   # THEIR product name
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+
 class DeliveryBatch(Base):
     """A goods-in delivery being received (Доставки page). Panel-owned staging (admin.db): staff
     upload the supplier sheet, scan-confirm quantities, add any new products, then FINALISE — which

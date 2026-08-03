@@ -26,7 +26,7 @@ from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
-from ..models import DeliveryBatch, DeliveryLine, DraftImage, IntakeDraft, NameRecipe, User
+from ..models import DeliveryBatch, DeliveryLine, DraftImage, DraftSupplier, IntakeDraft, NameRecipe, User
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
@@ -429,11 +429,16 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     # delivery-sourced products carry supplier traceability from their delivery line: the supplier's
     # own catalogue code → ref_num, and their raw row name → a search alias (POS/search). ref_num is
     # safe on update; article_aliases is create-only (re-sending an attached synonym 501s in Barsy).
+    sup_fields = await _supplier_fields(session, d, is_create)   # supplier table on the draft
+    art_body["article"].update(sup_fields)
     dline = await session.get(DeliveryLine, d.delivery_line_id) if d.delivery_line_id else None
     if dline and dline.supplier_code:
-        art_body["article"]["ref_num"] = dline.supplier_code
+        art_body["article"]["ref_num"] = dline.supplier_code      # delivery line outranks the table
     if is_create and dline and dline.name.strip() and dline.name.strip() != (d.name or "").strip():
-        art_body["article"]["article_aliases"] = [dline.name.strip()]
+        aliases = art_body["article"].get("article_aliases") or []
+        if dline.name.strip() not in aliases:
+            aliases.insert(0, dline.name.strip())
+        art_body["article"]["article_aliases"] = aliases
     if d.barsy_article_id and d.barsy_article_id > 0:        # re-edit → update + upload any new images
         try:
             await run_in_threadpool(barsy.call, "Articles_update",
@@ -679,6 +684,101 @@ async def delete_image(draft_id: int, image_id: int, actor: User = Depends(curre
     return {"ok": True, "image_count": n}
 
 
+# ------------------------------------------------------------------ product suppliers ---
+class SupplierRowIn(BaseModel):
+    supplier: str
+    supplier_code: str = ""
+    supplier_name: str = ""
+
+
+@router.get("/drafts/{draft_id}/suppliers")
+async def list_suppliers(draft_id: int, actor: User = Depends(current_active_user),
+                         session: AsyncSession = Depends(get_async_session)):
+    """The draft's supplier rows + one-click SUGGESTIONS from the supplier catalogue (matched by
+    our product code, minus suppliers already on the draft). Suggestions are never auto-added —
+    the human clicks them in, so the table stays an explicit statement, not an inferred one."""
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == draft_id)
+                                  .order_by(DraftSupplier.id))).scalars().all()
+    have = {r.supplier.strip().lower() for r in rows}
+    suggestions = []
+    if d.code:
+        from ..services.supplier_catalog import suppliers_for
+        for sup, info in suppliers_for(d.code).items():
+            if sup.strip().lower() not in have:
+                suggestions.append({"supplier": sup, "supplier_code": str(info.get("ref") or ""),
+                                    "supplier_name": info.get("name") or ""})
+    return {"suppliers": [{"id": r.id, "supplier": r.supplier, "supplier_code": r.supplier_code,
+                           "supplier_name": r.supplier_name} for r in rows],
+            "suggestions": suggestions}
+
+
+@router.post("/drafts/{draft_id}/suppliers", status_code=status.HTTP_201_CREATED)
+async def add_supplier(draft_id: int, req: SupplierRowIn,
+                       actor: User = Depends(current_active_user),
+                       session: AsyncSession = Depends(get_async_session)):
+    d = await session.get(IntakeDraft, draft_id)
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Черновата не е намерена.")
+    if not req.supplier.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дай име на доставчика.")
+    existing = (await session.execute(select(DraftSupplier).where(
+        DraftSupplier.draft_id == draft_id))).scalars().all()
+    want = req.supplier.strip().lower()                  # Python fold — SQLite LOWER is ASCII-only
+    dup = next((r for r in existing if r.supplier.strip().lower() == want), None)
+    if dup:                                   # same supplier again = edit, not a second row
+        dup.supplier_code = req.supplier_code.strip()
+        dup.supplier_name = req.supplier_name.strip()
+        await session.commit()
+        return {"id": dup.id, "supplier": dup.supplier, "supplier_code": dup.supplier_code,
+                "supplier_name": dup.supplier_name, "updated": True}
+    r = DraftSupplier(draft_id=draft_id, supplier=req.supplier.strip(),
+                      supplier_code=req.supplier_code.strip(),
+                      supplier_name=req.supplier_name.strip())
+    session.add(r)
+    await session.commit()
+    await session.refresh(r)
+    return {"id": r.id, "supplier": r.supplier, "supplier_code": r.supplier_code,
+            "supplier_name": r.supplier_name, "updated": False}
+
+
+@router.delete("/drafts/{draft_id}/suppliers/{row_id}")
+async def delete_supplier(draft_id: int, row_id: int,
+                          actor: User = Depends(current_active_user),
+                          session: AsyncSession = Depends(get_async_session)):
+    r = await session.get(DraftSupplier, row_id)
+    if not r or r.draft_id != draft_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Няма такъв ред.")
+    await session.delete(r)
+    await session.commit()
+    return {"ok": True}
+
+
+async def _supplier_fields(session: AsyncSession, d: IntakeDraft, is_create: bool) -> dict:
+    """Barsy article fields derived from the draft's supplier rows: ref_num from the FIRST row
+    with a code, and (create-only) each differing supplier product-name as a search alias.
+    Returns {} when there are no rows — callers keep their existing delivery-line fallback."""
+    rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == d.id)
+                                  .order_by(DraftSupplier.id))).scalars().all()
+    out: dict = {}
+    for r in rows:
+        if r.supplier_code.strip():
+            out["ref_num"] = r.supplier_code.strip()
+            break
+    if is_create:
+        own = (d.name or "").strip().lower()
+        aliases = []
+        for r in rows:
+            nm = (r.supplier_name or "").strip()
+            if nm and nm.lower() != own and nm not in aliases:
+                aliases.append(nm)
+        if aliases:
+            out["article_aliases"] = aliases
+    return out
+
+
 def _build_barsy_article(d: IntakeDraft) -> dict:
     """Map an approved draft to a Barsy Articles_create body (verified contract). The article `code`
     (our SKU) is assigned BY BARSY on create — we omit it so Barsy generates it and returns it. A code
@@ -800,6 +900,7 @@ async def push_to_barsy(
     # product created from Нов продукт lands in Barsy uncategorised and without the POS below-cost
     # floor, while the identical product created via a delivery gets both.
     art_body = _build_barsy_article(d)
+    art_body["article"].update(await _supplier_fields(session, d, is_create=not d.barsy_article_id))
     cat_id = await run_in_threadpool(_resolve_cat_id, d.shopify_category_id)
     if cat_id:
         art_body["article"]["cat_id"] = cat_id

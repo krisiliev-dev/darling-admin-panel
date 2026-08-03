@@ -102,7 +102,7 @@ function WaitingList({ onEdit, onAdd, adding, refreshKey }: {
           </Sheet>
         )
       })}
-      <ApprovedDrafts refreshKey={refreshKey} />
+      <ApprovedDrafts refreshKey={refreshKey} onEdit={onEdit} />
     </div>
   )
 }
@@ -133,7 +133,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [images, setImages] = useState<DraftImageMeta[]>([])
-  const [enriched, setEnriched] = useState<boolean>(!!draft.completed)
+  const [enriched, setEnriched] = useState<boolean>(!!draft.completed || draft.status === 'enriched')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   // size is split into H×W×D + volume; parse any previously-saved values back into the boxes
   const initSize = (k: string) => (draft.attributes || []).find((a) => a.key === k)?.value || ''
@@ -343,16 +343,86 @@ function ProductEditor({ draft, onDone, onCancel }: {
         </span>
       </div>
 
+      {draft.id != null && <SupplierTable draftId={draft.id} />}
+
       {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
       {note && <div style={{ color: 'var(--ready)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{note}</div>}
       <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy || images.length === 0}>Запази</button>
+        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy || images.length === 0}>
+          {draft.status === 'enriched' ? 'Добави продукт' : 'Запази'}</button>
         <button className="btn-paper" onClick={onCancel}>Отказ</button>
       </div>
       <p className="pencil" style={{ fontSize: '.76rem', margin: 0 }}>
         Запис създава продукта в Barsy и качва снимките. Цялата доставка се изпраща наведнъж, щом всичките ѝ
         нови продукти са създадени.
       </p>
+    </div>
+  )
+}
+
+// Suppliers of THIS product: who stocks it, under what code of theirs, what they call it.
+// Rows are explicit statements (add/remove by staff); suggestions come from the supplier
+// catalogue by our product code and are added only by click.
+function SupplierTable({ draftId }: { draftId: number }) {
+  type SupRow = { id: number; supplier: string; supplier_code: string; supplier_name: string }
+  type SupSug = { supplier: string; supplier_code: string; supplier_name: string }
+  const [rows, setRows] = useState<SupRow[]>([])
+  const [sugs, setSugs] = useState<SupSug[]>([])
+  const [nsup, setNsup] = useState('')
+  const [ncode, setNcode] = useState('')
+  const [nname, setNname] = useState('')
+  const load = () => api.get<{ suppliers: SupRow[]; suggestions: SupSug[] }>(`/api/intake/drafts/${draftId}/suppliers`)
+    .then((r) => { setRows(r.suppliers); setSugs(r.suggestions) }).catch(() => { /* endpoint pre-deploy */ })
+  useEffect(() => { void load() }, [draftId])   // eslint-disable-line react-hooks/exhaustive-deps
+  const add = async (row: SupSug) => {
+    if (!row.supplier.trim()) return
+    try { await api.post(`/api/intake/drafts/${draftId}/suppliers`, row); setNsup(''); setNcode(''); setNname(''); await load() }
+    catch { /* keep inputs so nothing is lost */ }
+  }
+  const del = async (id: number) => { try { await api.del(`/api/intake/drafts/${draftId}/suppliers/${id}`); await load() } catch { /* noop */ } }
+  return (
+    <div>
+      <span className="font-type" style={{ fontSize: '.6rem', color: 'var(--pencil)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Доставчици</span>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '.3rem', fontSize: '.82rem' }}>
+        <thead>
+          <tr style={{ textAlign: 'left', color: 'var(--pencil)', fontSize: '.7rem' }}>
+            <th style={{ padding: '.2rem .3rem' }}>Доставчик</th>
+            <th style={{ padding: '.2rem .3rem' }}>Негов код</th>
+            <th style={{ padding: '.2rem .3rem' }}>Негово име на продукта</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} style={{ borderTop: '1px solid var(--line)' }}>
+              <td style={{ padding: '.25rem .3rem', fontWeight: 700 }}>{r.supplier}</td>
+              <td style={{ padding: '.25rem .3rem', fontFamily: 'monospace' }}>{r.supplier_code || '—'}</td>
+              <td style={{ padding: '.25rem .3rem' }}>{r.supplier_name || '—'}</td>
+              <td style={{ padding: '.25rem .3rem', textAlign: 'right' }}>
+                <button className="btn-paper" style={{ fontSize: '.7rem' }} onClick={() => void del(r.id)}>махни</button>
+              </td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: '1px solid var(--line)' }}>
+            <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="доставчик" value={nsup} onChange={(e) => setNsup(e.target.value)} /></td>
+            <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="код" value={ncode} onChange={(e) => setNcode(e.target.value)} /></td>
+            <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="име при доставчика" value={nname} onChange={(e) => setNname(e.target.value)} /></td>
+            <td style={{ padding: '.25rem .3rem', textAlign: 'right' }}>
+              <button className="btn-paper" style={{ fontSize: '.7rem' }} disabled={!nsup.trim()}
+                onClick={() => void add({ supplier: nsup, supplier_code: ncode, supplier_name: nname })}>+ добави</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {sugs.length > 0 && (
+        <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.35rem', alignItems: 'center' }}>
+          <span className="pencil" style={{ fontSize: '.72rem' }}>Известни доставчици на този код:</span>
+          {sugs.map((g) => (
+            <button key={g.supplier} className="btn-paper" style={{ fontSize: '.72rem' }} onClick={() => void add(g)}>
+              + {g.supplier}{g.supplier_code ? ` (${g.supplier_code})` : ''}</button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -478,7 +548,7 @@ function TaxonomyPicker({ value, categoryId, onPick }: {
 }
 
 // -------------------------------------------------------------- standalone approved products ---
-function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
+function ApprovedDrafts({ refreshKey, onEdit }: { refreshKey: number; onEdit: (d: IntakeDraft) => void }) {
   const { me } = useAuth()
   const [drafts, setDrafts] = useState<IntakeDraft[] | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
@@ -507,7 +577,7 @@ function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
 
   return (
     <Sheet>
-      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Ръчно създадени продукти</h3>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Продукти, чакащи одобрение</h3>
       {msg && <div className="font-type" style={{ fontSize: '.8rem', color: 'var(--ink)', marginBottom: '.5rem' }}>{msg}</div>}
       <div style={{ display: 'grid', gap: '.4rem' }}>
         {drafts.map((d) => {
@@ -517,14 +587,14 @@ function ApprovedDrafts({ refreshKey }: { refreshKey: number }) {
               display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '.7rem', alignItems: 'center',
               border: '1px solid var(--line)', borderRadius: 2, padding: '.5rem .7rem', background: 'var(--paper2)',
             }}>
-              <div>
-                <span className="font-type" style={{ fontWeight: 700 }}>{d.name}</span>
+              <button onClick={() => onEdit(d)} style={{ textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                <span className="font-type" style={{ fontWeight: 700 }}>{d.name || '(без име)'}</span>
                 <span style={{ color: 'var(--pencil)', fontSize: '.78rem' }}>
                   {' '}· код {d.code || '—'} · {d.price ? d.price + ' €' : 'без цена'} · {d.category?.split('>').pop()?.trim()}
                 </span>
-              </div>
+              </button>
               <span className="font-type" style={{ fontSize: '.7rem', color: pushed ? 'var(--ready)' : 'var(--pending)' }}>
-                {pushed ? `в Barsy #${d.barsy_article_id}` : 'чака'}
+                {pushed ? `в Barsy #${d.barsy_article_id}` : d.status === 'enriched' ? 'попълнен от AI · чака одобрение' : 'чака'}
               </span>
               {isOwner && !pushed && (
                 <button className="btn-paper" disabled={busy === d.id || !d.code}
