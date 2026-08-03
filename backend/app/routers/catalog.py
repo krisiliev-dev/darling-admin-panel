@@ -8,6 +8,7 @@ weight, oversell and the sale/publish status — plus the accounting/stock-behav
 A Barsy field with no control here is unmanageable and invisible to staff, so read-back and write
 must stay in step with the live article form."""
 import asyncio
+import typing
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -23,6 +24,7 @@ from ..core import barsy, barsy_write_live
 
 # returned instead of touching Barsy when the master write-gate is off (pre-launch safety)
 _GATED = "Barsy запис е изключен (BARSY_WRITE_LIVE=0) — нищо не е записано в ERP."
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_session
@@ -330,7 +332,8 @@ async def sync_cache(actor: User = Depends(require_roles("staff")),
     await log_action(session, actor, "catalog.sync",
                      detail=f"cached={fetched} pruned={pruned} status={st.last_status}")
     total = (await session.execute(select(_func.count()).select_from(ProductCache))).scalar() or 0
-    out = {"synced": fetched, "pruned": pruned, "prune_refused": not complete, "cached_count": total}
+    out: dict[str, object] = {"synced": fetched, "pruned": pruned,
+                              "prune_refused": not complete, "cached_count": total}
     if not complete:
         out["note"] = "Синхронизацията е непълна — Barsy върна по-малко артикули от кеша; нищо не е изтрито."
     return out
@@ -755,7 +758,8 @@ async def delete_cache_for_code(code: str) -> int:
         return 0
     from ..db import async_session_maker
     async with async_session_maker() as session:
-        res = await session.execute(_sa_delete(ProductCache).where(ProductCache.code == str(code)))
+        res = typing.cast(CursorResult, await session.execute(
+            _sa_delete(ProductCache).where(ProductCache.code == str(code))))
         await session.commit()
         return int(res.rowcount or 0)
 
