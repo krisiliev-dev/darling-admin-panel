@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, ApiError } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import type { IssuesResp, ProcessingIssue } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { PageHeader, Loading, EmptyNote } from '../components/PageHeader'
@@ -63,12 +64,32 @@ function IssueCard({ it, onResolve }: { it: ProcessingIssue; onResolve: (id: num
 export function Issues() {
   const { data, loading, reload } = useApi<IssuesResp>('/api/issues')
   const [msg, setMsg] = useState('')
+  const [why, setWhy] = useState('')
+  const [busy, setBusy] = useState(false)
+  const { me } = useAuth()
   const confirm = useConfirm()
 
   const resolve = async (id: number) => {
     if (!(await confirm({ confirmLabel: 'Реши', message: 'Отбелязване на проблема като решен? (Направи го чак след като данните са коригирани и поръчката е пусната наново.)' }))) return
     try { await api.post(`/api/issues/${id}/resolve`); setMsg(''); reload() }
     catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') }
+  }
+
+  // Bulk acknowledge: a batch of test-order noise is a real case, but an issue is the only place
+  // a failure is visible — so the reason is typed, not implied, and it goes into the audit log.
+  const resolveAll = async () => {
+    const n = open.length
+    if (!(await confirm({
+      danger: true, confirmLabel: `Отбележи ${n} решени`,
+      title: 'Отбелязване на всички като решени',
+      message: `${n} проблема ще спрат да се показват като нерешени.\n\nПричина: „${why.trim()}“\n\n` +
+        'Редовете не се трият — остават с твоето име и причината.',
+    }))) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await api.post<{ resolved: number }>('/api/issues/resolve-all', { reason: why.trim() })
+      setWhy(''); setMsg(`Отбелязани ${r.resolved} като решени.`); reload()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
   }
 
   const open = (data?.issues || []).filter((i) => !i.resolved)
@@ -81,7 +102,19 @@ export function Issues() {
       {loading && !data ? <Loading /> : (
         <>
           <Sheet>
-            <h3 style={{ fontSize: '.95rem', marginBottom: '.5rem' }}>Нерешени ({open.length})</h3>
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '.5rem' }}>
+              <h3 style={{ fontSize: '.95rem', margin: 0 }}>Нерешени ({open.length})</h3>
+              {me?.role === 'owner' && open.length > 1 && (
+                <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', marginLeft: 'auto' }}>
+                  <input className="input-paper" style={{ width: '18rem', fontSize: '.78rem' }}
+                    aria-label="Причина за отбелязване на всички"
+                    placeholder="причина (остава в дневника)…"
+                    value={why} onChange={(e) => setWhy(e.target.value)} />
+                  <button className="btn-paper" disabled={busy || why.trim().length < 3}
+                    onClick={() => void resolveAll()}>Отбележи всички решени</button>
+                </div>
+              )}
+            </div>
             {open.length === 0
               ? <EmptyNote>Няма нерешени проблеми — синхронизацията е чиста. 🎉</EmptyNote>
               : <div style={{ display: 'grid', gap: '.5rem' }}>{open.map((it) => <IssueCard key={it.id} it={it} onResolve={resolve} />)}</div>}
