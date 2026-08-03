@@ -196,3 +196,46 @@ h1, h2 { color: var(--ink); }
 .tab-btn[aria-selected="true"], .tabs button[aria-selected="true"] {
   background: var(--paper); border-bottom-color: var(--paper); font-weight: 700;
 }
+
+/* --- shared form system (PR1) --- the classes behind components/form/*. Every page used to
+   re-declare these as inline style objects (6 Field copies, 8+ eyebrow labels, 3 divergent
+   table heads); they live here now so a page cannot drift by editing its own copy. --- */
+.field { display: grid; gap: .2rem; }
+.field-label {
+  font-family: var(--type); font-size: .62rem; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--red); font-weight: 700;
+}
+.field-label--pencil { color: var(--pencil); font-weight: 400; font-size: .6rem; }
+.field-error { font-family: var(--type); font-size: .74rem; color: var(--red); }
+.field-hint { font-family: var(--hand); font-size: .74rem; color: var(--pencil); }
+/* AI-draft state: the value is a suggestion until a human touches it */
+.input-pencil { font-family: var(--hand); color: var(--pencil); }
+
+/* combobox popover (the chrome that was copy-pasted into BrandPicker and TaxonomyPicker) */
+.combo-pop {
+  position: absolute; z-index: 10; width: 100%; max-height: 14rem; overflow-y: auto;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 3px;
+  box-shadow: 2px 3px 7px rgba(0,0,0,.14);
+}
+.combo-opt {
+  display: block; width: 100%; text-align: left; padding: .35rem .5rem;
+  border: 0; border-bottom: 1px solid var(--line); background: transparent;
+  cursor: pointer; font-size: .8rem; color: var(--ink);
+}
+.combo-opt[aria-selected="true"], .combo-opt:hover { background: var(--paper2); color: var(--red); }
+
+/* tables: the two legitimate head variants, instead of 17 hand-rolled copies */
+.table-paper { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.table-paper th {
+  text-align: left; padding: .25rem .35rem; color: var(--red);
+  border-bottom: 1px solid var(--line); font-weight: 700;
+}
+.table-paper--pencil th { color: var(--pencil); font-weight: 400; }
+.table-paper td { padding: .3rem .35rem; border-bottom: 1px dashed var(--line); }
+.table-paper td.num, .table-paper th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* one-line messages under an action bar */
+.msg { font-family: var(--type); font-size: .8rem; }
+.msg--error { color: var(--red); }
+.msg--ok { color: var(--ready, #2f6b3a); }
+.msg--pending { color: var(--pending, var(--pencil)); }
