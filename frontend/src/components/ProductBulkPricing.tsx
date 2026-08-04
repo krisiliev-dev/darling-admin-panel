@@ -5,6 +5,8 @@ import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { useConfirm } from '../components/Confirm'
 import { printLabel, printLabels } from '../lib/label'
+import { ProductTable, type ProductColumn } from '../components/ProductTable'
+import { useColumnPrefs } from '../lib/useColumnPrefs'
 
 // G4c: poll a background bulk job until it finishes, reporting progress. Large bulk-price/rename
 // runs return {async, job_id} instead of blocking the request for minutes.
@@ -22,6 +24,19 @@ async function pollBulkJob(jobId: string, onProgress: (j: BulkJob) => void): Pro
 // Select products → preview a price operation (×/÷/+/−/set) → apply (owner-only, write-through).
 const eur = (n: number | null) => n == null ? '—' : n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const PER = 200
+
+// Column set for the bulk-pricing product list, rendered through <ProductTable>. Barcode +
+// category ship hidden under „още"; the wrench picker turns them on per user.
+const BULK_COLUMNS: ProductColumn<CacheProduct>[] = [
+  { key: 'product', label: 'Продукт', fixed: true, render: (p) => <>{p.name || '(без име)'}{p.attributes.length > 0 && <span style={{ color: 'var(--pencil)' }}> · {p.attributes.map((a) => `${a.value}`).join(', ')}</span>}</> },
+  { key: 'code', label: 'Код', render: (p) => <span style={{ color: 'var(--pencil)' }}>{p.code}</span> },
+  { key: 'supplier', label: 'Доставчик', render: (p) => <span title={p.supplier} style={{ color: 'var(--pencil)', display: 'inline-block', maxWidth: '10rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{p.supplier || '—'}</span> },
+  { key: 'stock', label: 'Налич.', align: 'right', render: (p) => <span style={{ color: p.low ? 'var(--blocked)' : undefined }}>{p.stock ?? '—'}</span> },
+  { key: 'price', label: 'Цена', align: 'right', render: (p) => <span style={{ fontWeight: 700 }}>{eur(p.price)}</span> },
+  { key: 'label', label: 'Етикет', align: 'right', render: (p) => <button className="btn-paper" style={{ fontSize: '.72rem', padding: '.1rem .35rem' }} title="Печат на етикет (58мм)" onClick={() => printLabel({ name: p.name, price: p.price, barcode: p.barcode, code: p.code })}>🏷</button> },
+  { key: 'barcode', label: 'Баркод', group: 'още', defaultHidden: true, render: (p) => <span style={{ color: 'var(--pencil)', fontFamily: 'monospace' }}>{p.barcode || '—'}</span> },
+  { key: 'category', label: 'Категория', group: 'още', defaultHidden: true, render: (p) => <span style={{ color: 'var(--pencil)' }}>{p.category || '—'}</span> },
+]
 
 export function ProductBulkPricing() {
   const [facets, setFacets] = useState<CacheFacets | null>(null)
@@ -74,6 +89,7 @@ export function ProductBulkPricing() {
     const n = new Set(s); items.forEach((i) => n.add(i.article_id)); return n
   })
   const selItems = items.filter((i) => sel.has(i.article_id))
+  const colPrefs = useColumnPrefs('bulk-pricing', BULK_COLUMNS)
 
   return (
     <div style={{ display: 'grid', gap: '.8rem' }}>
@@ -121,35 +137,17 @@ export function ProductBulkPricing() {
 
       <Sheet>
         {loading && !data ? <Loading /> : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
-              <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
-                <th style={{ padding: '.25rem' }}><input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="избери всички" /></th>
-                <th style={{ padding: '.25rem' }}>Продукт</th><th style={{ padding: '.25rem' }}>Код</th>
-                <th style={{ padding: '.25rem' }}>Доставчик</th><th style={{ padding: '.25rem', textAlign: 'right' }}>Налич.</th>
-                <th style={{ padding: '.25rem', textAlign: 'right' }}>Цена</th>
-                <th style={{ padding: '.25rem' }}></th>
-              </tr></thead>
-              <tbody>
-                {items.map((p) => (
-                  <tr key={p.article_id} style={{ borderBottom: '1px dashed var(--line)', background: sel.has(p.article_id) ? 'var(--paper2)' : undefined }}>
-                    <td style={{ padding: '.25rem' }}><input type="checkbox" checked={sel.has(p.article_id)} onChange={() => toggle(p.article_id)} aria-label={p.name} /></td>
-                    <td style={{ padding: '.3rem .25rem' }}>{p.name || '(без име)'}
-                      {p.attributes.length > 0 && <span style={{ color: 'var(--pencil)' }}> · {p.attributes.map((a) => `${a.value}`).join(', ')}</span>}</td>
-                    <td style={{ padding: '.3rem .25rem', color: 'var(--pencil)' }}>{p.code}</td>
-                    <td style={{ padding: '.3rem .25rem', color: 'var(--pencil)', maxWidth: '10rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.supplier}>{p.supplier || '—'}</td>
-                    <td style={{ padding: '.3rem .25rem', textAlign: 'right', color: p.low ? 'var(--blocked)' : undefined }}>{p.stock ?? '—'}</td>
-                    <td style={{ padding: '.3rem .25rem', textAlign: 'right', fontWeight: 700 }}>{eur(p.price)}</td>
-                    <td style={{ padding: '.3rem .25rem', textAlign: 'center' }}>
-                      <button className="btn-paper" style={{ fontSize: '.72rem', padding: '.1rem .35rem' }}
-                        title="Печат на етикет (58мм)" onClick={() => printLabel({ name: p.name, price: p.price, barcode: p.barcode, code: p.code })}>🏷</button>
-                    </td>
-                  </tr>
-                ))}
-                {items.length === 0 && <tr><td colSpan={7} style={{ padding: '.6rem', color: 'var(--pencil)' }}>Няма продукти за този филтър (или кешът не е синхронизиран).</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <ProductTable
+              columns={BULK_COLUMNS}
+              rows={items}
+              prefs={colPrefs}
+              rowKey={(p) => p.article_id}
+              rowStyle={(p) => ({ background: sel.has(p.article_id) ? 'var(--paper2)' : 'transparent' })}
+              selection={{ isSelected: (p) => sel.has(p.article_id), toggle: (p) => toggle(p.article_id), allOnPage: allSelected, toggleAll, rowLabel: (p) => p.name }}
+            />
+            {items.length === 0 && <p className="font-type" style={{ padding: '.6rem', color: 'var(--pencil)', fontSize: '.8rem' }}>Няма продукти за този филтър (или кешът не е синхронизиран).</p>}
+          </>
         )}
       </Sheet>
     </div>

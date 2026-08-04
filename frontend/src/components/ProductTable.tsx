@@ -27,6 +27,7 @@ export function ProductTable<Row>({
     toggle: (row: Row) => void
     allOnPage: boolean
     toggleAll: () => void
+    rowLabel?: (row: Row) => string   // accessible label for the per-row checkbox
   }
   toolbar?: ReactNode
 }) {
@@ -62,7 +63,8 @@ export function ProductTable<Row>({
                 }}>
                 {selection && (
                   <td style={{ padding: '.3rem' }} onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)} />
+                    <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)}
+                      aria-label={selection.rowLabel ? selection.rowLabel(row) : undefined} />
                   </td>
                 )}
                 {visible.map((c) => (

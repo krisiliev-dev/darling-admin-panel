@@ -185,7 +185,7 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
                 rowKey={(it) => it.article_id}
                 onRowClick={(it) => setSelected(it.article_id)}
                 rowStyle={(it) => ({ background: sel.has(it.article_id) ? 'var(--paper)' : selected === it.article_id ? 'var(--paper2)' : 'transparent' })}
-                selection={{ isSelected: (it) => sel.has(it.article_id), toggle, allOnPage: pageAllSel, toggleAll: togglePage }}
+                selection={{ isSelected: (it) => sel.has(it.article_id), toggle, allOnPage: pageAllSel, toggleAll: togglePage, rowLabel: (it) => it.name || `#${it.article_id}` }}
               />
               {pages > 1 && (
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', justifyContent: 'center', marginTop: '.5rem' }}>
