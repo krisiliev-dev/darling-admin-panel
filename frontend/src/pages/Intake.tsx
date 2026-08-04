@@ -160,16 +160,27 @@ function ProductEditor({ draft, onDone, onCancel }: {
   const [selImg, setSelImg] = useState<number | null>(null)
   const [research, setResearch] = useState<ResearchOut | null>(null)
   // size is split into H×W×D + volume; parse any previously-saved values back into the boxes
+  // Read whichever size attribute the draft actually carries. The plate leaf's field is
+  // „Размер/Обем", not „Размери" — hard-coding one name silently missed the other.
   const initSize = (k: string) => (draft.attributes || []).find((a) => a.key === k)?.value || ''
-  const dnums = (initSize('Размери').match(/\d+(?:[.,]\d+)?/g) || [])
-  const vm = initSize('Вместимост').match(/(\d+(?:[.,]\d+)?)\s*(мл|ml|л|l)?/i)
-  const [dimH, setDimH] = useState((dnums[0] || '').replace('.', ','))
-  const [dimW, setDimW] = useState((dnums[1] || '').replace('.', ','))
-  const [dimD, setDimD] = useState((dnums[2] || '').replace('.', ','))
+  const anySize = (pick: (n: string) => boolean) =>
+    (draft.attributes || []).find((a) => a.key && pick(a.key) && (a.value || '').trim())?.value || ''
+  const rawSize = anySize((n) => wantsDim(n) && !wantsVolume(n)) || anySize(wantsDim)
+  const parsed = parseSize(rawSize)
+  const vm = (anySize(wantsVolume) || initSize('Вместимост')).match(/(\d+(?:[.,]\d+)?)\s*(мл|ml|л|l)?/i)
+  const [dimH, setDimH] = useState(parsed.h)
+  const [dimW, setDimW] = useState(parsed.w)
+  const [dimD, setDimD] = useState(parsed.d)
+  const [dimDia, setDimDia] = useState(parsed.dia)
+  // a size we could not place: shown, never guessed into a box
+  const [sizeUnplaced, setSizeUnplaced] = useState(parsed.unplaced)
   const [vol, setVol] = useState((vm?.[1] || '').replace('.', ','))
-  const [volUnit, setVolUnit] = useState(/мл|ml/i.test(initSize('Вместимост')) ? 'мл' : 'л')
+  const [volUnit, setVolUnit] = useState(/мл|ml/i.test(anySize(wantsVolume) || initSize('Вместимост')) ? 'мл' : 'л')
   const dimsStr = [dimH, dimW, dimD].filter((x) => x.trim()).join(' x ')
-  const dimensions = dimsStr ? `${dimsStr} см` : ''
+  // Ø is written as Ø rather than folded into H×W×D: a diameter is not a side, and „Ø22 см" is how
+  // the catalogue (and the supplier) says it
+  const dimensions = [dimDia.trim() ? `Ø${dimDia} см` : '', dimsStr ? `${dimsStr} см` : '']
+    .filter(Boolean).join(', ')
   const capacity = vol.trim() ? `${vol} ${volUnit}` : ''
 
   const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
@@ -364,6 +375,7 @@ function ProductEditor({ draft, onDone, onCancel }: {
             onChange={(a) => { mark('attributes'); setD({ ...d, attributes: a }) }} />
         </div>
         <div style={{ display: 'flex', gap: '.6rem', marginTop: '.5rem', flexWrap: 'wrap', alignItems: 'end' }}>
+          <LabeledNumber caption="Диаметър" unit="см" value={dimDia} onChange={setDimDia} />
           <LabeledNumber caption="Височина" unit="см" value={dimH} onChange={setDimH} />
           <LabeledNumber caption="Широчина" unit="см" value={dimW} onChange={setDimW} />
           <LabeledNumber caption="Дълбочина" unit="см" value={dimD} onChange={setDimD} />
@@ -377,6 +389,20 @@ function ProductEditor({ draft, onDone, onCancel }: {
             </span>
           </label>
         </div>
+        {sizeUnplaced && (
+          <div className="font-type" role="note" style={{ fontSize: '.76rem', color: 'var(--red)', marginTop: '.35rem' }}>
+            Намерен размер „{sizeUnplaced}“, но не пише какво измерва — сложи го в правилното поле.{' '}
+            <button className="btn-paper" style={{ fontSize: '.7rem', padding: '.1rem .45rem' }}
+              onClick={() => { setDimDia(sizeUnplaced.match(/\d+(?:[.,]\d+)?/)?.[0].replace('.', ',') || ''); setSizeUnplaced('') }}>
+              ⌀ това е диаметър</button>{' '}
+            <button className="btn-paper" style={{ fontSize: '.7rem', padding: '.1rem .45rem' }}
+              onClick={() => { setDimW(sizeUnplaced.match(/\d+(?:[.,]\d+)?/)?.[0].replace('.', ',') || ''); setSizeUnplaced('') }}>
+              дължина</button>{' '}
+            <button className="btn-paper" style={{ fontSize: '.7rem', padding: '.1rem .45rem' }}
+              onClick={() => { setDimH(sizeUnplaced.match(/\d+(?:[.,]\d+)?/)?.[0].replace('.', ',') || ''); setSizeUnplaced('') }}>
+              височина</button>
+          </div>
+        )}
       </div>
 
       <FieldWithInfo label="Описание" info={
@@ -549,6 +575,54 @@ function TaxonomyAttributes({ categoryId, schema, value, onChange }: {
       ))}
     </div>
   )
+}
+
+// Parse a free-text size into H/W/D/Ø. The rule is: BELIEVE THE LABEL, and when there is no
+// label, do not invent one.
+//   "17 см (дължина)"      -> length 17            (labelled)
+//   "диаметър 22 см" / "Ø22"  -> diameter 22          (labelled)
+//   "15 x 20,5 x 4,5 см"      -> 15 × 20,5 × 4,5           (a triple: order IS the meaning)
+//   "17 см"                  -> NOTHING, and the raw text is shown for a human to place.
+// That last line is the whole point: the old parser put a lone number in Височина, which for a
+// plate is the least likely of the three, and it presented that guess as a filled-in fact.
+export interface ParsedSize { h: string; w: string; d: string; dia: string; unplaced: string }
+
+export function parseSize(raw: string): ParsedSize {
+  const out: ParsedSize = { h: '', w: '', d: '', dia: '', unplaced: '' }
+  const text = (raw || '').trim()
+  if (!text) return out
+  const num = (x: string) => x.replace('.', ',')
+
+  // a) explicit labels anywhere in the text, in either order ("дължина 17", "17 см дължина")
+  const LABELS: [RegExp, keyof ParsedSize][] = [
+    [/\u0434\u0438\u0430\u043c\u0435\u0442\u044a\u0440|\u2300|\u00f8/i, 'dia'],
+    [/\u0432\u0438\u0441\u043e\u0447\u0438\u043d|\u0432\u0438\u0441\.|height/i, 'h'],
+    [/\u0448\u0438\u0440\u043e\u0447\u0438\u043d|\u0448\u0438\u0440\u0438\u043d|width/i, 'w'],
+    [/\u0434\u044a\u043b\u0431\u043e\u0447\u0438\u043d|depth/i, 'd'],
+    [/\u0434\u044a\u043b\u0436\u0438\u043d|length/i, 'w'],   // дължина reads as the long side = широчина here
+  ]
+  let placed = false
+  for (const part of text.split(/[;,\n]|\s{2,}/)) {
+    const m = part.match(/(\d+(?:[.,]\d+)?)/)
+    if (!m) continue
+    for (const [re, key] of LABELS) {
+      if (re.test(part) && !out[key]) {
+        out[key] = num(m[1]); placed = true; break
+      }
+    }
+  }
+  if (placed) return out
+
+  // b) an explicit triple/pair: "15 x 20,5 x 4,5" — here the ORDER is the label
+  const chain = text.match(/(\d+(?:[.,]\d+)?)\s*[x\u0445\u00d7*]\s*(\d+(?:[.,]\d+)?)(?:\s*[x\u0445\u00d7*]\s*(\d+(?:[.,]\d+)?))?/i)
+  if (chain) {
+    out.h = num(chain[1]); out.w = num(chain[2]); out.d = chain[3] ? num(chain[3]) : ''
+    return out
+  }
+
+  // c) one bare number and nothing to say what it measures — refuse to guess
+  out.unplaced = text
+  return out
 }
 
 // Some taxonomy attributes are size/volume free-text (e.g. "Размер/Обем", "Обем", "Размери") — we
