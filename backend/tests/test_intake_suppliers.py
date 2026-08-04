@@ -167,7 +167,9 @@ async def test_push_body_carries_supplier_table(owner_client, make_draft, mock_b
     assert op == "Articles_create"
     art = body["article"]
     assert art["ref_num"] == "AN-55"                       # first row WITH a code
-    assert art["article_aliases"] == ["Bowl ceramic"]      # own-name row is not an alias
+    # supplier product-names are NOT aliases any more - they live on the supplier LINK
+    # (Articles_save_suppliers / remote_article_name), per the 2026-08-04 captured contract
+    assert "article_aliases" not in art
 
 
 @pytest.mark.asyncio

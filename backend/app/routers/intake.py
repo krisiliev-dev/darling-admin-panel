@@ -449,7 +449,9 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
         except Exception as e:
             return {"live": True, "created": True, "error": f"Barsy update: {str(e)[:140]}"}
         up = await _upload_pending_images(session, d.id, d.barsy_article_id)
-        return {"live": True, "created": True, "article_id": d.barsy_article_id, "images_uploaded": up}
+        links = await _push_supplier_links(session, d, d.barsy_article_id, is_create=False)
+        return {"live": True, "created": True, "article_id": d.barsy_article_id,
+                "images_uploaded": up, **links}
     # First save → CREATE. Atomic claim first: flip barsy_article_id NULL → -1 (a "creating"
     # sentinel) in ONE conditional UPDATE. If it changes 0 rows, a concurrent save already claimed it
     # → don't create a duplicate article in Barsy. (A double-submit is otherwise a duplicate product.)
@@ -478,7 +480,9 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     d.status = "pushed"
     d.pushed_at = _dt.datetime.now(_dt.UTC)
     up = await _upload_pending_images(session, d.id, aid)
-    note = {"live": True, "created": True, "article_id": aid, "code": d.code, "images_uploaded": up}
+    links = await _push_supplier_links(session, d, aid, is_create=True)
+    note = {"live": True, "created": True, "article_id": aid, "code": d.code,
+            "images_uploaded": up, **links}
     if d.delivery_line_id:                                    # write id back + try auto-finalise
         line = await session.get(DeliveryLine, d.delivery_line_id)
         if line:
@@ -856,8 +860,9 @@ async def delete_supplier(draft_id: int, row_id: int,
 
 async def _supplier_fields(session: AsyncSession, d: IntakeDraft, is_create: bool) -> dict:
     """Barsy article fields derived from the draft's supplier rows: ref_num from the FIRST row
-    with a code, and (create-only) each differing supplier product-name as a search alias.
-    Returns {} when there are no rows — callers keep their existing delivery-line fallback."""
+    with a code. Supplier product-NAMES no longer become search aliases — they have a real home
+    now (remote_article_name on the supplier LINK, Articles_save_suppliers; see
+    _push_supplier_links). Returns {} when there are no rows."""
     rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == d.id)
                                   .order_by(DraftSupplier.id))).scalars().all()
     out: dict = {}
@@ -865,15 +870,124 @@ async def _supplier_fields(session: AsyncSession, d: IntakeDraft, is_create: boo
         if r.supplier_code.strip():
             out["ref_num"] = r.supplier_code.strip()
             break
-    if is_create:
-        own = (d.name or "").strip().lower()
-        aliases = []
-        for r in rows:
-            nm = (r.supplier_name or "").strip()
-            if nm and nm.lower() != own and nm not in aliases:
-                aliases.append(nm)
-        if aliases:
-            out["article_aliases"] = aliases
+    return out
+
+
+def _fold_supplier(name: str) -> str:
+    """Fold a supplier name for matching OUR display names ("Мира-Н") against BARSY's registered
+    ones ("МИРА-Н-НАДКА ВАСИЛЕВА"). Python casefold, not SQL — SQLite LOWER() is ASCII-only
+    and Cyrillic burned us before (2026-08-02)."""
+    import re as _re
+    x = (name or "").casefold().replace('"', "").replace("„", "").replace("“", "")
+    x = _re.sub(r"\s*\b(еоод|eood|оод|ood|ет|et|ад|ad|еад)\b\.?\s*", " ", x)
+    return _re.sub(r"[\s\-]+", "", x).strip()
+
+
+async def _push_supplier_links(session: AsyncSession, d: IntakeDraft, article_id: int,
+                               is_create: bool) -> dict:
+    """Push the draft's supplier rows as Barsy supplier LINKS (Articles_save_suppliers) — the
+    real one-product-many-suppliers model, live-captured 2026-08-04:
+      rows: [{supplier_id, supplier_name, is_default, default_delivery_price, package_id,
+              remote_ref_id (THEIR code), remote_article_name (THEIR product name)}]
+
+    Three deliberate properties:
+    • a supplier name that resolves to zero or MULTIPLE Barsy suppliers is skipped and NAMED in
+      the returned note — supplier metadata must never invent a match or sink the product save;
+    • the save is FULL-REPLACE, so on update we read the existing links first and keep every
+      supplier we are not restating (a partial body blanks — the general Barsy rule);
+    • the first resolved row becomes „Основен" (is_default) unless an existing kept link
+      already is.
+    """
+    rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == d.id)
+                                  .order_by(DraftSupplier.id))).scalars().all()
+    rows = [r for r in rows if (r.supplier or "").strip()]
+    if not rows:
+        return {}
+    try:
+        cat = await run_in_threadpool(barsy.call, "Suppliers_getlist",
+                                      {"extra_properties": ["min"]})
+    except Exception as e:
+        return {"suppliers_linked": 0, "suppliers_skipped": [r.supplier for r in rows],
+                "suppliers_note": f"Suppliers_getlist: {str(e)[:120]}"}
+    if not isinstance(cat, list):
+        # a surprise shape is a FAILED lookup, said out loud - never a crash inside a product save
+        return {"suppliers_linked": 0, "suppliers_skipped": [r.supplier for r in rows],
+                "suppliers_note": "Suppliers_getlist: \u043d\u0435\u043e\u0447\u0430\u043a\u0432\u0430\u043d \u043e\u0442\u0433\u043e\u0432\u043e\u0440"}
+    by_fold: dict[str, list] = {}
+    for b in (cat or []):
+        if b.get("delete_flag"):
+            continue
+        by_fold.setdefault(_fold_supplier(b.get("supplier_name", "")), []).append(b)
+
+    def _resolve(name: str):
+        f = _fold_supplier(name)
+        if not f:
+            return None
+        hits = by_fold.get(f) or []
+        if not hits:   # prefix match: our clean display name vs their registered legal name
+            hits = [b for k, lst in by_fold.items() if k.startswith(f) for b in lst]
+        return hits[0] if len(hits) == 1 else None
+
+    keep: list[dict] = []
+    if not is_create:
+        # read-modify-write: keep links some manager set in Barsy that we are not restating
+        try:
+            cur = await run_in_threadpool(barsy.call, "articles_suppliers", {
+                "id": article_id, "action_type": "values",
+                "active_struct_id": "eStructListForm_suppliers",
+                "params": {"id": article_id}, "rows": 5000})
+            keep = [r2 for r2 in ((cur or {}).get("rows") or []) if r2.get("supplier_id")]
+        except Exception:
+            keep = []   # unreadable → behave like create; better restate ours than fail the save
+
+    ours: list[dict] = []
+    skipped: list[str] = []
+    restated = set()
+    for r in rows:
+        hit = _resolve(r.supplier)
+        if not hit:
+            skipped.append(r.supplier)
+            continue
+        sid = int(hit.get("supplier_id"))
+        restated.add(sid)
+        ours.append({
+            "supplier_id": sid,
+            "supplier_name": hit.get("supplier_name", ""),
+            "is_default": 0,
+            "default_delivery_price": "",
+            "package_id": "",
+            "remote_ref_id": (r.supplier_code or "").strip(),
+            "remote_article_name": (r.supplier_name or "").strip(),
+        })
+    kept = []
+    for k in keep:
+        kid = int(k["supplier_id"])          # filtered above: only rows WITH a supplier_id
+        if kid in restated:
+            continue
+        kept.append({
+            "supplier_id": kid,
+            "supplier_name": k.get("supplier_name", ""),
+            "is_default": 1 if k.get("is_default") in (1, "1", True) else 0,
+            "default_delivery_price": k.get("default_delivery_price") or "",
+            "package_id": k.get("package_id") or "",
+            "remote_ref_id": k.get("remote_ref_id") or "",
+            "remote_article_name": k.get("remote_article_name") or "",
+        })
+    final = kept + ours
+    if not final:
+        return {"suppliers_linked": 0, "suppliers_skipped": skipped} if skipped else {}
+    if ours and not any(x["is_default"] for x in final):
+        ours[0]["is_default"] = 1
+    try:
+        await run_in_threadpool(barsy.call, "Articles_save_suppliers",
+                                {"id": article_id, "action_type": "save",
+                                 "values": {}, "rows": final})
+    except Exception as e:
+        return {"suppliers_linked": 0, "suppliers_skipped": [r.supplier for r in rows],
+                "suppliers_note": f"Articles_save_suppliers: {str(e)[:120]}"}
+    out: dict = {"suppliers_linked": len(ours)}
+    if skipped:
+        out["suppliers_skipped"] = skipped
     return out
 
 
