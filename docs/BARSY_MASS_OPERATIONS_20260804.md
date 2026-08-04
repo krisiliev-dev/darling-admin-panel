@@ -154,9 +154,12 @@ ml map**. `save_mass` cannot do it. So **localized-text fields stay on `Articles
 | price / costing, flags, tax, units, reorder limits, code, barcode, slug | native `save_mass` |
 | `article_name`, `article_name_public`, `description` (have `_ml` siblings) | `Articles_update` (full-map merge) |
 
-The current `bulk_rename` still writes a **partial** `{bg_BG: new}` map (drops en_US). Harmless
-pre-launch (no English names exist), but it must become a full-map merge before the English site
-ships — flagged as an open item.
+`bulk_rename` is now **i18n-safe** (commit `7f79eea`): it reads each article's current
+`article_name_ml`, merges the new name into the active locale, and writes `article_name` + the FULL
+merged map — verified against live Barsy (en_US preserved, bg_BG synced). **Open item:** the
+single-article editor `update_article` still writes partial `{bg_BG: …}` maps for `article_name_ml`,
+`description_ml`, and `description_public_ml` (same latent en_US-drop) — its fix adds an `Articles_get`
+that ripples into `test_catalog`'s exact-`operations` assertions, so it's queued separately.
 
 Because columns are NOT uniform (min_amount, the ml, select/multiselect encodings), the panel's mass-op
 catalog is a **verified whitelist**, expanded field-by-field as each is confirmed against Barsy —
