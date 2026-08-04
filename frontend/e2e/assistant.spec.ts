@@ -40,7 +40,7 @@ test.describe('Асистент — in-panel Q&A', () => {
 
     // suggestion is a proposal — clicking it performs the (safe) navigation action
     await main.getByRole('button', { name: '→ Виж поръчките' }).click()
-    await expect(page).toHaveURL(/\/orders$/)
+    await expect(page).toHaveURL(/\/online$/)   // /orders redirects into the Онлайн hub
   })
 
   test('an example chip sends its prompt', async ({ page }) => {

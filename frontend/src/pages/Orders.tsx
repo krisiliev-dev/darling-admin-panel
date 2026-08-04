@@ -9,7 +9,6 @@ import { CustomerRisk } from '../components/CustomerRisk'
 import { useConfirm } from '../components/Confirm'
 import { InvoiceQueue } from '../components/InvoiceQueue'
 import { FilterChips, Pager, usePager } from '../components/TableControls'
-import { Cod } from './Cod'
 import { hoursSince, timeSinceBg, SLA_HOURS, SLA_WARN } from '../lib/time'
 
 // A label-form prefill. When it carries order_id, the label is ORDER-LINKED: submitting books the sale
@@ -23,9 +22,9 @@ export interface ShipPrefill {
 // Онлайн поръчки — the fulfilment desk. One card, three tabs: orders to fulfil, orders already
 // shipped, and COD reconciliation (Разчети). The "Нова пратка" flow (top-right) books an ad-hoc
 // courier label — office lookup folded in. Courier readiness/config now lives in Настройки.
-type OrdersTab = 'todo' | 'done' | 'cod' | 'invoices'
+type OrdersTab = 'todo' | 'done' | 'invoices'
 
-export function Orders() {
+export function Orders({ embedded = false }: { embedded?: boolean } = {}) {
   const [couriers, setCouriers] = useState<CourierReadiness[] | null>(null)
   const [data, setData] = useState<OrdersResponse | null>(null)
   const [prefill, setPrefill] = useState<ShipPrefill | null>(null)
@@ -59,20 +58,29 @@ export function Orders() {
     })
   }
 
+  // Разчети is NOT a tab here any more — it is a sibling of Поръчки under Онлайн, because COD
+  // reconciliation is money coming back from the speditors, not a step of fulfilling one order.
   const tabs: [OrdersTab, string, number | null][] = [
     ['todo', 'За изпълнение', (data?.orders || []).filter((o) => !o.tracking).length],
     ['done', 'Изпълнени', (data?.orders || []).filter((o) => o.tracking).length],
-    ['cod', 'Разчети', null],
     ['invoices', 'Фактури', null],
   ]
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Онлайн поръчки" subtitle="изпълнение с етикет и наложен платеж" right={
-        <button className="btn-paper btn-red" onClick={toggleCreate}>
-          {showCreate ? '× Затвори' : '＋ Нова пратка'}
-        </button>
-      } />
+      {embedded ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-paper btn-red" onClick={toggleCreate}>
+            {showCreate ? '× Затвори' : '＋ Нова пратка'}
+          </button>
+        </div>
+      ) : (
+        <PageHeader title="Онлайн поръчки" subtitle="изпълнение с етикет и наложен платеж" right={
+          <button className="btn-paper btn-red" onClick={toggleCreate}>
+            {showCreate ? '× Затвори' : '＋ Нова пратка'}
+          </button>
+        } />
+      )}
 
       {/* create-shipment flow — hidden until invoked (top-right button or an order's Етикет) */}
       {showCreate && (
@@ -98,7 +106,6 @@ export function Orders() {
       </div>
 
       {tab === 'invoices' ? <InvoiceQueue />
-        : tab === 'cod' ? <Cod embedded />
         : <OrderQueue data={data} mode={tab} onLabel={labelFromOrder} onChange={loadOrders} />}
     </div>
   )

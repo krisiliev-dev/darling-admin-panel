@@ -27,13 +27,13 @@ function Stat({ n, label, tone }: { n: number; label: string; tone: 'ready' | 'r
 
 // Кошници — live + abandoned Shopify checkouts, fed by the checkouts webhook (read-only, never
 // touches Barsy). Auto-refreshes so the owner can watch carts fill in real time.
-export function Carts() {
+export function Carts({ embedded = false }: { embedded?: boolean } = {}) {
   const { data, loading, reload } = useApi<CartsResp>('/api/carts')
   useEffect(() => { const t = setInterval(reload, 20000); return () => clearInterval(t) }, [reload])
   const d = data
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
-      <PageHeader title="Кошници" subtitle="активни и изоставени колички от онлайн магазина" />
+      {!embedded && <PageHeader title="Кошници" subtitle="активни и изоставени колички от онлайн магазина" />}
       {loading && !d ? <Loading /> : (
         <>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>

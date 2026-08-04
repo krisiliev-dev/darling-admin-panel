@@ -6,9 +6,7 @@ import { Shell } from './components/Shell'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Home } from './pages/Home'
-import { Orders } from './pages/Orders'
-import { Carts } from './pages/Carts'
-import { Cod } from './pages/Cod'
+import { Online } from './pages/Online'
 import { Issues } from './pages/Issues'
 import { Intake } from './pages/Intake'
 import { Products } from './pages/Products'
@@ -49,9 +47,12 @@ export default function App() {
         <Route path="analytics" element={<Dashboard />} />
         <Route path="intake" element={<Intake />} />
         <Route path="intake/:draftId" element={<Intake />} />
-        <Route path="orders" element={<Orders />} />
-        <Route path="carts" element={<Carts />} />
-        <Route path="cod" element={<Cod />} />
+        <Route path="online" element={<Online />} />
+        <Route path="online/:tab" element={<Online />} />
+        {/* the old destinations keep working — they are tabs of Онлайн now */}
+        <Route path="orders" element={<Navigate to="/online" replace />} />
+        <Route path="carts" element={<Navigate to="/online/carts" replace />} />
+        <Route path="cod" element={<Navigate to="/online/cod" replace />} />
         <Route path="issues" element={<Issues />} />
         <Route path="products" element={<Products />} />
         <Route path="products/:tab" element={<Products />} />

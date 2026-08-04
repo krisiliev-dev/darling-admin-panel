@@ -15,14 +15,13 @@ import { FloatingAssistant } from './FloatingAssistant'
 const NAV: { to: string; label: string; roles?: string[]; hideFor?: string[] }[] = [
   { to: '/', label: 'Начало' },
   { to: '/analytics', label: 'Анализи' },
-  { to: '/orders', label: 'Онлайн поръчки' },
-  { to: '/carts', label: 'Кошници' },
+  // Онлайн = Поръчки · Кошници · Разчети — the whole online channel behind one entry
+  { to: '/online', label: 'Онлайн' },
   { to: '/products', label: 'Продукти' },
   { to: '/intake', label: 'Нов продукт' },
   { to: '/purchasing', label: 'Доставки', hideFor: ['owner', 'manager'] },
   { to: '/zayavki', label: 'Заявки', hideFor: ['owner', 'manager'] },
   { to: '/sklad', label: 'Склад', roles: ['owner', 'manager'] },
-  { to: '/cod', label: 'Разчети' },
   { to: '/issues', label: 'Проблеми' },
   // Брандове + Марки (+ Марки v2) are tabs inside Продукти now — one destination, not
   // three near-synonyms in the nav bar.
@@ -111,11 +110,11 @@ export function Shell() {
                   display: 'flex', alignItems: 'center', gap: '.35rem',
                 }}>
                   {n.label}
-                  {badges[n.to] > 0 && (
+                  {(badges[n.to] > 0 || (n.to === '/online' && (badges['/orders'] || 0) + (badges['/cod'] || 0) > 0)) && (
                     <span aria-label={`${badges[n.to]} чакащи`} style={{
                       background: 'var(--red)', color: '#fff', fontSize: '.6rem', fontWeight: 700,
                       borderRadius: 8, padding: '0 .35rem', minWidth: '1.1rem', textAlign: 'center', lineHeight: '1.1rem',
-                    }}>{badges[n.to]}</span>
+                    }}>{n.to === '/online' ? (badges['/online'] || 0) + (badges['/orders'] || 0) + (badges['/cod'] || 0) : badges[n.to]}</span>
                   )}
                   {isActive && (
                     <motion.div layoutId="nav-underline"

@@ -15,9 +15,9 @@ const SHELL_OK = {
 // After the 2026-08-03 consolidation the owner's nav is SHORTER on purpose: Брандове/Марки are
 // tabs in Продукти, Доставки/Заявки are tabs in Склад (which owner/manager can reach).
 const NAV: [string, string][] = [
-  ['Начало', '/'], ['Анализи', '/analytics'], ['Онлайн поръчки', '/orders'], ['Кошници', '/carts'],
+  ['Начало', '/'], ['Анализи', '/analytics'], ['Онлайн', '/online'],
   ['Продукти', '/products'], ['Нов продукт', '/intake'],
-  ['Склад', '/sklad'], ['Разчети', '/cod'], ['Канцелария', '/kancelaria'],
+  ['Склад', '/sklad'], ['Канцелария', '/kancelaria'],
   ['Настройки', '/settings'],
 ]
 
@@ -26,6 +26,7 @@ const NAV: [string, string][] = [
 const RETIRED: [string, RegExp][] = [
   ['/brands', /\/products\/brands$/], ['/marki', /\/products\/brands$/],
   ['/marki-v2', /\/products\/brands$/], ['/pricing', /\/products\/pricing$/],
+  ['/orders', /\/online$/], ['/carts', /\/online\/carts$/], ['/cod', /\/online\/cod$/],
 ]
 
 test.describe('Navigation shell', () => {
@@ -53,9 +54,9 @@ test.describe('Navigation shell', () => {
     // a full reload would wipe this window flag; a client-side nav keeps it
     await page.evaluate(() => { (window as unknown as { __spa: boolean }).__spa = true })
 
-    await page.getByRole('link', { name: 'Кошници', exact: true }).click()
-    await expect(page).toHaveURL(/\/carts$/)
-    await expect(page.getByRole('main').getByText('Кошници')).toBeVisible()
+    await page.getByRole('link', { name: 'Онлайн', exact: true }).click()
+    await expect(page).toHaveURL(/\/online$/)
+    await expect(page.getByRole('main').getByText('Онлайн').first()).toBeVisible()
     expect(await page.evaluate(() => (window as unknown as { __spa?: boolean }).__spa)).toBe(true)
   })
 
@@ -69,7 +70,10 @@ test.describe('Navigation shell', () => {
     await expect(dialog).toBeVisible()
     await dialog.getByLabel('търсене на команда').fill('кошн')
     await page.keyboard.press('Enter')
-    await expect(page).toHaveURL(/\/carts$/)
-    await expect(page.getByRole('main').getByText('Кошници')).toBeVisible()
+    // 'кошн' → Кошници, which is a TAB of Онлайн now — the palette must land on the tab
+    // itself, not just the hub, or the jump loses its point
+    await expect(page).toHaveURL(/\/online\/carts$/)
+    await expect(page.getByRole('main').getByRole('tab', { name: 'Кошници' }))
+      .toHaveAttribute('aria-selected', 'true')
   })
 })

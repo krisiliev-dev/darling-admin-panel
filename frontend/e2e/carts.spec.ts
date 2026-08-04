@@ -20,8 +20,9 @@ test.describe('Кошници — live + abandoned checkouts', () => {
     await page.goto('/carts')
     const main = page.getByRole('main')
 
-    // page header (scope to main — "Кошници" is also a nav link)
-    await expect(main.getByText('Кошници')).toBeVisible()
+    // /carts lands on the Кошници tab of Онлайн — the selected tab is the page identity now
+    await expect(page).toHaveURL(/\/online\/carts$/)
+    await expect(main.getByRole('tab', { name: 'Кошници' })).toHaveAttribute('aria-selected', 'true')
     // both stat cards render their counts + labels
     await expect(page.getByText('активни в момента')).toBeVisible()
     await expect(page.getByText('изоставени (>30 мин)')).toBeVisible()
@@ -40,7 +41,7 @@ test.describe('Кошници — live + abandoned checkouts', () => {
     })
     await page.goto('/carts')
 
-    await expect(page.getByRole('main').getByText('Кошници')).toBeVisible()
+    await expect(page.getByRole('main').getByRole('tab', { name: 'Кошници' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByText('Никой няма нещо в количката в момента.')).toBeVisible()
     // no abandoned section when there are none
     await expect(page.getByRole('heading', { name: /Изоставени/ })).toHaveCount(0)

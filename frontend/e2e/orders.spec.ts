@@ -25,10 +25,13 @@ test.describe('Онлайн поръчки — 3-tab card + create-flow', () => 
     })
     await page.goto('/orders')
 
-    // three tabs
+    // fulfilment tabs — Разчети is deliberately NOT here any more: COD reconciliation is money
+    // coming back from the speditors, so it is a sibling tab under Онлайн
     await expect(page.getByRole('button', { name: /За изпълнение/ })).toBeVisible()
     await expect(page.getByRole('button', { name: /Изпълнени/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Разчети/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Фактури/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Разчети/ })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Разчети' })).toBeVisible()
 
     // courier readiness strip is gone from this page (moved to Настройки)
     await expect(page.getByRole('heading', { name: 'Куриери' })).toHaveCount(0)
@@ -45,14 +48,15 @@ test.describe('Онлайн поръчки — 3-tab card + create-flow', () => 
     await expect(page.getByText('търсене на офис / автомат')).toBeVisible()
   })
 
-  test('Разчети tab shows the COD reconciliation view', async ({ page }) => {
+  test('Разчети is a sibling tab of Поръчки under Онлайн', async ({ page }) => {
     await mockApi(page, {
       '/api/orders/couriers': { couriers: [] },
       '/api/orders': { orders: [], statuses: {} },
       '/api/cod': { orders: [], summary: null },
     })
     await page.goto('/orders')
-    await page.getByRole('button', { name: /Разчети/ }).click()
+    await page.getByRole('tab', { name: 'Разчети' }).click()
+    await expect(page).toHaveURL(/\/online\/cod$/)
     await expect(page.getByRole('heading', { name: 'Поръчки с наложен платеж' })).toBeVisible()
   })
 })
