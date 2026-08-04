@@ -6,6 +6,7 @@ import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { BrandPicker } from '../components/BrandPicker'
 import { InfoDot } from '../components/InfoDot'
+import { TextInput, Select } from '../components/form/inputs'
 
 // Нов продукт — adding a product ALWAYS goes through one editor: FIRST the barcode + images, then a
 // button starts enrichment which fills the rest as editable suggestions (name, Shopify-taxonomy
@@ -536,7 +537,7 @@ function SupplierTable({ draftId }: { draftId: number }) {
                   onChange={() => { if (!r.is_default) void patchRow(r, { is_default: true }) }} />
               </td>
               <td style={{ padding: '.25rem .3rem' }}>
-                <input className="input-paper" inputMode="decimal" style={{ width: '5.5rem' }}
+                <TextInput inputMode="decimal" width="5.5rem"
                   placeholder="—" value={priceVal(r)}
                   onChange={(e) => setPriceEdits((pe) => ({ ...pe, [r.id]: e.target.value }))}
                   onBlur={() => void commitPrice(r)} />
@@ -548,19 +549,16 @@ function SupplierTable({ draftId }: { draftId: number }) {
           ))}
           <tr style={{ borderTop: '1px solid var(--line)' }}>
             <td style={{ padding: '.25rem .3rem' }}>
-              <select className="input-paper" value={nsup} onChange={(e) => setNsup(e.target.value)}>
-                <option value="">избери доставчик…</option>
-                {known.map((sn) => <option key={sn} value={sn}>{sn}</option>)}
-              </select>
+              <Select value={nsup} onChange={(v) => setNsup(v)} options={known} placeholder="избери доставчик…" />
             </td>
-            <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="код" value={ncode} onChange={(e) => setNcode(e.target.value)} /></td>
-            <td style={{ padding: '.25rem .3rem' }}><input className="input-paper" placeholder="име при доставчика" value={nname} onChange={(e) => setNname(e.target.value)} /></td>
+            <td style={{ padding: '.25rem .3rem' }}><TextInput placeholder="код" value={ncode} onChange={(e) => setNcode(e.target.value)} /></td>
+            <td style={{ padding: '.25rem .3rem' }}><TextInput placeholder="име при доставчика" value={nname} onChange={(e) => setNname(e.target.value)} /></td>
             <td style={{ padding: '.25rem .3rem', textAlign: 'center' }}>
               <input type="radio" name={`sup-default-${draftId}`} checked={ndefault}
                 aria-label="Нов ред: основен доставчик" onChange={() => setNdefault(true)} />
             </td>
             <td style={{ padding: '.25rem .3rem' }}>
-              <input className="input-paper" inputMode="decimal" style={{ width: '5.5rem' }} placeholder="цена"
+              <TextInput inputMode="decimal" width="5.5rem" placeholder="цена"
                 value={nprice} onChange={(e) => setNprice(e.target.value)} />
             </td>
             <td style={{ padding: '.25rem .3rem', textAlign: 'right' }}>
