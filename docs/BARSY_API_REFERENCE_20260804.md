@@ -221,6 +221,7 @@ record and a future decision is informed, not blind:
   (existing kept, one changed, one added). An unknown detail_value with empty detail_id
   creates a new enumerated value. The survey's 'arts_count=0' was Barsy empty post-wipe,
   not a missing push. Task #86 closed as not-a-gap.
+- ArticleDetails_saveValues — manage a characteristic key's enumerated VALUE list (Настройки → Характеристики → <key> → Стойности). `{id:<key_id>, action_type:"save", values:{}, rows:[{detail_id, detail_value_ml}]}` is a FULL-LIST replace: to delete a value, save the list WITHOUT it (Barsy warns it also drops that value's article links); to rename, change detail_value_ml; to add, include a row with an empty detail_id. Captured + used live 2026-08-04 to remove two probe values. So there IS a per-value delete after all — it's the omit-and-save-the-rest form, not a dedicated delete method.
 - Articles_save_suppliers — multi-supplier links (DONE c16eea9).
 - Clientorders_create_accounts — convert a client order into fiscal accounts (task #82).
 - Poses_admin_register / Poses_unregister — register this device as a каса (needed for panel
