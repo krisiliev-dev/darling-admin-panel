@@ -46,6 +46,7 @@ from .routers import (
     brands_v2,
     carts,
     catalog,
+    clients,
     cod,
     dashboard,
     deliveries,
@@ -167,6 +168,7 @@ app.include_router(zayavki.router)
 app.include_router(inventory.router)
 app.include_router(inventory_health.router)
 app.include_router(cod.router)
+app.include_router(clients.router)
 app.include_router(assistant.router)
 app.include_router(purchasing.router)
 app.include_router(admin.router)
