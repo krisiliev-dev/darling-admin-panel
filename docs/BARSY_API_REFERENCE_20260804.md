@@ -1,5 +1,8 @@
 # Barsy full API & page reference (darling7.barsy.online, v3.0.1252) — 2026-08-04
 
+> **Correction (2026-08-04):** an earlier claim that product characteristics are not pushed to Barsy was WRONG — they are, via the inline `details` array on Articles_create/update (upsert-per-key). See ArticleDetails in section E.
+
+
 Complete extraction of Barsy's undocumented JSON-RPC surface, harvested read-only from every one
 of the 480 reachable admin page structures plus the runtime-captured connector methods. This is
 the reference the vendor docs don't provide. Companion docs: BARSY_SURVEY (menus + UI patterns),
@@ -210,7 +213,14 @@ record and a future decision is informed, not blind:
 
 ## E. Notable methods worth remembering (in-scope, not yet wired)
 
-- ArticleDetails_save + ArticleDetails_getKeyValues — product characteristics (task #86, HIGH).
+- ArticleDetails_save + ArticleDetails_getKeyValues — the STANDALONE characteristics editor.
+  CORRECTION (2026-08-04, live-tested): characteristics are NOT a gap. `Articles_create` /
+  `Articles_update` persist an inline `details:[{detail_name,detail_value}]` array as
+  characteristics, and the panel already sends it (`_build_barsy_article` -> art['details']).
+  Verified: create with 3 details attached all; update with 2 more is UPSERT-per-key
+  (existing kept, one changed, one added). An unknown detail_value with empty detail_id
+  creates a new enumerated value. The survey's 'arts_count=0' was Barsy empty post-wipe,
+  not a missing push. Task #86 closed as not-a-gap.
 - Articles_save_suppliers — multi-supplier links (DONE c16eea9).
 - Clientorders_create_accounts — convert a client order into fiscal accounts (task #82).
 - Poses_admin_register / Poses_unregister — register this device as a каса (needed for panel
