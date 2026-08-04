@@ -184,3 +184,71 @@ async def test_a_links_failure_never_sinks_the_product_save(owner_client, make_d
     assert note.get("created") is True and note.get("article_id") == 781
     assert note.get("suppliers_linked") == 0
     assert "Articles_save_suppliers" in note.get("suppliers_note", "")
+
+
+@pytest.mark.asyncio
+async def test_panel_chosen_default_and_price_flow_into_the_link(owner_client, make_draft, barsy_recorder, monkeypatch):
+    """#78: the „Основен" flag and „договорена цена" the owner sets on a row reach Barsy verbatim."""
+    from app.routers import intake as im
+    monkeypatch.setattr(im, "get_settings", lambda: type("S", (), {
+        "delivery_barsy_live": True, "barsy_min_profit_percent": 0})())
+    barsy_recorder.set_default(None)
+    barsy_recorder.set_return("Articles_create", {"article_id": 790, "code": "SKU790"})
+    barsy_recorder.set_return("Suppliers_getlist", BARSY_SUPPLIERS)
+
+    did = await _draft_with_suppliers(make_draft, [
+        {"supplier": "Мира-Н", "supplier_code": "M-1", "supplier_name": ""},
+        {"supplier": "Линекс", "supplier_code": "LX-1", "supplier_name": "",
+         "is_default": True, "delivery_price": "3.20"},
+    ])
+    from app.db import async_session_maker
+    from app.models import IntakeDraft, User
+    from app.routers.intake import _save_to_barsy
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        actor = (await s.execute(select(User))).scalars().first()
+        note = await _save_to_barsy(s, d, actor)
+
+    assert note.get("suppliers_linked") == 2, note
+    rows = _links_calls(barsy_recorder)[0]["rows"]
+    by_id = {r["supplier_id"]: r for r in rows}
+    assert by_id[41]["is_default"] == 1 and by_id[39]["is_default"] == 0, "the owner's choice, not row order"
+    assert by_id[41]["default_delivery_price"] == "3.20"
+    assert by_id[39]["default_delivery_price"] == ""
+
+
+@pytest.mark.asyncio
+async def test_panel_default_overrides_a_kept_barsy_default(owner_client, make_draft, barsy_recorder, monkeypatch):
+    """#78: an explicit „Основен" from the panel wins over a default a manager set in Barsy on a
+    link we keep — there must still be exactly one default."""
+    from app.routers import intake as im
+    monkeypatch.setattr(im, "get_settings", lambda: type("S", (), {
+        "delivery_barsy_live": True, "barsy_min_profit_percent": 0})())
+    barsy_recorder.set_default(None)
+    barsy_recorder.set_return("Suppliers_getlist", BARSY_SUPPLIERS)
+    barsy_recorder.set_return("Articles_update", 1)
+    barsy_recorder.set_return("articles_suppliers", {"rows": [
+        {"supplier_id": 41, "supplier_name": '"ЛИНЕКС" ЕООД', "is_default": 1,
+         "default_delivery_price": "2.50", "package_id": "", "remote_ref_id": "LX-OLD",
+         "remote_article_name": "СТАРО"},
+    ]})
+
+    did = await _draft_with_suppliers(make_draft, [
+        {"supplier": "Мира-Н", "supplier_code": "M-9", "supplier_name": "",
+         "is_default": True, "delivery_price": "1.10"},
+    ])
+    from app.db import async_session_maker
+    from app.models import IntakeDraft, User
+    from app.routers.intake import _save_to_barsy
+    async with async_session_maker() as s:
+        d = await s.get(IntakeDraft, did)
+        d.barsy_article_id = 901
+        await s.commit()
+        actor = (await s.execute(select(User))).scalars().first()
+        await _save_to_barsy(s, d, actor)
+
+    rows = _links_calls(barsy_recorder)[0]["rows"]
+    by_id = {r["supplier_id"]: r for r in rows}
+    assert by_id[39]["is_default"] == 1, "the owner's explicit default wins"
+    assert by_id[41]["is_default"] == 0, "the kept Barsy default yields to the owner's choice"
+    assert sum(r["is_default"] for r in rows) == 1, "exactly one default"

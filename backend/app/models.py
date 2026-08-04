@@ -116,6 +116,8 @@ class DraftSupplier(Base):
     supplier: Mapped[str] = mapped_column(String(255), default="")        # supplier display name
     supplier_code: Mapped[str] = mapped_column(String(128), default="")   # THEIR article code
     supplier_name: Mapped[str] = mapped_column(String(255), default="")   # THEIR product name
+    is_default: Mapped[bool] = mapped_column(default=False)                # „Основен" supplier for this article
+    delivery_price: Mapped[str] = mapped_column(String(32), default="")    # договорена цена (string; never a float on money)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
 

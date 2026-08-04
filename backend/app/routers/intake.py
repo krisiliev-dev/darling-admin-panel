@@ -741,6 +741,8 @@ class SupplierRowIn(BaseModel):
     supplier: str
     supplier_code: str = ""
     supplier_name: str = ""
+    is_default: bool = False
+    delivery_price: str = ""
 
 
 @lru_cache(maxsize=1)
@@ -798,15 +800,17 @@ async def list_suppliers(draft_id: int, actor: User = Depends(current_active_use
     # one editing session (rows exist -> we never re-add).
     if not rows and d.code:
         from ..services.supplier_catalog import suppliers_for
-        for sup, info in suppliers_for(d.code).items():
+        for i, (sup, info) in enumerate(suppliers_for(d.code).items()):
             session.add(DraftSupplier(draft_id=draft_id, supplier=sup,
                                       supplier_code=str(info.get("ref") or ""),
-                                      supplier_name=info.get("name") or ""))
+                                      supplier_name=info.get("name") or "",
+                                      is_default=(i == 0)))   # first materialized row is the default
         await session.commit()
         rows = (await session.execute(select(DraftSupplier).where(DraftSupplier.draft_id == draft_id)
                                       .order_by(DraftSupplier.id))).scalars().all()
     return {"suppliers": [{"id": r.id, "supplier": r.supplier, "supplier_code": r.supplier_code,
-                           "supplier_name": r.supplier_name} for r in rows],
+                           "supplier_name": r.supplier_name, "is_default": r.is_default,
+                           "delivery_price": r.delivery_price} for r in rows],
             "suggestions": []}
 
 
@@ -830,20 +834,37 @@ async def add_supplier(draft_id: int, req: SupplierRowIn,
         DraftSupplier.draft_id == draft_id))).scalars().all()
     want = req.supplier.strip().lower()                  # Python fold — SQLite LOWER is ASCII-only
     dup = next((r for r in existing if r.supplier.strip().lower() == want), None)
+
+    def _clear_other_defaults(keep_id: int | None) -> None:
+        # „Основен" is a radio: exactly one supplier per draft may be the default
+        for other in existing:
+            if other.id != keep_id and other.is_default:
+                other.is_default = False
+
     if dup:                                   # same supplier again = edit, not a second row
         dup.supplier_code = req.supplier_code.strip()
         dup.supplier_name = req.supplier_name.strip()
+        dup.is_default = bool(req.is_default)
+        dup.delivery_price = req.delivery_price.strip()
+        if dup.is_default:
+            _clear_other_defaults(dup.id)
         await session.commit()
         return {"id": dup.id, "supplier": dup.supplier, "supplier_code": dup.supplier_code,
-                "supplier_name": dup.supplier_name, "updated": True}
+                "supplier_name": dup.supplier_name, "is_default": dup.is_default,
+                "delivery_price": dup.delivery_price, "updated": True}
     r = DraftSupplier(draft_id=draft_id, supplier=req.supplier.strip(),
                       supplier_code=req.supplier_code.strip(),
-                      supplier_name=req.supplier_name.strip())
+                      supplier_name=req.supplier_name.strip(),
+                      is_default=bool(req.is_default),
+                      delivery_price=req.delivery_price.strip())
+    if r.is_default:
+        _clear_other_defaults(None)
     session.add(r)
     await session.commit()
     await session.refresh(r)
     return {"id": r.id, "supplier": r.supplier, "supplier_code": r.supplier_code,
-            "supplier_name": r.supplier_name, "updated": False}
+            "supplier_name": r.supplier_name, "is_default": r.is_default,
+            "delivery_price": r.delivery_price, "updated": False}
 
 
 @router.delete("/drafts/{draft_id}/suppliers/{row_id}")
@@ -953,8 +974,8 @@ async def _push_supplier_links(session: AsyncSession, d: IntakeDraft, article_id
         ours.append({
             "supplier_id": sid,
             "supplier_name": hit.get("supplier_name", ""),
-            "is_default": 0,
-            "default_delivery_price": "",
+            "is_default": 1 if r.is_default else 0,
+            "default_delivery_price": (r.delivery_price or "").strip(),
             "package_id": "",
             "remote_ref_id": (r.supplier_code or "").strip(),
             "remote_article_name": (r.supplier_name or "").strip(),
@@ -976,7 +997,18 @@ async def _push_supplier_links(session: AsyncSession, d: IntakeDraft, article_id
     final = kept + ours
     if not final:
         return {"suppliers_linked": 0, "suppliers_skipped": skipped} if skipped else {}
-    if ours and not any(x["is_default"] for x in final):
+    # exactly one „Основен": the panel's explicit choice wins over any kept Barsy default;
+    # otherwise keep an existing Barsy default; otherwise fall back to our first row.
+    if any(x["is_default"] for x in ours):
+        for k in kept:
+            k["is_default"] = 0
+        seen = False
+        for x in ours:
+            if x["is_default"] and not seen:
+                seen = True
+            elif x["is_default"]:
+                x["is_default"] = 0
+    elif ours and not any(x["is_default"] for x in kept):
         ours[0]["is_default"] = 1
     try:
         await run_in_threadpool(barsy.call, "Articles_save_suppliers",
