@@ -20,6 +20,7 @@ import { BrandDetail } from './pages/BrandDetail'
 import BrandRegistryV2 from './pages/BrandRegistryV2'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
+import { Clients } from './pages/Clients'
 
 export default function App() {
   const { me, loading } = useAuth()
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="marki-v2" element={<Navigate to="/products/brands" replace />} />
         <Route path="marki-v2/:brandId" element={<BrandRegistryV2 />} />
         <Route path="assistant" element={<Assistant />} />
+        <Route path="clients" element={canManage ? <Clients /> : <Navigate to="/" replace />} />
         <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

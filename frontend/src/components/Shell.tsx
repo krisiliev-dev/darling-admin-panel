@@ -27,6 +27,7 @@ const NAV: { to: string; label: string; roles?: string[]; hideFor?: string[] }[]
   // three near-synonyms in the nav bar.
   { to: '/kancelaria', label: 'Канцелария' },
   { to: '/posta', label: 'Поща' },
+  { to: '/clients', label: 'Клиенти', roles: ['owner', 'manager'] },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
 ]
 
