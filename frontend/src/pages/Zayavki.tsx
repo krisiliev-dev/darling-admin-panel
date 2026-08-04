@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { FolderTabs } from '../components/Tabs'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../lib/api'
 import { clickable } from '../lib/a11y'
@@ -27,7 +28,7 @@ export function Zayavki({ embedded = false }: { embedded?: boolean } = {}) {
       <NoSupplierNudge />
       <InsightCards onAdded={bump} />
       <SupplierList key={refresh} onOpen={setOpenSupplier} />
-      <SentHistory key={`h${refresh}`} />
+      <ZayavkiHistory onOpen={setOpenSupplier} key={`h${refresh}`} />
     </div>
   )
 }
@@ -45,20 +46,41 @@ function NoSupplierNudge() {
 }
 
 // past sent заявки
-function SentHistory() {
-  const [rows, setRows] = useState<{ id: number; supplier: string; status: string; items: number; total: number; sent_at: string | null }[] | null>(null)
-  useEffect(() => { api.get<{ zayavki: typeof rows }>('/api/zayavki').then((d) => setRows((d.zayavki || []).filter((z) => z.status === 'sent'))).catch(() => setRows([])) }, [])
+const ZSTATUS_TABS: { key: string; label: string }[] = [
+  { key: 'draft', label: 'Нови' },
+  { key: 'sent', label: 'Изпратени' },
+  { key: 'received', label: 'Заредени' },
+]
+
+// Lifecycle browser for заявки: Нови (open drafts) → Изпратени (sent to the supplier) → Заредени
+// (goods received via Доставки). Status comes straight from /api/zayavki; a Нови row opens that
+// supplier's cart, sent/received are read-only history (Barsy is system-of-record once sent).
+function ZayavkiHistory({ onOpen }: { onOpen: (s: string) => void }) {
+  type ZRow = { id: number; supplier: string; status: string; items: number; total: number; created_at?: string | null; sent_at: string | null }
+  const [rows, setRows] = useState<ZRow[] | null>(null)
+  const [tab, setTab] = useState('sent')
+  useEffect(() => { api.get<{ zayavki: ZRow[] }>('/api/zayavki').then((d) => setRows(Array.isArray(d.zayavki) ? d.zayavki : [])).catch(() => setRows([])) }, [])
   if (!rows || rows.length === 0) return null
+  const count = (k: string) => rows.filter((z) => z.status === k).length
+  const tabs = ZSTATUS_TABS.map((t) => ({ key: t.key, label: `${t.label} (${count(t.key)})` }))
+  const shown = rows.filter((z) => z.status === tab)
   return (
     <Sheet>
-      <h3 style={{ fontSize: '1rem', marginBottom: '.4rem' }}>Изпратени заявки</h3>
-      <div style={{ display: 'grid', gap: '.3rem' }}>
-        {rows.map((z) => (
-          <div key={z.id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0' }}>
-            <span style={{ fontWeight: 700 }}>{z.supplier}</span>
-            <span style={{ color: 'var(--pencil)' }}>{z.items} арт. · {eur(z.total)} · {z.sent_at ? z.sent_at.slice(0, 10) : ''}</span>
-          </div>
-        ))}
+      <FolderTabs tabs={tabs} active={tab} onSelect={setTab} />
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} style={{ display: 'grid', gap: '.3rem', paddingTop: '.6rem' }}>
+        {shown.length === 0 ? (
+          <p className="font-type" style={{ color: 'var(--pencil)', fontSize: '.8rem' }}>Няма заявки в този етап.</p>
+        ) : shown.map((z) => {
+          const clickable = z.status === 'draft'
+          const date = (z.status === 'draft' ? z.created_at : z.sent_at) || ''
+          return (
+            <div key={z.id} className="font-type" onClick={clickable ? () => onOpen(z.supplier) : undefined}
+              style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', borderBottom: '1px dashed var(--line)', padding: '.2rem 0', cursor: clickable ? 'pointer' : 'default' }}>
+              <span style={{ fontWeight: 700 }}>{z.supplier}</span>
+              <span style={{ color: 'var(--pencil)' }}>{z.items} арт. · {eur(z.total)}{date ? ` · ${date.slice(0, 10)}` : ''}</span>
+            </div>
+          )
+        })}
       </div>
     </Sheet>
   )

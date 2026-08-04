@@ -15,6 +15,10 @@ vi.mock('../lib/api', () => ({
       ] }
       if (p.includes('/suppliers')) return { suppliers: [
         { supplier: 'АНИС', catalog_count: 1680, open_id: 7, items: 2, total: 12.5, last_sent: null }] }
+      if (p === '/api/zayavki') return { zayavki: [
+        { id: 1, supplier: 'Вертекс', status: 'sent', items: 2, total: 12.5, created_at: '2026-08-01', sent_at: '2026-08-02' },
+        { id: 2, supplier: 'Мебели', status: 'draft', items: 1, total: 5, created_at: '2026-08-03', sent_at: null },
+      ] }
       return {}
     }),
     post: vi.fn(async (_p: string, body: unknown) => {
@@ -66,5 +70,12 @@ describe('Zayavki', () => {
     // multi by making add throw 409 → the dialog uses p.suppliers (['АНИС']); assert the dialog opens
     fireEvent.click(addBtn)
     await waitFor(() => expect(screen.getByText('Към кой доставчик?')).toBeInTheDocument())
+  })
+
+  it('shows the заявки lifecycle tabs and switches stage', async () => {
+    render(<Zayavki />)
+    expect(await screen.findByText('Вертекс')).toBeInTheDocument()   // default Изпратени tab
+    fireEvent.click(screen.getByRole('tab', { name: /Нови/ }))
+    expect(await screen.findByText('Мебели')).toBeInTheDocument()    // draft stage
   })
 })
