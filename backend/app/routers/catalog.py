@@ -795,31 +795,42 @@ class BulkRenameRequest(BaseModel):
     confirm: bool = False
 
 
+def _merge_name_ml(current_ml, name, locale="bg_BG"):
+    """Merge `name` into `locale` of an existing article_name_ml, PRESERVING other locales. Barsy
+    treats a partial {locale: name} on Articles_update as a FULL REPLACE (verified: drops en_US), so
+    a rename must send the whole merged map. Null locales Barsy returns are dropped."""
+    ml = {k: v for k, v in (current_ml or {}).items() if v}
+    ml[locale] = name
+    return ml
+
+
 async def _bulk_rename_apply(session, changes: list, job_id: str | None = None):
-    """Serial, paced Articles_update renaming `changes` (write-through the cache). Shared by the inline
-    and background paths; reports progress to bulkjobs when job_id set. Returns (applied, failed_codes).
-    Kept on Articles_update (NOT the native grid save_mass): the grid writes only the scalar
-    article_name and cannot maintain article_name_ml -- and once the panel reads the ml for i18n, a
-    stale ml.bg_BG would show the old name. (NB: this partial-ml write REPLACES the map, so it drops
-    other locales like en_US -- harmless pre-launch with no en names, must become a full-map merge
-    before the English site ships.)"""
+    """Serial, paced rename via Articles_update, i18n-safe: for each article read the current
+    article_name_ml, merge the new name into the active locale (preserving en_US and any other
+    locales), and write article_name + the FULL merged map. Kept on Articles_update (NOT the native
+    grid save_mass): the grid writes only the scalar article_name and cannot maintain the ml (verified
+    4 ways + live Barsy UI capture), which the panel will read for the English site. Write-through the
+    cache. Returns (applied, failed_codes)."""
     ids = [c["article_id"] for c in changes]
     cache = {p.article_id: p for p in (await session.execute(
         select(ProductCache).where(ProductCache.article_id.in_(ids)))).scalars().all()}
     applied, failed = 0, []
     for i, c in enumerate(changes):
+        aid = c["article_id"]
         if i:
             await _bulk.pace()
         try:
-            await run_in_threadpool(barsy.call, "Articles_update", {"article_id": c["article_id"],
-                "article": {"article_name": c["new_name"], "article_name_ml": {"bg_BG": c["new_name"]}}})
+            cur = await run_in_threadpool(barsy.call, "Articles_get", {"article_id": aid})
+            ml = _merge_name_ml((cur or {}).get("article_name_ml"), c["new_name"])
+            await run_in_threadpool(barsy.call, "Articles_update", {"article_id": aid,
+                "article": {"article_name": c["new_name"], "article_name_ml": ml}})
         except Exception:
             failed.append(c["code"])
             if job_id:
                 bulkjobs.bump(job_id, failed_code=c["code"])
             continue
-        if c["article_id"] in cache:
-            cache[c["article_id"]].name = c["new_name"]      # write-through
+        if aid in cache:
+            cache[aid].name = c["new_name"]      # write-through
         applied += 1
         if job_id:
             bulkjobs.bump(job_id, applied=1)
