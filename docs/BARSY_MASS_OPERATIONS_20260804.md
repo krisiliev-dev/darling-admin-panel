@@ -1,9 +1,9 @@
 # Barsy „Масови операции" (article mass edit) — captured 2026-08-04
 
 Owner asked to mirror Barsy's mass operations on the panel. This is what Barsy's article mass edit
-actually is, the full field set it can change, and the recommended way to mirror it. Captured with
-two throwaway test articles (30750, 30751) that were **created, probed, and deleted — verified gone,
-zero residue**.
+actually is, the full field set it can change, the **exact `save_mass` wire body** (captured live from
+the Barsy admin UI), and the recommended way to mirror it. Captured with three throwaway test articles
+(30750, 30751, 30752) that were **created, probed, and deleted — verified gone, zero residue**.
 
 ## The mechanism: an editable grid + `save_mass`
 
@@ -47,21 +47,53 @@ Essentially the WHOLE article record is mass-editable. Grouped (Barsy column nam
 quantity. Changing actual stock is a Складови operation (storeload / adjustment), a separate
 mechanism — not part of the article grid.
 
-## The exact `save_mass` wire body is NOT yet confirmed
+## The exact `save_mass` wire body — CAPTURED 2026-08-04 (live Chrome)
 
-Three API attempts to drive `save_mass` from the connector:
-- `articles_index {action_type:"save_mass", active_struct_id:"eStructList_1", rows:[{article_id, actual_price}]}` → HTTP 500.
-- `… values:{}, rows:[{key_id, actual_price}]}` → returned `1` but the price did NOT change (no-op).
-- `… values:{}, rows:[{id, actual_price}]}` → returned `1`, no change.
+Captured the real UI request by driving Barsy's article grid in Chrome (throwaway article 30752,
+„ТЕСТ-МАСОВИ-CAP", created → made „Цена продажба" column editable via Масови операции → Колони →
+typed 12.34 in the € cell → Запиши → **deleted, verified gone**). The UI POSTs to
+`/endpoints/json?bid=1` (session/cookie auth) with a **page-wrapped** body:
 
-So the UI sends a specific grid payload (probably a `values`-keyed-by-row structure, or a different
-row key / column encoding) that these guesses don't match. Nailing the exact body needs a live
-capture of the real request from the Barsy admin UI (Chrome + the XHR hook), the way other methods
-were captured. **This is only needed if we choose to replicate `save_mass` natively — see below.**
+```json
+{
+  "articles_index": {
+    "action_type": "save_mass",
+    "active_struct_id": "eStructList_1",
+    "values": {
+      "articles_index_eStructList_1_30752_actual_price": {
+        "row_id":       "articles_index_eStructList_1_30752",
+        "col_name":     "actual_price",
+        "value":        "12.34",
+        "native_value": 9.99,
+        "article_id":   "30752"
+      }
+    }
+  }
+}
+```
+
+Key facts, why the earlier connector guesses failed, and the contract:
+
+- `values` is an **object, not a list** — keyed by `<struct>_<article_id>_<col_name>`
+  (`articles_index_eStructList_1_<article_id>_<col_name>`). That is why `rows:[...]` gave HTTP 500 /
+  no-op: the grid never reads a `rows` array.
+- Each cell value carries: `row_id` (`<struct>_<article_id>`), `col_name`, `value` (the NEW value,
+  as a string), `native_value` (the OLD value, for optimistic-concurrency / diffing), `article_id`.
+- **Partial, not full-replace.** Only the cells the user actually edited are sent — untouched
+  columns and articles are absent and left unchanged. (Contrast with page-form saves like
+  `users_edit`, which are read-modify-write / blank-on-omit. The grid `save_mass` is a targeted
+  cell-diff, so it is safe to send only the changed cells.)
+- One call carries many cells across many articles: add one `values` entry per changed cell. Barsy
+  owns the whole update as a single transaction.
+- Auth/transport note: this is the **adminx SPA** shape (`/endpoints/json?bid=1`, wrapped in the
+  page id, cookie-authed). The connector's `barsy.call(method, body)` posts to `/endpoints/json/<method>`
+  with Basic auth and an UNWRAPPED body. To replicate natively the connector would need to post the
+  wrapped `{"articles_index": {...}}` form to `?bid=1` (or `barsy.call("articles_index", {action_type, active_struct_id, values})`
+  which wraps method=articles_index) — but see the recommendation below: we do **not** need to.
 
 ## Recommendation: mirror the operations, not the wire format
 
-The panel does **not** need Barsy's opaque `save_mass` body. Every field the grid mass-edits is a
+Even though the `save_mass` body is now known (above), the panel does **not** need it. Every field the grid mass-edits is a
 normal article field, and the panel already has the verified per-article write paths:
 
 - **The mass-edit surface:** a „Масови операции" panel view = select products (the shared
@@ -75,9 +107,10 @@ normal article field, and the panel already has the verified per-article write p
 - **Mass flags / tax / units / reorder limits:** `Articles_update` per article with those fields.
 
 This gives the owner the same „Масови операции" capability, on the panel's proven writes, without
-depending on Barsy's grid payload. If instead we want to call Barsy's native `save_mass` (one call
-for N articles, so Barsy owns the transaction), the next step is a Chrome capture of the real UI
-request — a focused task, owner's call.
+depending on Barsy's grid payload. Calling Barsy's native `save_mass` instead (one call for N
+articles, so Barsy owns the transaction) is now feasible — the wire body is captured above — but it
+means teaching the connector the adminx `?bid=1` wrapped/cookie shape rather than its Basic-auth
+`barsy.call`. The per-article `Articles_update` loop stays the recommended default.
 
 Open question for the owner to prioritise: which mass operations matter for launch (price and the
 is_for_* flags are the obvious ones) vs. later (characteristics, slug, intrastat, …).
@@ -85,5 +118,7 @@ is_for_* flags are the obvious ones) vs. later (characteristics, slug, intrastat
 ## Probe hygiene
 
 Test articles 30750 („ТЕСТ-МАСОВИ-1") + 30751 („ТЕСТ-МАСОВИ-2") created via `Articles_create`,
-used for the `save_mass` attempts, then `Articles_delete{article_id}` — both confirmed gone on
-re-read. No test residue left in Barsy.
+used for the earlier `save_mass` API attempts, then `Articles_delete{article_id}` — both confirmed
+gone on re-read. Test article 30752 („ТЕСТ-МАСОВИ-CAP") created for the live Chrome capture, price
+edited to 12.34 via the UI, then `Articles_delete{article_id:30752}` → resp `1`; re-read returns
+„Няма артикул с id:30752" (HTTP 501) = confirmed gone. No test residue left in Barsy.
