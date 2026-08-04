@@ -31,12 +31,14 @@ def get(jid: str) -> dict | None:
     return _JOBS.get(jid)
 
 
-def bump(jid: str, *, applied: int = 0, skipped: int = 0, failed_code: str | None = None) -> None:
-    """Record one processed item (advances `done` + the applied/skipped/failed tallies)."""
+def bump(jid: str, *, applied: int = 0, skipped: int = 0, failed_code: str | None = None,
+         count: int = 1) -> None:
+    """Record processed item(s): advance `done` by `count` + the applied/skipped/failed tallies.
+    `count` lets a one-shot native write (save_mass) report N items at once, not N calls."""
     j = _JOBS.get(jid)
     if not j:
         return
-    j["done"] += 1
+    j["done"] += count
     j["applied"] += applied
     j["skipped"] += skipped
     if failed_code is not None:

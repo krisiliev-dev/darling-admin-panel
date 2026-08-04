@@ -121,8 +121,10 @@ async def test_apply_supplier_bulk_writes_all(owner_client, barsy_recorder, mock
     assert r.status_code == 200
     body = r.json()
     assert body["applied"] == 2
-    updates = [op for op in barsy_recorder.operations if op == "Articles_update"]
-    assert len(updates) == 2
+    saves = [op for op in barsy_recorder.operations if op == "articles_index"]
+    assert len(saves) == 1                              # one native save_mass for both products
+    vals = barsy_recorder.body_for("articles_index")["values"]
+    assert len(vals) == 2                               # two cells: AA and BB actual_price
     # the affected products come back so the panel can offer new-price shop-floor labels
     changed = {c["code"]: c["price"] for c in body["changed"]}
     assert changed == {"AA": 3.0, "BB": 6.0}       # cost ×1.5 markup

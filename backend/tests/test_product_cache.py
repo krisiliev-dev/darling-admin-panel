@@ -114,7 +114,7 @@ async def test_bulk_price_preview_then_apply(owner_client, barsy_recorder):
     ap = (await owner_client.post("/api/catalog/bulk-price",
           json={"article_ids": [1, 2], "op": "mul", "value": 1.2, "confirm": True})).json()
     assert ap["applied"] == 2
-    assert barsy_recorder.operations.count("Articles_update") == 2
+    assert barsy_recorder.operations.count("articles_index") == 1   # one native save_mass, not 2 updates
     # cache updated (write-through) → search reflects the new price
     a1 = (await owner_client.get("/api/catalog/search?q=едно")).json()["items"][0]
     assert a1["price"] == 12.0
@@ -140,7 +140,7 @@ async def test_bulk_price_large_batch_runs_as_background_job(owner_client, barsy
         await asyncio.sleep(0.2)
     assert j["status"] == "done", j
     assert j["applied"] == 35 and j["total"] == 35 and j["done"] == 35
-    assert barsy_recorder.operations.count("Articles_update") == 35
+    assert barsy_recorder.operations.count("articles_index") == 1   # 35 cells in one save_mass
     # cache write-through happened in the background session
     a1 = (await owner_client.get("/api/catalog/search?q=Art1&per_page=1")).json()["items"][0]
     assert a1["price"] == 11.0
@@ -211,7 +211,7 @@ async def test_bulk_price_skips_free_and_baseless(owner_client, barsy_recorder):
     # confirm writes nothing
     ap = (await owner_client.post("/api/catalog/bulk-price",
           json={"article_ids": [1, 2], "op": "sub", "value": 10, "confirm": True})).json()
-    assert ap["applied"] == 0 and "Articles_update" not in barsy_recorder.operations
+    assert ap["applied"] == 0 and "articles_index" not in barsy_recorder.operations
 
 
 @pytest.mark.asyncio

@@ -310,7 +310,8 @@ async def apply_supplier(
     uncovered = len(codes) - len(seen_codes)
 
     applied = skipped = 0
-    changed: list[dict] = []          # affected products → the panel offers new-price shop-floor labels
+    changed: list[dict] = []          # affected products -> panel offers new-price shop-floor labels
+    to_write: list[dict] = []
     for a in (rows or []):
         if str(a.get("code") or "") not in codes:
             continue
@@ -326,14 +327,7 @@ async def apply_supplier(
         if retail is not None and abs(retail - new_retail) <= 0.01:
             skipped += 1  # already in line
             continue
-        if applied:
-            await _bulk.pace()                            # smooth the write burst (low-tier Barsy throttles)
-        try:
-            await run_in_threadpool(barsy.call, "Articles_update",
-                                    {"article_id": aid, "article": {"actual_price": new_retail}})
-        except Exception:
-            skipped += 1
-            continue
+        to_write.append({"article_id": aid, "col_name": "actual_price", "value": str(new_retail)})
         r = rules.get(aid)
         if r is not None:
             r.last_cost = cost
@@ -341,6 +335,8 @@ async def apply_supplier(
         changed.append({"name": a.get("article_name") or "", "code": str(a.get("code") or ""),
                         "barcode": (bc[0] if isinstance(bc, list) else bc) or "", "price": new_retail})
         applied += 1
+    if to_write:
+        await run_in_threadpool(_bulk.save_mass, to_write)   # one native save_mass, not a per-item loop
     await session.commit()
     skipped += uncovered
     await log_action(session, actor, "pricing.apply_supplier", target=body.supplier,

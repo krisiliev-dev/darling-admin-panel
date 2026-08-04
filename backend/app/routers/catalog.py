@@ -462,14 +462,14 @@ def _apply_op(old: float | None, op: str, value: float, rd: int) -> float | None
 
 async def _bulk_price_apply(session, changes: list, op: str, value: float, rd: int,
                             base_by_id: dict, job_id: str | None = None):
-    """Serial, paced Articles_update over `changes` (write actual_price + write-through the cache).
-    Shared by the inline and background paths; reports per-item progress to bulkjobs when job_id set.
-    Returns (applied, failed_codes)."""
+    """Persist the new prices in one native Barsy save_mass (chunked+paced) instead of a per-article
+    Articles_update loop -- Barsy owns the write as a transaction, the way its own grid does. Reports
+    progress to bulkjobs when job_id set. Returns (applied, failed_codes)."""
     ids = [c["article_id"] for c in changes]
     cache = {p.article_id: p for p in (await session.execute(
         select(ProductCache).where(ProductCache.article_id.in_(ids)))).scalars().all()}
-    applied, failed = 0, []
-    for i, c in enumerate(changes):
+    to_write, failed = [], []
+    for c in changes:
         aid = c["article_id"]
         if op == "set":
             new = c["new_price"]
@@ -483,22 +483,17 @@ async def _bulk_price_apply(session, changes: list, op: str, value: float, rd: i
                 if job_id:
                     bulkjobs.bump(job_id, failed_code=c["code"])
                 continue
-        if i:
-            await _bulk.pace()                            # smooth the write burst (low-tier Barsy throttles)
-        try:
-            await run_in_threadpool(barsy.call, "Articles_update",
-                                    {"article_id": aid, "article": {"actual_price": str(new)}})
-        except Exception:
-            failed.append(c["code"])
-            if job_id:
-                bulkjobs.bump(job_id, failed_code=c["code"])
-            continue
-        if aid in cache:
-            cache[aid].price = new                        # write-through to the cache
         c["new_price"] = new
-        applied += 1
+        to_write.append({"article_id": aid, "col_name": "actual_price", "value": str(new)})
+    applied = 0
+    if to_write:
+        applied = await run_in_threadpool(_bulk.save_mass, to_write)
+        written = {w["article_id"] for w in to_write}
+        for c in changes:
+            if c["article_id"] in written and c["article_id"] in cache:
+                cache[c["article_id"]].price = c["new_price"]   # write-through to the cache
         if job_id:
-            bulkjobs.bump(job_id, applied=1)
+            bulkjobs.bump(job_id, applied=applied, count=applied)
     await session.commit()
     return applied, failed
 
@@ -802,7 +797,12 @@ class BulkRenameRequest(BaseModel):
 
 async def _bulk_rename_apply(session, changes: list, job_id: str | None = None):
     """Serial, paced Articles_update renaming `changes` (write-through the cache). Shared by the inline
-    and background paths; reports progress to bulkjobs when job_id set. Returns (applied, failed_codes)."""
+    and background paths; reports progress to bulkjobs when job_id set. Returns (applied, failed_codes).
+    Kept on Articles_update (NOT the native grid save_mass): the grid writes only the scalar
+    article_name and cannot maintain article_name_ml -- and once the panel reads the ml for i18n, a
+    stale ml.bg_BG would show the old name. (NB: this partial-ml write REPLACES the map, so it drops
+    other locales like en_US -- harmless pre-launch with no en names, must become a full-map merge
+    before the English site ships.)"""
     ids = [c["article_id"] for c in changes]
     cache = {p.article_id: p for p in (await session.execute(
         select(ProductCache).where(ProductCache.article_id.in_(ids)))).scalars().all()}
