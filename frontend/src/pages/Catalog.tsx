@@ -6,8 +6,24 @@ import { useHotkey, isTyping } from '../lib/useHotkey'
 import { Sheet } from '../components/Paper'
 import { PageHeader, EmptyNote, Loading } from '../components/PageHeader'
 import { BulkBar } from '../components/ProductBulkPricing'
+import { ProductTable, type ProductColumn } from '../components/ProductTable'
+import { useColumnPrefs } from '../lib/useColumnPrefs'
 
 const PER = 100
+
+// Shared column set for the Каталог product list (rendered through <ProductTable>). The extras
+// (barcode/category/brand) ship hidden; the wrench picker turns them on per user.
+const CATALOG_COLUMNS: ProductColumn<CacheProduct>[] = [
+  { key: 'image', label: 'Снимка', render: (it) => <Thumb articleId={it.article_id} hasImage={it.has_image} /> },
+  { key: 'id', label: 'ID', render: (it) => <span style={{ color: 'var(--pencil)', fontVariantNumeric: 'tabular-nums' }}>#{it.article_id}</span> },
+  { key: 'product', label: 'Продукт', fixed: true, render: (it) => <>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></> },
+  { key: 'supplier', label: 'Доставчик', render: (it) => <span style={{ color: 'var(--pencil)' }}>{it.supplier || '—'}</span> },
+  { key: 'stock', label: 'Наличност', align: 'right', render: (it) => <span style={{ color: it.low ? 'var(--blocked)' : 'var(--pencil)' }}>{it.stock != null ? `${it.stock} бр${it.low ? ' ⚠' : ''}` : '—'}</span> },
+  { key: 'price', label: 'Цена', align: 'right', render: (it) => <span style={{ color: 'var(--pencil)' }}>{it.price != null ? `${it.price} €` : ''}</span> },
+  { key: 'barcode', label: 'Баркод', group: 'още', defaultHidden: true, render: (it) => <span style={{ color: 'var(--pencil)', fontFamily: 'monospace' }}>{it.barcode || '—'}</span> },
+  { key: 'category', label: 'Категория', group: 'още', defaultHidden: true, render: (it) => <span style={{ color: 'var(--pencil)' }}>{it.category || '—'}</span> },
+  { key: 'brand', label: 'Бранд', group: 'още', defaultHidden: true, render: (it) => <span style={{ color: 'var(--pencil)' }}>{it.brand || '—'}</span> },
+]
 
 // Каталог — browse + edit products from Barsy (live STOCK folded in). Runs off the local product
 // cache so filtering by name/код/доставчик/категория/цена/атрибут is instant. Price is read-only.
@@ -34,6 +50,7 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<number | null>(null)
   const [sel, setSel] = useState<Map<number, CacheProduct>>(new Map())   // selection persists across pages
+  const colPrefs = useColumnPrefs('catalog', CATALOG_COLUMNS)
   const searchRef = useRef<HTMLInputElement>(null)
   useHotkey((e) => e.key === '/' && !isTyping(e), () => searchRef.current?.focus())
   const seqRef = useRef(0)
@@ -161,32 +178,15 @@ export function Catalog({ embedded = false }: { embedded?: boolean } = {}) {
             <EmptyNote>{q || supplier || category || lowOnly ? 'Няма продукти за този филтър.' : 'Каталогът се пълни, щом одобрени продукти се качат в Barsy.'}</EmptyNote>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table className="font-type" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
-                <thead><tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--red)', textAlign: 'left' }}>
-                  <th style={{ padding: '.3rem' }}><input type="checkbox" checked={pageAllSel} onChange={togglePage} title="избери страницата" /></th>
-                  <th style={{ padding: '.3rem' }}></th><th style={{ padding: '.3rem' }}>ID</th>
-                  <th style={{ padding: '.3rem' }}>Продукт</th><th style={{ padding: '.3rem' }}>Доставчик</th>
-                  <th style={{ padding: '.3rem', textAlign: 'right' }}>Наличност</th><th style={{ padding: '.3rem', textAlign: 'right' }}>Цена</th>
-                </tr></thead>
-                <tbody>
-                  {items.map((it: CacheProduct) => (
-                    <tr key={it.article_id} onClick={() => setSelected(it.article_id)} style={{
-                      cursor: 'pointer', borderBottom: '1px dashed var(--line)',
-                      background: sel.has(it.article_id) ? 'var(--paper)' : selected === it.article_id ? 'var(--paper2)' : 'transparent',
-                    }}>
-                      <td style={{ padding: '.3rem' }} onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={sel.has(it.article_id)} onChange={() => toggle(it)} />
-                      </td>
-                      <td style={{ padding: '.3rem' }}><Thumb articleId={it.article_id} hasImage={it.has_image} /></td>
-                      <td style={{ padding: '.3rem', color: 'var(--pencil)', fontVariantNumeric: 'tabular-nums' }}>#{it.article_id}</td>
-                      <td style={{ padding: '.3rem' }}>{it.name || '(без име)'} <span style={{ color: 'var(--pencil)' }}>{it.code}</span></td>
-                      <td style={{ padding: '.3rem', color: 'var(--pencil)' }}>{it.supplier || '—'}</td>
-                      <td style={{ padding: '.3rem', textAlign: 'right', color: it.low ? 'var(--blocked)' : 'var(--pencil)', whiteSpace: 'nowrap' }}>{it.stock != null ? `${it.stock} бр${it.low ? ' ⚠' : ''}` : '—'}</td>
-                      <td style={{ padding: '.3rem', textAlign: 'right', color: 'var(--pencil)', whiteSpace: 'nowrap' }}>{it.price != null ? `${it.price} €` : ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ProductTable
+                columns={CATALOG_COLUMNS}
+                rows={items}
+                prefs={colPrefs}
+                rowKey={(it) => it.article_id}
+                onRowClick={(it) => setSelected(it.article_id)}
+                rowStyle={(it) => ({ background: sel.has(it.article_id) ? 'var(--paper)' : selected === it.article_id ? 'var(--paper2)' : 'transparent' })}
+                selection={{ isSelected: (it) => sel.has(it.article_id), toggle, allOnPage: pageAllSel, toggleAll: togglePage }}
+              />
               {pages > 1 && (
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', justifyContent: 'center', marginTop: '.5rem' }}>
                   <button className="btn-paper" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>←</button>
