@@ -85,15 +85,95 @@ Key facts, why the earlier connector guesses failed, and the contract:
   cell-diff, so it is safe to send only the changed cells.)
 - One call carries many cells across many articles: add one `values` entry per changed cell. Barsy
   owns the whole update as a single transaction.
-- Auth/transport note: this is the **adminx SPA** shape (`/endpoints/json?bid=1`, wrapped in the
-  page id, cookie-authed). The connector's `barsy.call(method, body)` posts to `/endpoints/json/<method>`
-  with Basic auth and an UNWRAPPED body. To replicate natively the connector would need to post the
-  wrapped `{"articles_index": {...}}` form to `?bid=1` (or `barsy.call("articles_index", {action_type, active_struct_id, values})`
-  which wraps method=articles_index) — but see the recommendation below: we do **not** need to.
+- Auth/transport — **VERIFIED reachable from the connector** (2026-08-04, throwaway article 30755
+  9.99→12.34, confirmed via `Articles_get`, deleted). The UI uses the adminx SPA shape
+  (`/endpoints/json?bid=1`, body wrapped in the page id, cookie-authed), but the connector does
+  **not** need cookies. This exact call works over Basic auth:
 
-## Recommendation: mirror the operations, not the wire format
+  ```python
+  barsy.call("articles_index",
+    {"action_type": "save_mass", "active_struct_id": "eStructList_1",
+     "values": {  # one entry per changed cell, keyed <struct>_<article_id>_<col>
+       "articles_index_eStructList_1_<aid>_actual_price": {
+         "row_id": "articles_index_eStructList_1_<aid>", "col_name": "actual_price",
+         "value": "12.34", "native_value": 9.99, "article_id": "<aid>"}}},
+    bid=1)   # -> returns 1 on success
+  ```
 
-Even though the `save_mass` body is now known (above), the panel does **not** need it. Every field the grid mass-edits is a
+  i.e. `barsy.call` routes on the URL path (`/endpoints/json/articles_index?bid=1`) with the body
+  UNWRAPPED — Barsy accepts that just as it accepts the UI's `?bid=1`-wrapped form. `bid=1` is
+  REQUIRED (without it the call returns `1` but is a no-op). This is the path the panel uses.
+
+## Decision (owner, 2026-08-04): build native `save_mass`, cover every field
+
+Owner chose the **native `save_mass`** path (one Barsy call per apply, so Barsy owns the transaction)
+over a per-article `Articles_update` loop, and asked for **all** of Barsy's mass operations on the
+panel — price/costing, characteristics/units, supplier assignment, behaviour flags, "any and all
+that Barsy supports". So the panel's Масови операции view builds the `values`-keyed-by-cell body
+(above) from the selected products × chosen field(s) and posts the single verified call
+`barsy.call("articles_index", {action_type:"save_mass", active_struct_id, values}, bid=1)`.
+
+The per-article `Articles_update` loop below stays documented as the fallback (some fields — supplier
+multiselect, `detail_N` characteristics — may need their own encoding inside a `values` cell; where
+that proves fiddly, `Articles_update`/`Articles_save_suppliers`/`ArticleDetails_save` remain proven).
+
+### Verified per-column semantics (throwaway articles, 2026-08-04, all deleted)
+
+- **`native_value` is ignored.** A cell with a deliberately wrong `native_value` still applied — so the
+  backend does NOT need to read current values first (except to *compute* a relative ×/÷/+/− delta).
+- **Multi-type, multi-row** in one call: `actual_price` (currency), `article_name`/`code` (text),
+  `is_public` (checkbox) all round-trip; two articles set in one `save_mass`.
+- **Behaviour flags need the grid's `_mass` suffix** as `col_name`: `is_for_sale_mass` applies (sets
+  `is_for_sale`); the bare `is_for_sale` does NOT. `is_public`/`is_service` have no suffix.
+- **`min_amount` does NOT round-trip** via `save_mass` (set "5" → read back `null`) — on-hand min is
+  per-depot (`min_amount_by_depots`). Reorder-limit columns need separate verification before use.
+### Localized text (name / public name / description) — the i18n exception, verified end-to-end
+
+Barsy stores names twice: the scalar `article_name` AND `article_name_ml`, a lang-keyed map
+(`bg_BG`, `en_US`, …). The grid mass-edit only ever writes the **scalar**. Confirmed at every level
+(throwaway articles, all deleted):
+
+- **`save_mass` on `article_name` never touches the ml.** Verified 4 ways (plain, `+article_name_ml`
+  string, `+`json, `+article_name_ml_bg_BG`) — the ml map is left byte-for-byte alone.
+- **The real Barsy UI does the same.** Captured the live grid rename in Chrome: it POSTs
+  `/endpoints/json?bid=1` with a single `article_name` cell and **no ml cell**. So the stale ml is
+  Barsy's own designed grid behavior, not a connector omission.
+- **Effect on a bilingual product** (bg_BG + en_US both set): after a grid rename, `en_US` is
+  **preserved** but `article_name_ml.bg_BG` goes **stale** vs the new scalar.
+- **`Articles_update` ml semantics** (also verified): a **partial** `{bg_BG: new}` body **REPLACES**
+  the whole map → **drops `en_US`**. Only a **full** map `{bg_BG: new, en_US: kept}` preserves other
+  locales while syncing bg_BG. A name-only `Articles_update` (no ml key) keeps `en_US` but leaves
+  bg_BG stale (same as save_mass).
+
+Consequence for i18n (the owner will read the ml for the English site): the only write that both syncs
+the active-locale name AND preserves other locales is `Articles_update` with a **read-modify-write full
+ml map**. `save_mass` cannot do it. So **localized-text fields stay on `Articles_update`, NOT the grid**:
+
+| field group | write path |
+|---|---|
+| price / costing, flags, tax, units, reorder limits, code, barcode, slug | native `save_mass` |
+| `article_name`, `article_name_public`, `description` (have `_ml` siblings) | `Articles_update` (full-map merge) |
+
+The current `bulk_rename` still writes a **partial** `{bg_BG: new}` map (drops en_US). Harmless
+pre-launch (no English names exist), but it must become a full-map merge before the English site
+ships — flagged as an open item.
+
+Because columns are NOT uniform (min_amount, the ml, select/multiselect encodings), the panel's mass-op
+catalog is a **verified whitelist**, expanded field-by-field as each is confirmed against Barsy —
+never "trust all 142 blindly".
+
+### Looped writes converted to native `save_mass`
+
+`catalog._bulk_price_apply` (bulk price) and `pricing.apply_supplier` (markup reprice) previously wrote
+one `Articles_update` per article in a paced serial loop. Both now compute the changes then persist
+them in ONE chunked `save_mass` — Barsy owns the transaction, no write-burst. The inline/background-job
+split (bulkjobs) is kept for the huge-batch UX; only the write primitive changed. `catalog._bulk_rename_apply`
+was deliberately **left on `Articles_update`** (see the i18n exception above). `Articles_update` also
+remains for single-article edits (the catalog article form).
+
+### Fallback: mirror the operations via per-article writes
+
+Every field the grid mass-edits is a
 normal article field, and the panel already has the verified per-article write paths:
 
 - **The mass-edit surface:** a „Масови операции" panel view = select products (the shared
