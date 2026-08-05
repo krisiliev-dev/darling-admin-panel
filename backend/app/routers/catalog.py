@@ -1128,12 +1128,18 @@ async def update_article(
     for mode in (req.oversell_mode, req.storemove_mode):
         if mode and mode not in _TRI:                  # refuse before touching the ERP
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалидна стойност (DEF/YES/NO).")
+    # ONE Articles_get up front -- used to MERGE every *_ml map (a partial {bg_BG:...} REPLACES
+    # the map and drops other locales like en_US, verified) and to merge extra_data below. The
+    # panel reads the ml for the English site, so name/description edits must keep every language.
+    _cur = await run_in_threadpool(
+        barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
+    _cur = _cur if isinstance(_cur, dict) else {}
     article: dict = {
         "article_name": req.name.strip(),
-        "article_name_ml": {"bg_BG": req.name.strip()},
+        "article_name_ml": _merge_name_ml(_cur.get("article_name_ml"), req.name.strip()),
     }
     if req.description:
-        article["description_ml"] = {"bg_BG": req.description}
+        article["description_ml"] = _merge_name_ml(_cur.get("description_ml"), req.description)
     if req.barcode.strip():
         article["barcode"] = req.barcode.strip()  # string, not array (Barsy create/update)
     # TRI-state: the mode carries the real Barsy value (incl. DEF = "Според правата", which the old
@@ -1145,7 +1151,8 @@ async def update_article(
     if req.name_public.strip():
         article["article_name_public"] = req.name_public.strip()
     if req.description_public.strip():
-        article["description_public_ml"] = {"bg_BG": req.description_public}
+        article["description_public_ml"] = _merge_name_ml(
+            _cur.get("description_public_ml"), req.description_public)
     if req.status:
         # both ints together — they drive the Shopify auto-sync (ACTIVE / Draft / Archive)
         article["is_for_sale"], article["is_public"] = _STATUS_FLAGS[req.status]
@@ -1189,12 +1196,7 @@ async def update_article(
                                    ("seo_title", req.seo_title.strip()),
                                    ("seo_description", req.seo_description.strip())) if v}
     if extra_new:
-        try:
-            cur = await run_in_threadpool(
-                barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
-            extra = dict(cur.get("extra_data") or {}) if isinstance(cur, dict) else {}
-        except Exception:
-            extra = {}
+        extra = dict(_cur.get("extra_data") or {})
         extra.update(extra_new)
         article["extra_data"] = extra
     if not barsy_write_live():

@@ -277,7 +277,7 @@ async def test_update_blank_optionals_leave_barsy_untouched(staff_client, barsy_
     for k in ("article_name_public", "description_public_ml", "details", "cat_id", "master_cat_id",
               "amount_type_id", "extra_data", "is_for_sale", "is_public"):
         assert k not in art, k
-    assert "Articles_get" not in barsy_recorder.operations   # nothing to merge → no read
+    assert barsy_recorder.operations.count("Articles_get") == 1   # one read to merge the ml maps
 
 
 async def test_update_merges_seo_and_weight_into_extra_data_in_one_read(staff_client, barsy_recorder):
@@ -310,7 +310,7 @@ async def test_update_allows_owner_superuser(owner_client, barsy_recorder):
     # a superuser (owner/manager) always passes require_roles
     r = await owner_client.post("/api/catalog/7", json={"name": "От собственик"})
     assert r.status_code == 200, r.text
-    assert barsy_recorder.operations == ["Articles_update"]
+    assert barsy_recorder.operations == ["Articles_get", "Articles_update"]
 
 
 async def test_update_requires_auth(client, barsy_recorder):
