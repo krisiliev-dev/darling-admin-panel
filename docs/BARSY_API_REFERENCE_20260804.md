@@ -239,3 +239,33 @@ record and a future decision is informed, not blind:
 Read-only: 480 page structures fetched via the page-structure envelope; action `target`s parsed
 out; merged with methods captured live while probing (article/client/order create+delete, supplier
 link save). No writes in this pass. 264 distinct methods, 226 report grids, 0 page errors.
+
+## receipts_index / klen_index — the УНП source (probed live 2026-08-05, #73)
+
+Both answer the standard grid envelope read-only; both had **0 rows** (no fiscal device yet —
+no бон has ever been printed on this install), so shapes are verified but data semantics await
+the first real fiscal sale.
+
+`receipts_index` (18 cols) — the fiscal-receipt registry, one row per printed ФБ:
+`receipt_id, unp (УНП), receipt_date, receipt_type, receipt_num (Номер на ФБ),
+receipt_num_period, fm_num (Фискална памет), fp_serial_num (ФУ сериен номер), pos_name (Каса),
+user_name, printer_id, paid_sum, barsy_name (Търговски обект), z_num (дневен отчет),
+initial_receipt_data (Сторно на бележка), payment_ids, account_id, discount`.
+
+**`account_id` is a column** → the survey hypothesis is confirmed: УНП + receipt_num +
+receipt_date + fm_num — exactly the four fields `Accounts_storno` requires in InputStornoData —
+are joinable per SALE via `receipts_index{filters:{account_id}}`. This is the backstop if
+`Accounts_get` doesn't carry them (the connector's `_account_storno_data` currently reads them
+from `Accounts_get`; which source is authoritative can only be compared once one real fiscal
+receipt exists).
+
+`klen_index` (16 cols) — КЛЕН (electronic journal), one row per receipt LINE:
+`id, printer_id, serial_num, receipt_date, receipt_type (Документ), receipt_num, unp,
+article_name, amount, single_price, discount_sum, total, sale_tax, receipt_total,
+storno_receipt_num (Сторниран ФБ), storno_reason (Сторно причина)`.
+
+Post-launch RESULT-verification recipe for the storno path (#82a): after a storno, expect a new
+`receipts_index` row with `initial_receipt_data` referencing the original бон + a `klen_index`
+row carrying `storno_receipt_num`/`storno_reason`. What #73 still needs and ONLY a fiscal device
+can provide: a real closed sale (populates both grids + `Accounts_get` fiscal fields), then the
+owner-supervised `Accounts_place`/storno live verify. Everything write-side stays launch-gated.
