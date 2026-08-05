@@ -94,12 +94,28 @@ async def test_delete_guard_names_the_real_blocker(owner_client, barsy_recorder)
 
 
 @pytest.mark.asyncio
-async def test_delete_is_an_honest_501_on_empty(owner_client, barsy_recorder):
-    """No delete exists on this install — an empty category still gets a truthful 501, never a
-    fake success (a 'deleted' category that survives the next tree read is worse than no button)."""
+async def test_delete_empty_uses_the_captured_ui_contract(owner_client, barsy_recorder):
+    """The contract came from Barsy's OWN UI (Claude-in-Chrome capture — the owner rule): element
+    key `id` (NOT cat_id), parent_id as string, weight, top-level mode "0". Blind probes failed on
+    exactly this shape. Success = ABSENCE in getlist, not the call's return (timeout ≠ failure)."""
     _wire(barsy_recorder)
+    barsy_recorder.set_return("Categories_Delete", 1)
+    barsy_recorder.set_return("Categories_getlist", [{"cat_id": 100}, {"cat_id": 110}])  # 120 gone
+    r = (await owner_client.delete("/api/catalog/categories/120")).json()
+    assert r["ok"] is True
+    body = barsy_recorder.body_for("Categories_Delete")
+    assert body == {"cats": [{"id": 120, "parent_id": "100", "weight": 1}], "mode": "0"}
+
+
+@pytest.mark.asyncio
+async def test_delete_unconfirmed_is_a_502_not_a_fake_success(owner_client, barsy_recorder):
+    """If the category still shows in getlist after the call, report failure — a 'deleted'
+    category that survives the next tree read is worse than an error."""
+    _wire(barsy_recorder)
+    barsy_recorder.set_return("Categories_Delete", 1)
+    barsy_recorder.set_return("Categories_getlist", [{"cat_id": 120}])   # still there
     r = await owner_client.delete("/api/catalog/categories/120")
-    assert r.status_code == 501
+    assert r.status_code == 502
 
 
 @pytest.mark.asyncio

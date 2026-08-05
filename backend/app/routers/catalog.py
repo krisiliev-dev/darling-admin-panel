@@ -1782,10 +1782,15 @@ async def update_category(
 async def delete_category(
     cat_id: int,
     actor: User = Depends(require_roles("manager")),
+    session: AsyncSession = Depends(get_async_session),
 ):
-    """Изтриване НЕ съществува в Barsy на тази инсталация (проверено на живо: страницата няма
-    функция триене, Categories_delete отказва всички форми). Гардът тук все пак казва на
-    потребителя ИСТИНСКАТА пречка (артикули/подкатегории), преди честното 501."""
+    """Изтриване по договора, ЗАСНЕТ от собствения UI на Barsy (Claude-in-Chrome capture,
+    2026-08-05 — правилото на собственика: при съмнение за метод се заснема истинската заявка):
+    Categories_Delete {"cats": [{"id": N, "parent_id": "P", "weight": 1}], "mode": "0"}.
+    Ключът на елемента е `id` (НЕ cat_id) + mode на горно ниво — затова слепите проби опираха на
+    „Липсват данни за категории". mode: "0" = без артикули/модификатори (нашият гард така или
+    иначе отказва непразни категории), "1" = заедно с артикулите, "2" = местене преди изтриване
+    (не ги ползваме). RESULT-verified: две тестови категории изтрити през същия договор."""
     with upstream("Barsy категории"):
         root = await run_in_threadpool(_tree_root)
     node = _find_cat(root, cat_id)
@@ -1796,7 +1801,22 @@ async def delete_category(
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"Категорията съдържа {arts} артикула и {kids} подкатегории — "
                             f"преместете ги първо.")
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
-                        "Barsy няма функция за изтриване на категории на тази инсталация. "
-                        "Преименувайте или преместете категорията; изтриване е възможно само "
-                        "през поддръжката на Barsy.")
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
+    body = {"cats": [{"id": cat_id, "parent_id": str(node.get("parent_id") or ""), "weight": 1}],
+            "mode": "0"}
+    try:
+        with upstream("Barsy категории"):
+            await run_in_threadpool(barsy.call, "Categories_Delete", body,
+                                    timeout=_CAT_WRITE_TIMEOUT)
+    except HTTPException:
+        pass    # timeout ≠ failure on this tier — the absence check below is the verdict
+    with upstream("Barsy категории"):
+        rows = await run_in_threadpool(barsy.call, "Categories_getlist", {})
+    if any(isinstance(c, dict) and c.get("cat_id") == cat_id for c in (rows or [])):
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            "Barsy не потвърди изтриването — категорията още съществува.")
+    _invalidate_category_caches()
+    await log_action(session, actor, "category.delete", target=str(cat_id),
+                     detail=f"родител {node.get('parent_id')}")
+    return {"ok": True}
