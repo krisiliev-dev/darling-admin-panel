@@ -61,6 +61,7 @@ from .routers import (
     invoices,
     issues,
     logs,
+    newsletter,
     online_pricing,
     orders,
     pricing,
@@ -183,6 +184,7 @@ app.include_router(invoices.router)
 app.include_router(issues.router)
 app.include_router(pricing.router)
 app.include_router(online_pricing.router)
+app.include_router(newsletter.router)
 app.include_router(public_couriers.router)
 app.include_router(publish_audit.router)
 app.include_router(quality.router)
