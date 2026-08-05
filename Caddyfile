@@ -45,6 +45,16 @@ panel.darlinghome.bg {
 		reverse_proxy darling-listmonk:9000
 	}
 
+	# TEMPORARY until listmonk moves to its own subdomain (owner adding DNS): the login form
+	# posts to UNPREFIXED /admin/login (hardcoded in listmonk's template — root_url is not
+	# applied there), which otherwise hits the SPA file server → 405. The panel has no
+	# server-side /admin/* routes (its API lives under /api/*), so this is conflict-free.
+	handle /admin/* {
+		reverse_proxy darling-listmonk:9000 {
+			header_down Location "^/((admin|public|api|subscription|uploads|health).*)$" "/listmonk/$1"
+		}
+	}
+
 	# API + webhook receivers → backend container (compose service name "panel")
 	@backend path /api/* /webhooks/*
 	handle @backend {
