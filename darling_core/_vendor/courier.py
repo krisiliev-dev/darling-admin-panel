@@ -719,6 +719,17 @@ class BoxNow(Courier):
             raise CourierError(f"BoxNow мрежова грешка: {e}")
         return body if raw else (json.loads(body.decode("utf-8", "replace")) if body else {})
 
+    @staticmethod
+    def _bg_phone(p):
+        """BoxNow requires INTERNATIONAL format (P405 rejection verified live 2026-08-05 on a
+        national-format number; their plugin normalizes every phone to +359 the same way)."""
+        p = "".join(str(p or "").split())
+        if p.startswith("00"):
+            return "+" + p[2:]
+        if p.startswith("+"):
+            return p
+        return "+359" + (p[1:] if p.startswith("0") else p)
+
     def _warehouse(self):
         wid = _cred("BOXNOW_WAREHOUSE_ID")
         if not wid:
@@ -795,7 +806,7 @@ class BoxNow(Courier):
         if shp.weight_kg > self.MAX_KG:
             raise CourierError(f"BoxNow: {shp.weight_kg} kg надвишава лимита {self.MAX_KG:.0f} kg.")
         sender = {"contactName": _cred("BOXNOW_SENDER_NAME"),
-                  "contactNumber": _cred("BOXNOW_SENDER_PHONE"),
+                  "contactNumber": self._bg_phone(_cred("BOXNOW_SENDER_PHONE")),
                   "contactEmail": _cred("BOXNOW_SENDER_EMAIL")}
         if not (sender["contactName"] and sender["contactNumber"]):
             raise CourierError("BoxNow: липсват BOXNOW_SENDER_NAME / BOXNOW_SENDER_PHONE "
@@ -811,7 +822,8 @@ class BoxNow(Courier):
             "amountToBeCollected": f"{cod:.2f}" if cod > 0 else "0",
             "allowReturn": True,
             "origin": dict(sender, locationId=self._warehouse()),
-            "destination": {"contactName": shp.recipient, "contactNumber": shp.phone,
+            "destination": {"contactName": shp.recipient,
+                            "contactNumber": self._bg_phone(shp.phone),
                             "contactEmail": shp.email or "", "locationId": str(shp.office_id)},
             "items": [dict(item) for _ in range(max(1, shp.parcels))],
         }
