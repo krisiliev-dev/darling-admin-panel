@@ -19,6 +19,14 @@ panel.darlinghome.bg {
 		key_type rsa2048
 	}
 
+	# Agent doorbell — STANDALONE service (repo Lora-git-hub/darling-doorbell, its own
+	# container `darling-doorbell` on this compose network; owner decision 2026-08-05:
+	# kept apart from this app). Wake-up signals between the Claude agent sessions —
+	# carries no payload and no secrets; rate-limited app-side. handle_path strips /bell.
+	handle_path /bell/* {
+		reverse_proxy darling-doorbell:8300
+	}
+
 	# API + webhook receivers → backend container (compose service name "panel")
 	@backend path /api/* /webhooks/*
 	handle @backend {
