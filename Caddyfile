@@ -27,6 +27,13 @@ panel.darlinghome.bg {
 		reverse_proxy darling-doorbell:8300
 	}
 
+	# Newsletter — listmonk admin UI + opt-in confirmation links (own compose stack at
+	# /home/darling/listmonk, NOT part of this app; owner decision 2026-08-05, listmonk
+	# hybrid). Storefront subscriptions go through the panel backend proxy, not here.
+	handle_path /listmonk/* {
+		reverse_proxy darling-listmonk:9000
+	}
+
 	# API + webhook receivers → backend container (compose service name "panel")
 	@backend path /api/* /webhooks/*
 	handle @backend {
