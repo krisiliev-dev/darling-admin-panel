@@ -20,7 +20,11 @@ router = APIRouter(prefix="/api/public/couriers", tags=["public-couriers"])
 # pigeon/evropat are stubs (base Courier.offices raises NotImplementedError until their creds land),
 # so we don't expose them yet — a request for one returns a clean 404, not a 502. Add them here as
 # each adapter's offices() is implemented.
-_ALLOWED = {"speedy", "econt", "pigeon"}   # pigeon added 2026-08-05 (adapter live)
+# pigeon: adapter + keys are LIVE (courier.py) but Pigeon has no office in Svishtov yet, so
+# the shop cannot ship with them ??? owner 2026-08-05: keep the carrier DARK on the storefront
+# (class-carriers.php offers whatever the panel serves). Re-add "pigeon" here the moment
+# their Svishtov office opens + PIGEON_PICKUP_OFFICE_ID is set.
+_ALLOWED = {"speedy", "econt"}
 
 
 _OFFICE_TTL = 900.0          # cache the full office list per courier (office networks change rarely)
