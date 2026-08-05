@@ -433,3 +433,110 @@ async def run_reconcile(
     log.info("reconcile run by %s (live=%s): checked=%s drift=%s",
              actor.email, _live(), result.get("checked"), len(result.get("drift", [])))
     return result
+
+
+# --- Barsy → panel: categories / clients / clientorders (#83) -------------------------------------
+# Barsy's remaining entity events (event ids: categories=6, clients=4, clientorders=3 — see
+# BARSY_EVENTS above). Same auth + HEAD-probe contract as /barsy/article. What each does:
+#   category    → invalidate the editor's in-process category cache (routers/catalog._CAT_CACHE) so
+#                 renames/moves show up in the picker immediately, then mirror the change to Shopify
+#                 via the connector (dry-run unless webhooks_live — the same master gate).
+#   client /
+#   clientorder → OBSERVE ONLY for now: authenticate, extract the id, log the payload's KEY NAMES
+#                 (never values — client payloads may carry PII). The panel reads both entities live
+#                 from Barsy, so there is nothing to maintain yet; the receivers exist so the
+#                 subscription can be registered and real payload shapes get captured first —
+#                 "capture the admin-UI XHR, don't guess" applies to webhook payloads too.
+# NB: register the Barsy subscriptions ONLY after these routes are DEPLOYED — the registration probe
+# is an HTTP HEAD that accepts 200-299/401/403/405/500/501, and a 404 from a not-yet-deployed route
+# fails the registration.
+
+def _payload_id(payload, *keys) -> str:
+    """Best-effort id extraction: the given keys at the top level, then one level into any nested
+    dict (Barsy tends to wrap the entity)."""
+    if isinstance(payload, dict):
+        for k in keys:
+            v = payload.get(k)
+            if v not in (None, ""):
+                return str(v)
+        for v in payload.values():
+            if isinstance(v, dict):
+                inner = _payload_id(v, *keys)
+                if inner:
+                    return inner
+    return ""
+
+
+async def _process_barsy_category(cat_id: str, live: bool):
+    try:
+        from .catalog import _CAT_CACHE
+        _CAT_CACHE["t"] = 0.0        # next picker use re-reads the tree from Barsy
+    except Exception:                # cache module unavailable → mirroring still proceeds
+        pass
+    if not cat_id:
+        return
+    try:
+        result = await run_in_threadpool(connector.barsy_category_change_to_shopify, int(cat_id), live)
+        log.info("Barsy category %s -> Shopify (live=%s): %s", cat_id, live, result)
+    except Exception as e:
+        log.exception("Barsy category %s mirror failed: %s", cat_id, e)
+
+
+@router.head("/barsy/category")
+async def barsy_category_probe() -> Response:
+    return Response(status_code=200)
+
+
+@router.post("/barsy/category")
+async def barsy_category_receiver(request: Request, background: BackgroundTasks):
+    if not _verify_barsy_token(request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad token")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    cat_id = _payload_id(payload, "cat_id", "category_id", "id")
+    background.add_task(_process_barsy_category, cat_id, _live())
+    return {"received": True, "entity": "category", "id": cat_id}
+
+
+def _observe_barsy_entity(entity: str, ident: str, payload) -> None:
+    keys = sorted(payload.keys()) if isinstance(payload, dict) else type(payload).__name__
+    log.info("Barsy %s webhook observed: id=%s payload_keys=%s (observe-only — shape captured for "
+             "the future handler; values not logged).", entity, ident or "?", keys)
+
+
+@router.head("/barsy/client")
+async def barsy_client_probe() -> Response:
+    return Response(status_code=200)
+
+
+@router.post("/barsy/client")
+async def barsy_client_receiver(request: Request):
+    if not _verify_barsy_token(request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad token")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    ident = _payload_id(payload, "client_id", "id")
+    _observe_barsy_entity("client", ident, payload)
+    return {"received": True, "entity": "client", "id": ident}
+
+
+@router.head("/barsy/clientorder")
+async def barsy_clientorder_probe() -> Response:
+    return Response(status_code=200)
+
+
+@router.post("/barsy/clientorder")
+async def barsy_clientorder_receiver(request: Request):
+    if not _verify_barsy_token(request):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad token")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    ident = _payload_id(payload, "clientorder_id", "order_id", "id")
+    _observe_barsy_entity("clientorder", ident, payload)
+    return {"received": True, "entity": "clientorder", "id": ident}

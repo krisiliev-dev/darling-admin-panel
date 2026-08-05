@@ -33,7 +33,8 @@ def spy(monkeypatch):
 
     for fn in ("shopify_order_to_barsy", "shopify_order_cancellation_to_barsy",
                "shopify_refund_to_barsy", "shopify_fulfillment_to_barsy",
-               "shopify_customer_to_barsy", "barsy_article_to_shopify"):
+               "shopify_customer_to_barsy", "barsy_article_to_shopify",
+               "barsy_category_change_to_shopify"):
         monkeypatch.setattr(webhooks.connector, fn, rec(fn))
     return calls
 
@@ -276,3 +277,45 @@ async def test_gdpr_redact_with_digitless_phone_does_not_mass_erase(client, spy)
         carts = (await s.execute(select(Checkout))).scalars().all()
     assert len(rows) == 1   # the phone-less row survived (guard refused the empty-phone erase)
     assert len(carts) == 1  # ...and so did every cart
+
+
+# --- #83: categories / clients / clientorders receivers -------------------------------------------
+
+async def test_barsy_category_invalidates_cache_and_mirrors_dry_run(client, spy, monkeypatch):
+    from app.routers import catalog as catalog_module
+    _set_live(monkeypatch, False)
+    catalog_module._CAT_CACHE.update({"t": 999.0, "rows": [{"cat_id": 1, "path": "x"}]})
+    r = await client.post("/webhooks/barsy/category", json={"cat_id": 9044},
+                          headers={"x-darling-token": _TOKEN})
+    assert r.status_code == 200 and r.json()["id"] == "9044"
+    assert catalog_module._CAT_CACHE["t"] == 0.0          # picker re-reads the tree next use
+    assert spy and spy[0][0] == "barsy_category_change_to_shopify"
+    assert spy[0][1] == (9044, False)                     # dry-run: do_write must be False
+
+
+async def test_barsy_category_live_gate_passes_do_write_true(client, spy, monkeypatch):
+    _set_live(monkeypatch, True)
+    r = await client.post("/webhooks/barsy/category", json={"category_id": "7"},
+                          headers={"x-darling-token": _TOKEN})
+    assert r.status_code == 200
+    assert spy[0][1] == (7, True)
+
+
+async def test_barsy_category_rejects_bad_token(client, spy):
+    r = await client.post("/webhooks/barsy/category", json={"cat_id": 1},
+                          headers={"x-darling-token": "nope"})
+    assert r.status_code == 401 and not spy
+
+
+async def test_barsy_client_and_clientorder_observe_only(client, spy):
+    for path, body, want in (("/webhooks/barsy/client", {"client_id": 40}, "40"),
+                             ("/webhooks/barsy/clientorder", {"data": {"clientorder_id": 12}}, "12")):
+        r = await client.post(path, json=body, headers={"x-darling-token": _TOKEN})
+        assert r.status_code == 200 and r.json()["id"] == want
+    assert not spy                                        # observers never touch the connector
+
+
+async def test_barsy_entity_probes_are_clean_200(client):
+    for path in ("/webhooks/barsy/category", "/webhooks/barsy/client", "/webhooks/barsy/clientorder"):
+        r = await client.head(path)
+        assert r.status_code == 200 and r.content == b""
