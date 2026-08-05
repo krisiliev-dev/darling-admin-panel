@@ -35,6 +35,18 @@ from ..users import current_active_user, current_owner, require_roles
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
+PANEL_LOCALE = "bg_BG"    # panel UI language. Display names are read from article_name_ml[PANEL_LOCALE]
+# with fallback to the scalar article_name. Groundwork for the English site: switch this (or thread a
+# per-request locale) to render another language. article_name and ml.bg_BG are kept in sync by every
+# write path, so this is a no-op for bg today -- it just makes the ml the source of truth for display.
+
+
+def _name_for_locale(a: dict, locale: str = PANEL_LOCALE) -> str:
+    ml = a.get("article_name_ml")
+    if isinstance(ml, dict) and isinstance(ml.get(locale), str) and ml[locale].strip():
+        return ml[locale]
+    return a.get("article_name") or ""
+
 
 # ------------------------------------------------------------------ product images (proxy) ---
 # Barsy's image URLs are HTTP-Basic-auth-walled, so the browser can't <img src> them directly.
@@ -229,7 +241,7 @@ def _sync_fetch() -> list[dict]:
         bc = a.get("barcode")
         dml = a.get("description_ml")
         out.append({
-            "article_id": aid, "code": code, "name": a.get("article_name") or "",
+            "article_id": aid, "code": code, "name": _name_for_locale(a),
             "shopify_category_id": leaves.get(code, ""),
             "barcode": (bc if isinstance(bc, str) else (bc[0] if isinstance(bc, list) and bc else "")) or "",
             "category": a.get("category_name") or a.get("category") or "",
@@ -938,7 +950,7 @@ def list_articles(
         if low_only and not st.get("low"):
             continue
         items.append({"article_id": a.get("article_id"), "code": a.get("code") or "",
-                      "name": a.get("article_name") or "", "price": a.get("actual_price"),
+                      "name": _name_for_locale(a), "price": a.get("actual_price"),
                       "stock": st.get("amount"), "min_stock": st.get("min"), "low": bool(st.get("low")),
                       "has_image": bool(a.get("picture_url"))})
     return {"items": items}
@@ -1028,7 +1040,7 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
     for_sale, public = _flag(a.get("is_for_sale")), _flag(a.get("is_public"))
     return {
         "article_id": a.get("article_id"), "code": a.get("code") or "",
-        "name": a.get("article_name") or "", "description": a.get("description") or "",
+        "name": _name_for_locale(a), "description": a.get("description") or "",
         "price": a.get("actual_price"), "barcode": bc or "",
         "unit": a.get("amount_type_name_short") or "",
         "category": a.get("master_cat") or (a.get("categories_names") or ""),

@@ -463,3 +463,14 @@ async def test_omitting_default_package_leaves_it_untouched(owner_client, barsy_
     barsy_recorder.set_return("Articles_update", {"article_id": 5001})
     await owner_client.post("/api/catalog/5001", json={"name": "Продукт"})
     assert "default_package_id" not in barsy_recorder.body_for("Articles_update")["article"]
+
+
+async def test_get_article_prefers_ml_name(owner_client, barsy_recorder):
+    # #100: the panel reads article_name_ml[bg_BG] with fallback to the scalar article_name
+    barsy_recorder.set_return("Articles_get", {"article_id": 55, "article_name": "Scalar",
+                                               "article_name_ml": {"bg_BG": "МЛ Име", "en_US": "EN Name"}})
+    d = (await owner_client.get("/api/catalog/55")).json()
+    assert d["name"] == "МЛ Име"                                   # ml.bg_BG wins over the scalar
+    barsy_recorder.set_return("Articles_get", {"article_id": 55, "article_name": "Само скалар"})
+    d = (await owner_client.get("/api/catalog/55")).json()
+    assert d["name"] == "Само скалар"                             # falls back when no ml
