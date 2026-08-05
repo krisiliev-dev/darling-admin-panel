@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import type { IntakeDraft, IntakeAttribute, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
+import type { ArticleDetail, IntakeDraft, IntakeAttribute, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
 import { BrandPicker } from './BrandPicker'
 import { InfoDot } from './InfoDot'
 import { SupplierTable } from './SupplierTable'
@@ -13,9 +13,12 @@ import { SupplierTable } from './SupplierTable'
 const UNITS = ['бр', 'л', 'кг', 'м', 'м2', 'компл']
 
 // The one editor for delivery + standalone products.
-export function ProductEditor({ draft, onDone, onCancel }: {
+export function ProductEditor({ draft, onDone, onCancel, edit }: {
   draft: IntakeDraft; onDone: () => void; onCancel: () => void
+  // edit-an-article mode (#70): load/save target a LIVE Barsy article via /api/catalog/{id}.
+  edit?: { articleId: number; detail: ArticleDetail }
 }) {
+  const isEdit = !!edit
   // size lives in its own fields (below), not in the attribute list — strip it out of the loaded draft
   const [d, setD] = useState<IntakeDraft>(() => ({
     ...draft, attributes: (draft.attributes || []).filter((a) => !isSizeAttr(a.key)),
@@ -55,9 +58,10 @@ export function ProductEditor({ draft, onDone, onCancel }: {
 
   const loadImages = () => api.get<{ images: DraftImageMeta[] }>(`/api/intake/drafts/${draft.id}/images`)
     .then((r) => setImages(r.images)).catch(() => setImages([]))
-  useEffect(() => { void loadImages() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { api.get<ResearchOut>(`/api/intake/drafts/${draft.id}/research`)
-    .then(setResearch).catch(() => setResearch(null)) }, [draft.id])
+  useEffect(() => { if (!isEdit) void loadImages() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (isEdit) return
+    api.get<ResearchOut>(`/api/intake/drafts/${draft.id}/research`)
+      .then(setResearch).catch(() => setResearch(null)) }, [draft.id])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!d.shopify_category_id) { setSchema([]); return }
     api.get<{ attributes: TaxAttribute[] }>(`/api/intake/shopify-categories/${d.shopify_category_id}/attributes`)
@@ -96,7 +100,7 @@ export function ProductEditor({ draft, onDone, onCancel }: {
   // The NAME is derived (v3 composer: leaf singular + gender-agreed adjectives + size) — it recomposes
   // as category/attributes/size change, until the user edits it by hand (then we stop overwriting).
   useEffect(() => {
-    if (touched.name || !d.shopify_category_id) return
+    if (isEdit || touched.name || !d.shopify_category_id) return
     const t = setTimeout(async () => {
       try {
         const attrsMap: Record<string, string> = {}
@@ -155,6 +159,47 @@ export function ProductEditor({ draft, onDone, onCancel }: {
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
   }
 
+  // ---- edit-an-article save (#70 slice 2): DIRECT to Barsy via POST /api/catalog/{id}. Ports the
+  // old Каталог ArticleEditor contract: diff-based body (an untouched field is not sent), brand +
+  // attributes travel together (Barsy replaces the details list wholesale), meta_* map to seo_*,
+  // and the loaded oversell tri-state is preserved unless the checkbox was actually flipped.
+  const attrsKeyE = (a: IntakeAttribute[]) => a.map((x) => `${x.key.trim()} ${x.value.trim()}`.trim()).sort().join('|')
+  const editSave = async () => {
+    if (!edit) return
+    setBusy(true); setError(''); setNote('')
+    const det = edit.detail
+    const sizeRows = [{ key: 'Размери', value: dimensions.trim() }, { key: 'Вместимост', value: capacity.trim() }]
+      .filter((r) => r.value)
+    const sized = [...attrs.filter((a) => a.key.trim() && !isSizeAttr(a.key)), ...sizeRows]
+    const body: Record<string, unknown> = {
+      name: d.name, description: d.description || '', barcode: d.barcode || '', weight_kg: d.weight_kg || '',
+    }
+    if ((d.meta_title || '').trim()) body.seo_title = (d.meta_title || '').trim()
+    if ((d.meta_description || '').trim()) body.seo_description = (d.meta_description || '').trim()
+    const rows = sized.map((a) => ({ key: a.key.trim(), value: a.value.trim() }))
+    if ((d.brand || '').trim() !== (det.brand || '') || attrsKeyE(rows) !== attrsKeyE(det.attributes || [])) {
+      body.brand = (d.brand || '').trim(); body.attributes = rows
+    }
+    const loadedTri = det.oversell_mode === 'YES' || det.oversell_mode === 'NO' || det.oversell_mode === 'DEF'
+      ? det.oversell_mode : 'DEF'
+    body.oversell_mode = (!!d.oversell !== !!det.oversell) ? (d.oversell ? 'YES' : 'NO') : loadedTri
+    try {
+      await api.post(`/api/catalog/${edit.articleId}`, body)
+      onDone()
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
+  }
+  // manual naming-recipe trigger (edit mode) — never overwrites the name box on its own
+  const composeNow = async () => {
+    if (!d.shopify_category_id) return
+    try {
+      const attrsMap: Record<string, string> = {}
+      attrs.forEach((a) => { if (a.key) attrsMap[a.key] = a.value })
+      const r = await api.post<{ name: string }>('/api/intake/compose-name', {
+        category_id: d.shopify_category_id, brand: d.brand || '', attributes: attrsMap, capacity, dimensions })
+      if (r.name) { mark('name'); setD((d0) => ({ ...d0, name: r.name })) }
+    } catch { /* composer best-effort */ }
+  }
+
   const eyebrow = { fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 700 } as React.CSSProperties
   const mainImg = images.find((im) => im.id === selImg) || images[0] || null
   const imgUrl = (id: number) => `/api/intake/drafts/${draft.id}/images/${id}`
@@ -167,7 +212,9 @@ export function ProductEditor({ draft, onDone, onCancel }: {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) minmax(290px, 1fr)', gap: '1.2rem', alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: '.5rem' }}>
           <div style={{ border: '1px solid var(--line)', borderRadius: 4, background: '#fff', height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            {mainImg
+            {isEdit
+              ? <EditImg articleId={edit!.articleId} />
+              : mainImg
               ? <img src={imgUrl(mainImg.id)} alt={mainImg.filename} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               : <span className="pencil" style={{ fontSize: '.8rem' }}>качи поне една снимка на продукта</span>}
           </div>
@@ -180,9 +227,9 @@ export function ProductEditor({ draft, onDone, onCancel }: {
                 <button onClick={() => void removeImage(im.id)} title="премахни" style={{ position: 'absolute', top: -6, right: -6, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: '.7rem', lineHeight: 1 }}>✕</button>
               </span>
             ))}
-            <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
+            {!isEdit && <label className="btn-paper" style={{ cursor: 'pointer', fontSize: '.72rem' }}>
               + снимки<input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => void addImages(e.target.files)} />
-            </label>
+            </label>}
           </div>
         </div>
 
@@ -206,9 +253,9 @@ export function ProductEditor({ draft, onDone, onCancel }: {
               onChange={(e) => { mark('name'); setD({ ...d, name: e.target.value }) }} />
           </Field>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'end' }}>
-            <Field label="Цена"><NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} /></Field>
+            <Field label="Цена">{isEdit ? <span className="font-type" style={{ fontWeight: 700, paddingBottom: '.25rem', display: 'inline-block' }}>{d.price ? `${d.price} €` : '—'}</span> : <NumberField value={d.price || ''} unit="€" onChange={(v) => setD({ ...d, price: v })} />}</Field>
             <Field label="Мярка">
-              <select className="input-paper" value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
+              <select className="input-paper" disabled={isEdit} value={d.unit || 'бр'} onChange={(e) => setD({ ...d, unit: e.target.value })}>
                 {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </Field>
@@ -218,7 +265,7 @@ export function ProductEditor({ draft, onDone, onCancel }: {
               <input autoFocus className="input-paper" value={d.barcode || ''}
                 placeholder="сканирай или въведи" onChange={(e) => setD({ ...d, barcode: e.target.value })} />
             </Field>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+            {!isEdit && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
               <button className="btn-paper btn-red" onClick={() => void enrich()} disabled={busy || !canEnrich}>
                 {busy ? 'обогатява…' : '✨ Обогати'}
               </button>
@@ -231,9 +278,12 @@ export function ProductEditor({ draft, onDone, onCancel }: {
                 </p>
                 <ResearchPanel data={research} />
               </InfoDot>
-            </span>
+            </span>}
+            {isEdit && <button className="btn-paper" onClick={() => void composeNow()} disabled={busy || !d.shopify_category_id}
+              title={d.shopify_category_id ? 'състави името по рецептата от категорията и атрибутите' : 'изисква категория (идва с Barsy-категориите)'}>
+              🖊 Име по рецепта</button>}
           </div>
-          {!canEnrich && <span className="pencil" style={{ fontSize: '.74rem' }}>въведи баркод, за да стартираш обогатяването</span>}
+          {!isEdit && !canEnrich && <span className="pencil" style={{ fontSize: '.74rem' }}>въведи баркод, за да стартираш обогатяването</span>}
         </div>
       </div>
 
@@ -324,13 +374,13 @@ export function ProductEditor({ draft, onDone, onCancel }: {
         </label>
       </div>
 
-      {draft.id != null && <SupplierTable draftId={draft.id} />}
+      {!isEdit && draft.id != null && <SupplierTable draftId={draft.id} />}
 
       {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
       {note && <div style={{ color: 'var(--ready)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{note}</div>}
       <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-        <button className="btn-paper btn-red" onClick={() => void save()} disabled={busy || images.length === 0}>
-          {draft.status === 'enriched' ? 'Добави продукт' : 'Запази'}</button>
+        <button className="btn-paper btn-red" onClick={() => void (isEdit ? editSave() : save())} disabled={busy || (!isEdit && images.length === 0)}>
+          {isEdit ? 'Запиши в Barsy' : draft.status === 'enriched' ? 'Добави продукт' : 'Запази'}</button>
         <button className="btn-paper" onClick={onCancel}>Отказ</button>
       </div>
     </div>
@@ -606,4 +656,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   )
+}
+
+// Read-only article image via the catalog proxy (edit mode; image management stays in Barsy for now).
+function EditImg({ articleId }: { articleId: number }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <span className="pencil" style={{ fontSize: '.8rem' }}>без снимка</span>
+  return <img src={`/api/catalog/image/${articleId}?size=full`} alt="" onError={() => setFailed(true)}
+    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
 }

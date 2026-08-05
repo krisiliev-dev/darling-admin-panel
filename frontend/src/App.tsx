@@ -21,6 +21,7 @@ import BrandRegistryV2 from './pages/BrandRegistryV2'
 import { Assistant } from './pages/Assistant'
 import { Settings } from './pages/Settings'
 import { Clients } from './pages/Clients'
+import { ProductEdit } from './pages/ProductEdit'
 import { Accounts } from './pages/Accounts'
 
 export default function App() {
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="cod" element={<Navigate to="/online/cod" replace />} />
         <Route path="issues" element={<Issues />} />
         <Route path="products" element={<Products />} />
+        <Route path="products/:articleId/edit" element={<ProductEdit />} />
         <Route path="products/:tab" element={<Products />} />
         {/* old paths keep working (bookmarks / deep-links) → unified Продукти */}
         <Route path="inventory" element={<Products />} />
