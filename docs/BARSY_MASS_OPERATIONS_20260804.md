@@ -165,6 +165,23 @@ Because columns are NOT uniform (min_amount, the ml, select/multiselect encoding
 catalog is a **verified whitelist**, expanded field-by-field as each is confirmed against Barsy —
 never "trust all 142 blindly".
 
+### Shipped: general Масови операции UI (commits 8c4c1f8 backend, 11b5793 frontend)
+
+- `GET /api/catalog/mass-columns` — the VERIFIED whitelist (col, title, type, numeric, group, write
+  path) + live tax / unit select options. Verified round-trip fields only: `actual_price`,
+  `avg_delivery_price`, `code`, `barcode`, `tax`, `amount_type_id`, `is_for_sale`, `is_public`,
+  `is_service`, plus the 3 localized text fields. EXCLUDED (do NOT round-trip via `save_mass` on this
+  install, tested one-cell-at-a-time): `min_profit_percent`, `max_discount`, `slug`, `min/max_order`,
+  `min/max_amount`, `is_for_client_order`, `is_for_load`.
+- `POST /api/catalog/mass-op` — set one field across selected products (Barsy-grid semantics),
+  preview/confirm, owner-only, audited, gated by `BARSY_WRITE_LIVE`. Routes each field: localized text
+  → `Articles_update` full-ml-merge; everything else → native `save_mass` (flags use the `_mass`
+  col_name; e.g. `is_for_sale` → `is_for_sale_mass`).
+- Frontend: `MassEditForm` in the product bulk bar (Каталог + Ценообразуване), over the shared
+  `ProductTable` selection — grouped field picker, type-aware value control, preview + apply.
+- Note: `Articles_delete` is a **soft delete** (returns 1, sets `delete_flag=1`; the row stays in the
+  DB, filtered out of the active grid). Barsy has no hard-delete for articles (unlike users).
+
 ### Looped writes converted to native `save_mass`
 
 `catalog._bulk_price_apply` (bulk price) and `pricing.apply_supplier` (markup reprice) previously wrote
