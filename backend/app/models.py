@@ -541,3 +541,24 @@ class CatalogSyncState(Base):
     # last webhook-driven cache write - the real-time freshness signal BETWEEN reconciliations
     last_event_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_event_kind: Mapped[str] = mapped_column(String(32), default="")
+
+
+class ShippingRate(Base):
+    """Delivery-fee tariff row (courier × mode × weight bracket) — DELIVERY_FEE_DESIGN v2.
+    label_cost + cod_fee are REFRESHED from live courier quotes (tariffs are distance-flat
+    nationally, verified 2026-08-05 — one route prices the whole country); buffer + enabled are
+    OWNER fields the refresh never touches. Checkout price = label_cost + buffer (+ cod_fee when
+    the payment method is наложен платеж). Uniqueness of (courier, mode, max_kg) is enforced by
+    the refresh upsert (single writer)."""
+    __tablename__ = "shipping_rate"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    courier: Mapped[str] = mapped_column(String(24), index=True)
+    mode: Mapped[str] = mapped_column(String(8))          # office | door
+    max_kg: Mapped[float] = mapped_column()
+    label_cost: Mapped[float] = mapped_column(default=0.0)   # refreshed (live quote)
+    cod_fee: Mapped[float] = mapped_column(default=0.0)      # refreshed (quote(COD 50) − quote(0))
+    buffer: Mapped[float] = mapped_column(default=0.0)       # owner: refused-return surcharge
+    enabled: Mapped[bool] = mapped_column(default=False)     # owner: offered in checkout
+    refreshed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)

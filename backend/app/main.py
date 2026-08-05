@@ -70,6 +70,7 @@ from .routers import (
     purchasing,
     quality,
     reports,
+    shipping_rates,
     risk,
     store_ops,
     summary,
@@ -186,6 +187,7 @@ app.include_router(public_couriers.router)
 app.include_router(publish_audit.router)
 app.include_router(quality.router)
 app.include_router(reports.router)
+app.include_router(shipping_rates.router)
 app.include_router(risk.router)
 app.include_router(summary.router)
 app.include_router(store_ops.router)
