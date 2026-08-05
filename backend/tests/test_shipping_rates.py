@@ -34,9 +34,19 @@ class FakeAdapter:
         return {"price": round(base, 2), "currency": "EUR", "courier": self.name}
 
 
+class FakeBoxNow(FakeAdapter):
+    """Contract-flat like the real adapter: 1.54 EUR any weight/destination, COD delta 0."""
+
+    def calculate(self, shp):
+        if self.fail:
+            raise RuntimeError("quote API down")
+        return {"price": 1.54, "currency": "EUR", "courier": "boxnow"}
+
+
 @pytest.fixture()
 def fake_couriers(monkeypatch):
-    monkeypatch.setattr(sr.courier_mod, "get", lambda n: FakeAdapter(n))
+    monkeypatch.setattr(sr.courier_mod, "get",
+                        lambda n: FakeBoxNow(n) if n == "boxnow" else FakeAdapter(n))
     return None
 
 
@@ -125,3 +135,28 @@ async def test_rate_patch_is_manager_gated_and_bounded(owner_client, staff_clien
     assert ok["ok"] is True
     row = next(x for x in (await owner_client.get("/api/shipping-rates")).json()["rates"] if x["id"] == rid)
     assert row["buffer"] == 0.4 and row["enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_boxnow_locker_rows_flat_dark_and_labeled(owner_client, fake_couriers, client, public_token):
+    """BoxNow: locker-only rows at the contract-flat price, cod_fee 0 (card-by-link COD),
+    owner-default buffer 0.10, and DARK by default — the public endpoint must NOT serve it
+    until the owner flips enabled after the BOX NOW test order."""
+    await owner_client.post("/api/shipping-rates/refresh")
+    rows = (await owner_client.get("/api/shipping-rates")).json()["rates"]
+    bx = [x for x in rows if x["courier"] == "boxnow"]
+    assert bx and all(x["mode"] == "locker" for x in bx)
+    assert all(x["label_cost"] == 1.54 and x["cod_fee"] == 0.0 and x["buffer"] == 0.10 for x in bx)
+    assert all(x["enabled"] is False for x in bx)
+    pub = (await client.get("/api/public/shipping-rates?weight_kg=2&cod=1",
+                            headers={"X-Office-Token": TOKEN})).json()
+    assert all(r["courier"] != "boxnow" for r in pub["rates"])          # dark
+    # flip one bracket on (manager action) → it appears, cheapest, correctly labeled
+    rid = bx[0]["id"]
+    await owner_client.patch(f"/api/shipping-rates/{rid}", json={"enabled": True})
+    pub2 = (await client.get("/api/public/shipping-rates?weight_kg=0.5&cod=1",
+                             headers={"X-Office-Token": TOKEN})).json()
+    got = next(r for r in pub2["rates"] if r["courier"] == "boxnow")
+    assert got["label_bg"] == "BoxNow — до автомат"
+    assert got["price_eur"] == 1.64                                     # 1.54 + 0.10, no COD fee
+    assert got["sort"] == 1                                             # cheapest first

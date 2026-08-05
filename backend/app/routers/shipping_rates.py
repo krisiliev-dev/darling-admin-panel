@@ -46,8 +46,14 @@ _SPEC: dict = {
     # Pigeon: adapter+keys live, but no Svishtov office to ship FROM yet — priced when refresh
     # succeeds, offered only when the owner flips enabled (mirrors public_couriers staying dark).
     "pigeon": {"modes": ("office",), "buffer": {"office": 0.25}, "enabled": False},
+    # BoxNow (2026-08-05): LOCKER-ONLY, contract-flat 1.54 EUR incl VAT, COD fee 0 (owner-
+    # confirmed; COD is card-by-link, never cash). Buffer 0.10 — refusal risk is lower than
+    # door COD but uncollected-in-48h returns still exist. DARK until the BOX NOW-required
+    # test order is confirmed AND the storefront locker picker ships (woo lane) — mode
+    # "locker" was announced to the woo agent before this could ever serve.
+    "boxnow": {"modes": ("locker",), "buffer": {"locker": 0.10}, "enabled": False},
 }
-_MODE_BG = {"office": "до офис", "door": "до адрес"}
+_MODE_BG = {"office": "до офис", "door": "до адрес", "locker": "до автомат"}
 
 
 def _quote(adapter, mode: str, weight: float, cod: float, office_id, address) -> float:
