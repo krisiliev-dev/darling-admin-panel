@@ -43,6 +43,7 @@ export function Posta() {
   const [err, setErr] = useState('')
   const [compose, setCompose] = useState<{ to: string; subject: string; body: string; replyId: string } | null>(null)
   const [sending, setSending] = useState(false)
+  const [opening, setOpening] = useState('')
 
   const loadFolders = useCallback(() => {
     api.get<{ folders: Folder[] }>('/api/mail/folders')
@@ -63,7 +64,7 @@ export function Posta() {
   useEffect(() => { loadList(folder, page) }, [folder, page, loadList])
 
   const open = (uid: string) => {
-    setMsg(null)
+    setOpening(uid)
     api.get<MsgFull>(`/api/mail/messages/${uid}?folder=${encodeURIComponent(folder)}`)
       .then((d) => {
         setMsg(d)
@@ -71,6 +72,7 @@ export function Posta() {
         loadFolders()
       })
       .catch((e) => setErr(e.message || 'Писмото не се отвори.'))
+      .finally(() => setOpening(''))
   }
 
   const startReply = () => {
@@ -128,9 +130,10 @@ export function Posta() {
           </div>
         </Sheet>
 
-        {/* list + reader */}
+        {/* list OR reader — the reader takes the list's place (below-the-fold readers read
+            as a dead click on a full inbox; a mail client swaps views) */}
         <div style={{ display: 'grid', gap: '1rem' }}>
-          <Sheet>
+          {msg === null && <Sheet>
             {loading && <p className="pencil" style={{ margin: 0, fontSize: '.85rem' }}>зарежда…</p>}
             {!loading && list && list.messages.length === 0 && (
               <p className="pencil" style={{ margin: 0, fontSize: '.85rem' }}>Няма писма в тази папка.</p>
@@ -144,7 +147,9 @@ export function Posta() {
                       <td style={{ padding: '.45rem .4rem', fontWeight: m.seen ? 400 : 700, whiteSpace: 'nowrap' }}>
                         {m.from.replace(/<[^>]*>/, '').trim() || m.from}
                       </td>
-                      <td style={{ padding: '.45rem .4rem', fontWeight: m.seen ? 400 : 700 }}>{m.subject}</td>
+                      <td style={{ padding: '.45rem .4rem', fontWeight: m.seen ? 400 : 700 }}>
+                        {m.subject}{opening === m.uid && <span className="pencil"> · отваря…</span>}
+                      </td>
                       <td style={{ padding: '.45rem .4rem', color: 'var(--pencil)', whiteSpace: 'nowrap', textAlign: 'right' }}>
                         {fmtDate(m.date)}
                       </td>
@@ -160,16 +165,16 @@ export function Posta() {
                 <button className="btn-paper" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>по-стари →</button>
               </div>
             )}
-          </Sheet>
+          </Sheet>}
 
           {msg && (
             <Sheet clip="right" tilt="r">
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'baseline' }}>
-                <h3 style={{ fontSize: '1rem', margin: 0 }}>{msg.subject}</h3>
-                <div style={{ display: 'flex', gap: '.5rem' }}>
-                  <button className="btn-paper" onClick={startReply}>↩ Отговори</button>
-                  <button className="btn-paper" onClick={() => setMsg(null)}>✕</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '.7rem', alignItems: 'baseline' }}>
+                  <button className="btn-paper" onClick={() => setMsg(null)}>← Назад</button>
+                  <h3 style={{ fontSize: '1rem', margin: 0 }}>{msg.subject}</h3>
                 </div>
+                <button className="btn-paper" onClick={startReply}>↩ Отговори</button>
               </div>
               <p className="pencil" style={{ fontSize: '.8rem', margin: '.3rem 0 .8rem' }}>
                 От: {msg.from} · До: {msg.to} {msg.cc ? `· Копие: ${msg.cc}` : ''} · {fmtDate(msg.date)}
