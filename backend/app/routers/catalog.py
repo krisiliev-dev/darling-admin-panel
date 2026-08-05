@@ -1473,3 +1473,112 @@ def _attr_values_for(name: str) -> list[str]:
 @router.get("/attr-values")
 async def catalog_attr_values(user: User = Depends(current_active_user), key: str = Query(...)):
     return {"values": await run_in_threadpool(_attr_values_for, key)}
+
+
+# ================================ article suppliers (#70 slice 5) =================================
+# The merged editor's SupplierTable in EDIT mode works on LIVE article-supplier links. Read via the
+# articles_suppliers page (the same call intake's push uses); write via Articles_save_suppliers,
+# which is FULL-REPLACE (#77) — correct here because the PUT restates the WHOLE list the user just
+# loaded and edited (unlike intake's push, which must merge with links it never showed).
+
+def _article_supplier_rows(article_id: int) -> list[dict]:
+    cur = barsy.call("articles_suppliers", {
+        "id": article_id, "action_type": "values",
+        "active_struct_id": "eStructListForm_suppliers",
+        "params": {"id": article_id}, "rows": 5000})
+    out = []
+    for r in ((cur or {}).get("rows") or []):
+        if not r.get("supplier_id"):
+            continue
+        sid = int(r["supplier_id"])
+        out.append({
+            "id": sid, "supplier_id": sid,
+            "supplier": r.get("supplier_name") or "",
+            "supplier_code": str(r.get("remote_ref_id") or ""),
+            "supplier_name": str(r.get("remote_article_name") or ""),
+            "is_default": r.get("is_default") in (1, "1", True),
+            "delivery_price": str(r.get("default_delivery_price") or ""),
+            "package_id": str(r.get("package_id") or ""),
+        })
+    return out
+
+
+@router.get("/{article_id:int}/suppliers")
+async def get_article_suppliers(article_id: int, user: User = Depends(current_active_user)):
+    with upstream("Barsy доставчици"):
+        rows = await run_in_threadpool(_article_supplier_rows, article_id)
+    return {"suppliers": rows}
+
+
+class ArticleSupplierRowIn(BaseModel):
+    supplier: str = ""                 # display name — resolved against Barsy's register for NEW rows
+    supplier_id: int | None = None     # present on rows loaded from Barsy — used verbatim
+    supplier_code: str = ""
+    supplier_name: str = ""
+    is_default: bool = False
+    delivery_price: str = ""
+    package_id: str = ""
+
+
+class ArticleSuppliersIn(BaseModel):
+    rows: list[ArticleSupplierRowIn] = Field(default_factory=list, max_length=50)
+
+
+@router.put("/{article_id:int}/suppliers")
+async def put_article_suppliers(article_id: int, req: ArticleSuppliersIn,
+                                actor: User = Depends(require_roles("staff")),
+                                session: AsyncSession = Depends(get_async_session)):
+    """Replace the article's supplier links with exactly this list. New rows (no supplier_id) resolve
+    by name against Barsy's register (the intake fold rules) — unresolvable names are reported, never
+    guessed. An empty list is an INTENTIONAL clear; a list where nothing resolved is a 400 so a typo
+    can never wipe real links. Exactly one Основен (first flagged wins; else the first row)."""
+    from .intake import _fold_supplier
+    resolved: list[dict] = []
+    skipped: list[str] = []
+    by_fold: dict[str, list] = {}
+    if any(r.supplier_id is None for r in req.rows):
+        cat = await run_in_threadpool(barsy.call, "Suppliers_getlist", {"extra_properties": ["min"]})
+        for b in (cat if isinstance(cat, list) else []):
+            if b.get("delete_flag"):
+                continue
+            by_fold.setdefault(_fold_supplier(b.get("supplier_name", "")), []).append(b)
+    for r in req.rows:
+        sid, reg_name = r.supplier_id, r.supplier
+        if sid is None:
+            f = _fold_supplier(r.supplier)
+            hits = by_fold.get(f) or []
+            if not hits:
+                hits = [b for k, lst in by_fold.items() if f and k.startswith(f) for b in lst]
+            if len(hits) != 1:
+                skipped.append(r.supplier)
+                continue
+            sid = int(hits[0]["supplier_id"])
+            reg_name = hits[0].get("supplier_name", "")
+        resolved.append({
+            "supplier_id": int(sid), "supplier_name": reg_name,
+            "is_default": 1 if r.is_default else 0,
+            "default_delivery_price": (r.delivery_price or "").strip(),
+            "package_id": (r.package_id or "").strip(),
+            "remote_ref_id": (r.supplier_code or "").strip(),
+            "remote_article_name": (r.supplier_name or "").strip(),
+        })
+    if req.rows and not resolved:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Никой от доставчиците не е разпознат: " + ", ".join(skipped))
+    seen_def = False
+    for x in resolved:
+        if x["is_default"] and not seen_def:
+            seen_def = True
+        else:
+            x["is_default"] = 0
+    if resolved and not seen_def:
+        resolved[0]["is_default"] = 1
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED,
+                "count": len(resolved), "skipped": skipped}
+    with upstream("Barsy доставчици"):
+        await run_in_threadpool(barsy.call, "Articles_save_suppliers",
+                                {"id": article_id, "action_type": "save", "values": {}, "rows": resolved})
+    await log_action(session, actor, "article.suppliers", target=str(article_id),
+                     detail=f"rows={len(resolved)} skipped={len(skipped)}")
+    return {"ok": True, "count": len(resolved), "skipped": skipped}

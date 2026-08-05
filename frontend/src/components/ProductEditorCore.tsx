@@ -548,7 +548,7 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
         </>
       )}
 
-      {!isEdit && draft.id != null && <SupplierTable draftId={draft.id} />}
+      {isEdit && edit ? <SupplierTable articleId={edit.articleId} /> : draft.id != null ? <SupplierTable draftId={draft.id} /> : null}
 
       {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{error}</div>}
       {note && <div style={{ color: 'var(--ready)', fontFamily: 'var(--type)', fontSize: '.8rem' }}>{note}</div>}
