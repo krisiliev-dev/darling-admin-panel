@@ -27,6 +27,7 @@ async def test_list_reports_grouped(owner_client):
     groups = {g["group"]: [x["key"] for x in g["reports"]] for g in r["groups"]}
     assert "sell_price_changes" in groups["Артикули"]
     assert "sales_by_articles" in groups["Продажби"]
+    assert "invoices_registry" in groups["Документи"]   # #85b: Barsy invoice registry, read-only
 
 
 @pytest.mark.asyncio

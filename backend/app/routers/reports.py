@@ -42,6 +42,7 @@ REPORTS: dict[str, tuple[str, str, str]] = {
     "clients_totals": ("reports_clients_totals", "Клиенти — обороти", "Клиенти"),
     "logs": ("reports_logs", "Дневник събития", "Дневник"),
     "logs_by_users": ("reports_logs_by_users", "Дневник по потребители", "Дневник"),
+    "invoices_registry": ("invoices_index", "Фактури — регистър", "Документи"),
 }
 
 _STRUCT_TTL = 3600.0
