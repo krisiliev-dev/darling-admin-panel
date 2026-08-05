@@ -8,7 +8,7 @@ Replaces paying for izprati.bg — same capabilities, in-house.
 Adapters (by priority):
   Speedy   — REST/JSON, api.speedy.bg/v1, userName/password in body   [primary, implemented]
   Econt    — JSON, ee.econt.com/services, HTTP Basic                  [primary, implemented]
-  BoxNow   — API, automated parcel lockers                            [pickup boxes, stub]
+  BoxNow   — api-production.boxnow.bg, locker-only (АПМ)              [implemented 2026-08-05]
   SameDay  — API + easybox lockers                                    [pickup boxes, stub]
   PigeonExpress, Evropat                                              [secondary, stub]
 
@@ -68,7 +68,7 @@ def _amt(v):
 REGISTRY = {
     "speedy":  {"user": "SPEEDY_USER",  "pass": "SPEEDY_PASS",  "base": "https://api.speedy.bg/v1"},
     "econt":   {"user": "ECONT_USER",   "pass": "ECONT_PASS",   "base": "https://ee.econt.com/services"},
-    "boxnow":  {"user": "BOXNOW_ID",    "pass": "BOXNOW_SECRET", "base": "https://api.boxnow.bg/api/v1"},
+    "boxnow":  {"user": "BOXNOW_ID",    "pass": "BOXNOW_SECRET", "base": "https://api-production.boxnow.bg/api/v1"},
     "sameday": {"user": "SAMEDAY_USER", "pass": "SAMEDAY_PASS", "base": "https://api.sameday.bg/api"},
     "pigeon":  {"user": "PIGEON_USER",  "pass": "PIGEON_PASS",  "base": "https://api.pigeonexpress.com/v1"},
     "evropat": {"user": "EVROPAT_USER", "pass": "EVROPAT_PASS", "base": ""},
@@ -645,9 +645,193 @@ class Econt(Courier):
         return norm
 
 
-# --- locker / secondary couriers: same interface, wired when their creds arrive --------
+# ======================================================================================
+# BOX NOW — api-production.boxnow.bg. LOCKER-ONLY (АПМ автомати), max 20 kg HARD, locker
+# 60×45×36 cm. Surface mapped 2026-08-05 from BOX NOW's OFFICIAL WooCommerce plugin
+# v3.0.0_global (github.com/boxltdbg/bx_wp_plugin — box-now-delivery.php + api-helpers +
+# cancel/print): POST /api/v1/auth-sessions {grant_type:"client_credentials", client_id,
+# client_secret} → access_token (Bearer on everything else); GET /api/v1/origins →
+# {data:[{id,name}]} (warehouses; ours is BOXNOW_WAREHOUSE_ID=2 = any-APM, изпращане ОТ
+# автомат); POST /api/v1/delivery-requests {orderNumber, invoiceValue, paymentMode
+# cod|prepaid, amountToBeCollected, allowReturn, origin{contactName,contactNumber,
+# contactEmail, locationId=warehouse}, destination{…, locationId=locker id},
+# items:[{value, weight, compartmentSize 1|2|3}]} → {id, parcels:[{id}]};
+# POST /api/v1/parcels/{id}:cancel; GET /api/v1/parcels/{id}/label.pdf → PDF bytes.
+# Lockers list is PUBLIC (no auth): locationapi-production.boxnow.bg/v1/apms_bg-BG.json.
+# Checkout map widget: widget-v5.boxnow.bg?partnerId=BOXNOW_PARTNER_ID (woo lane).
+# Compartments (plugin's size table): 1=60×45×8, 2=60×45×17 (default when no dims),
+# 3=60×45×36. NO quote API — prices are CONTRACT-FIXED (Анекса): BOXNOW_PRICE_EUR /
+# BOXNOW_COD_FEE_EUR in ~/.hermes/.env; calculate() fails LOUDLY without them (no invented
+# money). COD at a locker is NEVER cash — card via SMS/Viber/email link (customer copy on
+# the storefront must say this; the guide mandates the exact warning text).
+# The plugin exposes no tracking endpoint → track() raises honestly (capture rule: don't
+# guess — record the real one from the partner portal's XHR if we ever need it).
+# BOX NOW REQUIRES a confirmed TEST ORDER before going live (their integration email).
+# ======================================================================================
 class BoxNow(Courier):
     name = "boxnow"
+    LOCKERS_URL = "https://locationapi-production.boxnow.bg/v1/apms_bg-BG.json"
+    MAX_KG = 20.0
+
+    def __init__(self):
+        super().__init__()
+        self._token_val, self._token_exp = "", 0.0
+
+    def _token(self):
+        import time
+        if self._token_val and time.time() < self._token_exp:
+            return self._token_val
+        self._require()
+        body = json.dumps({"grant_type": "client_credentials",
+                           "client_id": self.user, "client_secret": self.password}).encode()
+        req = urllib.request.Request(self.base + "/auth-sessions", data=body,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                out = json.loads(r.read().decode("utf-8", "replace"))
+        except urllib.error.HTTPError as e:
+            raise CourierError(f"BoxNow auth HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            raise CourierError(f"BoxNow мрежова грешка при вход: {e}")
+        tok = out.get("access_token") or ""
+        if not tok:
+            raise CourierError(f"BoxNow: auth не върна access_token ({str(out)[:120]}).")
+        self._token_val = tok
+        self._token_exp = time.time() + min(float(out.get("expires_in") or 3600), 3600) - 60
+        return tok
+
+    def _call(self, path, payload=None, method=None, raw=False):
+        data = json.dumps(payload).encode("utf-8") if payload is not None else None
+        req = urllib.request.Request(
+            self.base + path, data=data, method=method or ("POST" if data else "GET"),
+            headers={"Content-Type": "application/json", "Accept": "*/*",
+                     "Authorization": "Bearer " + self._token()})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                body = r.read()
+        except urllib.error.HTTPError as e:
+            raise CourierError(f"BoxNow HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            raise CourierError(f"BoxNow мрежова грешка: {e}")
+        return body if raw else (json.loads(body.decode("utf-8", "replace")) if body else {})
+
+    def _warehouse(self):
+        wid = _cred("BOXNOW_WAREHOUSE_ID")
+        if not wid:
+            raise CourierError("BoxNow: липсва BOXNOW_WAREHOUSE_ID в ~/.hermes/.env "
+                               "(нашият е 2 — изпращане от автомат, писмото на BOX NOW).")
+        return str(wid)
+
+    def ping(self):
+        """Auth + config check in one: the token round-trip proves the credentials, and the
+        origins list must contain OUR warehouse id or labels would fail later."""
+        wid = self._warehouse()
+        rows = (self._call("/origins") or {}).get("data") or []
+        names = {str(w.get("id")): (w.get("name") or "") for w in rows if isinstance(w, dict)}
+        if wid not in names:
+            raise CourierError(f"BoxNow: склад {wid} не е в /origins ({sorted(names)}) — "
+                               "проверете Warehouse ID с BOX NOW.")
+        return {"ok": True, "sender_name": names[wid], "sender_place": f"склад {wid}"}
+
+    def offices(self, city=None):
+        """Lockers from the PUBLIC location API (no credentials needed — same source the
+        official plugin's map uses)."""
+        url = self.LOCKERS_URL + "?size=medium"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                data = json.loads(r.read().decode("utf-8", "replace"))
+        except Exception as e:
+            raise CourierError(f"BoxNow: списъкът с автомати не се зареди: {e}")
+        out = []
+        for o in data.get("data") or []:
+            if not isinstance(o, dict) or o.get("id") in (None, ""):
+                continue
+            out.append({"id": o.get("id"),
+                        "name": str(o.get("name") or o.get("title") or ""),
+                        "address": str(o.get("address") or o.get("addressLine1") or ""),
+                        "city": str(o.get("city") or o.get("addressLine2") or "")})
+        if city:
+            key = "".join(str(city).split()).casefold()
+            out = [o for o in out if key in "".join(o["city"].split()).casefold()
+                   or key in "".join(o["address"].split()).casefold()
+                   or key in "".join(o["name"].split()).casefold()]
+        return out
+
+    def _contract_price(self, cod):
+        """NO quote API — the tariff is the contract Анекс. Env-set by the owner; missing
+        numbers must FAIL, never guess (money fails closed)."""
+        price = _cred("BOXNOW_PRICE_EUR")
+        if not price:
+            raise CourierError("BoxNow: липсва BOXNOW_PRICE_EUR (цената по Анекса) в "
+                               "~/.hermes/.env — BOX NOW няма API за оферта.")
+        total = float(price)
+        if cod:
+            fee = _cred("BOXNOW_COD_FEE_EUR")
+            if fee == "":
+                raise CourierError("BoxNow: липсва BOXNOW_COD_FEE_EUR (таксата наложен платеж "
+                                   "по Анекса) в ~/.hermes/.env.")
+            total += float(fee)
+        return round(total, 2)
+
+    def calculate(self, shp: "Shipment"):
+        if shp.weight_kg > self.MAX_KG:
+            raise CourierError(f"BoxNow: {shp.weight_kg} kg надвишава твърдия лимит "
+                               f"{self.MAX_KG:.0f} kg за автомат.")
+        return {"price": self._contract_price(shp.cod_amount > 0),
+                "currency": CURRENCY, "courier": "boxnow"}
+
+    def create_shipment(self, shp: "Shipment", do_write=False):
+        if not do_write:
+            raise CourierError("BoxNow: create_shipment изисква do_write=True (реален етикет).")
+        if not shp.office_id:
+            raise CourierError("BoxNow: доставя САМО до автомат — подайте office_id "
+                               "(id на автомат от offices()).")
+        if shp.weight_kg > self.MAX_KG:
+            raise CourierError(f"BoxNow: {shp.weight_kg} kg надвишава лимита {self.MAX_KG:.0f} kg.")
+        sender = {"contactName": _cred("BOXNOW_SENDER_NAME"),
+                  "contactNumber": _cred("BOXNOW_SENDER_PHONE"),
+                  "contactEmail": _cred("BOXNOW_SENDER_EMAIL")}
+        if not (sender["contactName"] and sender["contactNumber"]):
+            raise CourierError("BoxNow: липсват BOXNOW_SENDER_NAME / BOXNOW_SENDER_PHONE "
+                               "в ~/.hermes/.env (контакт на подателя за товарителницата).")
+        cod = round(shp.cod_amount, 2)
+        item = {"value": f"{(shp.declared_value if shp.declared_value is not None else cod):.2f}",
+                "weight": shp.weight_kg,
+                "compartmentSize": 2}   # plugin default (60×45×17) — Shipment carries no dims
+        payload = {
+            "orderNumber": str(shp.order_ref),
+            "invoiceValue": f"{cod:.2f}" if cod > 0 else "0",
+            "paymentMode": "cod" if cod > 0 else "prepaid",
+            "amountToBeCollected": f"{cod:.2f}" if cod > 0 else "0",
+            "allowReturn": True,
+            "origin": dict(sender, locationId=self._warehouse()),
+            "destination": {"contactName": shp.recipient, "contactNumber": shp.phone,
+                            "contactEmail": shp.email or "", "locationId": str(shp.office_id)},
+            "items": [dict(item) for _ in range(max(1, shp.parcels))],
+        }
+        out = self._call("/delivery-requests", payload)
+        parcels = [p.get("id") for p in (out.get("parcels") or []) if isinstance(p, dict)]
+        if not out.get("id") or not parcels:
+            raise CourierError(f"BoxNow: заявката не върна parcels ({str(out)[:160]}).")
+        return {"courier": "boxnow", "shipment_id": out["id"],
+                "tracking_number": str(parcels[0]), "cod_amount": cod,
+                "price": self._contract_price(cod > 0), "currency": CURRENCY,
+                "label_ref": str(parcels[0]), "parcel_ids": [str(p) for p in parcels]}
+
+    def label_pdf(self, shipment_id):
+        pdf = self._call(f"/parcels/{shipment_id}/label.pdf", raw=True)
+        if not pdf.startswith(b"%PDF"):
+            raise CourierError(f"BoxNow: /label.pdf не върна PDF ({pdf[:60]!r}).")
+        return pdf
+
+    def cancel(self, shipment_id, comment=""):
+        return self._call(f"/parcels/{shipment_id}:cancel", {}, method="POST")
+
+    def track(self, tracking_number):
+        raise CourierError("BoxNow: плъгинът им няма tracking endpoint — не гадаем (правилото "
+                           "за capture): при нужда се записва реалната заявка от партньорския "
+                           "портал. Статусите идват по имейл/портал.")
 
 
 class Sameday(Courier):

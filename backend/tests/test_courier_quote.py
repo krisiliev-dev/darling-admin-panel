@@ -163,3 +163,99 @@ def test_pigeon_without_pickup_office_fails_loudly():
             p._pickup()
         finally:
             courier_mod._cred = orig
+
+
+# ------------------------------------------------------------------------- BoxNow ---
+# Surface mapped 2026-08-05 from BOX NOW's official Woo plugin v3.0.0_global (bx_wp_plugin).
+# Locker-only, 20 kg hard limit, NO quote API — contract (Анекс) prices via env. Same
+# credential-free construction pattern as _speedy()/_pigeon(): __new__ + stubbed _call.
+
+def _boxnow():
+    b = courier_mod.BoxNow.__new__(courier_mod.BoxNow)
+    b.user = b.password = "x"
+    b.base = "https://example.invalid/api/v1"
+    b._token_val, b._token_exp = "", 0.0
+    return b
+
+
+def _boxnow_env(monkeypatch, **extra):
+    """Process env WINS over ~/.hermes/.env in _cred(), so setenv is enough on any machine."""
+    vals = {"BOXNOW_WAREHOUSE_ID": "2", "BOXNOW_PRICE_EUR": "2.20", "BOXNOW_COD_FEE_EUR": "0.40",
+            "BOXNOW_SENDER_NAME": "Дарлинг 7", "BOXNOW_SENDER_PHONE": "+359888000000",
+            "BOXNOW_SENDER_EMAIL": "orders@darlinghome.bg"}
+    vals.update(extra)
+    for k, v in vals.items():
+        monkeypatch.setenv(k, v)
+
+
+def _boxnow_shp(cod: float, **kw):
+    kw.setdefault("office_id", "APM-77")
+    kw.setdefault("weight_kg", 3.0)
+    return courier_mod.Shipment(order_ref="SO-1001", recipient="Иван Иванов",
+                                phone="+359888111222", cod_amount=cod, **kw)
+
+
+def test_boxnow_contract_price_folds_cod_and_fails_loud_when_unset(monkeypatch):
+    """No quote API: price = Анекс env numbers, COD fee folded in; a MISSING number raises
+    (money fails closed — an invented 0.00 locker price would undercharge every order)."""
+    import pytest as _pytest
+    _boxnow_env(monkeypatch)
+    b = _boxnow()
+    assert b.calculate(_boxnow_shp(50.0)) == {"price": 2.60, "currency": "EUR", "courier": "boxnow"}
+    assert b.calculate(_boxnow_shp(0.0))["price"] == 2.20
+    monkeypatch.setenv("BOXNOW_PRICE_EUR", "")
+    with _pytest.raises(courier_mod.CourierError, match="BOXNOW_PRICE_EUR"):
+        b.calculate(_boxnow_shp(0.0))
+
+
+def test_boxnow_create_payload_cod_parity_and_mapping(monkeypatch):
+    """COD rides in paymentMode+invoiceValue+amountToBeCollected of the SAME body the label is
+    booked with (the Speedy quote/booking-parity lesson); origin = OUR warehouse (any-APM id 2),
+    destination = the chosen locker; items×parcels with plugin-default compartment 2."""
+    _boxnow_env(monkeypatch)
+    b = _boxnow()
+    seen = {}
+
+    def fake_call(path, payload=None, method=None, raw=False):
+        seen.update(path=path, body=payload)
+        return {"id": "req-9", "parcels": [{"id": "P111"}, {"id": "P222"}]}
+
+    b._call = fake_call  # type: ignore[method-assign]
+    out = b.create_shipment(_boxnow_shp(49.90, parcels=2, email="a@b.bg"), do_write=True)
+    assert seen["path"] == "/delivery-requests"
+    body = seen["body"]
+    assert body["paymentMode"] == "cod"
+    assert body["invoiceValue"] == body["amountToBeCollected"] == "49.90"
+    assert body["origin"]["locationId"] == "2" and body["origin"]["contactName"] == "Дарлинг 7"
+    assert body["destination"]["locationId"] == "APM-77"
+    assert len(body["items"]) == 2 and body["items"][0]["compartmentSize"] == 2
+    assert out["shipment_id"] == "req-9" and out["tracking_number"] == "P111"
+    assert out["parcel_ids"] == ["P111", "P222"] and out["price"] == 2.60
+    seen.clear()
+    b.create_shipment(_boxnow_shp(0.0), do_write=True)
+    assert seen["body"]["paymentMode"] == "prepaid"
+    assert seen["body"]["amountToBeCollected"] == "0" == seen["body"]["invoiceValue"]
+
+
+def test_boxnow_locker_only_weight_limit_and_write_guard(monkeypatch):
+    """Locker-only (no door fallback), 20 kg hard limit on BOTH quote and booking, and the
+    do_write latch — a BoxNow label is a real-world action."""
+    import pytest as _pytest
+    _boxnow_env(monkeypatch)
+    b = _boxnow()
+    with _pytest.raises(courier_mod.CourierError, match="автомат"):
+        b.create_shipment(_boxnow_shp(0.0, office_id=None), do_write=True)
+    with _pytest.raises(courier_mod.CourierError, match="20"):
+        b.calculate(_boxnow_shp(0.0, weight_kg=21))
+    with _pytest.raises(courier_mod.CourierError, match="20"):
+        b.create_shipment(_boxnow_shp(0.0, weight_kg=20.5), do_write=True)
+    with _pytest.raises(courier_mod.CourierError, match="do_write"):
+        b.create_shipment(_boxnow_shp(0.0))
+
+
+def test_boxnow_track_is_honest():
+    """The official plugin exposes NO tracking endpoint — track() must say so, not guess one
+    (the capture rule). A fabricated endpoint would look like a dead poller: quiet, not broken."""
+    import pytest as _pytest
+    with _pytest.raises(courier_mod.CourierError, match="capture"):
+        _boxnow().track("P111")
