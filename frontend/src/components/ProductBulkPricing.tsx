@@ -389,6 +389,97 @@ function OnlinePriceForm({ selected, onDone }: { selected: CacheProduct[]; onDon
   )
 }
 
+// General Масови операции — set ONE whitelisted Barsy field across the selected products (mirrors
+// Barsy's article grid mass-edit). The field list + select options come from the server whitelist
+// (/mass-columns); the server routes each field to the right write path (native save_mass, or
+// Articles_update with a full-ml merge for localized text). Preview → apply.
+interface MassField { col: string; title: string; type: string; group: string; numeric: boolean; write: string; options?: { value: string; label: string }[] }
+interface MassOpResult { dry_run: boolean; gated?: boolean; note?: string; col: string; value: string; count: number; applied?: number; failed?: unknown[]; changes?: { article_id: number; code: string; name: string; old: unknown; new: string }[] }
+
+function MassEditForm({ ids, onDone }: { ids: number[]; onDone: () => void }) {
+  const confirm = useConfirm()
+  const [fields, setFields] = useState<MassField[]>([])
+  const [col, setCol] = useState('')
+  const [value, setValue] = useState('')
+  const [prev, setPrev] = useState<MassOpResult | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  useEffect(() => { api.get<{ fields: MassField[] }>('/api/catalog/mass-columns').then((d) => setFields(d.fields)).catch(() => { }) }, [])
+  const field = fields.find((f) => f.col === col)
+  const groups = useMemo(() => {
+    const g: Record<string, MassField[]> = {}
+    fields.forEach((f) => { (g[f.group] ||= []).push(f) })
+    return Object.entries(g)
+  }, [fields])
+
+  const preview = async () => {
+    if (!col) { setMsg('Избери поле.'); return }
+    setBusy(true); setMsg('')
+    try { setPrev(await api.post<MassOpResult>('/api/catalog/mass-op', { article_ids: ids, col, value })) }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : 'Грешка.') } finally { setBusy(false) }
+  }
+  const apply = async () => {
+    if (!(await confirm(`Задаване на „${field?.title}“ за ${ids.length} продукта в Barsy?`))) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await api.post<MassOpResult>('/api/catalog/mass-op', { article_ids: ids, col, value, confirm: true })
+      if (r.gated) setMsg(r.note || 'Barsy запис е изключен (проба) — нищо не е записано.')
+      else setMsg(`Приложено на ${r.applied} продукта${r.failed && r.failed.length ? ` (неуспешни: ${r.failed.length})` : ''}.`)
+      setPrev(null); onDone()
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : 'Записът се провали.') } finally { setBusy(false) }
+  }
+  const setField = (c: string) => { setCol(c); setValue(''); setPrev(null) }
+  const setVal = (v: string) => { setValue(v); setPrev(null) }
+
+  return (
+    <div data-testid="mass-edit-form" style={{ marginTop: '.6rem', border: '1px dashed var(--line)', borderRadius: 3, padding: '.7rem', background: 'var(--paper2)', display: 'grid', gap: '.5rem' }}>
+      <div className="font-type" style={{ fontSize: '.8rem', fontWeight: 700 }}>✎ Масова редакция · {ids.length} продукта <span style={{ color: 'var(--pencil)', fontWeight: 400 }}>(задава едно поле на всички избрани)</span></div>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select className="input-paper" value={col} onChange={(e) => setField(e.target.value)}>
+          <option value="">— поле —</option>
+          {groups.map(([g, fs]) => (
+            <optgroup key={g} label={g}>
+              {fs.map((f) => <option key={f.col} value={f.col}>{f.title}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        {field?.type === 'checkbox' ? (
+          <select className="input-paper" value={value} onChange={(e) => setVal(e.target.value)}>
+            <option value="">— стойност —</option><option value="1">Да</option><option value="0">Не</option>
+          </select>
+        ) : field?.type === 'select' ? (
+          <select className="input-paper" value={value} onChange={(e) => setVal(e.target.value)}>
+            <option value="">— стойност —</option>
+            {field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        ) : (
+          <input className="input-paper" style={{ width: '11rem' }} inputMode={field?.numeric ? 'decimal' : 'text'}
+            placeholder={field ? 'нова стойност' : 'избери поле първо'} value={value} onChange={(e) => setVal(e.target.value)} disabled={!field} />
+        )}
+        <button className="btn-paper" onClick={() => void preview()} disabled={busy || !col}>Прегледай</button>
+        {prev?.dry_run && !prev.gated && <button className="btn-paper btn-red" onClick={() => void apply()} disabled={busy}>Приложи на {prev.count}</button>}
+      </div>
+      {field?.write === 'articles_update' && (
+        <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--pencil)' }}>
+          Текстово поле — записва се коректно на всички езици (запазва напр. английското име).
+        </span>
+      )}
+      {msg && <div className="font-type" style={{ fontSize: '.78rem', color: msg.includes('Приложено') ? 'var(--ready)' : msg.includes('проба') ? 'var(--pencil)' : 'var(--red)' }}>{msg}</div>}
+      {prev?.dry_run && prev.changes && (
+        <div style={{ maxHeight: '15rem', overflowY: 'auto', display: 'grid', gap: '.15rem' }}>
+          {prev.changes.slice(0, 80).map((c) => (
+            <div key={c.article_id} className="font-type" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.76rem', borderBottom: '1px dashed var(--line)', padding: '.15rem 0' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '22rem' }}>{c.name} <span style={{ color: 'var(--pencil)' }}>{c.code}</span></span>
+              <span>{c.old != null && c.old !== '' ? <><span style={{ color: 'var(--pencil)' }}>{String(c.old)}</span> → </> : null}<b style={{ color: 'var(--red)' }}>{prev.value}</b></span>
+            </div>
+          ))}
+          {prev.changes.length > 80 && <span className="pencil" style={{ fontSize: '.72rem' }}>…и още {prev.changes.length - 80}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone: () => void }) {
   const [op, setOp] = useState<'mul' | 'div' | 'add' | 'sub' | 'set'>('mul')
   const [value, setValue] = useState('')
@@ -400,6 +491,7 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
   const [showPromo, setShowPromo] = useState(false)
   const [showRename, setShowRename] = useState(false)
   const [showOnline, setShowOnline] = useState(false)
+  const [showMass, setShowMass] = useState(false)
   const ids = selected.map((s) => s.article_id)
   const confirm = useConfirm()
   const OPS: [typeof op, string][] = [['mul', '× умножи'], ['div', '÷ раздели'], ['add', '+ добави'], ['sub', '− извади'], ['set', '= задай']]
@@ -463,7 +555,9 @@ export function BulkBar({ selected, onDone }: { selected: CacheProduct[]; onDone
         <button className="btn-paper" onClick={() => setShowOnline((s) => !s)}>🌐 Онлайн цена</button>
         <button className="btn-paper" onClick={() => setShowPromo((s) => !s)}>🏷 Промоция за период</button>
         <button className="btn-paper" onClick={() => setShowRename((s) => !s)}>🖊 Преименувай по рецепта</button>
+        <button className="btn-paper" onClick={() => setShowMass((s) => !s)}>✎ Масова редакция</button>
       </div>
+      {showMass && <MassEditForm ids={ids} onDone={() => { setShowMass(false); onDone() }} />}
       {showOnline && <OnlinePriceForm selected={selected} onDone={() => { setShowOnline(false); onDone() }} />}
       {showPromo && <PromoForm ids={ids} onDone={() => { setShowPromo(false); onDone() }} />}
       {showRename && <BulkRenameForm ids={ids} onDone={() => { setShowRename(false); onDone() }} />}
