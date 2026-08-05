@@ -38,6 +38,7 @@ from .core_drift import core_drift, log_core_drift
 from .db import create_db_and_tables
 from .issues import record_issue
 from .routers import (
+    accounts,
     admin,
     assistant,
     auth_extra,
@@ -169,6 +170,7 @@ app.include_router(inventory.router)
 app.include_router(inventory_health.router)
 app.include_router(cod.router)
 app.include_router(clients.router)
+app.include_router(accounts.router)
 app.include_router(assistant.router)
 app.include_router(purchasing.router)
 app.include_router(admin.router)
