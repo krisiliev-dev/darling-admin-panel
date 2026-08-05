@@ -1140,11 +1140,14 @@ async def update_article(
     for mode in (req.oversell_mode, req.storemove_mode):
         if mode and mode not in _TRI:                  # refuse before touching the ERP
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалидна стойност (DEF/YES/NO).")
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
     # ONE Articles_get up front -- used to MERGE every *_ml map (a partial {bg_BG:...} REPLACES
     # the map and drops other locales like en_US, verified) and to merge extra_data below. The
     # panel reads the ml for the English site, so name/description edits must keep every language.
-    _cur = await run_in_threadpool(
-        barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
+    with upstream("Barsy обновяване"):
+        _cur = await run_in_threadpool(
+            barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
     _cur = _cur if isinstance(_cur, dict) else {}
     article: dict = {
         "article_name": req.name.strip(),
@@ -1211,8 +1214,6 @@ async def update_article(
         extra = dict(_cur.get("extra_data") or {})
         extra.update(extra_new)
         article["extra_data"] = extra
-    if not barsy_write_live():
-        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
     with upstream("Barsy обновяване"):
         await run_in_threadpool(barsy.call, "Articles_update",
                                 {"article_id": article_id, "article": article})
