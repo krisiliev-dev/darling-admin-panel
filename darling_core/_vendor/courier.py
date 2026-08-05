@@ -672,6 +672,9 @@ class BoxNow(Courier):
     name = "boxnow"
     LOCKERS_URL = "https://locationapi-production.boxnow.bg/v1/apms_bg-BG.json"
     MAX_KG = 20.0
+    # Cloudflare 1010-blocks python-urllib's default UA (verified live 2026-08-05 — the same
+    # gate Pigeon has); a real product UA passes.
+    UA = "DarlingPanel/1.0 (+https://darlinghome.bg)"
 
     def __init__(self):
         super().__init__()
@@ -685,7 +688,8 @@ class BoxNow(Courier):
         body = json.dumps({"grant_type": "client_credentials",
                            "client_id": self.user, "client_secret": self.password}).encode()
         req = urllib.request.Request(self.base + "/auth-sessions", data=body,
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "User-Agent": self.UA})
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
                 out = json.loads(r.read().decode("utf-8", "replace"))
@@ -705,7 +709,7 @@ class BoxNow(Courier):
         req = urllib.request.Request(
             self.base + path, data=data, method=method or ("POST" if data else "GET"),
             headers={"Content-Type": "application/json", "Accept": "*/*",
-                     "Authorization": "Bearer " + self._token()})
+                     "User-Agent": self.UA, "Authorization": "Bearer " + self._token()})
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
                 body = r.read()
@@ -737,7 +741,8 @@ class BoxNow(Courier):
         """Lockers from the PUBLIC location API (no credentials needed — same source the
         official plugin's map uses)."""
         url = self.LOCKERS_URL + "?size=medium"
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        req = urllib.request.Request(url, headers={"Accept": "application/json",
+                                                   "User-Agent": self.UA})
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
                 data = json.loads(r.read().decode("utf-8", "replace"))
