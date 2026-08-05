@@ -28,6 +28,7 @@ const NAV: { to: string; label: string; roles?: string[]; hideFor?: string[] }[]
   { to: '/kancelaria', label: 'Канцелария' },
   { to: '/posta', label: 'Поща' },
   { to: '/clients', label: 'Клиенти', roles: ['owner', 'manager'] },
+  { to: '/accounts', label: 'Сметки', roles: ['owner', 'manager'] },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
 ]
 
