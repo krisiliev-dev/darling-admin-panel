@@ -1007,7 +1007,7 @@ def _tri(v) -> str:
     return s if s in _TRI else "DEF"
 
 
-@router.get("/{article_id}")
+@router.get("/{article_id:int}")
 def get_article(article_id: int, user: User = Depends(current_active_user)):
     """Full product detail from Barsy — every field the editor can write back (create/edit parity)."""
     with upstream("Barsy артикул"):
@@ -1113,7 +1113,7 @@ class ArticleEdit(BaseModel):
     # composite_type_name / recipe_description are deliberately NOT writable — read-back only
 
 
-@router.post("/{article_id}")
+@router.post("/{article_id:int}")
 async def update_article(
     article_id: int, req: ArticleEdit,
     actor: User = Depends(require_roles("staff")),
@@ -1205,3 +1205,179 @@ async def update_article(
     await log_action(session, actor, "article.update", target=str(article_id),
                      detail=f"name={req.name[:40]}")
     return {"ok": True}
+
+
+# ================================ Масови операции (general mass edit) ==============================
+# Mirrors Barsy's article grid mass-edit. Each field is VERIFIED against live Barsy (throwaway
+# articles: create -> apply -> read-back -> delete, 2026-08-04). Write path per field:
+#   "save_mass"        -> native one-call grid save (barsy_bulk.save_mass). Scalar/numeric/flag/select.
+#   "articles_update"  -> per-article Articles_update with a FULL-ml-map merge (localized text with an
+#                         _ml sibling the grid cannot maintain; keeps en_US etc. for the English site).
+# EXCLUDED (do NOT round-trip via save_mass on this install): min_profit_percent, max_discount, slug,
+# min/max_order, min/max_amount, is_for_client_order, is_for_load. Set per cell (Barsy's grid has no
+# ×/÷ — relative price ops live in Ценообразуване / bulk-price).
+_MASS_FIELDS = [
+    {"col": "actual_price", "title": "Цена продажна", "type": "currency", "group": "Цена", "write": "save_mass"},
+    {"col": "avg_delivery_price", "title": "Доставна цена", "type": "currency", "group": "Цена", "write": "save_mass"},
+    {"col": "article_name", "title": "Име", "type": "text", "group": "Идентификация", "write": "articles_update"},
+    {"col": "article_name_public", "title": "Публично име", "type": "text", "group": "Идентификация", "write": "articles_update"},
+    {"col": "description", "title": "Описание", "type": "textarea", "group": "Идентификация", "write": "articles_update"},
+    {"col": "code", "title": "Код", "type": "text", "group": "Идентификация", "write": "save_mass"},
+    {"col": "barcode", "title": "Баркод", "type": "text", "group": "Идентификация", "write": "save_mass"},
+    {"col": "is_for_sale", "title": "За продажба", "type": "checkbox", "group": "Флагове", "write": "save_mass", "mass_col": "is_for_sale_mass"},
+    {"col": "is_public", "title": "Публичен (онлайн)", "type": "checkbox", "group": "Флагове", "write": "save_mass"},
+    {"col": "is_service", "title": "Услуга", "type": "checkbox", "group": "Флагове", "write": "save_mass"},
+    {"col": "tax", "title": "ДДС група", "type": "select", "group": "Данък и мерки", "write": "save_mass", "options": "tax"},
+    {"col": "amount_type_id", "title": "Мерна единица", "type": "select", "group": "Данък и мерки", "write": "save_mass", "options": "amount_type"},
+]
+_MASS_BY_COL = {f["col"]: f for f in _MASS_FIELDS}
+_NUMERIC_TYPES = {"currency", "amount", "int"}
+
+# localized col -> (scalar field to also write or None, ml field to merge)
+_LOCALIZED_ML = {
+    "article_name": ("article_name", "article_name_ml"),
+    "article_name_public": ("article_name_public", "article_name_public_ml"),
+    "description": (None, "description_ml"),
+}
+# whitelist col -> ProductCache attribute (for preview old-value + write-through). Others: not cached.
+_MASS_CACHE_ATTR = {"actual_price": "price", "code": "code", "barcode": "barcode",
+                    "article_name": "name", "description": "description"}
+
+
+def _tax_options() -> list[dict]:
+    try:
+        rows = barsy.call("TaxGroups_getList", {}) or []
+    except Exception:
+        return []
+    return [{"value": str(t.get("tax_id")), "label": t.get("tax_name_full") or t.get("tax_name") or str(t.get("tax_id"))}
+            for t in rows if isinstance(t, dict) and t.get("tax_id") is not None]
+
+
+def _amount_options() -> list[dict]:
+    try:
+        rows = barsy.call("Amounttypes_getList", {}) or []
+    except Exception:
+        return []
+    out = []
+    for a in rows:
+        if not isinstance(a, dict):
+            continue
+        v = a.get("amount_type_id") or a.get("id")
+        if v is None:
+            continue
+        out.append({"value": str(v), "label": a.get("amount_type_name") or a.get("name") or a.get("name_short") or str(v)})
+    return out
+
+
+@router.get("/mass-columns")
+async def mass_columns(user: User = Depends(current_active_user)):
+    """The VERIFIED whitelist of mass-editable fields (+ live select options). The Масови операции UI
+    builds its field picker from this. `write` tells the client nothing — routing is server-side; it
+    is exposed only so the UI can note that localized text keeps all languages."""
+    tax_opts = amount_opts = None
+    out = []
+    for f in _MASS_FIELDS:
+        d = {"col": f["col"], "title": f["title"], "type": f["type"], "group": f["group"],
+             "numeric": f["type"] in _NUMERIC_TYPES, "write": f["write"]}
+        if f.get("options") == "tax":
+            if tax_opts is None:
+                tax_opts = await run_in_threadpool(_tax_options)
+            d["options"] = tax_opts
+        elif f.get("options") == "amount_type":
+            if amount_opts is None:
+                amount_opts = await run_in_threadpool(_amount_options)
+            d["options"] = amount_opts
+        out.append(d)
+    return {"fields": out}
+
+
+class MassOpRequest(BaseModel):
+    article_ids: list[int] = Field(min_length=1, max_length=_BULK_MAX)
+    col: str
+    value: str                       # the value to SET for all selected (checkbox "0"/"1"; select value)
+    confirm: bool = False
+
+
+async def _apply_localized(session, changes: list, col: str):
+    """Per-article Articles_update for a localized text field: read the current *_ml map, merge the new
+    value into the active locale (preserving other locales), write the scalar + FULL merged map."""
+    scalar, ml_field = _LOCALIZED_ML[col]
+    ids = [c["article_id"] for c in changes]
+    cache = {pc.article_id: pc for pc in (await session.execute(
+        select(ProductCache).where(ProductCache.article_id.in_(ids)))).scalars().all()}
+    applied, failed = 0, []
+    for i, c in enumerate(changes):
+        aid = c["article_id"]
+        if i:
+            await _bulk.pace()
+        try:
+            cur = await run_in_threadpool(barsy.call, "Articles_get", {"article_id": aid})
+            body: dict = {ml_field: _merge_name_ml((cur or {}).get(ml_field), c["new"])}
+            if scalar:
+                body[scalar] = c["new"]
+            await run_in_threadpool(barsy.call, "Articles_update", {"article_id": aid, "article": body})
+        except Exception:
+            failed.append(c["code"])
+            continue
+        pc = cache.get(aid)
+        if pc is not None and col in _MASS_CACHE_ATTR:
+            setattr(pc, _MASS_CACHE_ATTR[col], c["new"])   # write-through
+        applied += 1
+    await session.commit()
+    return applied, failed
+
+
+@router.post("/mass-op")
+async def mass_op(req: MassOpRequest, actor: User = Depends(current_owner),
+                  session: AsyncSession = Depends(get_async_session)):
+    """Set ONE whitelisted field to a single value across the selected products (mirrors Barsy's grid
+    mass-edit). Preview first (confirm=false → the computed changes, writes nothing); confirm=true
+    applies. Localized text (name/public name/description) writes via Articles_update with a full-ml
+    merge so other languages survive; everything else via native save_mass. Owner-only, audited,
+    gated by BARSY_WRITE_LIVE. Price DELTAS (×/÷/±) live in Ценообразуване / bulk-price, not here."""
+    field = _MASS_BY_COL.get(req.col)
+    if field is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Непознато поле за масова редакция.")
+    val = req.value
+    if field["type"] == "checkbox" and val not in ("0", "1"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Флагът приема само 0 или 1.")
+    if field["type"] == "select":
+        opts = _tax_options() if field.get("options") == "tax" else _amount_options()
+        if opts and val not in {o["value"] for o in opts}:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалидна стойност за списъчното поле.")
+
+    attr = _MASS_CACHE_ATTR.get(req.col)
+    rows = {pc.article_id: pc for pc in (await session.execute(
+        select(ProductCache).where(ProductCache.article_id.in_(req.article_ids)))).scalars().all()}
+    changes = []
+    for aid in req.article_ids:
+        pc = rows.get(aid)
+        if pc is None:
+            continue
+        old = getattr(pc, attr) if attr else None
+        changes.append({"article_id": aid, "code": pc.code, "name": pc.name, "old": old, "new": val})
+    if not req.confirm:
+        return {"dry_run": True, "col": req.col, "value": val, "count": len(changes), "changes": changes}
+    if not barsy_write_live():
+        return {"dry_run": True, "gated": True, "note": _GATED, "col": req.col, "value": val,
+                "count": len(changes), "changes": changes, "applied": 0, "failed": []}
+
+    failed: list = []
+    if field["write"] == "articles_update":
+        applied, failed = await _apply_localized(session, changes, req.col)
+    else:
+        col_name = field.get("mass_col", req.col)
+        applied = await run_in_threadpool(
+            _bulk.save_mass,
+            [{"article_id": c["article_id"], "col_name": col_name, "value": str(c["new"])} for c in changes])
+        if attr:                                            # write-through cached cols
+            cast_new = float(val) if field["type"] == "currency" else val
+            changed_ids = {c["article_id"] for c in changes}
+            for pc in rows.values():
+                if pc.article_id in changed_ids:
+                    setattr(pc, attr, cast_new)
+            await session.commit()
+    await log_action(session, actor, "catalog.mass_op",
+                     detail=f"col={req.col} value={val} applied={applied} failed={len(failed)}")
+    return {"dry_run": False, "col": req.col, "value": val, "count": len(changes),
+            "applied": applied, "failed": failed}

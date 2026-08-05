@@ -367,3 +367,91 @@ def test_leaf_from_gid_extracts_taxonomy_id():
     from app.routers.catalog import _leaf_from_gid
     assert _leaf_from_gid("gid://shopify/TaxonomyCategory/hg-11-2") == "hg-11-2"
     assert _leaf_from_gid("") == ""
+
+
+@pytest.mark.asyncio
+async def test_mass_columns_lists_verified_whitelist(owner_client, barsy_recorder):
+    barsy_recorder.set_return("TaxGroups_getList", [
+        {"tax_id": 2, "tax_name_full": "BG 20%"}, {"tax_id": 1, "tax_name_full": "BG 0%"}])
+    barsy_recorder.set_return("Amounttypes_getList", [{"amount_type_id": 1, "amount_type_name": "бр"}])
+    r = (await owner_client.get("/api/catalog/mass-columns")).json()
+    cols = {f["col"]: f for f in r["fields"]}
+    assert cols["actual_price"]["numeric"] is True
+    assert cols["article_name"]["write"] == "articles_update"       # localized -> ml-safe path
+    assert cols["is_public"]["write"] == "save_mass" and cols["is_public"]["type"] == "checkbox"
+    assert cols["tax"]["options"][0]["value"] == "2"                # live select options resolved
+    assert "min_amount" not in cols and "slug" not in cols          # excluded, unverified fields
+
+
+@pytest.mark.asyncio
+async def test_mass_op_savemass_preview_then_apply(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10.00", "is_public": 1},
+        {"article_id": 2, "code": "B", "article_name": "Две", "actual_price": "20.00", "is_public": 1},
+    ])
+    prev = (await owner_client.post("/api/catalog/mass-op",
+            json={"col": "is_public", "article_ids": [1, 2], "value": "0"})).json()
+    assert prev["dry_run"] is True and prev["count"] == 2
+    assert "articles_index" not in barsy_recorder.operations        # preview writes nothing
+    ap = (await owner_client.post("/api/catalog/mass-op",
+          json={"col": "is_public", "article_ids": [1, 2], "value": "0", "confirm": True})).json()
+    assert ap["applied"] == 2
+    assert barsy_recorder.operations.count("articles_index") == 1   # one native save_mass, not 2 updates
+    vals = barsy_recorder.body_for("articles_index")["values"]
+    assert len(vals) == 2 and all(c["col_name"] == "is_public" for c in vals.values())
+
+
+@pytest.mark.asyncio
+async def test_mass_op_flag_uses_mass_suffix(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10.00"},
+    ])
+    ap = (await owner_client.post("/api/catalog/mass-op",
+          json={"col": "is_for_sale", "article_ids": [1], "value": "0", "confirm": True})).json()
+    assert ap["applied"] == 1
+    cell = next(iter(barsy_recorder.body_for("articles_index")["values"].values()))
+    assert cell["col_name"] == "is_for_sale_mass"                   # grid needs the _mass suffix
+
+
+@pytest.mark.asyncio
+async def test_mass_op_localized_merges_ml(owner_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Старо", "actual_price": "9"},
+    ])
+    barsy_recorder.set_return("Articles_get", {"article_id": 1,
+        "article_name_ml": {"bg_BG": "Старо", "en_US": "Old-en"}})
+    ap = (await owner_client.post("/api/catalog/mass-op",
+          json={"col": "article_name", "article_ids": [1], "value": "Ново", "confirm": True})).json()
+    assert ap["applied"] == 1
+    art = barsy_recorder.body_for("Articles_update")["article"]
+    assert art["article_name"] == "Ново"
+    assert art["article_name_ml"]["bg_BG"] == "Ново"                # active locale updated
+    assert art["article_name_ml"]["en_US"] == "Old-en"             # other locale preserved
+    assert "articles_index" not in barsy_recorder.operations        # localized -> NOT the grid save_mass
+
+
+@pytest.mark.asyncio
+async def test_mass_op_gated_writes_nothing(owner_client, barsy_recorder, monkeypatch):
+    from app.routers import catalog as _catalog
+    monkeypatch.setattr(_catalog, "barsy_write_live", lambda: False)
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10"},
+    ])
+    r = (await owner_client.post("/api/catalog/mass-op",
+         json={"col": "is_public", "article_ids": [1], "value": "0", "confirm": True})).json()
+    assert r["gated"] is True and r["applied"] == 0
+    assert "articles_index" not in barsy_recorder.operations
+
+
+@pytest.mark.asyncio
+async def test_mass_op_validation_and_owner(owner_client, staff_client, barsy_recorder):
+    await _sync(owner_client, barsy_recorder, [
+        {"article_id": 1, "code": "A", "article_name": "Едно", "actual_price": "10"},
+    ])
+    assert (await owner_client.post("/api/catalog/mass-op",
+            json={"col": "slug", "article_ids": [1], "value": "x"})).status_code == 400
+    assert (await owner_client.post("/api/catalog/mass-op",
+            json={"col": "is_public", "article_ids": [1], "value": "yes"})).status_code == 400
+    r = await staff_client.post("/api/catalog/mass-op",
+                                json={"col": "is_public", "article_ids": [1], "value": "0", "confirm": True})
+    assert r.status_code in (401, 403)
