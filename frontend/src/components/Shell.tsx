@@ -30,6 +30,7 @@ const NAV: { to: string; label: string; roles?: string[]; hideFor?: string[] }[]
   { to: '/clients', label: 'Клиенти', roles: ['owner', 'manager'] },
   { to: '/accounts', label: 'Сметки', roles: ['owner', 'manager'] },
   { to: '/reports', label: 'Справки', roles: ['owner', 'manager'] },
+  { to: '/categories', label: 'Категории', roles: ['owner', 'manager'] },
   { to: '/settings', label: 'Настройки', roles: ['owner', 'manager'] },
 ]
 

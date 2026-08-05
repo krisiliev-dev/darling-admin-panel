@@ -23,6 +23,7 @@ import { Settings } from './pages/Settings'
 import { Clients } from './pages/Clients'
 import { ProductEdit } from './pages/ProductEdit'
 import { Reports } from './pages/Reports'
+import { CategoryTree } from './pages/CategoryTree'
 import { Accounts } from './pages/Accounts'
 
 export default function App() {
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="clients" element={canManage ? <Clients /> : <Navigate to="/" replace />} />
         <Route path="accounts" element={canManage ? <Accounts /> : <Navigate to="/" replace />} />
         <Route path="reports" element={canManage ? <Reports /> : <Navigate to="/" replace />} />
+        <Route path="categories" element={canManage ? <CategoryTree /> : <Navigate to="/" replace />} />
         <Route path="settings" element={canManage ? <Settings /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
