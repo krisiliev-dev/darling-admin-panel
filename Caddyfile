@@ -27,33 +27,10 @@ panel.darlinghome.bg {
 		reverse_proxy darling-doorbell:8300
 	}
 
-	# Newsletter — listmonk admin UI + opt-in confirmation links (own compose stack at
-	# /home/darling/listmonk, NOT part of this app; owner decision 2026-08-05, listmonk
-	# hybrid). Storefront subscriptions go through the panel backend proxy, not here.
-	# Subpath quirks (probed live 2026-08-05): listmonk 307s to UNPREFIXED /admin/* (the
-	# owner landed on the PANEL login) and hardcodes /public/* asset paths even with
-	# root_url set — hence the Location rewrite and the extra /public route below.
-	redir /listmonk /listmonk/admin 302
-	handle_path /listmonk/* {
-		reverse_proxy darling-listmonk:9000 {
-			header_down Location "^/((admin|public|api|subscription|uploads|health).*)$" "/listmonk/$1"
-		}
-	}
-
-	# listmonk's unprefixed absolute asset paths (panel SPA uses /assets/*, no conflict)
-	handle /public/* {
-		reverse_proxy darling-listmonk:9000
-	}
-
-	# TEMPORARY until listmonk moves to its own subdomain (owner adding DNS): the login form
-	# posts to UNPREFIXED /admin/login (hardcoded in listmonk's template — root_url is not
-	# applied there), which otherwise hits the SPA file server → 405. The panel has no
-	# server-side /admin/* routes (its API lives under /api/*), so this is conflict-free.
-	handle /admin/* {
-		reverse_proxy darling-listmonk:9000 {
-			header_down Location "^/((admin|public|api|subscription|uploads|health).*)$" "/listmonk/$1"
-		}
-	}
+	# Newsletter moved to its OWN subdomain (2026-08-05; the subpath hacks — Location
+	# rewrites, /public and /admin pass-throughs — are gone: listmonk hardcodes unprefixed
+	# absolute paths and its admin SPA calls /api/* directly, which collided with the panel).
+	redir /listmonk* https://bulletin.darlinghome.bg 302
 
 	# API + webhook receivers → backend container (compose service name "panel")
 	@backend path /api/* /webhooks/*
@@ -67,4 +44,15 @@ panel.darlinghome.bg {
 		try_files {path} /index.html
 		file_server
 	}
+}
+
+# Newsletter admin + opt-in confirmation links — listmonk (own compose stack at
+# /home/darling/listmonk; owner decision 2026-08-05). Own vhost = zero subpath
+# rewriting; TLS auto-issues once bulletin.darlinghome.bg resolves here.
+bulletin.darlinghome.bg {
+	encode gzip
+	tls {
+		key_type rsa2048
+	}
+	reverse_proxy darling-listmonk:9000
 }
