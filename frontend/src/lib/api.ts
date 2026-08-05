@@ -177,6 +177,25 @@ export interface ShopifyCategory { id: string; name: string; path: string; en: s
 export interface TaxAttrValue { h: string; name: string }
 export interface TaxAttribute { handle: string; name: string; free: boolean; values: TaxAttrValue[] }
 
+// Разширени настройки captured at CREATE time (#70 follow-up) — mirrors backend intake.AdvancedIn.
+// Absent key = not chosen = Barsy default stays in charge (DEF-preserving, same as the edit path).
+export interface DraftAdvanced {
+  status?: string
+  oversell_mode?: string
+  storemove_mode?: string
+  is_for_client_order?: boolean
+  tax_id?: number
+  lot_type_id?: number
+  default_package_id?: number
+  max_discount?: number
+  min_profit_percent?: number
+  avg_delivery_price?: number
+  part_factor?: number
+  min_amount?: number
+  max_amount?: number
+  price_sec_currency?: number
+}
+
 export interface IntakeDraft {
   category: string
   shopify_category_id?: string
@@ -203,6 +222,7 @@ export interface IntakeDraft {
   delivery_line_id?: number | null
   completed?: boolean
   delivery?: DeliveryContext
+  advanced?: DraftAdvanced | null   // Разширени chosen at create; restored on draft reopen
 }
 
 // --- delivery-based intake (Приемане: supplier Excel → new-vs-existing → batch to Barsy) ---

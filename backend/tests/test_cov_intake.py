@@ -234,3 +234,58 @@ async def test_save_to_barsy_omits_category_when_unresolved(make_draft, monkeypa
         await intake._save_to_barsy(s, d, SimpleNamespace(email="o@x.bg", id="u"))
     body = next(b for op, b in mock_barsy if op == "Articles_create")["article"]
     assert "cat_id" not in body and "master_cat_id" not in body       # uncategorised, not junk
+
+
+# --- Разширени настройки on CREATE (#70 follow-up) ---------------------------------------------
+
+async def test_approve_stores_advanced_and_round_trips(staff_client):
+    r = await staff_client.post("/api/intake/approve", json={
+        "name": "Тест продукт (разширени)",
+        "advanced": {"status": "draft", "oversell_mode": "YES", "is_for_client_order": True,
+                     "tax_id": 2, "min_profit_percent": 12.5}})
+    assert r.status_code == 201
+    adv = r.json()["advanced"]
+    assert adv["status"] == "draft" and adv["oversell_mode"] == "YES"
+    assert adv["is_for_client_order"] is True
+    assert adv["tax_id"] == 2 and adv["min_profit_percent"] == 12.5
+
+
+async def test_approve_without_advanced_returns_none(staff_client):
+    r = await staff_client.post("/api/intake/approve", json={"name": "Обикновен продукт"})
+    assert r.status_code == 201
+    assert r.json()["advanced"] is None
+
+
+def test_build_barsy_article_merges_advanced():
+    from app.models import IntakeDraft
+    from app.routers.intake import _build_barsy_article
+    d = IntakeDraft(name="Чаша", unit="бр", attributes_json="[]", advanced_json=(
+        '{"status":"draft","oversell_mode":"YES","storemove_mode":"NO",'
+        '"is_for_client_order":true,"tax_id":2,"min_profit_percent":12.5,'
+        '"price_sec_currency":3.1,"default_package_id":0}'))
+    art = _build_barsy_article(d)["article"]
+    assert (art["is_for_sale"], art["is_public"]) == (1, 0)   # draft — keep in sync w/ catalog flags
+    assert art["sale_below_zero"] == "YES" and art["storemove_below_zero"] == "NO"
+    assert art["is_for_client_order"] == 1
+    assert art["tax_id"] == 2 and art["min_profit_percent"] == 12.5
+    assert art["actuial_price_sec_currency"] == 3.1           # Barsy's own misspelling, deliberate
+    assert "default_package_id" not in art                    # 0 = clear sentinel -> omitted on create
+    assert "price_sec_currency" not in art
+
+
+def test_build_barsy_article_without_advanced_is_unchanged():
+    from app.models import IntakeDraft
+    from app.routers.intake import _build_barsy_article
+    d = IntakeDraft(name="Чиния", unit="бр", attributes_json="[]", advanced_json="")
+    art = _build_barsy_article(d)["article"]
+    assert art["is_public"] == 1 and art["is_for_sale"] == 1   # active default, exactly as before
+    for k in ("sale_below_zero", "tax_id", "min_profit_percent", "storemove_below_zero"):
+        assert k not in art
+
+
+def test_build_barsy_article_malformed_advanced_never_blocks():
+    from app.models import IntakeDraft
+    from app.routers.intake import _build_barsy_article
+    d = IntakeDraft(name="Купа", unit="бр", attributes_json="[]", advanced_json="{broken")
+    art = _build_barsy_article(d)["article"]                   # no raise — advanced is additive
+    assert art["article_name"] == "Купа"

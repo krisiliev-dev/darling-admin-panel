@@ -52,7 +52,7 @@ const EXTRA_LABELS: Record<ExtraKey, string> = {
   default_package_id: 'Разфасовка',
 }
 const emptyExtra = () => Object.fromEntries(EXTRA_KEYS.map((k) => [k, ''])) as Record<ExtraKey, string>
-const extraFrom = (d: ArticleDetail) => Object.fromEntries(EXTRA_KEYS.map((k) => [k, d[k] != null ? String(d[k]) : ''])) as Record<ExtraKey, string>
+const extraFrom = (d: Partial<Record<ExtraKey, number | null | undefined>>) => Object.fromEntries(EXTRA_KEYS.map((k) => [k, d[k] != null ? String(d[k]) : ''])) as Record<ExtraKey, string>
 
 
 // The one editor for delivery + standalone products.
@@ -63,13 +63,15 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
 }) {
   const isEdit = !!edit
   const detInit = edit?.detail
+  // create mode: a stashed/approved draft carries its Разширени back (backend DraftOut.advanced)
+  const advInit = edit ? null : draft.advanced || null
   const [namePublic, setNamePublic] = useState(detInit?.name_public || '')
   const [descPublic, setDescPublic] = useState(detInit?.description_public || '')
-  const [statusA, setStatusA] = useState<ArticleStatus>(detInit && isStatus(detInit.status) ? detInit.status : 'active')
-  const [oversellMode, setOversellMode] = useState<BarsyTriState>(asTri(detInit?.oversell_mode))
-  const [storemoveMode, setStoremoveMode] = useState<BarsyTriState>(asTri(detInit?.storemove_mode))
-  const [clientOrder, setClientOrder] = useState(!!detInit?.is_for_client_order)
-  const [extra, setExtra] = useState<Record<ExtraKey, string>>(detInit ? extraFrom(detInit) : emptyExtra())
+  const [statusA, setStatusA] = useState<ArticleStatus>(detInit && isStatus(detInit.status) ? detInit.status : advInit && isStatus(advInit.status || '') ? (advInit.status as ArticleStatus) : 'active')
+  const [oversellMode, setOversellMode] = useState<BarsyTriState>(asTri(detInit ? detInit.oversell_mode : advInit?.oversell_mode))
+  const [storemoveMode, setStoremoveMode] = useState<BarsyTriState>(asTri(detInit ? detInit.storemove_mode : advInit?.storemove_mode))
+  const [clientOrder, setClientOrder] = useState(!!(detInit ? detInit.is_for_client_order : advInit?.is_for_client_order))
+  const [extra, setExtra] = useState<Record<ExtraKey, string>>(detInit ? extraFrom(detInit) : advInit ? extraFrom(advInit) : emptyExtra())
   const [adv, setAdv] = useState(false)
   const [catIdSel, setCatIdSel] = useState<number | null>(null)
   const setX = (k: ExtraKey, v: string) => setExtra((e) => ({ ...e, [k]: v }))
@@ -182,6 +184,27 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
   }, [d.shopify_category_id, d.brand, JSON.stringify(attrs), capacity, dimensions, touched.name])
 
   const navigate2 = useNavigate()
+  // Разширени → the approve/stash payload (create mode). Only explicitly-chosen values are sent
+  // (DEF / '' / defaults are omitted), so Barsy's own defaults stay in charge — the same
+  // DEF-preserving contract as the edit path. Numbers use the same comma-decimal parse as editSave.
+  const advancedBody = () => {
+    const out: Record<string, unknown> = {}
+    if (statusA !== 'active') out.status = statusA
+    if (oversellMode !== 'DEF') out.oversell_mode = oversellMode
+    if (storemoveMode !== 'DEF') out.storemove_mode = storemoveMode
+    if (clientOrder) out.is_for_client_order = true
+    for (const k of EXTRA_KEYS) {
+      const raw = extra[k].trim()
+      if (!raw) continue
+      const n = Number(raw.replace(',', '.'))
+      if (Number.isFinite(n)) out[k] = n
+    }
+    return Object.keys(out).length ? out : null
+  }
+  // Refuse rather than silently drop a mistyped number — a skipped field looks like a saved field.
+  const advancedBad = () => EXTRA_KEYS
+    .filter((k) => { const raw = extra[k].trim(); return raw !== '' && !Number.isFinite(Number(raw.replace(',', '.'))) })
+    .map((k) => EXTRA_LABELS[k])
   const buildBody = () => {
     const sizeAttrs = schema.filter((a) => isSizeAttr(a.name))
     const sizeValue = (name: string) => [wantsDim(name) ? dimensions.trim() : '', wantsVolume(name) ? capacity.trim() : ''].filter(Boolean).join(', ')
@@ -196,6 +219,7 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
       brand: d.brand || '', series: d.series || '', description: d.description || '', attributes: sized,
       meta_title: d.meta_title || '', meta_description: d.meta_description || '', model: d.model || '',
       oversell: !!d.oversell, weight_kg: d.weight_kg || '',
+      advanced: advancedBody(),
     }
   }
   // create a missing brand: STASH the current work first (fields saved, status unchanged),
@@ -214,6 +238,8 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
 
   const save = async () => {
     if (images.length === 0) { setError('Задължителна е поне една снимка.'); return }
+    const badAdv = advancedBad()
+    if (badAdv.length) { setError(`Невалидно число: ${badAdv.join(', ')}.`); return }
     setBusy(true); setError(''); setNote('')
     try {
       const r = await api.put<{ barsy?: { live: boolean; created: boolean; note?: string; error?: string; delivery?: { sent: boolean } } }>(
@@ -468,21 +494,22 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
         </label>}
       </div>
 
-      {/* Разширени настройки (#70 slice 3) — the full Barsy field set, ported from the old Каталог
-          editor. EDIT-ONLY for now: the intake draft PUT accepts none of these fields yet (gap noted
-          in MERGED_EDITOR_70_DESIGN), so create mode keeps its lean flow. */}
-      {isEdit && edit && (
+      {/* Разширени настройки (#70 slice 3; create mode since the ApproveRequest follow-up) — the
+          full Barsy field set. In edit mode values diff against the live article; in create mode
+          only explicitly-chosen values travel (advancedBody), everything else keeps Barsy defaults.
+          Публично име/описание stay edit-only: *_public don't round-trip on create on this install. */}
+      {(edit || !isEdit) && (
         <>
-          <Field label="Публично име (сайт)" hint="празно = ползва името за каса">
+          {edit && <Field label="Публично име (сайт)" hint="празно = ползва името за каса">
             <input className="input-paper" value={namePublic} onChange={(e) => setNamePublic(e.target.value)} />
-          </Field>
+          </Field>}
 
           <fieldset style={{ border: '1px dashed var(--line)', borderRadius: 3, padding: '.35rem .6rem .5rem', display: 'grid', gap: '.3rem' }}>
             <legend className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '0 .3rem' }}>Статус</legend>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               {STATUS_OPTS.map(([v, label, hint]) => (
                 <label key={v} style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer' }}>
-                  <input type="radio" name={`status-${edit.articleId}`} checked={statusA === v} onChange={() => setStatusA(v)} />
+                  <input type="radio" name={`status-${edit ? edit.articleId : 'new'}`} checked={statusA === v} onChange={() => setStatusA(v)} />
                   <span>{label} <span className="pencil" style={{ fontSize: '.72rem' }}>({hint})</span></span>
                 </label>
               ))}
@@ -504,9 +531,9 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
 
           {adv && (
             <div id="adv-edit" style={{ display: 'grid', gap: '.5rem', borderLeft: '3px solid var(--line)', paddingLeft: '.7rem' }}>
-              <Field label="Публично описание (сайт)" hint="празно = ползва описанието по-горе">
+              {edit && <Field label="Публично описание (сайт)" hint="празно = ползва описанието по-горе">
                 <textarea className="input-paper" rows={6} value={descPublic} onChange={(e) => setDescPublic(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
-              </Field>
+              </Field>}
 
               <Group title="Данъци и цени">
                 {enumRow('tax_id', TAX_OPTS, '— не е зададена —', 'данъчната група определя ставката на касовия бон')}
@@ -536,13 +563,13 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
                 {numRow('part_factor', 'коефициент за частична бройка (напр. продажба на половин опаковка)')}
               </Group>
 
-              <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'grid', gap: '.15rem', borderTop: '1px dashed var(--line)', paddingTop: '.4rem' }}>
+              {edit && <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'grid', gap: '.15rem', borderTop: '1px dashed var(--line)', paddingTop: '.4rem' }}>
                 <span>№ от доставка: {edit.detail.ref_num || '—'}</span>
                 <span>Синоними: {edit.detail.aliases?.length ? edit.detail.aliases.join(', ') : '—'}</span>
                 <span>Тип артикул: {edit.detail.composite_type_name || '—'}</span>
                 <span>Рецепта: {edit.detail.recipe_description || '—'}</span>
                 <span style={{ fontSize: '.72rem' }}>Само за преглед — цената се редактира в „Ценообразуване", № и синонимите идват от доставката, а комплекти и рецепти се правят в Barsy.</span>
-              </div>
+              </div>}
             </div>
           )}
         </>

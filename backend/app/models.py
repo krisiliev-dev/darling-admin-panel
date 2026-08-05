@@ -76,6 +76,9 @@ class IntakeDraft(Base):
     oversell: Mapped[bool] = mapped_column(default=False)
     weight_kg: Mapped[str] = mapped_column(String(16), default="")  # kg, string → Barsy extra_data.weight_kg
     model: Mapped[str] = mapped_column(String(64), default="")
+    # Разширени настройки chosen at CREATE time (#70 follow-up) — one JSON blob (validated as
+    # intake.AdvancedIn on the way in); "" = none. One column, not 14: pure pass-through to Barsy.
+    advanced_json: Mapped[str] = mapped_column(Text, default="")
     # lifecycle. For delivery-sourced products: new_from_delivery → done_from_delivery (enriched,
     # stays checkmarked in the queue) → the whole delivery leaves together when it's finalised.
     status: Mapped[str] = mapped_column(String(24), default="approved", index=True)

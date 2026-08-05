@@ -12,6 +12,7 @@ import json
 import os
 import time
 from functools import lru_cache
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
@@ -316,6 +317,45 @@ def enrich(req: EnrichRequest, user=Depends(current_active_user)):
 
 
 # ---------------------------------------------------- approve → persist → push to Barsy ---
+class AdvancedIn(BaseModel):
+    """Разширени настройки on CREATE (#70 follow-up) — the optional advanced subset of
+    catalog.ArticleEdit, captured in the editor's Разширени expand. Absent/default means the key is
+    OMITTED from Articles_create so Barsy's own defaults (DEF = „Според правата" etc.) stay in
+    charge — the same DEF-preserving contract as the edit path."""
+    status: Literal["", "active", "draft", "withdrawn"] = ""
+    oversell_mode: Literal["", "DEF", "YES", "NO"] = ""    # explicit mode wins over legacy `oversell`
+    storemove_mode: Literal["", "DEF", "YES", "NO"] = ""
+    is_for_client_order: bool | None = None
+    tax_id: int | None = None
+    lot_type_id: int | None = None
+    default_package_id: int | None = None      # 0 = «без разфасовка» clear sentinel — omitted on create
+    max_discount: float | None = None
+    min_profit_percent: float | None = None    # user value outranks the create-time default floor
+    avg_delivery_price: float | None = None
+    part_factor: float | None = None
+    min_amount: float | None = None
+    max_amount: float | None = None
+    price_sec_currency: float | None = None    # maps to Barsy's misspelled actuial_price_sec_currency
+
+
+# keep in sync with catalog._STATUS_FLAGS (importing it here would be circular: catalog imports us)
+_ADV_STATUS_FLAGS = {"active": (1, 1), "draft": (1, 0), "withdrawn": (0, 0)}
+
+
+def _advanced_json_of(req: "ApproveRequest") -> str:
+    return req.advanced.model_dump_json(exclude_defaults=True) if req.advanced else ""
+
+
+def _advanced_of(d) -> "AdvancedIn | None":
+    raw = getattr(d, "advanced_json", "") or ""
+    if not raw:
+        return None
+    try:
+        return AdvancedIn.model_validate_json(raw)
+    except Exception:
+        return None    # a malformed blob must never block a push — advanced is strictly additive
+
+
 class ApproveRequest(BaseModel):
     # operational fields (human — never AI; price = Microinvest, per policy)
     code: str = ""
@@ -335,6 +375,7 @@ class ApproveRequest(BaseModel):
     model: str = ""
     oversell: bool = False        # orderable at <=0 stock (backorder / supplier dropship)
     weight_kg: str = ""           # kg → Barsy extra_data.weight_kg
+    advanced: AdvancedIn | None = None   # Разширени (create) — None = lean flow
 
 
 class DraftOut(BaseModel):
@@ -360,6 +401,7 @@ class DraftOut(BaseModel):
     delivery_line_id: int | None = None
     completed: bool = False
     image_count: int = 0
+    advanced: AdvancedIn | None = None
 
 
 # a delivery product counts as "done" (checkmarked, awaiting the delivery's finalise) once it's been
@@ -381,7 +423,7 @@ def _row_to_out(d: IntakeDraft, image_count: int = 0) -> DraftOut:
         status=d.status, barsy_article_id=d.barsy_article_id, approved_by=d.approved_by,
         delivery_line_id=d.delivery_line_id,
         completed=(d.status in _DONE_STATES or d.barsy_article_id is not None),
-        image_count=image_count)
+        advanced=_advanced_of(d), image_count=image_count)
 
 
 async def _image_counts(session: AsyncSession, draft_ids: list[int]) -> dict[int, int]:
@@ -428,7 +470,8 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
     if is_create:
         # POS below-cost floor — set on CREATE only; on update we'd clobber any value a manager set
         # directly in Barsy (gap-fill semantics elsewhere in this body).
-        art_body["article"]["min_profit_percent"] = get_settings().barsy_min_profit_percent
+        # setdefault: a Разширени value from the draft outranks the default POS floor
+        art_body["article"].setdefault("min_profit_percent", get_settings().barsy_min_profit_percent)
     # delivery-sourced products carry supplier traceability from their delivery line: the supplier's
     # own catalogue code → ref_num, and their raw row name → a search alias (POS/search). ref_num is
     # safe on update; article_aliases is create-only (re-sending an attached synonym 501s in Barsy).
@@ -511,6 +554,7 @@ async def approve(
         attributes_json=json.dumps([a.model_dump() for a in req.attributes], ensure_ascii=False),
         meta_title=req.meta_title.strip(), meta_description=req.meta_description.strip(),
         oversell=bool(req.oversell), weight_kg=req.weight_kg.strip(),
+        advanced_json=_advanced_json_of(req),
         model=req.model, status="approved", approved_by=actor.email)
     session.add(d)
     await session.commit()
@@ -572,6 +616,7 @@ async def stash_draft(draft_id: int, req: ApproveRequest,
     d.meta_description = req.meta_description.strip()
     d.oversell = bool(req.oversell)
     d.weight_kg = req.weight_kg.strip()
+    d.advanced_json = _advanced_json_of(req)
     await session.commit()
     await session.refresh(d)
     n = (await _image_counts(session, [draft_id])).get(draft_id, 0)
@@ -640,6 +685,7 @@ async def update_draft(
     d.meta_description = req.meta_description.strip()
     d.oversell = bool(req.oversell)
     d.weight_kg = req.weight_kg.strip()
+    d.advanced_json = _advanced_json_of(req)
     d.model = req.model
     # A delivery-sourced draft stays linked to its delivery and remains in the Нов продукт queue
     # (checkmarked) until the whole delivery is finalised — so the batch disappears together, not
@@ -1105,6 +1151,29 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
         extra["weight_kg"] = str(d.weight_kg).strip()   # kg as string (Barsy extra_data.weight_kg)
     if extra:
         art["extra_data"] = extra
+    # Разширени настройки (#70 follow-up): the create-time advanced subset, DEF-preserving —
+    # only explicitly-chosen values reach the body; everything else keeps Barsy's own default.
+    adv = _advanced_of(d)
+    if adv:
+        if adv.status:
+            # both ints together (Shopify auto-sync contract) — same flags as catalog.update_article
+            art["is_for_sale"], art["is_public"] = _ADV_STATUS_FLAGS[adv.status]
+        if adv.oversell_mode in ("YES", "NO"):
+            art["sale_below_zero"] = adv.oversell_mode      # explicit mode wins over the legacy bool
+        if adv.storemove_mode in ("YES", "NO"):
+            art["storemove_below_zero"] = adv.storemove_mode
+        if adv.is_for_client_order is not None:
+            art["is_for_client_order"] = 1 if adv.is_for_client_order else 0
+        for f in ("tax_id", "lot_type_id", "default_package_id", "max_discount",
+                  "min_profit_percent", "avg_delivery_price", "part_factor",
+                  "min_amount", "max_amount"):
+            v = getattr(adv, f)
+            # 0 is the «без разфасовка» CLEAR sentinel on edit; on create there is nothing to clear
+            if v is not None and not (f == "default_package_id" and v == 0):
+                art[f] = v
+        if adv.price_sec_currency is not None:
+            # Barsy's OWN misspelling — the correctly-spelled key is silently dropped (see catalog)
+            art["actuial_price_sec_currency"] = adv.price_sec_currency
     return {"article": art}
 
 
