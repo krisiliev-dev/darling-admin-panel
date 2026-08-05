@@ -182,6 +182,24 @@ never "trust all 142 blindly".
 - Note: `Articles_delete` is a **soft delete** (returns 1, sets `delete_flag=1`; the row stays in the
   DB, filtered out of the active grid). Barsy has no hard-delete for articles (unlike users).
 
+### i18n groundwork shipped (commits b70b369, 7b54a5e)
+
+- **`update_article` merges all `*_ml` maps** (`b70b369`): one `Articles_get` up front, then
+  `article_name_ml` / `description_ml` / `description_public_ml` are merged (preserving en_US) instead
+  of the old partial `{bg_BG:…}` replace. Reuses that read for the existing extra_data merge. Name
+  merge verified against live Barsy. So NO panel write path drops other locales anymore.
+- **Panel display reads `article_name_ml[PANEL_LOCALE]`** (`7b54a5e`): `_name_for_locale` + `PANEL_LOCALE
+  = "bg_BG"`, applied to the three display paths (live browse, cache sync, editor), with fallback to
+  the scalar `article_name`. No-op for bg today (kept in sync); makes the ml the source of truth so the
+  English site renders `en_US` by switching the locale.
+
+Open follow-ups for the English site (NOT done): (1) the storefront/Woo title — the connector PREFERS
+`article_name_public` over `article_name` (see `get_article`'s comment), so its i18n runs through
+`article_name_public_ml`; the pipeline→Woo title change lives in `darling-pipeline-v3`. (2)
+`description_ml` / `article_name_public_ml` don't round-trip on create/update on this Barsy install
+(verified — a separate Barsy storage quirk, unrelated to the merge logic, which is correct); investigate
+before relying on localized descriptions.
+
 ### Looped writes converted to native `save_mass`
 
 `catalog._bulk_price_apply` (bulk price) and `pricing.apply_supplier` (markup reprice) previously wrote
