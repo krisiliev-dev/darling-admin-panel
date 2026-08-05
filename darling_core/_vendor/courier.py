@@ -70,7 +70,7 @@ REGISTRY = {
     "econt":   {"user": "ECONT_USER",   "pass": "ECONT_PASS",   "base": "https://ee.econt.com/services"},
     "boxnow":  {"user": "BOXNOW_ID",    "pass": "BOXNOW_SECRET", "base": "https://api.boxnow.bg/api/v1"},
     "sameday": {"user": "SAMEDAY_USER", "pass": "SAMEDAY_PASS", "base": "https://api.sameday.bg/api"},
-    "pigeon":  {"user": "PIGEON_USER",  "pass": "PIGEON_PASS",  "base": ""},
+    "pigeon":  {"user": "PIGEON_USER",  "pass": "PIGEON_PASS",  "base": "https://api.pigeonexpress.com/v1"},
     "evropat": {"user": "EVROPAT_USER", "pass": "EVROPAT_PASS", "base": ""},
 }
 
@@ -654,8 +654,187 @@ class Sameday(Courier):
     name = "sameday"
 
 
+# ======================================================================================
+# Pigeon Express — api.pigeonexpress.com/v1. X-API-Key (pk_live…) + X-API-Secret (sk_live…)
+# headers on every request. Surface mapped 2026-08-05 from Pigeon's OFFICIAL WooCommerce
+# plugin v1.0.1 (plugins.svn.wordpress.org/pigeon-express-for-woocommerce — ApiClient +
+# Labels/BodyBuilder + LabelService): GET /cities, /cities/{id}/streets, /offices
+# (?type=locker = АПС автомати), /services; POST /shipments/calculate → data.total_price;
+# POST /shipments → data.reference_number + data.label_pdf; GET /shipments/{ref}/track;
+# POST /shipments/{ref}/cancel. Envelope: data + meta.{current_page,last_page}; errors are
+# success:false + message/errors. Bodies (BodyBuilder): pickup_type office|address
+# (+pickup_office_id | pickup_address{city_id,street_id,additional_info}), delivery_type
+# address|office|locker (+delivery_office_id | delivery_address{city_id,additional_info}),
+# packages[{weight,width,length,height}], inventory_items[{description,quantity}],
+# service_type "standard", service_codes {code: bool|number}, who_pays sender|receiver,
+# cod_amount. Sender pickup comes from env PIGEON_PICKUP_OFFICE_ID (their portal shows it) —
+# quotes/labels raise a clear error until it is set; reads work without it.
+# ⚠ VERIFY-LIVE before real labels (the Speedy lesson — quote and booking must carry the
+# SAME COD semantics or the difference is a silent per-order loss on 55–60% COD orders):
+# confirm the exact COD service code from GET /services and that calculate with cod_amount
+# prices ABOVE the same request without it.
+# ======================================================================================
 class Pigeon(Courier):
     name = "pigeon"
+
+    def _call(self, path, payload=None, method=None):
+        self._require()
+        data = json.dumps(payload).encode("utf-8") if payload is not None else None
+        req = urllib.request.Request(
+            self.base + path, data=data, method=method or ("POST" if data else "GET"),
+            headers={"Content-Type": "application/json", "Accept": "application/json",
+                     "User-Agent": "DarlingPanel/1.0 (+https://darlinghome.bg)",
+                     "X-API-Key": self.user, "X-API-Secret": self.password})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                raw = r.read()
+        except urllib.error.HTTPError as e:
+            raise CourierError(f"Pigeon HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            raise CourierError(f"Pigeon мрежова грешка: {e}")
+        out = json.loads(raw.decode("utf-8", "replace"))
+        if isinstance(out, dict) and out.get("success") is False:
+            raise CourierError(f"Pigeon: {out.get('message') or out.get('errors')}")
+        return out
+
+    def _pages(self, path):
+        """Concatenate a paginated GET (data + meta.current_page/last_page)."""
+        rows, page = [], 1
+        while True:
+            sep = "&" if "?" in path else "?"
+            out = self._call(f"{path}{sep}page={page}")
+            rows.extend(out.get("data") or [])
+            meta = out.get("meta") or {}
+            try:
+                last = int(meta.get("last_page") or 1)
+            except (TypeError, ValueError):
+                last = 1
+            if page >= last:
+                return rows
+            page += 1
+
+    @lru_cache(maxsize=1)
+    def _cities(self):
+        return self._pages("/cities")
+
+    def _resolve_city(self, name):
+        """City name (BG, case/space-insensitive) → city_id; None if not found."""
+        key = "".join(str(name or "").split()).casefold()
+        if not key:
+            return None
+        for c in self._cities():
+            nm = "".join(str(c.get("name") or "").split()).casefold()
+            if nm == key:
+                return c.get("id")
+        return None
+
+    def _pickup(self):
+        """Sender pickup block. PIGEON_PICKUP_OFFICE_ID (env / ~/.hermes/.env) = the shop's
+        drop-off office in Pigeon's system; without it quotes/labels cannot be built."""
+        office = _cred("PIGEON_PICKUP_OFFICE_ID")
+        if not office:
+            raise CourierError("Pigeon: липсва PIGEON_PICKUP_OFFICE_ID (офисът, от който пращаме) "
+                               "в ~/.hermes/.env — вижда се в Pigeon портала.")
+        return {"pickup_type": "office", "pickup_office_id": int(office)}
+
+    def _body(self, shp: "Shipment"):
+        """Shared calculate/create body (BodyBuilder parity). Delivery is office/locker when
+        shp.office_id is set (ids are Pigeon office ids; locker ids come from ?type=locker —
+        we send delivery_type "office" for both unless the id came marked as a locker)."""
+        body = dict(self._pickup())
+        if shp.office_id:
+            body["delivery_type"] = "office"
+            body["delivery_office_id"] = int(shp.office_id)
+        else:
+            a = shp.address or {}
+            city_id = a.get("city_id") or self._resolve_city(a.get("city"))
+            if not city_id:
+                raise CourierError("Pigeon: не намерих населеното място на получателя.")
+            extra = ", ".join(x for x in (a.get("street"), a.get("street_no")) if x)
+            body["delivery_type"] = "address"
+            body["delivery_address"] = {"city_id": int(city_id), "additional_info": extra}
+        # length/width/height are REQUIRED (422 validated live 2026-08-05); Shipment carries no
+        # dims, so a standard КАШОН box is assumed — same convention as Speedy's package "КАШОН".
+        body["packages"] = [{"weight": shp.weight_kg, "length": 30, "width": 20, "height": 20}]
+        body["inventory_items"] = [{"description": shp.contents, "quantity": 1}]
+        body["service_type"] = "standard"
+        body["who_pays"] = "receiver" if shp.cod_amount > 0 else "sender"
+        if shp.cod_amount > 0:
+            # 🚨 COD must ride in BOTH the quote and the booking (the Speedy incident): one body
+            # builder for both paths = they cannot disagree. VERIFIED LIVE 2026-08-05: cod_amount
+            # alone raises total_price (2.59 → 3.34 EUR, 1kg office→office) and the response echoes
+            # service_codes:["cod_fee"] — no request-side service code exists or is needed.
+            body["cod_amount"] = round(shp.cod_amount, 2)
+        return body
+
+    def ping(self):
+        # GET /cities/759 is Pigeon's OWN credential check (their Woo plugin's
+        # check_credentials_detailed uses exactly this resource). /services 404s on this install.
+        out = self._call("/cities/759")
+        city = (out.get("data") or {}).get("name") or ""
+        return {"ok": True, "sender_name": "", "sender_place": city}
+
+    def offices(self, city=None):
+        rows = self._pages("/offices")
+        out = []
+        for o in rows:
+            if not isinstance(o, dict) or o.get("id") in (None, ""):
+                continue
+            out.append({"id": o.get("id"), "name": o.get("name") or "",
+                        "address": (o.get("address") if isinstance(o.get("address"), str)
+                                    else (o.get("address") or {}).get("full_address", "")) or "",
+                        "city": (o.get("city") if isinstance(o.get("city"), str)
+                                 else (o.get("city") or {}).get("name", "")) or ""})
+        if city:
+            key = "".join(str(city).split()).casefold()
+            out = [o for o in out if key in "".join(o["city"].split()).casefold()
+                   or key in "".join(o["address"].split()).casefold()]
+        return out
+
+    def calculate(self, shp: "Shipment"):
+        out = self._call("/shipments/calculate", self._body(shp))
+        data = out.get("data") or {}
+        if data.get("total_price") in (None, ""):
+            raise CourierError("Pigeon: няма изчислена цена за тази заявка.")
+        return {"price": round(float(data["total_price"]), 2),
+                "currency": data.get("currency") or CURRENCY, "courier": "pigeon"}
+
+    def create_shipment(self, shp: "Shipment", do_write=False):
+        if not do_write:
+            raise CourierError("Pigeon: create_shipment изисква do_write=True (реален етикет).")
+        body = self._body(shp)
+        body["receiver_name"] = shp.recipient
+        body["receiver_phone"] = shp.phone
+        if shp.email:
+            body["receiver_email"] = shp.email
+        if shp.note:
+            body["note"] = shp.note[:1000]
+        out = self._call("/shipments", body)
+        data = out.get("data") or {}
+        ref = data.get("reference_number")
+        if not ref:
+            raise CourierError(f"Pigeon: създаването не върна reference_number ({str(data)[:120]}).")
+        return {"courier": "pigeon", "shipment_id": ref, "tracking_number": str(ref),
+                "cod_amount": shp.cod_amount,
+                "price": round(float(data.get("total_price") or 0), 2), "currency": CURRENCY,
+                "label_ref": ref}
+
+    def cancel(self, shipment_id, comment=""):
+        return self._call(f"/shipments/{shipment_id}/cancel", {}, method="POST")
+
+    def track(self, tracking_number):
+        out = self._call(f"/shipments/{tracking_number}/track")
+        data = out.get("data") or {}
+        events = data.get("events") or data.get("history") or []
+        last = events[-1] if events else {}
+        status_txt = str(data.get("status") or last.get("status") or "")
+        return {"status": status_txt,
+                "status_bg": str(last.get("description") or status_txt or "няма данни"),
+                "delivered": status_txt.casefold() in ("delivered", "доставена", "доставено"),
+                "last_ts": str(last.get("date") or last.get("created_at") or ""),
+                "events": [{"ts": str(e.get("date") or e.get("created_at") or ""),
+                            "text": str(e.get("description") or e.get("status") or "")}
+                           for e in events if isinstance(e, dict)]}
 
 
 class Evropat(Courier):

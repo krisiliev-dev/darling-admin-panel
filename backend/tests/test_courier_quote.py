@@ -99,3 +99,67 @@ def test_econt_offices_drop_entries_without_a_code(monkeypatch):
     ]})
     out = e.offices()
     assert [o["id"] for o in out] == ["5250"]
+
+
+# ---------------------------------------------------------------- Pigeon Express body ---
+def _pigeon():
+    """Credential-free Pigeon (same trick as _speedy): construct directly, stub the pickup office
+    so _body() never reads env, and never touch the network."""
+    p = courier_mod.Pigeon.__new__(courier_mod.Pigeon)
+    p._pickup = lambda: {"pickup_type": "office", "pickup_office_id": 90}  # type: ignore[method-assign]
+    return p
+
+
+def _pigeon_shp(cod: float, office_id=None):
+    return courier_mod.Shipment(order_ref="q", recipient="О", phone="0000000000",
+                                weight_kg=1.0, cod_amount=cod, office_id=office_id,
+                                address={"city_id": 759, "street": "Рожен", "street_no": "31"})
+
+
+def test_pigeon_body_carries_cod_amount_in_quote_and_booking_alike():
+    """The Speedy lesson applied ahead of time: ONE body builder serves calculate AND create, so the
+    quote and the booking cannot disagree about COD. Verified live 2026-08-05: cod_amount alone
+    moves total_price (2.59 → 3.34 EUR, 1kg office→office; response echoes service_codes:
+    ["cod_fee"]) — no request-side service code exists."""
+    with_cod = _pigeon()._body(_pigeon_shp(50.0, office_id=336))
+    assert with_cod["cod_amount"] == 50.0
+    assert with_cod["who_pays"] == "receiver"
+    without = _pigeon()._body(_pigeon_shp(0.0, office_id=336))
+    assert "cod_amount" not in without           # a prepaid quote must not be inflated
+    assert without["who_pays"] == "sender"
+
+
+def test_pigeon_body_packages_carry_required_dims():
+    """packages[].length/width/height are REQUIRED (422 validated live 2026-08-05) — a body without
+    dims never reaches a price, so the default КАШОН dims must always be present."""
+    b = _pigeon()._body(_pigeon_shp(0.0, office_id=336))
+    pkg = b["packages"][0]
+    assert pkg["weight"] == 1.0
+    assert all(pkg.get(k) for k in ("length", "width", "height"))
+
+
+def test_pigeon_body_delivery_modes():
+    """office_id set → delivery_office_id; address → delivery_address{city_id, additional_info}."""
+    office = _pigeon()._body(_pigeon_shp(0.0, office_id=336))
+    assert office["delivery_type"] == "office" and office["delivery_office_id"] == 336
+    door = _pigeon()._body(_pigeon_shp(0.0))
+    assert door["delivery_type"] == "address"
+    assert door["delivery_address"]["city_id"] == 759
+    assert "Рожен" in door["delivery_address"]["additional_info"]
+
+
+def test_pigeon_without_pickup_office_fails_loudly():
+    """No PIGEON_PICKUP_OFFICE_ID → a clear CourierError, never a silently mispriced quote."""
+    import pytest as _pytest
+    p = courier_mod.Pigeon.__new__(courier_mod.Pigeon)
+    p.user = p.password = "x"
+    p.base = "https://example.invalid"
+    with _pytest.raises(courier_mod.CourierError):
+        # _cred() may see a dev ~/.hermes value on a laptop; force-empty via monkeypatching the
+        # module-level _cred for the duration of the call
+        orig = courier_mod._cred
+        courier_mod._cred = lambda k: ""  # type: ignore[assignment]
+        try:
+            p._pickup()
+        finally:
+            courier_mod._cred = orig

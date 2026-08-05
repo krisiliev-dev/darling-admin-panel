@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/public/couriers", tags=["public-couriers"])
 # pigeon/evropat are stubs (base Courier.offices raises NotImplementedError until their creds land),
 # so we don't expose them yet — a request for one returns a clean 404, not a 502. Add them here as
 # each adapter's offices() is implemented.
-_ALLOWED = {"speedy", "econt"}
+_ALLOWED = {"speedy", "econt", "pigeon"}   # pigeon added 2026-08-05 (adapter live)
 
 
 _OFFICE_TTL = 900.0          # cache the full office list per courier (office networks change rarely)
