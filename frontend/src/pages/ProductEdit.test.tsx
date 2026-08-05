@@ -12,6 +12,12 @@ vi.mock('../lib/api', () => ({
         price: 9.99, unit: 'бр', category: 'Дом', brand: 'Иво', attributes: [{ key: 'Цвят', value: 'Син' }],
         seo_title: 'SEO T', seo_description: 'SEO D', weight_kg: '1.2', oversell: false,
         oversell_mode: 'DEF', status: 'active', is_for_client_order: false }
+      if (p.startsWith('/api/catalog/categories?')) return { categories: [
+        { cat_id: 9044, path: 'Дом и градина > Кухня > Чинии' }], total: 1 }
+      if (p === '/api/catalog/categories/9044') return { cat_id: 9044, path: 'Дом и градина > Кухня > Чинии', slug: 'hg-11-3-13' }
+      if (p === '/api/intake/shopify-categories/hg-11-3-13/attributes') return { attributes: [
+        { handle: 'color', name: 'Цвят', free: false, values: [{ h: 'r', name: 'Червен' }] }] }
+      if (p.startsWith('/api/catalog/attr-values')) return { values: ['Син', 'Зелен'] }
       return {}
     }),
     post: vi.fn(async (u: string, b: unknown) => { state.lastUrl = u; state.lastPost = b; return { ok: true } }),
@@ -69,5 +75,36 @@ describe('ProductEdit (#70 slice 2)', () => {
     const b = state.lastPost as Record<string, unknown>
     expect(b.status).toBe('draft')
     expect(b.max_discount).toBe(15)
+  })
+
+  it('picks a Barsy category: slug unlocks schema+recipe, merged pool dropdown, cat_id saved', async () => {
+    renderPage()
+    await screen.findByDisplayValue('Ваза синя')
+    expect(screen.getByText('🖊 Име по рецепта')).toBeDisabled()     // no category slug yet
+    fireEvent.click(screen.getByText('Дом'))                          // open the picker (shows current)
+    const opt = await screen.findByText('Дом и градина > Кухня > Чинии')
+    fireEvent.mouseDown(opt)
+    await waitFor(() => expect(screen.getByText('🖊 Име по рецепта')).not.toBeDisabled())
+    // schema dropdown for Цвят = schema values MERGED with the live Barsy pool
+    expect(await screen.findByRole('option', { name: 'Червен' })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'Зелен' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Запиши в Barsy'))
+    await waitFor(() => expect(state.lastUrl).toBe('/api/catalog/5'))
+    expect((state.lastPost as Record<string, unknown>).cat_id).toBe(9044)
+  })
+
+  it('adds a freeform attribute row (+ друг атрибут) — sent with brand+attributes', async () => {
+    renderPage()
+    await screen.findByDisplayValue('Ваза синя')
+    fireEvent.click(screen.getByText('+ друг атрибут'))
+    const keys = screen.getAllByPlaceholderText('атрибут…')
+    fireEvent.change(keys[keys.length - 1], { target: { value: 'Серия' } })
+    const vals = screen.getAllByPlaceholderText('стойност…')
+    fireEvent.change(vals[vals.length - 1], { target: { value: 'Прованс' } })
+    fireEvent.click(screen.getByText('Запиши в Barsy'))
+    await waitFor(() => expect(state.lastUrl).toBe('/api/catalog/5'))
+    const b = state.lastPost as { brand: string; attributes: { key: string; value: string }[] }
+    expect(b.brand).toBe('Иво')                                       // travels together with attrs
+    expect(b.attributes).toContainEqual({ key: 'Серия', value: 'Прованс' })
   })
 })

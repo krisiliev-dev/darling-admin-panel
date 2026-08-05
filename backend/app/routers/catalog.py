@@ -1396,3 +1396,80 @@ async def mass_op(req: MassOpRequest, actor: User = Depends(current_owner),
                      detail=f"col={req.col} value={val} applied={applied} failed={len(failed)}")
     return {"dry_run": False, "col": req.col, "value": val, "count": len(changes),
             "applied": applied, "failed": failed}
+
+
+# ================================ Barsy categories + attribute pool (#70 slice 4) =================
+# The product editor picks categories FROM BARSY (single source of truth; the full Shopify taxonomy
+# tree is imported there — 14.6k rows, verified 2026-08-05). The category's `slug` IS the Shopify
+# taxonomy id (written by the importer), which is how the panel resolves the per-branch attribute
+# schema (schemas.json) — so picking a Barsy category keeps the schema + compose-name flow verbatim.
+# Categories_getlist rows do NOT carry slug; it is resolved per pick via Categories_get (one call).
+_CAT_CACHE: dict = {"t": 0.0, "rows": []}          # 14.6k rows — refresh hourly, search in-process
+_CAT_TTL = 3600.0
+_ATTR_CACHE: dict = {"t": 0.0, "keys": {}, "values": {}}   # characteristic keys + per-key value pools
+_ATTR_TTL = 300.0
+
+
+def _cats_all() -> list[dict]:
+    import time as _time
+    now = _time.time()
+    if now - _CAT_CACHE["t"] > _CAT_TTL or not _CAT_CACHE["rows"]:
+        rows = barsy.call("Categories_getlist", {"filters": {}}) or []
+        _CAT_CACHE["rows"] = [
+            {"cat_id": c.get("cat_id"), "path": c.get("cat_path") or c.get("cat_name") or ""}
+            for c in rows if isinstance(c, dict) and (c.get("cat_id") or 0) > 0 and c.get("cat_path")]
+        _CAT_CACHE["t"] = now
+    return _CAT_CACHE["rows"]
+
+
+@router.get("/categories")
+async def catalog_categories(user: User = Depends(current_active_user),
+                             q: str = Query(""), limit: int = Query(30, ge=1, le=100)):
+    """Search the Barsy category tree (cached in-process). Every WORD of `q` must appear in the
+    path (case-insensitive) — 'чини кухня' finds kitchen plates wherever the words fall."""
+    rows = await run_in_threadpool(_cats_all)
+    words = [w for w in q.lower().split() if w]
+    if words:
+        rows = [r for r in rows if all(w in r["path"].lower() for w in words)]
+    return {"categories": rows[:limit], "total": len(rows)}
+
+
+@router.get("/categories/{cat_id:int}")
+async def catalog_category(cat_id: int, user: User = Depends(current_active_user)):
+    """One category with its slug (= Shopify taxonomy id) — resolved on pick, not in the list."""
+    g = await run_in_threadpool(barsy.call, "Categories_get", {"cat_id": cat_id})
+    if not isinstance(g, dict) or not g.get("cat_id"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Категорията не е намерена.")
+    return {"cat_id": g.get("cat_id"), "path": g.get("cat_path") or "", "slug": g.get("slug") or ""}
+
+
+def _attr_values_for(name: str) -> list[str]:
+    """Live enumerated values for a characteristic KEY by its display name (e.g. Цвят). The pool is
+    global in Barsy and grows as products introduce values — merging it into the schema dropdowns is
+    an owner decision (2026-08-05). Unknown key → empty (a schema-only attribute)."""
+    import time as _time
+    now = _time.time()
+    if now - _ATTR_CACHE["t"] > _ATTR_TTL:
+        try:
+            keys = barsy.call("ArticleDetails_getlist", {}) or []
+        except Exception:
+            keys = []
+        _ATTR_CACHE["keys"] = {k.get("detail_name"): k.get("key_id") for k in keys if isinstance(k, dict)}
+        _ATTR_CACHE["values"] = {}
+        _ATTR_CACHE["t"] = now
+    kid = _ATTR_CACHE["keys"].get(name)
+    if kid is None:
+        return []
+    if name not in _ATTR_CACHE["values"]:
+        try:
+            vals = barsy.call("ArticleDetails_getKeyValues", {"key_id": kid}) or []
+        except Exception:
+            vals = []
+        _ATTR_CACHE["values"][name] = [v.get("detail_value") for v in vals
+                                       if isinstance(v, dict) and v.get("detail_value")]
+    return _ATTR_CACHE["values"][name]
+
+
+@router.get("/attr-values")
+async def catalog_attr_values(user: User = Depends(current_active_user), key: str = Query(...)):
+    return {"values": await run_in_threadpool(_attr_values_for, key)}

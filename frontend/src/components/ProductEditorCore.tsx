@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import type { ArticleDetail, BarsyTriState, IntakeDraft, IntakeAttribute, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
+import type { ArticleDetail, BarsyTriState, IntakeDraft, IntakeAttribute, DraftImageMeta, TaxAttribute } from '../lib/api'
 import { BrandPicker } from './BrandPicker'
 import { InfoDot } from './InfoDot'
 import { SupplierTable } from './SupplierTable'
@@ -71,6 +71,7 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
   const [clientOrder, setClientOrder] = useState(!!detInit?.is_for_client_order)
   const [extra, setExtra] = useState<Record<ExtraKey, string>>(detInit ? extraFrom(detInit) : emptyExtra())
   const [adv, setAdv] = useState(false)
+  const [catIdSel, setCatIdSel] = useState<number | null>(null)
   const setX = (k: ExtraKey, v: string) => setExtra((e) => ({ ...e, [k]: v }))
   const numRow = (k: NumKey, hint?: string) => (
     <Field label={EXTRA_LABELS[k]} hint={hint}>
@@ -253,6 +254,7 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
     body.oversell_mode = oversellMode
     if (storemoveMode !== asTri(det.storemove_mode)) body.storemove_mode = storemoveMode
     if (clientOrder !== !!det.is_for_client_order) body.is_for_client_order = clientOrder
+    if (catIdSel != null && catIdSel !== det.cat_id) body.cat_id = catIdSel
     const bad: string[] = []
     for (const k of EXTRA_KEYS) {
       const raw = extra[k].trim()
@@ -278,6 +280,18 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
         category_id: d.shopify_category_id, brand: d.brand || '', attributes: attrsMap, capacity, dimensions })
       if (r.name) { mark('name'); setD((d0) => ({ ...d0, name: r.name })) }
     } catch { /* composer best-effort */ }
+  }
+  // Category comes FROM BARSY (single source of truth). The picked category's slug IS the Shopify
+  // taxonomy id (verified 2026-08-05) — setting shopify_category_id from it keeps the schema
+  // attributes + compose-name flow working verbatim in both modes.
+  const pickCategory = async (cat: { cat_id: number; path: string }) => {
+    mark('category')
+    setCatIdSel(cat.cat_id)
+    setD((d0) => ({ ...d0, category: cat.path }))
+    try {
+      const c = await api.get<{ cat_id: number; path: string; slug: string }>(`/api/catalog/categories/${cat.cat_id}`)
+      setD((d0) => ({ ...d0, shopify_category_id: c.slug || '' }))
+    } catch { setD((d0) => ({ ...d0, shopify_category_id: '' })) }
   }
 
   const eyebrow = { fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 700 } as React.CSSProperties
@@ -316,7 +330,7 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
         <div style={{ display: 'grid', gap: '.6rem', alignContent: 'start' }}>
           <Field label="Категория">
             <TaxonomyPicker value={d.category || ''} categoryId={d.shopify_category_id || ''}
-              onPick={(id, path) => { mark('category'); setD({ ...d, shopify_category_id: id, category: path }) }} />
+              onPick={(cat) => { void pickCategory(cat) }} />
           </Field>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
             <Field label="Марка">
@@ -547,47 +561,82 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
   )
 }
 
-// Taxonomy-driven attribute fields: they change with the selected category. Picklist attributes
-// (Цвят, Материал…) render as dropdowns of the taxonomy's allowed BG values; free-text attributes
-// (dimensions, volume…) render as text inputs. Values are stored as {key: attr name, value}.
+// Schema attributes + the live Barsy value pool + freeform rows (#70 slice 4). Picklists offer the
+// schema's allowed BG values MERGED with the key's live enumerated pool from Barsy (owner decision:
+// a value added on any product is offered everywhere after). The „+" row adds attributes outside the
+// schema — Barsy auto-creates unknown keys/values on write (verified). With no category picked
+// (e.g. an article without one) the rows stay editable as freeform pairs instead of a dead hint.
 function TaxonomyAttributes({ categoryId, schema, value, onChange }: {
   categoryId: string; schema: TaxAttribute[]; value: IntakeAttribute[]; onChange: (a: IntakeAttribute[]) => void
 }) {
   const visible = schema.filter((a) => !isSizeAttr(a.name))   // size/volume handled by the standardised section
+  const [pool, setPool] = useState<Record<string, string[]>>({})
+  useEffect(() => {
+    let gone = false
+    visible.filter((a) => !a.free).forEach((a) => {
+      if (pool[a.name] !== undefined) return
+      api.get<{ values: string[] }>(`/api/catalog/attr-values?key=${encodeURIComponent(a.name)}`)
+        .then((r) => { if (!gone) setPool((p0) => ({ ...p0, [a.name]: r.values || [] })) })
+        .catch(() => { if (!gone) setPool((p0) => ({ ...p0, [a.name]: [] })) })
+    })
+    return () => { gone = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema])
   const valueFor = (name: string) => value.find((a) => a.key === name)?.value || ''
   const setValue = (name: string, v: string) => {
     const rest = value.filter((a) => a.key !== name)
     onChange(v ? [...rest, { key: name, value: v }] : rest)
   }
-  const schemaNames = new Set(schema.map((s) => s.name))
-  const extras = value.filter((a) => a.key && !schemaNames.has(a.key) && !isSizeAttr(a.key))
+  const schemaNames = new Set(schema.map((x) => x.name))
+  const extras = value.filter((a) => !schemaNames.has(a.key) && !isSizeAttr(a.key))
+  const addRow = () => onChange([...value, { key: '', value: '' }])
+  const freeRow = (a: IntakeAttribute, i: number) => (
+    <div key={'x' + i} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+      <input className="input-paper" style={{ flex: '0 0 12rem' }} placeholder="атрибут…" aria-label={`име на атрибут ${i + 1}`}
+        value={a.key} onChange={(e) => onChange(value.map((x) => x === a ? { ...x, key: e.target.value } : x))} />
+      <input className="input-paper" style={{ flex: 1 }} placeholder="стойност…" aria-label={`стойност на атрибут ${i + 1}`}
+        value={a.value} onChange={(e) => onChange(value.map((x) => x === a ? { ...x, value: e.target.value } : x))} />
+      <button className="btn-paper" style={{ fontSize: '.72rem' }} aria-label={`премахни атрибут ${a.key || i + 1}`}
+        onClick={() => onChange(value.filter((x) => x !== a))}>✕</button>
+    </div>
+  )
 
-  if (!categoryId) return <p className="pencil" style={{ fontSize: '.76rem' }}>избери категория, за да се появят атрибутите</p>
+  if (!categoryId) {
+    const rows = value.filter((a) => !isSizeAttr(a.key))
+    return (
+      <div style={{ display: 'grid', gap: '.35rem' }}>
+        {rows.length === 0 && <p className="pencil" style={{ fontSize: '.76rem', margin: 0 }}>избери категория, за да се появят атрибутите от схемата — или добави свободно</p>}
+        {rows.map(freeRow)}
+        <div><button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={addRow}>+ друг атрибут</button></div>
+      </div>
+    )
+  }
   return (
     <div style={{ display: 'grid', gap: '.35rem' }}>
-      {visible.map((a) => (
-        <div key={a.handle} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-          <span className="font-type" style={{ flex: '0 0 12rem', fontSize: '.76rem' }}>{a.name}</span>
-          {a.free ? (
-            <input className="input-paper" style={{ flex: 1 }} value={valueFor(a.name)} placeholder="стойност…"
-              onChange={(e) => setValue(a.name, e.target.value)} />
-          ) : (
-            <select className="input-paper" style={{ flex: 1 }} value={valueFor(a.name)} onChange={(e) => setValue(a.name, e.target.value)}>
-              <option value="">—</option>
-              {a.values.map((v) => <option key={v.h} value={v.name}>{v.name}</option>)}
-            </select>
-          )}
-        </div>
-      ))}
-      {extras.length > 0 && <span className="pencil" style={{ fontSize: '.72rem', marginTop: '.2rem' }}>други (извън таксономията):</span>}
-      {extras.map((a, i) => (
-        <div key={'x' + i} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-          <input className="input-paper" style={{ flex: '0 0 12rem' }} value={a.key}
-            onChange={(e) => onChange(value.map((x) => x === a ? { ...x, key: e.target.value } : x))} />
-          <input className="input-paper" style={{ flex: 1 }} value={a.value}
-            onChange={(e) => onChange(value.map((x) => x === a ? { ...x, value: e.target.value } : x))} />
-        </div>
-      ))}
+      {visible.map((a) => {
+        const cur = valueFor(a.name)
+        const names = a.free ? [] : a.values.map((v) => v.name)
+        const seen = new Set(names)
+        const merged = a.free ? [] : [...names, ...((pool[a.name] || []).filter((v) => !seen.has(v)))]
+        return (
+          <div key={a.handle} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+            <span className="font-type" style={{ flex: '0 0 12rem', fontSize: '.76rem' }}>{a.name}</span>
+            {a.free ? (
+              <input className="input-paper" style={{ flex: 1 }} value={cur} placeholder="стойност…"
+                onChange={(e) => setValue(a.name, e.target.value)} />
+            ) : (
+              <select className="input-paper" style={{ flex: 1 }} value={cur} onChange={(e) => setValue(a.name, e.target.value)}>
+                <option value="">—</option>
+                {cur && !merged.includes(cur) && <option value={cur}>{cur}</option>}
+                {merged.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            )}
+          </div>
+        )
+      })}
+      {extras.length > 0 && <span className="pencil" style={{ fontSize: '.72rem', marginTop: '.2rem' }}>други (извън схемата):</span>}
+      {extras.map(freeRow)}
+      <div><button className="btn-paper" style={{ fontSize: '.72rem' }} onClick={addRow}>+ друг атрибут</button></div>
     </div>
   )
 }
@@ -703,17 +752,16 @@ function LabeledNumber({ caption, ...rest }: { caption: string; value: string; o
 
 // Searchable Shopify-taxonomy category picker (server-side search over the BG taxonomy).
 function TaxonomyPicker({ value, onPick }: {
-  value: string; categoryId: string; onPick: (id: string, path: string) => void
+  value: string; categoryId: string; onPick: (cat: { cat_id: number; path: string }) => void
 }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
-  const [opts, setOpts] = useState<ShopifyCategory[]>([])
-  const [available, setAvailable] = useState(true)
+  const [opts, setOpts] = useState<{ cat_id: number; path: string }[]>([])
   useEffect(() => {
     if (!open) return
     const t = setTimeout(() => {
-      api.get<{ categories: ShopifyCategory[]; available: boolean }>(`/api/intake/shopify-categories?q=${encodeURIComponent(q)}&limit=30`)
-        .then((r) => { setOpts(r.categories); setAvailable(r.available) }).catch(() => setOpts([]))
+      api.get<{ categories: { cat_id: number; path: string }[] }>(`/api/catalog/categories?q=${encodeURIComponent(q)}&limit=30`)
+        .then((r) => setOpts(r.categories)).catch(() => setOpts([]))
     }, 200)
     return () => clearTimeout(t)
   }, [q, open])
@@ -731,9 +779,8 @@ function TaxonomyPicker({ value, onPick }: {
       )}
       {open && (
         <div style={{ position: 'absolute', zIndex: 10, background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 3, maxHeight: '14rem', overflowY: 'auto', width: '100%', boxShadow: '2px 3px 7px rgba(0,0,0,.14)' }}>
-          {!available && <div className="pencil" style={{ padding: '.4rem .5rem', fontSize: '.74rem' }}>таксономията не е налична на сървъра</div>}
           {opts.map((o) => (
-            <button key={o.id} onMouseDown={() => { onPick(o.id, o.path); setOpen(false) }}
+            <button key={o.cat_id} onMouseDown={() => { onPick(o); setOpen(false) }}
               style={{ display: 'block', width: '100%', textAlign: 'left', padding: '.35rem .5rem', border: 'none', borderBottom: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', fontSize: '.78rem' }}>
               {o.path}
             </button>
