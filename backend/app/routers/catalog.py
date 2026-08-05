@@ -8,6 +8,8 @@ weight, oversell and the sale/publish status — plus the accounting/stock-behav
 A Barsy field with no control here is unmanageable and invisible to staff, so read-back and write
 must stay in step with the live article form."""
 import asyncio
+import re
+import time
 import typing
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -1582,3 +1584,219 @@ async def put_article_suppliers(article_id: int, req: ArticleSuppliersIn,
     await log_action(session, actor, "article.suppliers", target=str(article_id),
                      detail=f"rows={len(resolved)} skipped={len(skipped)}")
     return {"ok": True, "count": len(resolved), "skipped": skipped}
+
+
+# ====================================================================== category tree (#85c) ===
+# Owner decision 2026-08-05: full tree CRUD; owner+manager write, others read-only; slug (= Shopify
+# taxonomy id) IMMUTABLE; deletes guarded; every write audited. ALL write contracts were verified
+# on a THROWAWAY category (19640), never on real taxonomy nodes:
+#   * page-save (categories_edit action_type:save) is BROKEN on this install (HTTP 500 both create
+#     and update) — writes go through the importer's own methods instead:
+#   * CREATE  = Categories_create {"cat": {...}} (the method that built all 14,606 taxonomy nodes;
+#     duplicate name/slug → 501).
+#   * UPDATE  = Categories_update {"cat_id": <TOP LEVEL>, "cat": {...}} — rename, move (parent_id),
+#     cat_name_public + description all verified; slug stays untouched when omitted.
+#   * DELETE  = does NOT exist on this install („Тази структура няма дефинирана функция триене";
+#     Categories_delete 501/500s on every body shape; Categories_remove is unknown) → honest 501.
+#   * THROTTLE: category writes take MINUTES on this tier and a client timeout does NOT mean
+#     failure (a timed-out move landed) → long timeout + re-read-to-confirm before erroring.
+# Slug policy (owner-confirmed): parent slug + "-x<N>" — official taxonomy segments are numeric,
+# so -x can never collide with a future Shopify release; attribute-schema inheritance = strip the
+# trailing -x segments to reach the nearest official ancestor.
+
+_TREE_TTL = 600.0
+_TREE_CACHE: dict = {"t": 0.0, "root": None}   # slimmed Categories_getTree (raw is ~9.8 MB)
+_CAT_WRITE_TIMEOUT = 280                        # seconds; see THROTTLE note above
+
+
+def _invalidate_category_caches() -> None:
+    _CAT_CACHE["t"] = 0.0
+    _TREE_CACHE["t"] = 0.0
+    _TREE_CACHE["root"] = None
+
+
+def _slim_cat_node(n: dict) -> dict:
+    """getTree node → the 6 fields the panel needs. Children nest under `categories` upstream."""
+    kids = n.get("categories") or []
+    return {"cat_id": n.get("cat_id"), "parent_id": n.get("parent_id"),
+            "name": n.get("cat_name") or "", "slug": n.get("slug") or "",
+            "child_articles_cnt": int(n.get("child_articles_cnt") or 0),
+            "children": [_slim_cat_node(c) for c in kids if isinstance(c, dict)]}
+
+
+def _tree_root(force: bool = False) -> dict:
+    now = time.time()
+    if force or _TREE_CACHE["root"] is None or now - _TREE_CACHE["t"] > _TREE_TTL:
+        raw = barsy.call("Categories_getTree", {})
+        raw = raw if isinstance(raw, dict) else {}
+        root = dict(raw.get("category") or {})
+        root["categories"] = raw.get("categories") or []
+        _TREE_CACHE["root"] = _slim_cat_node(root)
+        _TREE_CACHE["t"] = now
+    return _TREE_CACHE["root"]
+
+
+def _find_cat(node: dict, cat_id: int):
+    if node.get("cat_id") == cat_id:
+        return node
+    for c in node.get("children") or []:
+        hit = _find_cat(c, cat_id)
+        if hit is not None:
+            return hit
+    return None
+
+
+def _new_cat_id(out) -> int | None:
+    if isinstance(out, int):
+        return out
+    if isinstance(out, dict):
+        v = out.get("cat_id")
+        return int(v) if v not in (None, "") else None
+    return None
+
+
+@router.get("/categories/tree")
+async def category_tree(user: User = Depends(current_active_user)) -> dict:
+    """Дървото на категориите — слим прокси над Categories_getTree (кеш ~10 мин; инвалидира се
+    при запис от панела и от категорийния webhook през _CAT_CACHE reset)."""
+    with upstream("Barsy категории"):
+        root = await run_in_threadpool(_tree_root)
+    return {"tree": root}
+
+
+class CategoryCreateIn(BaseModel):
+    parent_id: int
+    name: str
+    name_public: str = ""
+    description: str = ""
+
+
+class CategoryPatchIn(BaseModel):
+    name: str = ""
+    name_public: str = ""
+    description: str = ""
+    parent_id: int | None = None     # move
+
+
+@router.post("/categories", status_code=status.HTTP_201_CREATED)
+async def create_category(
+    req: CategoryCreateIn,
+    actor: User = Depends(require_roles("manager")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Нова категория под съществуващ родител. Slug = родителският slug + "-x<N>" (наша
+    номерация — официалните Shopify сегменти са само числа, затова -x никога не се сблъсква с
+    бъдещо тяхно издание); схемата на атрибутите се наследява от най-близкия официален предшественик."""
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Името е задължително.")
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
+    with upstream("Barsy категории"):
+        parent = await run_in_threadpool(barsy.call, "Categories_get", {"cat_id": req.parent_id})
+    if not isinstance(parent, dict) or parent.get("cat_id") is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Родителската категория не е намерена.")
+    # mint the -x slug from the parent's CURRENT children (fresh tree — creates are rare and the
+    # write itself is minutes-slow anyway, so a fresh 9.8MB read here is noise)
+    base = (parent.get("slug") or "").strip() or "dx"
+    with upstream("Barsy категории"):
+        root = await run_in_threadpool(_tree_root, True)
+    pnode = _find_cat(root, req.parent_id)
+    used = []
+    for c in (pnode.get("children") if pnode else []) or []:
+        m = re.match(re.escape(base) + r"-x(\d+)$", c.get("slug") or "")
+        if m:
+            used.append(int(m.group(1)))
+    slug = f"{base}-x{(max(used) + 1) if used else 1}"
+    cat: dict = {"cat_name": name, "cat_name_ml": {"bg_BG": name},
+                 "cat_name_public": {"bg_BG": req.name_public.strip() or name},
+                 "slug": slug, "parent_id": req.parent_id}
+    if req.description.strip():
+        cat["description"] = {"bg_BG": req.description.strip()}
+    with upstream("Barsy категории"):
+        out = await run_in_threadpool(barsy.call, "Categories_create", {"cat": cat},
+                                      timeout=_CAT_WRITE_TIMEOUT)
+    cid = _new_cat_id(out)
+    if not cid:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            f"Barsy не върна cat_id при създаването ({str(out)[:80]}).")
+    _invalidate_category_caches()
+    await log_action(session, actor, "category.create", target=name,
+                     detail=f"cat_id={cid} · slug={slug} · родител {req.parent_id}")
+    return {"ok": True, "cat_id": cid, "slug": slug}
+
+
+@router.patch("/categories/{cat_id:int}")
+async def update_category(
+    cat_id: int, req: CategoryPatchIn,
+    actor: User = Depends(require_roles("manager")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Преименуване / описание / преместване. Slug НИКОГА не се изпраща (таксономичното id е
+    неизменимо — преименуването сменя само изписването); ml картите се сливат ЦЕЛИ (частична
+    {bg_BG} карта би изтрила другите езици — същото правило като при артикулите)."""
+    wants = [req.name.strip(), req.name_public.strip(), req.description.strip()]
+    if not any(wants) and req.parent_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма подадени промени.")
+    if req.parent_id is not None and req.parent_id == cat_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Категорията не може да е свой родител.")
+    if not barsy_write_live():
+        return {"ok": True, "dry_run": True, "gated": True, "note": _GATED}
+    with upstream("Barsy категории"):
+        cur = await run_in_threadpool(barsy.call, "Categories_get", {"cat_id": cat_id})
+    if not isinstance(cur, dict) or cur.get("cat_id") is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Категорията не е намерена.")
+    cat: dict = {}
+    if req.name.strip():
+        cat["cat_name"] = req.name.strip()
+        cat["cat_name_ml"] = _merge_name_ml(cur.get("cat_name_ml"), req.name.strip())
+    if req.name_public.strip():
+        cat["cat_name_public"] = _merge_name_ml(cur.get("cat_name_public_ml"), req.name_public.strip())
+    if req.description.strip():
+        cat["description"] = _merge_name_ml(cur.get("description_ml"), req.description.strip())
+    if req.parent_id is not None:
+        cat["parent_id"] = req.parent_id
+    note = ""
+    try:
+        with upstream("Barsy категории"):
+            await run_in_threadpool(barsy.call, "Categories_update",
+                                    {"cat_id": cat_id, "cat": cat}, timeout=_CAT_WRITE_TIMEOUT)
+    except HTTPException:
+        # THROTTLE tier: a timed-out write can still LAND (verified live on the throwaway) —
+        # re-read before declaring failure, else the user retries and we double-write.
+        with upstream("Barsy категории"):
+            after = await run_in_threadpool(barsy.call, "Categories_get", {"cat_id": cat_id})
+        after = after if isinstance(after, dict) else {}
+        applied = ((("cat_name" not in cat) or after.get("cat_name") == cat["cat_name"]) and
+                   (("parent_id" not in cat) or after.get("parent_id") == cat["parent_id"]))
+        if not applied:
+            raise
+        note = "Barsy отговори бавно — промяната е потвърдена с повторно четене."
+    _invalidate_category_caches()
+    await log_action(session, actor, "category.update", target=str(cat_id),
+                     detail=" · ".join(k for k in cat if k != "cat_name_ml"))
+    return {"ok": True, **({"note": note} if note else {})}
+
+
+@router.delete("/categories/{cat_id:int}")
+async def delete_category(
+    cat_id: int,
+    actor: User = Depends(require_roles("manager")),
+):
+    """Изтриване НЕ съществува в Barsy на тази инсталация (проверено на живо: страницата няма
+    функция триене, Categories_delete отказва всички форми). Гардът тук все пак казва на
+    потребителя ИСТИНСКАТА пречка (артикули/подкатегории), преди честното 501."""
+    with upstream("Barsy категории"):
+        root = await run_in_threadpool(_tree_root)
+    node = _find_cat(root, cat_id)
+    if node is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Категорията не е намерена.")
+    kids, arts = len(node.get("children") or []), int(node.get("child_articles_cnt") or 0)
+    if kids or arts:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Категорията съдържа {arts} артикула и {kids} подкатегории — "
+                            f"преместете ги първо.")
+    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                        "Barsy няма функция за изтриване на категории на тази инсталация. "
+                        "Преименувайте или преместете категорията; изтриване е възможно само "
+                        "през поддръжката на Barsy.")
