@@ -49,4 +49,25 @@ describe('ProductEdit (#70 slice 2)', () => {
     expect(b.oversell_mode).toBe('DEF')                          // loaded tri preserved, not forced NO
     expect(b.attributes).toBeUndefined()                         // unchanged attrs are NOT sent
   })
+
+  it('edits advanced fields: status change is sent, mistyped number refuses to save', async () => {
+    renderPage()
+    await screen.findByDisplayValue('Ваза синя')
+    // status radio (Чернова) — in the edit-only Разширени section
+    fireEvent.click(screen.getByRole('radio', { name: /Чернова/ }))
+    // open the advanced expand and mistype a number
+    fireEvent.click(screen.getByText('⚙ Разширени настройки'))
+    const disc = screen.getByLabelText(/Макс\. отстъпка/)
+    fireEvent.change(disc, { target: { value: 'abc' } })
+    fireEvent.click(screen.getByText('Запиши в Barsy'))
+    expect(await screen.findByText(/Невалидно число/)).toBeInTheDocument()
+    expect(state.lastUrl).toBe('')                                // refused — nothing was posted
+    // fix the number → save goes through with status + the numeric
+    fireEvent.change(disc, { target: { value: '15' } })
+    fireEvent.click(screen.getByText('Запиши в Barsy'))
+    await waitFor(() => expect(state.lastUrl).toBe('/api/catalog/5'))
+    const b = state.lastPost as Record<string, unknown>
+    expect(b.status).toBe('draft')
+    expect(b.max_discount).toBe(15)
+  })
 })

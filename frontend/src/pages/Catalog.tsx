@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { printLabel } from '../lib/label'
 import type { CacheFacets, CacheProduct, CacheSearchResp, QualityAudit } from '../lib/api'
 import { useHotkey, isTyping } from '../lib/useHotkey'
 import { Sheet } from '../components/Paper'

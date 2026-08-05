@@ -5,12 +5,55 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import type { ArticleDetail, IntakeDraft, IntakeAttribute, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
+import type { ArticleDetail, BarsyTriState, IntakeDraft, IntakeAttribute, DraftImageMeta, ShopifyCategory, TaxAttribute } from '../lib/api'
 import { BrandPicker } from './BrandPicker'
 import { InfoDot } from './InfoDot'
 import { SupplierTable } from './SupplierTable'
 
 const UNITS = ['бр', 'л', 'кг', 'м', 'м2', 'компл']
+
+type ArticleStatus = 'active' | 'draft' | 'withdrawn'
+// The status drives the Shopify auto-sync (ACTIVE / Draft / Archive), so it is a daily-driver field.
+const STATUS_OPTS: [ArticleStatus, string, string][] = [
+  ['active', 'Активен', 'виден в сайта'],
+  ['draft', 'Чернова', 'само каса'],
+  ['withdrawn', 'Изтеглен', 'спрян'],
+]
+const isStatus = (s: string): s is ArticleStatus => STATUS_OPTS.some(([v]) => v === s)
+
+// Enum tables harvested from the live Barsy article form — the ids and their order are Barsy's, not ours.
+// These must never be free-text id boxes: the ids are opaque and a typo silently rewrites the article.
+const TAX_OPTS: [number, string][] = [[2, '20% (Б)'], [1, '0% (А)'], [3, '20% (В)'], [4, '9% (Г)'], [12, '7%'], [100, '0% (Без ДДС)']]
+const LOT_OPTS: [number, string][] = [[1, 'Без'], [2, 'Автоматично'], [3, 'Ръчно'], [4, 'Ръчно + Автоматично']]
+const PACKAGE_OPTS: [number, string][] = [[1, 'Каса (x12)'], [6, 'Кашон (x8)'], [11, 'Стек (x6)'], [16, 'Стек (x24)']]
+// Barsy's two below-zero switches are tri-state: „Според правата" is the default and a plain checkbox
+// cannot express it. Only the middle wording differs between продажба and прехвърляне.
+const triOpts = (yes: string): [BarsyTriState, string][] => [['DEF', 'Според правата'], ['YES', yes], ['NO', 'Не може']]
+const asTri = (s: string | undefined): BarsyTriState => (s === 'YES' || s === 'NO' || s === 'DEF' ? s : 'DEF')
+
+// The remaining Barsy scalars ride in one record instead of a dozen useState pairs.
+// '' always means „не пипай" — per the API contract an omitted field leaves Barsy untouched.
+const NUM_KEYS = ['price_sec_currency', 'max_discount', 'min_profit_percent', 'avg_delivery_price', 'min_amount', 'max_amount', 'part_factor'] as const
+const ENUM_KEYS = ['tax_id', 'lot_type_id', 'default_package_id'] as const
+type NumKey = (typeof NUM_KEYS)[number]
+type EnumKey = (typeof ENUM_KEYS)[number]
+type ExtraKey = NumKey | EnumKey
+const EXTRA_KEYS: ExtraKey[] = [...NUM_KEYS, ...ENUM_KEYS]
+const EXTRA_LABELS: Record<ExtraKey, string> = {
+  price_sec_currency: 'Цена във втора валута',
+  max_discount: 'Макс. отстъпка %',
+  min_profit_percent: 'Мин. надценка %',
+  avg_delivery_price: 'Ср. доставна цена',
+  min_amount: 'Мин. количество',
+  max_amount: 'Макс. количество',
+  part_factor: 'Коеф. част',
+  tax_id: 'ДДС група',
+  lot_type_id: 'Партиди',
+  default_package_id: 'Разфасовка',
+}
+const emptyExtra = () => Object.fromEntries(EXTRA_KEYS.map((k) => [k, ''])) as Record<ExtraKey, string>
+const extraFrom = (d: ArticleDetail) => Object.fromEntries(EXTRA_KEYS.map((k) => [k, d[k] != null ? String(d[k]) : ''])) as Record<ExtraKey, string>
+
 
 // The one editor for delivery + standalone products.
 export function ProductEditor({ draft, onDone, onCancel, edit }: {
@@ -19,6 +62,29 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
   edit?: { articleId: number; detail: ArticleDetail }
 }) {
   const isEdit = !!edit
+  const detInit = edit?.detail
+  const [namePublic, setNamePublic] = useState(detInit?.name_public || '')
+  const [descPublic, setDescPublic] = useState(detInit?.description_public || '')
+  const [statusA, setStatusA] = useState<ArticleStatus>(detInit && isStatus(detInit.status) ? detInit.status : 'active')
+  const [oversellMode, setOversellMode] = useState<BarsyTriState>(asTri(detInit?.oversell_mode))
+  const [storemoveMode, setStoremoveMode] = useState<BarsyTriState>(asTri(detInit?.storemove_mode))
+  const [clientOrder, setClientOrder] = useState(!!detInit?.is_for_client_order)
+  const [extra, setExtra] = useState<Record<ExtraKey, string>>(detInit ? extraFrom(detInit) : emptyExtra())
+  const [adv, setAdv] = useState(false)
+  const setX = (k: ExtraKey, v: string) => setExtra((e) => ({ ...e, [k]: v }))
+  const numRow = (k: NumKey, hint?: string) => (
+    <Field label={EXTRA_LABELS[k]} hint={hint}>
+      <input className="input-paper" inputMode="decimal" value={extra[k]} onChange={(e) => setX(k, e.target.value)} />
+    </Field>
+  )
+  const enumRow = (k: EnumKey, opts: [number, string][], emptyLabel: string, hint?: string) => (
+    <Field label={EXTRA_LABELS[k]} hint={hint}>
+      <select className="input-paper" value={extra[k]} onChange={(e) => setX(k, e.target.value)}>
+        <option value="">{emptyLabel}</option>
+        {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </Field>
+  )
   // size lives in its own fields (below), not in the attribute list — strip it out of the loaded draft
   const [d, setD] = useState<IntakeDraft>(() => ({
     ...draft, attributes: (draft.attributes || []).filter((a) => !isSizeAttr(a.key)),
@@ -180,9 +246,23 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
     if ((d.brand || '').trim() !== (det.brand || '') || attrsKeyE(rows) !== attrsKeyE(det.attributes || [])) {
       body.brand = (d.brand || '').trim(); body.attributes = rows
     }
-    const loadedTri = det.oversell_mode === 'YES' || det.oversell_mode === 'NO' || det.oversell_mode === 'DEF'
-      ? det.oversell_mode : 'DEF'
-    body.oversell_mode = (!!d.oversell !== !!det.oversell) ? (d.oversell ? 'YES' : 'NO') : loadedTri
+    if (namePublic.trim()) body.name_public = namePublic.trim()
+    if (descPublic.trim()) body.description_public = descPublic
+    if (statusA !== det.status) body.status = statusA
+    // the tri-state UI IS the source of truth now; always sending it preserves DEF explicitly
+    body.oversell_mode = oversellMode
+    if (storemoveMode !== asTri(det.storemove_mode)) body.storemove_mode = storemoveMode
+    if (clientOrder !== !!det.is_for_client_order) body.is_for_client_order = clientOrder
+    const bad: string[] = []
+    for (const k of EXTRA_KEYS) {
+      const raw = extra[k].trim()
+      if (!raw) continue                                  // празно = не се променя
+      const n = Number(raw.replace(',', '.'))             // касиерите пишат „1,5" — иначе става NaN
+      if (!Number.isFinite(n)) { bad.push(EXTRA_LABELS[k]); continue }
+      if (n !== det[k]) body[k] = n
+    }
+    // Refuse rather than silently drop a mistyped number — a skipped field looks like a saved field.
+    if (bad.length) { setError(`Невалидно число: ${bad.join(', ')}.`); setBusy(false); return }
     try {
       await api.post(`/api/catalog/${edit.articleId}`, body)
       onDone()
@@ -367,12 +447,92 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
           <input className="input-paper" style={{ width: '8rem' }} inputMode="decimal" placeholder="напр. 0.55"
             value={d.weight_kg || ''} onChange={(e) => setD({ ...d, weight_kg: e.target.value })} />
         </Field>
-        <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer', paddingBottom: '.2rem' }}>
+        {!isEdit && <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer', paddingBottom: '.2rem' }}>
           <input type="checkbox" checked={!!d.oversell}
             onChange={(e) => setD({ ...d, oversell: e.target.checked })} />
           <span>Може да се поръчва и без наличност (доставка по заявка)</span>
-        </label>
+        </label>}
       </div>
+
+      {/* Разширени настройки (#70 slice 3) — the full Barsy field set, ported from the old Каталог
+          editor. EDIT-ONLY for now: the intake draft PUT accepts none of these fields yet (gap noted
+          in MERGED_EDITOR_70_DESIGN), so create mode keeps its lean flow. */}
+      {isEdit && edit && (
+        <>
+          <Field label="Публично име (сайт)" hint="празно = ползва името за каса">
+            <input className="input-paper" value={namePublic} onChange={(e) => setNamePublic(e.target.value)} />
+          </Field>
+
+          <fieldset style={{ border: '1px dashed var(--line)', borderRadius: 3, padding: '.35rem .6rem .5rem', display: 'grid', gap: '.3rem' }}>
+            <legend className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '0 .3rem' }}>Статус</legend>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {STATUS_OPTS.map(([v, label, hint]) => (
+                <label key={v} style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer' }}>
+                  <input type="radio" name={`status-${edit.articleId}`} checked={statusA === v} onChange={() => setStatusA(v)} />
+                  <span>{label} <span className="pencil" style={{ fontSize: '.72rem' }}>({hint})</span></span>
+                </label>
+              ))}
+            </div>
+            <span className="pencil" style={{ fontSize: '.72rem' }}>Определя дали продуктът се показва в сайта: „Чернова" го праща скрит, „Изтеглен" го архивира.</span>
+          </fieldset>
+
+          <Field label="Продажба без наличност" hint="„Според правата“ оставя решението на правата на касиера в Barsy. „Може без наличност“ = доставка по заявка / дропшип — клиентът се уведомява за по-дълъг срок.">
+            <select className="input-paper" value={oversellMode} onChange={(e) => setOversellMode(asTri(e.target.value))}>
+              {triOpts('Може без наличност').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+
+          {/* advanced disclosure — collapsed by default so the common edit isn't a wall of boxes */}
+          <div style={{ display: 'flex', borderTop: '1px dashed var(--line)', paddingTop: '.5rem' }}>
+            <button className="btn-paper" style={{ fontSize: '.72rem' }} aria-expanded={adv} aria-controls="adv-edit"
+              onClick={() => setAdv((x) => !x)}>{adv ? '▲ Скрий разширените' : '⚙ Разширени настройки'}</button>
+          </div>
+
+          {adv && (
+            <div id="adv-edit" style={{ display: 'grid', gap: '.5rem', borderLeft: '3px solid var(--line)', paddingLeft: '.7rem' }}>
+              <Field label="Публично описание (сайт)" hint="празно = ползва описанието по-горе">
+                <textarea className="input-paper" rows={6} value={descPublic} onChange={(e) => setDescPublic(e.target.value)} style={{ fontSize: '.78rem', fontFamily: 'var(--serif)' }} />
+              </Field>
+
+              <Group title="Данъци и цени">
+                {enumRow('tax_id', TAX_OPTS, '— не е зададена —', 'данъчната група определя ставката на касовия бон')}
+                {numRow('price_sec_currency', 'цената във втората валута на Barsy')}
+                {numRow('max_discount', 'таван на отстъпката, която касата допуска (%)')}
+                {numRow('min_profit_percent', 'под тази надценка Barsy предупреждава (%)')}
+                {numRow('avg_delivery_price', 'средна доставна цена — за справки и надценка')}
+              </Group>
+
+              <Group title="Наличности">
+                <Field label="Прехвърляне под нула" hint="дали складово прехвърляне може да мине под нулева наличност">
+                  <select className="input-paper" value={storemoveMode} onChange={(e) => setStoremoveMode(asTri(e.target.value))}>
+                    {triOpts('Може под нула').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </Field>
+                {numRow('min_amount', 'под това количество продуктът се води с ниска наличност')}
+                {numRow('max_amount', 'препоръчителен таван за поръчка към доставчик')}
+                {enumRow('lot_type_id', LOT_OPTS, '— не е зададено —', 'как се водят партидите (срок на годност)')}
+                {enumRow('default_package_id', PACKAGE_OPTS, '— без разфасовка —', 'разфасовка по подразбиране при доставка; премахването ѝ става в Barsy')}
+              </Group>
+
+              <Group title="Продажби">
+                <label style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', fontSize: '.82rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={clientOrder} onChange={(e) => setClientOrder(e.target.checked)} style={{ marginTop: '.2rem' }} />
+                  <span>За клиентски поръчки — може да се заяви от клиент, без да е на склад.</span>
+                </label>
+                {numRow('part_factor', 'коефициент за частична бройка (напр. продажба на половин опаковка)')}
+              </Group>
+
+              <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)', display: 'grid', gap: '.15rem', borderTop: '1px dashed var(--line)', paddingTop: '.4rem' }}>
+                <span>№ от доставка: {edit.detail.ref_num || '—'}</span>
+                <span>Синоними: {edit.detail.aliases?.length ? edit.detail.aliases.join(', ') : '—'}</span>
+                <span>Тип артикул: {edit.detail.composite_type_name || '—'}</span>
+                <span>Рецепта: {edit.detail.recipe_description || '—'}</span>
+                <span style={{ fontSize: '.72rem' }}>Само за преглед — цената се редактира в „Ценообразуване", № и синонимите идват от доставката, а комплекти и рецепти се правят в Barsy.</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {!isEdit && draft.id != null && <SupplierTable draftId={draft.id} />}
 
@@ -649,11 +809,12 @@ function FieldWithInfo({ label, info, children }: { label: string; info: React.R
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'grid', gap: '.2rem' }}>
       <span className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
       {children}
+      {hint && <span className="pencil" style={{ fontSize: '.72rem' }}>{hint}</span>}
     </label>
   )
 }
@@ -664,4 +825,16 @@ function EditImg({ articleId }: { articleId: number }) {
   if (failed) return <span className="pencil" style={{ fontSize: '.8rem' }}>без снимка</span>
   return <img src={`/api/catalog/image/${articleId}?size=full`} alt="" onError={() => setFailed(true)}
     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+}
+
+
+// A small heading inside the advanced block, so the extra Barsy fields read as short lists
+// instead of one long column of boxes.
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'grid', gap: '.45rem', borderTop: '1px dashed var(--line)', paddingTop: '.5rem' }}>
+      <span className="font-type" style={{ fontSize: '.66rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 700 }}>{title}</span>
+      {children}
+    </div>
+  )
 }
