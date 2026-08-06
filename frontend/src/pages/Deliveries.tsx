@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth'
 import { PageHeader, Loading } from '../components/PageHeader'
 import { Sheet } from '../components/Paper'
 import { useConfirm } from '../components/Confirm'
+import { CameraScanner } from '../components/CameraScanner'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -256,9 +257,11 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const [finalising, setFinalising] = useState(false)
   const [result, setResult] = useState<{ dry_run: boolean; storeload_id?: number | null; warnings: string[] } | null>(null)
   const bufferRef = useRef('')
+  const [showCam, setShowCam] = useState(false)
+  const unknownQueueRef = useRef<string[]>([])
   const canFinalise = me?.role === 'owner' || me?.role === 'manager'
 
-  const load = useCallback(() => api.get<DeliveryDetailResp>(`/api/deliveries/${id}`).then(setB).catch(() => setError('Грешка при зареждане.')), [id])
+  const load = useCallback(() => api.get<DeliveryDetailResp>(`/api/deliveries/${id}`).then((d) => { setB(d); return d }).catch(() => { setError('Грешка при зареждане.'); return undefined }), [id])
   useEffect(() => { void load() }, [load])
 
   const doScan = useCallback(async (barcode: string) => {
@@ -295,11 +298,34 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   }, [doScan])
 
   const confirm = useConfirm()
+  // a camera batch can surface several unknown codes at once — the dialog walks them one by one
+  const advanceUnknown = useCallback((lines?: DeliveryLineRow[]) => {
+    const code = unknownQueueRef.current.shift()
+    if (!code) { setUnknown(null); return }
+    setUnknown({ barcode: code, lines: (lines ?? b?.lines ?? []).filter((l) => l.is_new) })
+  }, [b])
+
   const attach = async (lineId: number) => {
     if (!unknown) return
-    try { await api.post(`/api/deliveries/${id}/lines/${lineId}/attach-barcode`, { barcode: unknown.barcode }); setUnknown(null); await load() }
-    catch (e) { setScanMsg(e instanceof ApiError ? e.message : 'Грешка') }
+    try {
+      await api.post(`/api/deliveries/${id}/lines/${lineId}/attach-barcode`, { barcode: unknown.barcode })
+      const fresh = await load()
+      advanceUnknown(fresh?.lines)
+    } catch (e) { setScanMsg(e instanceof ApiError ? e.message : 'Грешка') }
   }
+
+  // one atomic commit from the camera scanner; unknown codes queue through the attach dialog
+  const applyBatch = useCallback(async (counts: Record<string, number>) => {
+    try {
+      const r = await api.post<{ applied: { barcode: string }[]; unknown: string[] }>(`/api/deliveries/${id}/scan-batch`, { counts })
+      const fresh = await load()
+      setScanMsg(`✓ камера: ${r.applied.length} кода` + (r.unknown.length ? ` · ${r.unknown.length} непознати` : ''))
+      if (r.unknown.length) {
+        unknownQueueRef.current = r.unknown.slice(1)
+        setUnknown({ barcode: r.unknown[0], lines: (fresh?.lines ?? []).filter((l) => l.is_new) })
+      }
+    } catch (e) { setScanMsg(e instanceof ApiError ? e.message : 'Скан грешка') }
+  }, [id, load])
 
   const finalise = async (force = false) => {
     if (!(await confirm({ confirmLabel: 'Финализирай', message: 'Финализиране на доставката и изпращане към Barsy?' }))) return
@@ -329,6 +355,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
           <div className="font-type" style={{ fontSize: '.74rem', color: 'var(--ready)', textAlign: 'right' }}>
             📷 Сканирай с четец — редовете се потвърждават автоматично<br />
             <span style={{ color: 'var(--pencil)' }}>{b.confirmed} потвърдени · {b.mismatched} с разлика</span>
+            {b.status !== 'finalised' && <div style={{ marginTop: '.45rem' }}><button className="btn-paper btn-red" onClick={() => setShowCam(true)}>📷 Сканирай с камера</button></div>}
           </div>
         </div>
         {scanMsg && <div className="font-type" style={{ marginTop: '.5rem', fontSize: '.82rem', color: 'var(--ink)' }}>{scanMsg}</div>}
@@ -379,12 +406,14 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
         {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.82rem', marginTop: '.5rem' }}>{error}</div>}
       </Sheet>
 
+      {showCam && <CameraScanner onClose={() => setShowCam(false)} onCommit={applyBatch} />}
+
       {/* unknown-barcode → attach to a new product */}
       <AnimatePresence>
         {unknown && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'grid', placeItems: 'center', zIndex: 50 }}
-            onClick={() => setUnknown(null)}>
+            onClick={() => { unknownQueueRef.current = []; setUnknown(null) }}>
             <div className="sheet" style={{ padding: '1.1rem', maxWidth: '30rem', width: '90%' }} onClick={(e) => e.stopPropagation()}>
               <h3 style={{ fontSize: '1rem' }}>Непознат баркод</h3>
               <p className="font-type" style={{ fontSize: '.82rem', color: 'var(--pencil)', margin: '.4rem 0' }}>
@@ -398,7 +427,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
                   </button>
                 ))}
               </div>
-              <button className="btn-paper" style={{ marginTop: '.7rem' }} onClick={() => setUnknown(null)}>Не прикачвай</button>
+              <button className="btn-paper" style={{ marginTop: '.7rem' }} onClick={() => advanceUnknown()}>Не прикачвай</button>
             </div>
           </motion.div>
         )}

@@ -725,3 +725,59 @@ async def finalise(
                      detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
     return {"ok": True, "dry_run": False, "storeload_id": b.storeload_id,
             "storeload_payload": payload, "warnings": warnings}
+
+
+# ------------------------------------------------------------------ camera batch scan ---
+class ScanBatchRequest(BaseModel):
+    """One commit from the CAMERA scanner: barcode → how many physical instances were locked
+    in view. The camera sees many codes at once, and several items of the same code appear as
+    separate bounding boxes — so a whole tally arrives in one call instead of replaying the
+    single-scan endpoint N times (which would repaint the table N times and interleave badly
+    with a second scanner on the same delivery)."""
+    counts: dict[str, int]
+
+
+@router.post("/{batch_id}/scan-batch")
+async def scan_batch(
+    batch_id: int, req: ScanBatchRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Apply a camera tally atomically. Matching mirrors /scan exactly — a line already
+    carrying the barcode wins, else the EAN resolves through the catalogue to our code and
+    that code's line. Unknown barcodes are returned (NOT counted) so the UI can run the
+    tie-to-new-product dialog per code; bounds are enforced so a runaway tracker cannot book
+    an absurd quantity."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status == "finalised":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана.")
+    counts = {(k or "").strip(): v for k, v in req.counts.items() if (k or "").strip()}
+    if not counts:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Празно сканиране.")
+    if len(counts) > 200:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Твърде много кодове в едно сканиране (макс. 200).")
+    for code, n in counts.items():
+        if n < 1 or n > 500:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                f"Невалиден брой за {code} (1–500).")
+    lines = await _lines(session, b.id)
+    ean_to_code = DP.barcode_index()["ean_to_code"]
+    applied: list[dict] = []
+    unknown: list[str] = []
+    for code, n in counts.items():
+        ln = next((x for x in lines if x.barcode and x.barcode == code), None)
+        if ln is None:
+            our = ean_to_code.get(code)
+            if our:
+                ln = next((x for x in lines if x.match_code and x.match_code == our), None)
+        if ln is None:
+            unknown.append(code)
+            continue
+        ln.scanned_qty += n
+        _set_line_status(ln)
+        applied.append({"barcode": code, "count": n, "line": _line_out(ln)})
+    await session.commit()
+    return {"applied": applied, "unknown": unknown, "summary": _batch_summary(b, lines)}
