@@ -39,6 +39,17 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     # Granting is owner-only, and it is absent from UserUpdate so nobody can grant it to themselves.
     is_sysadmin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("0"), nullable=False)
+    # --- TOTP two-factor (owner decision 2026-08-05: MANDATORY for every role) ---
+    # totp_secret is the CONFIRMED base32 secret (set only after the user proves a code at
+    # enrollment); totp_pending_secret holds an unconfirmed secret between /setup and /verify so
+    # a half-finished enrollment can never enable 2FA. totp_recovery is a JSON list of
+    # argon2-hashed one-time codes. Barsy login OVERWRITES role/is_superuser on every login --
+    # these columns, like is_sysadmin, are NEVER touched there, so 2FA survives re-login.
+    totp_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0"), nullable=False)
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_pending_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_recovery: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
 

@@ -76,6 +76,7 @@ from .routers import (
     shipping_rates,
     store_ops,
     summary,
+    twofa,
     webhooks,
     zayavki,
 )
@@ -156,6 +157,7 @@ app.include_router(_users_router, prefix="/api/users", tags=["users"])
 # NOTE: the built-in open register router is deliberately NOT mounted — staff accounts
 # are created only by the owner, via auth_extra's guarded endpoint.
 app.include_router(auth_extra.router)
+app.include_router(twofa.router)
 
 # --- business modules ---------------------------------------------------------------
 app.include_router(dashboard.router)
