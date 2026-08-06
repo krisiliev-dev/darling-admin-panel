@@ -124,6 +124,14 @@ async def barsy_login(
     await session.refresh(user)
     await log_action(session, user, "barsy.login", target=email, detail=f"role={role}")
 
+    # 2FA gate (phase 2): an ENROLLED user does NOT get the session cookie here - they get a
+    # short-lived ticket and must present a TOTP or recovery code at /api/auth/2fa/login. Users
+    # who have not enrolled are entirely unaffected, which is what makes switching this on safe.
+    # Local import keeps module import order free of any auth_extra <-> twofa cycle.
+    if user.totp_enabled:
+        from .twofa import make_ticket
+        return JSONResponse({"twofa_required": True, "ticket": make_ticket(user)})
+
     # issue the panel JWT cookie (same cookie the rest of the app expects)
     settings = get_settings()
     token = await get_jwt_strategy().write_token(user)

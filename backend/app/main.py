@@ -145,6 +145,11 @@ async def _audit_mutations(request, call_next):
     return response
 
 # --- auth: cookie login/logout, current-user, first-run setup ------------------------
+# 2FA GATE - registered BEFORE fastapi-users' auth router on purpose: FastAPI matches routes in
+# registration order, so this /api/auth/login wins and can hand back a short-lived ticket instead
+# of the session cookie when the account has 2FA enrolled (app/routers/twofa.py). Un-enrolled
+# accounts get the identical 204 + cookie the fastapi-users route would have issued.
+app.include_router(twofa.gate_router)
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"])
 # Self-service /me only. We DROP the FastAPI-Users superuser CRUD-by-id routes (/{id} GET/PATCH/
