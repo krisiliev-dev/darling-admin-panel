@@ -24,6 +24,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 from pathlib import Path
 
@@ -64,12 +65,38 @@ def _amt(v):
         return 0.0
 
 
+def _form_pairs(data, prefix=""):
+    """Flatten a nested body the way PHP's http_build_query does — awbRecipient[name],
+    parcels[0][weight] — because that is what Sameday's own SDK sends and their validator
+    expects. None values are dropped, exactly as PHP drops nulls; booleans become 1/0."""
+    if isinstance(data, dict):
+        items = list(data.items())
+    elif isinstance(data, (list, tuple)):
+        items = list(enumerate(data))
+    else:
+        return [(prefix, data)]
+    out = []
+    for key, val in items:
+        name = f"{prefix}[{key}]" if prefix else str(key)
+        if val is None:
+            continue
+        if isinstance(val, bool):
+            val = 1 if val else 0
+        if isinstance(val, (dict, list, tuple)):
+            out.extend(_form_pairs(val, name))
+        else:
+            out.append((name, val))
+    return out
+
+
 # each entry: env var names for credentials + the API base
 REGISTRY = {
     "speedy":  {"user": "SPEEDY_USER",  "pass": "SPEEDY_PASS",  "base": "https://api.speedy.bg/v1"},
     "econt":   {"user": "ECONT_USER",   "pass": "ECONT_PASS",   "base": "https://ee.econt.com/services"},
     "boxnow":  {"user": "BOXNOW_ID",    "pass": "BOXNOW_SECRET", "base": "https://api-production.boxnow.bg/api/v1"},
-    "sameday": {"user": "SAMEDAY_USER", "pass": "SAMEDAY_PASS", "base": "https://api.sameday.bg/api"},
+    "sameday": {"user": "SAMEDAY_USER", "pass": "SAMEDAY_PASS", "base": "https://api.sameday.bg"},
+    # ^ host only: every Sameday endpoint already starts with /api (their SDK builds
+    #   host + "/api/..."), so a base ending in /api produces /api/api/... and 404s.
     "pigeon":  {"user": "PIGEON_USER",  "pass": "PIGEON_PASS",  "base": "https://api.pigeonexpress.com/v1"},
     "evropat": {"user": "EVROPAT_USER", "pass": "EVROPAT_PASS", "base": ""},
 }
@@ -130,30 +157,36 @@ class Courier:
                 f"({REGISTRY[self.name]['user']}/{REGISTRY[self.name]['pass']}) в ~/.hermes/.env")
 
     # --- interface (each adapter overrides) ------------------------------------------
+    def _unimplemented(self, what):
+        raise CourierError(
+            f"{BG_LABELS.get(self.name, self.name)}: „{what}“ не е реализирана за този "
+            f"куриер. Не гадаем API — surface-ът се снема от техния официален плъгин "
+            f"или от записана заявка, преди да се пуска.")
+
     def ping(self) -> dict:
         """Cheap auth check + sender identity. {ok, sender_name, sender_place} or raises."""
-        raise NotImplementedError
+        return self._unimplemented("проверка на достъпа")
 
     def create_shipment(self, shp: "Shipment", do_write=False) -> dict:
         """Create the shipment (only when do_write=True). Returns
         {shipment_id, tracking_number, cod_amount, price, currency, label_ref}."""
-        raise NotImplementedError
+        return self._unimplemented("създаване на пратка")
 
     def label_pdf(self, shipment_id) -> bytes:
         """Printable label as PDF bytes."""
-        raise NotImplementedError
+        return self._unimplemented("етикет")
 
     def track(self, tracking_number) -> dict:
         """{status, status_bg, delivered: bool, last_ts, events:[...]}"""
-        raise NotImplementedError
+        return self._unimplemented("проследяване")
 
     def offices(self, city=None):
         """Pickup points / lockers, for the office picker."""
-        raise NotImplementedError
+        return self._unimplemented("офиси/автомати")
 
     def calculate(self, shp: "Shipment") -> dict:
         """{price, currency} quote — no side effects."""
-        raise NotImplementedError
+        return self._unimplemented("оферта")
 
     def payout_report(self, date_from, date_to) -> list:
         """COD payout report for a date window (YYYY-MM-DD) →
@@ -851,8 +884,357 @@ class BoxNow(Courier):
                            "портал. Статусите идват по имейл/портал.")
 
 
+# ======================================================================================
+# Sameday — api.sameday.bg (BG instance; RO api.sameday.ro, HU api.sameday.hu; the demo
+# hosts are sameday-api-bg.demo.zitec.com etc.). Surface mapped 2026-08-06 from Sameday's
+# OFFICIAL WooCommerce plugin v1.11.1 (samedaycourier-shipping: lib/sameday-courier PHP SDK
+# + classes/*.php) together with their WooCommerce user guide v1 (2026).
+#
+# Auth: POST /api/authenticate carrying X-Auth-Username / X-Auth-Password headers and a
+# url-encoded remember_me=true body → {token, expires_at}. Every other call sends
+# X-AUTH-TOKEN. On a first 401/403 the SDK drops the token and retries once; so do we.
+#
+# Endpoints used here — GET  /api/client/services, /api/client/pickup-points,
+#                            /api/client/lockers, /api/client/ooh-locations,
+#                            /api/geolocation/city, /api/client/awb/{awb}/status,
+#                            /api/awb/download/{awb}/{A4|A6}
+#                       POST /api/awb/estimate-cost, /api/awb
+#                       DELETE /api/awb/{awb}
+# Service codes: 24 = door delivery, LN = easybox locker, PP = PUDO point,
+# XB / XL = crossborder door / locker (RO, HU, BG).
+#
+# 💱 THE MONEY TRAP. The BG instance quotes and collects in BGN. Their own plugin asks for
+# BGN (CURRENCY_MAPPER['BG']) and converts to EUR in PHP at the fixed peg. Our stack is EUR
+# end to end, so this adapter converts on BOTH edges with Decimal at the official
+# 1.95583 rate, and REFUSES any response whose currency it did not ask for rather than
+# assuming. Reading a BGN quote as EUR would price every parcel at roughly half — silently,
+# on the 55–60 % of orders that are COD.
+#
+# 🔒 clientInternalReference is unique FOREVER, even after the AWB is cancelled (their FAQ,
+# item 4). Their advice is to append a suffix and retry. WE MUST NOT: a suffix on retry
+# books a SECOND AWB for one order — two labels, two бона, two COD collections. So the
+# reference is the order ref verbatim, which turns it into the idempotency key: "not
+# unique" means ALREADY BOOKED, go and read it, not "try again under another name".
+#
+# ⚠ VERIFY-LIVE — nothing below has been RESULT-verified, because the API credentials are
+# not issued yet. Before the first real label, confirm on the test account:
+#   1. that /api/awb/estimate-cost really answers in BGN on api.sameday.bg (post-euro this
+#      may have moved; the adapter will raise rather than guess if it has),
+#   2. that cashOnDelivery raises the estimate the same way it raises the booking — quote
+#      and booking must carry identical COD semantics (the Speedy incident),
+#   3. the service ids behind codes 24 / LN / PP on this contract,
+#   4. the default pickup point id, and that the city/county strings for Свищов resolve.
+# ======================================================================================
 class Sameday(Courier):
     name = "sameday"
+
+    # Bulgaria's euro conversion rate is fixed by law, not by a market feed.
+    BGN_PER_EUR = Decimal("1.95583")
+    API_CURRENCY = "BGN"          # what the BG instance speaks (see the money trap above)
+
+    SERVICE_DOOR = "24"
+    SERVICE_LOCKER = "LN"
+    SERVICE_PUDO = "PP"
+
+    PACKAGE_PARCEL = 0            # PackageType::PARCEL
+    AWB_PAYMENT_CLIENT = 1        # AwbPaymentType::CLIENT — the shop pays the courier
+    COD_COLLECTOR_CLIENT = 1      # CodCollectorType::CLIENT — COD comes back to us
+    PERSON_INDIVIDUAL = 0
+
+    def __init__(self):
+        super().__init__()
+        self._tok = None
+        self._tok_exp = 0.0
+        self._svc = None
+        self._pp = None
+
+    # --- money ---------------------------------------------------------------------
+    @classmethod
+    def _to_bgn(cls, eur):
+        """EUR → BGN at the statutory peg. Decimal throughout: a COD amount that drifts by
+        a cent is a cash discrepancy the office has to reconcile by hand."""
+        return float((Decimal(str(eur)) * cls.BGN_PER_EUR).quantize(Decimal("0.01"),
+                                                                    rounding=ROUND_HALF_UP))
+
+    @classmethod
+    def _to_eur(cls, bgn):
+        return float((Decimal(str(bgn)) / cls.BGN_PER_EUR).quantize(Decimal("0.01"),
+                                                                    rounding=ROUND_HALF_UP))
+
+    @classmethod
+    def _price_eur(cls, amount, currency):
+        """A quoted amount in whatever Sameday answered → EUR. Unknown currency raises:
+        the alternative is quoting half price on every parcel and finding out at payout."""
+        cur = str(currency or "").upper()
+        if cur == CURRENCY:
+            return round(float(amount), 2)
+        if cur == cls.API_CURRENCY:
+            return cls._to_eur(amount)
+        raise CourierError(
+            f"Sameday: върна цена във валута {cur or '(празна)'}, а не BGN или EUR — "
+            f"не приемаме сумата, докато не се провери курсът.")
+
+    # --- transport -----------------------------------------------------------------
+    def _authenticate(self):
+        self._require()
+        body = urllib.parse.urlencode({"remember_me": "true"}).encode()
+        req = urllib.request.Request(
+            self.base + "/api/authenticate", data=body, method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded",
+                     "Accept": "application/json",
+                     "User-Agent": "DarlingPanel/1.0 (+https://darlinghome.bg)",
+                     "X-Auth-Username": self.user, "X-Auth-Password": self.password})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                out = json.loads(r.read().decode("utf-8", "replace"))
+        except urllib.error.HTTPError as e:
+            raise CourierError(f"Sameday: неуспешен вход HTTP {e.code}: "
+                               f"{e.read().decode('utf-8', 'replace')[:200]}")
+        except Exception as e:
+            raise CourierError(f"Sameday мрежова грешка при вход: {e}")
+        token = out.get("token")
+        if not token:
+            raise CourierError(f"Sameday: входът не върна token ({str(out)[:160]}).")
+        self._tok = token
+        # expires_at is an ISO timestamp; we do not parse it, we just re-authenticate on
+        # the first 401 the way their own SDK does. A clock we do not control is not a
+        # thing to depend on.
+        self._tok_exp = 0.0
+        return token
+
+    def _call(self, path, payload=None, method=None, params=None, raw=False):
+        """One request, with a single re-auth retry on 401/403 (SDK parity)."""
+        url = self.base + path
+        if params:
+            clean = {k: v for k, v in params.items() if v not in (None, "")}
+            if clean:
+                url += ("&" if "?" in url else "?") + urllib.parse.urlencode(clean)
+        data = urllib.parse.urlencode(_form_pairs(payload)).encode() if payload is not None else None
+        for attempt in (1, 2):
+            token = self._tok or self._authenticate()
+            req = urllib.request.Request(
+                url, data=data, method=method or ("POST" if data is not None else "GET"),
+                headers={"Content-Type": "application/x-www-form-urlencoded",
+                         "Accept": "application/json",
+                         "User-Agent": "DarlingPanel/1.0 (+https://darlinghome.bg)",
+                         "X-AUTH-TOKEN": token})
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    body = r.read()
+                return body if raw else (json.loads(body.decode("utf-8", "replace")) if body else {})
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403) and attempt == 1:
+                    self._tok = None
+                    continue
+                detail = e.read().decode("utf-8", "replace")[:300]
+                if e.code == 422 and "clientInternalReference" in detail:
+                    raise CourierError(
+                        "Sameday: този номер на поръчка ВЕЧЕ има издаден товарителница "
+                        "(clientInternalReference не е уникален). НЕ добавяй суфикс — "
+                        "това би издало втора товарителница за същата поръчка. Провери "
+                        "съществуващата в eAWB.")
+                raise CourierError(f"Sameday HTTP {e.code}: {detail}")
+            except Exception as e:
+                raise CourierError(f"Sameday мрежова грешка: {e}")
+
+    def _pages(self, path, params=None):
+        """Concatenate a paginated GET (data + currentPage/pages)."""
+        rows, page = [], 1
+        while True:
+            out = self._call(path, params=dict(params or {}, page=page, countPerPage=200))
+            rows.extend(out.get("data") or [])
+            try:
+                last = int(out.get("pages") or 1)
+            except (TypeError, ValueError):
+                last = 1
+            if page >= last or not out.get("data"):
+                return rows
+            page += 1
+
+    # --- nomenclature ---------------------------------------------------------------
+    def _services(self):
+        if self._svc is None:
+            self._svc = self._pages("/api/client/services")
+        return self._svc
+
+    def _service_id(self, code):
+        """Contract service id for a Sameday service code. Fails loud: booking under the
+        wrong service is a different price and a different delivery promise."""
+        for s in self._services():
+            if str(s.get("serviceCode") or "").upper() == code:
+                return s.get("id")
+        have = ", ".join(sorted({str(s.get("serviceCode") or "?") for s in self._services()}))
+        raise CourierError(f"Sameday: услуга с код {code} не е налична по този договор "
+                           f"(налични: {have or '(няма)'}).")
+
+    def _pickup_point(self):
+        """Sender pickup point id. SAMEDAY_PICKUP_POINT_ID wins; otherwise the one the
+        account marks as default. Their guide is explicit that exactly one must be default."""
+        if self._pp:
+            return self._pp
+        forced = _cred("SAMEDAY_PICKUP_POINT_ID")
+        if forced:
+            self._pp = forced
+            return self._pp
+        rows = self._pages("/api/client/pickup-points")
+        for p in rows:
+            if p.get("defaultPickupPoint"):
+                self._pp = p.get("id")
+                return self._pp
+        raise CourierError("Sameday: няма пункт за приемане по подразбиране в акаунта — "
+                           "задай го в eAWB или сложи SAMEDAY_PICKUP_POINT_ID в ~/.hermes/.env.")
+
+    def _county_for(self, city):
+        """Sameday needs the окръг/област next to the city. Their nomenclature knows it, so
+        we ask instead of making the operator type it."""
+        rows = self._pages("/api/geolocation/city", {"name": city})
+        key = "".join(str(city or "").split()).casefold()
+        for c in rows:
+            if "".join(str(c.get("name") or "").split()).casefold() == key:
+                county = c.get("county") or {}
+                return county.get("name") if isinstance(county, dict) else county
+        return None
+
+    # --- payload --------------------------------------------------------------------
+    def _recipient(self, shp: "Shipment"):
+        """Their support list names the two fields that fail most often: phone and e-mail
+        are mandatory on the AWB, so we refuse before the call instead of after."""
+        if not shp.phone:
+            raise CourierError("Sameday: телефонът на получателя е задължителен "
+                               "(awbRecipient.phone).")
+        a = shp.address or {}
+        city = a.get("city") or ""
+        county = a.get("county") or a.get("region") or ""
+        street = ", ".join(x for x in (a.get("street"), a.get("street_no")) if x)
+        if shp.office_id:
+            # For a locker/PUDO drop Sameday still wants a postal address block; their own
+            # plugin copies it off the chosen locker.
+            street = street or "-"
+        if not shp.office_id:
+            if not city:
+                raise CourierError("Sameday: липсва населено място на получателя.")
+            if not street:
+                raise CourierError("Sameday: липсва адрес на получателя.")
+            county = county or self._county_for(city) or ""
+            if not county:
+                raise CourierError(f"Sameday: не намерих областта за „{city}“ в номенклатурата им.")
+        return {"name": shp.recipient, "phoneNumber": shp.phone, "address": street or "-",
+                "personType": self.PERSON_INDIVIDUAL, "cityString": city,
+                "countyString": county, "email": shp.email or ""}
+
+    def _body(self, shp: "Shipment", reference=None):
+        """ONE builder for the quote and the booking, so the two cannot disagree about COD
+        — the Speedy incident, which cost a fee per order until someone reconciled a payout."""
+        code = self.SERVICE_LOCKER if shp.office_id else self.SERVICE_DOOR
+        body = {
+            "pickupPoint": self._pickup_point(),
+            "contactPerson": None,
+            "packageType": self.PACKAGE_PARCEL,
+            "packageNumber": max(1, shp.parcels),
+            "packageWeight": shp.weight_kg,
+            "service": self._service_id(code),
+            "awbPayment": self.AWB_PAYMENT_CLIENT,
+            "cashOnDelivery": self._to_bgn(shp.cod_amount) if shp.cod_amount > 0 else 0,
+            "insuredValue": self._to_bgn(shp.declared_value) if shp.declared_value else 0,
+            "thirdPartyPickup": 0,
+            "serviceTaxes": [],
+            "awbRecipient": self._recipient(shp),
+            "parcels": [{"weight": shp.weight_kg, "width": 20, "length": 30, "height": 20}],
+            "currency": self.API_CURRENCY,
+        }
+        if reference is not None:
+            body.update({
+                "cashOnDeliveryReturns": self.COD_COLLECTOR_CLIENT,
+                "clientInternalReference": reference,
+                "observation": shp.note or "",
+                "clientObservation": shp.contents or "",
+            })
+            if shp.office_id:
+                # LN goes in lockerLastMile, PP in oohLastMile — same id space, different
+                # field, and sending the wrong one is their documented "invalid
+                # lockerLastMile" error.
+                body["lockerLastMile"] = shp.office_id
+        return body
+
+    # --- interface -------------------------------------------------------------------
+    def ping(self):
+        self._authenticate()
+        pp = self._pickup_point()
+        rows = [p for p in self._pages("/api/client/pickup-points") if str(p.get("id")) == str(pp)]
+        row = rows[0] if rows else {}
+        return {"ok": True, "sender_name": row.get("alias") or row.get("name") or "",
+                "sender_place": ", ".join(x for x in (row.get("city"), row.get("address")) if x),
+                "pickup_point_id": pp,
+                "services": sorted({str(s.get("serviceCode") or "?") for s in self._services()})}
+
+    def offices(self, city=None):
+        """Easybox lockers plus PUDO points, in the shape the office picker expects."""
+        out = []
+        for row in self._pages("/api/client/lockers"):
+            out.append({"id": row.get("lockerId"), "name": row.get("name"),
+                        "city": row.get("city"), "address": row.get("address"),
+                        "postcode": row.get("postalCode"), "kind": "locker",
+                        "lat": row.get("lat"), "lng": row.get("lng")})
+        for row in self._pages("/api/client/ooh-locations"):
+            out.append({"id": row.get("oohId"), "name": row.get("name"),
+                        "city": row.get("city"), "address": row.get("address"),
+                        "postcode": row.get("postalCode"), "kind": "pudo",
+                        "lat": row.get("lat"), "lng": row.get("lng")})
+        if city:
+            key = "".join(str(city).split()).casefold()
+            out = [o for o in out if "".join(str(o["city"] or "").split()).casefold() == key]
+        return out
+
+    def calculate(self, shp: "Shipment"):
+        out = self._call("/api/awb/estimate-cost", self._body(shp))
+        if "amount" not in out:
+            raise CourierError(f"Sameday: оценката не върна сума ({str(out)[:160]}).")
+        return {"price": self._price_eur(out["amount"], out.get("currency")),
+                "currency": CURRENCY, "eta": out.get("time")}
+
+    def create_shipment(self, shp: "Shipment", do_write=False):
+        # The reference IS the idempotency key — see the note at the top of this class.
+        reference = str(shp.order_ref or "").strip()
+        if not reference:
+            raise CourierError("Sameday: липсва номер на поръчка за clientInternalReference — "
+                               "без него товарителницата не може да се съпостави с поръчка.")
+        body = self._body(shp, reference=reference)
+        if not do_write:
+            return {"dry_run": True, "courier": "sameday", "payload": body}
+        out = self._call("/api/awb", body)
+        awb = out.get("awbNumber")
+        if not awb:
+            raise CourierError(f"Sameday: заявката не върна awbNumber ({str(out)[:160]}).")
+        return {"courier": "sameday", "shipment_id": awb, "tracking_number": str(awb),
+                "cod_amount": shp.cod_amount,
+                "price": self._price_eur(out.get("awbCost") or 0, self.API_CURRENCY),
+                "currency": CURRENCY, "label_ref": str(awb),
+                "parcel_ids": [str(p.get("awbNumber") or p.get("position") or "")
+                               for p in (out.get("parcels") or [])]}
+
+    def label_pdf(self, shipment_id, fmt="A6"):
+        fmt = str(fmt).upper()
+        if fmt not in ("A4", "A6"):
+            raise CourierError("Sameday: форматът на етикета е A4 или A6.")
+        pdf = self._call(f"/api/awb/download/{shipment_id}/{fmt}", raw=True)
+        if not pdf.startswith(b"%PDF"):
+            raise CourierError(f"Sameday: изтеглянето не върна PDF ({pdf[:60]!r}).")
+        return pdf
+
+    def cancel(self, shipment_id, comment=""):
+        return self._call(f"/api/awb/{shipment_id}", method="DELETE") or {"ok": True}
+
+    def track(self, tracking_number):
+        out = self._call(f"/api/client/awb/{tracking_number}/status")
+        exp = out.get("expeditionStatus") or {}
+        hist = out.get("expeditionHistory") or []
+        return {"status": exp.get("status") or exp.get("statusLabel") or "",
+                "status_bg": exp.get("statusLabel") or "",
+                "delivered": bool(out.get("delivered")),
+                "last_ts": exp.get("statusDate") or "",
+                "events": [{"ts": e.get("statusDate") or "",
+                            "text": str(e.get("statusLabel") or e.get("status") or "")}
+                           for e in hist if isinstance(e, dict)]}
 
 
 # ======================================================================================

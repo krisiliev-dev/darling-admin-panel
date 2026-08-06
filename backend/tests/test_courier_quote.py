@@ -186,6 +186,11 @@ def _boxnow_env(monkeypatch, **extra):
     vals.update(extra)
     for k, v in vals.items():
         monkeypatch.setenv(k, v)
+    # Neutralise ~/.hermes/.env for these tests. `_cred` falls back to the file whenever the
+    # environment value is falsy, so `monkeypatch.setenv(k, "")` does NOT clear a credential
+    # once that key exists in the file — which is exactly what the price-guard test below
+    # relies on. Without this the test is red on any machine that has real BoxNow keys.
+    monkeypatch.setattr(courier_mod, "_env_file_vals", dict)
 
 
 def _boxnow_shp(cod: float, **kw):
