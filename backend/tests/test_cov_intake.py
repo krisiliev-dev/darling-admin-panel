@@ -278,7 +278,10 @@ def test_build_barsy_article_without_advanced_is_unchanged():
     from app.routers.intake import _build_barsy_article
     d = IntakeDraft(name="Чиния", unit="бр", attributes_json="[]", advanced_json="")
     art = _build_barsy_article(d)["article"]
-    assert art["is_public"] == 1 and art["is_for_sale"] == 1   # active default, exactly as before
+    # is_public was 1 here until 2026-08-06. It is 0 now because the CONTRACT changed, and
+    # not to turn a red test green: a create body may no longer publish, since a brand-new
+    # article has no picture and nothing reaches the storefront without one.
+    assert art["is_public"] == 0 and art["is_for_sale"] == 1
     for k in ("sale_below_zero", "tax_id", "min_profit_percent", "storemove_below_zero"):
         assert k not in art
 

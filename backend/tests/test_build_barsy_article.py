@@ -71,8 +71,12 @@ def test_no_details_key_when_no_attributes():
 
 
 def test_fixed_flags_present():
+    """is_public was 1 here until 2026-08-06. It changed because the contract changed, not to
+    make a red test green: a create body can no longer publish, since a brand-new article has
+    no picture and the rule is that nothing reaches the storefront without one. See the
+    create-time tests at the bottom of this file."""
     art = _build_barsy_article(_draft(code="C", name="N"))["article"]
-    assert art["is_public"] == 1
+    assert art["is_public"] == 0
     assert art["is_for_sale"] == 1
     assert art["code"] == "C"
 
@@ -198,3 +202,41 @@ def test_resolve_cat_id_never_raises(monkeypatch):
         raise RuntimeError("checkpoint missing")
     monkeypatch.setattr(bp, "_cat_id_for", boom)
     assert _resolve_cat_id("ap") is None          # unknown/absent → uncategorised, not an error
+# --- the sellable-online image rule on CREATE (2026-08-06) ------------------------------------
+# One rule, three surfaces. catalog.update_article and catalog.mass_op refuse to put a product
+# online without a picture; barsy_push creates offline and publishes only once a file is on the
+# article. This is the third: a brand-new article cannot have a picture, because it does not
+# exist until Articles_create returns.
+def test_a_new_product_is_created_hidden():
+    art = _build_barsy_article(_draft(code="C", name="N"))["article"]
+    assert art["is_public"] == 0
+
+
+def test_a_new_product_is_still_sellable_at_the_till():
+    """Hidden online and unsellable are different things; only the first one is being asserted."""
+    art = _build_barsy_article(_draft(code="C", name="N"))["article"]
+    assert art["is_for_sale"] == 1
+
+
+def test_choosing_active_on_create_does_not_publish():
+    """The advanced panel offers a status. On CREATE Â«Ð�ÐºÑ‚Ð¸Ð²ÐµÐ½Â» cannot be honoured - it would put
+    a product with no picture on the website. It is published from the editor instead, where the
+    picture is checked live against Barsy."""
+    art = _build_barsy_article(_draft(
+        code="C", name="N", advanced_json=json.dumps({"status": "active"})))["article"]
+    assert art["is_public"] == 0
+    assert art["is_for_sale"] == 1
+
+
+def test_withdrawn_on_create_still_means_not_sellable():
+    """The narrowing must not swallow the rest of the status: withdrawn is about is_for_sale."""
+    art = _build_barsy_article(_draft(
+        code="C", name="N", advanced_json=json.dumps({"status": "withdrawn"})))["article"]
+    assert art["is_for_sale"] == 0
+    assert art["is_public"] == 0
+
+
+def test_draft_on_create_is_unchanged():
+    art = _build_barsy_article(_draft(
+        code="C", name="N", advanced_json=json.dumps({"status": "draft"})))["article"]
+    assert (art["is_for_sale"], art["is_public"]) == (1, 0)

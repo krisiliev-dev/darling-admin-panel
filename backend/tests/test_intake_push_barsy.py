@@ -70,7 +70,10 @@ async def test_push_sends_exactly_one_articles_create_with_the_full_envelope(
     assert art["article_name"] == "Керамична купа 24см"
     assert art["article_name_ml"] == {"bg_BG": "Керамична купа 24см"}
     assert art["amount_type_id"] == 3                       # кг → 3 (verified Barsy contract)
-    assert art["is_public"] == 1 and art["is_for_sale"] == 1
+    # Hidden on create (2026-08-06). A brand-new article cannot have a picture yet - it does
+    # not exist until this call returns - and nothing reaches the storefront without one.
+    # It is published from the product editor, which checks the picture live against Barsy.
+    assert art["is_public"] == 0 and art["is_for_sale"] == 1
     assert art["barcode"] == "3800130123456" and isinstance(art["barcode"], str)
     assert art["actual_price"] == "12.50"                   # staff-entered, byte-for-byte (price policy)
     assert art["sale_below_zero"] == "YES"                  # oversell draft → backorderable

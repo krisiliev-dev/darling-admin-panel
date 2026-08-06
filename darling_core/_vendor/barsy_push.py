@@ -216,7 +216,14 @@ def build(code, catalog, bc, ensure_cat=False):
     art["amount_type_id"] = _unit_id(fields, {})
     art["ref_num"] = str(fields.get("Каталожен номер") or "") or None
     art["code"] = code
-    art["is_public"] = 1
+    # Created OFFLINE. Owner's rule (2026-08-06): nothing reaches the storefront without at
+    # least one picture - and at create time there cannot be one yet, because the images are
+    # uploaded against an article_id that does not exist until this call returns.
+    # publish_if_imaged() flips this to 1 once a file is actually ON the article; a product
+    # whose cutout never landed stays a draft instead of going online blank.
+    # is_for_sale stays 1: sellable in the shop and over the phone is a different question
+    # from listed on the website.
+    art["is_public"] = 0
     art["is_for_sale"] = 1
     if min_amt:
         art["min_amount"] = min_amt
@@ -239,7 +246,17 @@ def push_one(code, catalog=None, bc=None, images=True):
     out = b.call(method, body)
     aid = body.get("article_id") or (out if isinstance(out, int)
                                      else (out.get("article_id") if isinstance(out, dict) else None))
-    if images and aid:
+    if aid and mode == "create":
+        # A created article is offline until a picture is on it (see build()). An UPDATE is
+        # left alone on purpose: an existing product's online state belongs to the owner and
+        # to the panel, and a pipeline run must not quietly take listings down.
+        if images:
+            published, reason = publish_if_imaged(code, aid)
+        else:
+            published, reason = False, "images_skipped"
+        if not published:
+            print(f"   -> code={code} stays a DRAFT in Barsy: {reason}")
+    elif images and aid:
         push_images(code, aid)
     return mode, aid
 
@@ -284,6 +301,46 @@ def push_images(code, article_id, max_images=6):
         except Exception as e:
             err = f"{fn}: {str(e)[:80]}"
     return up, err
+
+
+def _article_files(article_id):
+    """What Barsy currently holds against an article, or None if we could not ask.
+
+    THREE states, never a boolean: [] means Barsy answered and there is nothing on the
+    article; None means the question got no answer. Those lead to different actions, and
+    folding them together publishes a blank product on a timeout.
+    """
+    try:
+        files = b.call("Files_getlist", {"obj_type": "articles", "obj_id": str(article_id)})
+    except Exception:
+        return None
+    return files if isinstance(files, list) else None
+
+
+def publish_if_imaged(code, article_id):
+    """Upload the processed cutouts, then put the article online ONLY if one is really on it.
+
+    Returns (published, reason):
+        (True,  "")                     a picture is on the article and is_public is now 1
+        (False, "no_processed_image")   there was nothing to upload
+        (False, "<file>: <error>")      the upload itself failed
+        (False, "picture_check_failed") Barsy did not answer when asked what is on the article
+
+    The decision reads what Barsy HOLDS, not what we just sent. push_images skips filenames
+    already present, so a correct second run uploads zero - and "uploaded 0" and "has no
+    picture" are different facts. Deciding on the upload counter would leave every
+    already-imaged product a permanent draft on every rerun.
+    """
+    _up, err = push_images(code, article_id)
+    files = _article_files(article_id)
+    if files is None:
+        return False, "picture_check_failed" + (f" ({err})" if err else "")
+    if not files:
+        return False, err or "no_processed_image"
+    # Articles_update takes the record id at TOP level and merges the partial `article` body -
+    # the enrich-in-place path in build() relies on exactly that behaviour.
+    b.call("Articles_update", {"article_id": article_id, "article": {"is_public": 1}})
+    return True, ""
 
 
 def delete_test_products(keep_ids=(16,), do_write=False):
@@ -373,7 +430,15 @@ def main():
             print(f"   -> {method} OK: {json.dumps(out, ensure_ascii=False)[:300]}")
             aid = body.get("article_id") or (out if isinstance(out, int)
                                              else (out.get("article_id") if isinstance(out, dict) else None))
-            if a.images and aid:
+            if aid and mode == "create":
+                if a.images:
+                    published, reason = publish_if_imaged(code, aid)
+                    print("   -> " + ("ONLINE (picture confirmed on the article)" if published
+                                      else f"stays a DRAFT: {reason}"))
+                else:
+                    print("   -> created as a DRAFT: no --images, so no picture could land "
+                          "and it will not appear on the site")
+            elif a.images and aid:
                 up, err = push_images(code, aid)
                 print(f"   -> images: uploaded {up}" + (f", err {err}" if err else ""))
         except b.BarsyError as e:

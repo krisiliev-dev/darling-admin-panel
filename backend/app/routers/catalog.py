@@ -1107,7 +1107,7 @@ _IMAGE_UNKNOWN = ("Не можах да проверя дали продуктъ
                   "Не го пускам в сайта на сляпо — опитай пак след малко.")
 
 
-def _picture_url(code: str, article_id: int) -> str | None:
+def _picture_url(code: str, article_id: int | None) -> str | None:
     """Does this article have a photo? THREE states, never a boolean:
 
         "<url>"  Barsy answered and there is a picture
@@ -1122,7 +1122,9 @@ def _picture_url(code: str, article_id: int) -> str | None:
     Read via Articles_getlist because picture_url rides in ITS extra_properties (the same
     call the catalogue sync uses); a plain Articles_get does not carry it.
     """
-    if not code:
+    if not code or not article_id:
+        # Nothing to match the Barsy row ON. Not evidence of a missing picture - the third
+        # state - so it must not read as one.
         return None                      # nothing to filter on — not proof of "no picture"
     try:
         rows = barsy.call("Articles_getlist",
@@ -1139,7 +1141,7 @@ def _picture_url(code: str, article_id: int) -> str | None:
     return str(row.get("picture_url") or "")
 
 
-def _refuse_without_image(code: str, article_id: int) -> None:
+def _refuse_without_image(code: str, article_id: int | None) -> None:
     """Raise unless the article demonstrably has a picture. Fails closed on both the
     "no picture" and the "could not check" branches, with a DIFFERENT message for each."""
     pic = _picture_url(code, article_id)
@@ -1427,7 +1429,7 @@ async def mass_op(req: MassOpRequest, actor: User = Depends(current_owner),
     attr = _MASS_CACHE_ATTR.get(req.col)
     rows = {pc.article_id: pc for pc in (await session.execute(
         select(ProductCache).where(ProductCache.article_id.in_(req.article_ids)))).scalars().all()}
-    changes = []
+    changes: list[dict[str, typing.Any]] = []
     for aid in req.article_ids:
         pc = rows.get(aid)
         if pc is None:

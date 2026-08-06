@@ -1114,7 +1114,13 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
         "article_name": d.name,
         "article_name_ml": {"bg_BG": d.name},
         "amount_type_id": _UNIT_ID.get(d.unit, 1),
-        "is_public": 1, "is_for_sale": 1,
+        # Created HIDDEN. A brand-new article cannot have a picture yet - it does not
+        # exist until this call returns - and the rule is that nothing reaches the storefront
+        # without one. It is published from the product editor, which checks the picture live
+        # against Barsy. is_for_sale stays 1: sellable at the till from the moment it exists,
+        # which is a different question from listed on the website. Same shape as
+        # intake_delivery, deliberately.
+        "is_public": 0, "is_for_sale": 1,
     }
     if getattr(d, "oversell", False):
         art["sale_below_zero"] = "YES"          # orderable at <=0 stock (backorder / supplier dropship)
@@ -1156,8 +1162,13 @@ def _build_barsy_article(d: IntakeDraft) -> dict:
     adv = _advanced_of(d)
     if adv:
         if adv.status:
-            # both ints together (Shopify auto-sync contract) — same flags as catalog.update_article
-            art["is_for_sale"], art["is_public"] = _ADV_STATUS_FLAGS[adv.status]
+            # is_for_sale ONLY, and this is a deliberate narrowing of the old line that set
+            # both flags from _ADV_STATUS_FLAGS. On CREATE, "active" cannot be honoured: it
+            # would put a product with no picture on the website, and there cannot be a
+            # picture yet. The article is created hidden either way and goes online from the
+            # product editor, where the check is made live against Barsy. "withdrawn" still
+            # means not sellable, which is what the first element carries.
+            art["is_for_sale"] = _ADV_STATUS_FLAGS[adv.status][0]
         if adv.oversell_mode in ("YES", "NO"):
             art["sale_below_zero"] = adv.oversell_mode      # explicit mode wins over the legacy bool
         if adv.storemove_mode in ("YES", "NO"):
