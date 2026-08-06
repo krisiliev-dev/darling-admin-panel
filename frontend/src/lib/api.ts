@@ -62,6 +62,13 @@ export const api = {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form,
     })
+    // 2FA: an enrolled account gets 200 + {twofa_required, ticket} instead of the 204 + cookie.
+    // Returning the parsed body lets AuthProvider switch the Login page to the code step; the
+    // un-enrolled path still returns undefined, so nothing else changes.
+    if (res.ok) {
+      if (res.status === 204) return undefined
+      try { return await res.json() } catch { return undefined }
+    }
     if (!res.ok) {
       let detail = 'Грешен имейл или парола.'
       try {

@@ -5,6 +5,7 @@ import { useApi } from '../lib/useApi'
 import { useAuth } from '../lib/auth'
 import { Sheet } from '../components/Paper'
 import { PageHeader, Loading } from '../components/PageHeader'
+import { TwoFactorPanel } from './TwoFactorPanel'
 import { CourierBadge } from '../components/CourierBadge'
 import { useConfirm } from '../components/Confirm'
 import { PublishAudit } from '../components/PublishAudit'
@@ -47,6 +48,7 @@ export function Settings() {
       } />
 
       {tab === 'logs' ? (sys ? <Logs embedded /> : <NoSystemAccess what="Дневникът" />) : <>
+      <TwoFactorPanel />
       {!sys && <NoSystemAccess what="Екипът, ролите и ОРЗД справките" />}
       {sys && <Sheet clip="left" tilt="l">
         <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Екип (Barsy)</h3>
