@@ -554,6 +554,23 @@ class CatalogSyncState(Base):
     last_event_kind: Mapped[str] = mapped_column(String(32), default="")
 
 
+class AppSetting(Base):
+    """Owner-tunable scalars that do not each deserve a table of their own — today only the
+    free-shipping threshold.
+
+    Deliberately narrow. Values are strings and EVERY reader parses and validates its own key,
+    because a generic settings bag that silently hands back 0 for a money field is how free
+    shipping becomes free money. An unreadable value falls back to the code default, never to
+    zero, and the surface that shows it says whether it came from the store or the default."""
+    __tablename__ = "app_setting"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_by: Mapped[str] = mapped_column(String(255), default="")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+
 class ShippingRate(Base):
     """Delivery-fee tariff row (courier × mode × weight bracket) — DELIVERY_FEE_DESIGN v2.
     label_cost + cod_fee are REFRESHED from live courier quotes (tariffs are distance-flat

@@ -19,10 +19,13 @@ interface BarsyRole { role_id: number; role_name: string; weight: number | null;
 // surfaces, gated on canSystem() — the owner or a granted sysadmin. A Barsy Мениджър keeps every
 // business function but no longer reaches these. We hide rather than render-and-fail: the backend
 // 403s them, and showing a panel that can only produce an error is worse than not showing it.
+type TabKey = 'main' | 'dostavka' | 'logs'
+const TAB_DOSTAVKA = 'Доставка'
+
 export function Settings() {
   const { me } = useAuth()
   const sys = canSystem(me)
-  const [tab, setTab] = useState<'main' | 'logs'>('main')
+  const [tab, setTab] = useState<TabKey>('main')
   // Don't even fetch the system endpoints without the capability — a 403 on load would surface as a
   // spurious error banner to a manager who is simply not meant to see this part.
   const { data: staff, reload: reloadStaff } = useApi<{ staff: StaffMember[] }>(
@@ -37,7 +40,7 @@ export function Settings() {
     <div style={{ display: 'grid', gap: '1.1rem' }}>
       <PageHeader title="Настройки" subtitle="екип, състояние и дневник" right={
         <div style={{ display: 'flex', gap: '.3rem' }}>
-          {([['main', 'Настройки'], ['logs', 'Дневник']] as ['main' | 'logs', string][]).map(([k, l]) => (
+          {([['main', 'Настройки'], ['logs', 'Дневник'], ['dostavka', TAB_DOSTAVKA]] as [TabKey, string][]).map(([k, l]) => (
             <button key={k} className="font-type" onClick={() => setTab(k)} style={{
               padding: '.3rem .7rem', fontSize: '.72rem', cursor: 'pointer', borderRadius: 2,
               border: '1px solid var(--line)', background: tab === k ? 'var(--red)' : 'var(--paper2)',
@@ -47,7 +50,7 @@ export function Settings() {
         </div>
       } />
 
-      {tab === 'logs' ? (sys ? <Logs embedded /> : <NoSystemAccess what="Дневникът" />) : <>
+      {tab === 'dostavka' ? <DeliveryRates /> : tab === 'logs' ? (sys ? <Logs embedded /> : <NoSystemAccess what="Дневникът" />) : <>
       <TwoFactorPanel />
       {!sys && <NoSystemAccess what="Екипът, ролите и ОРЗД справките" />}
       {sys && <Sheet clip="left" tilt="l">
@@ -360,6 +363,187 @@ function GdprPanel() {
     </Sheet>
   )
 }
+
+type RateRow = {
+  id: number; courier: string; mode: string; max_kg: number
+  courier_bg: string; mode_bg: string
+  label_cost: number; cod_fee: number; buffer: number
+  suggested_buffer: number | null
+  enabled: boolean
+  price_eur: number | null; price_cod_eur: number | null; priced: boolean
+  refreshed_at: string | null
+}
+type RatesBody = {
+  rates: RateRow[]
+  free_over_eur: number; free_over_source: 'stored' | 'default'; free_over_default: number
+  stale_hours: number | null; stale_after_h: number; stale: boolean
+}
+
+// Доставка — the per-courier tariff table and the two owner fields on it (buffer, enabled)
+// plus the one global number (free shipping over N €). Prices themselves are NOT editable:
+// they come from the couriers' own quote APIs on a refresh, and a hand-typed tariff is a
+// number that stops matching the invoice the day it changes.
+function DeliveryRates() {
+  const { data, reload } = useApi<RatesBody>('/api/shipping-rates')
+  const [busy, setBusy] = useState('')
+  const [err, setErr] = useState('')
+  const [freeOver, setFreeOver] = useState('')
+
+  const rows = data?.rates || []
+  const shown = freeOver !== '' ? freeOver : (data ? String(data.free_over_eur) : '')
+
+  const patchRow = async (id: number, body: Record<string, unknown>) => {
+    setBusy(String(id)); setErr('')
+    try { await api.patch(`/api/shipping-rates/${id}`, body); reload() }
+    catch (e) { setErr(e instanceof ApiError ? e.message : 'Промяната се провали.') }
+    finally { setBusy('') }
+  }
+
+  const saveFreeOver = async () => {
+    setBusy('free'); setErr('')
+    try {
+      await api.patch('/api/shipping-rates/config', { free_over_eur: Number(shown) })
+      setFreeOver(''); reload()
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Промяната се провали.') }
+    finally { setBusy('') }
+  }
+
+  const refresh = async () => {
+    setBusy('refresh'); setErr('')
+    try { await api.post('/api/shipping-rates/refresh'); reload() }
+    catch (e) { setErr(e instanceof ApiError ? e.message : 'Опресняването се провали.') }
+    finally { setBusy('') }
+  }
+
+  return (
+    <Sheet>
+      <h3 style={{ fontSize: '1rem', marginBottom: '.5rem' }}>Доставка — цени и куриери</h3>
+      <div style={{ display: 'grid', gap: '.7rem' }}>
+      {err && <div style={{ color: 'var(--red)', fontSize: '.8rem' }}>{err}</div>}
+
+      {/* Staleness is stated, not implied. A week-old tariff renders identically to a fresh
+          one, and the difference only shows up on an invoice. */}
+      {data && (
+        <div className="pencil" style={{ fontSize: '.74rem', display: 'flex', gap: '.6rem',
+          alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ color: data.stale ? 'var(--red)' : undefined }}>
+            {data.stale_hours === null
+              ? 'Тарифите не са опреснявани нито веднъж.'
+              : `Тарифите са отпреди ${data.stale_hours} ч.${data.stale ? ' — по-стари от допустимото.' : ''}`}
+          </span>
+          <button className="font-type" onClick={refresh} disabled={busy === 'refresh'}
+            style={{ padding: '.22rem .6rem', fontSize: '.7rem', cursor: 'pointer', borderRadius: 2,
+              border: '1px solid var(--line)', background: 'var(--paper2)' }}>
+            {busy === 'refresh' ? 'опреснявам…' : 'Опресни от куриерите'}
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: '.82rem' }}>Безплатна доставка над</label>
+        <input className="input-paper" inputMode="decimal" value={shown} style={{ width: '5.5rem' }}
+          onChange={(e) => setFreeOver(e.target.value)} />
+        <span style={{ fontSize: '.82rem' }}>€</span>
+        <button className="font-type" onClick={saveFreeOver}
+          disabled={busy === 'free' || shown === '' || Number(shown) === data?.free_over_eur}
+          style={{ padding: '.24rem .7rem', fontSize: '.72rem', cursor: 'pointer', borderRadius: 2,
+            border: '1px solid var(--line)', background: 'var(--paper2)' }}>Запази</button>
+        {data?.free_over_source === 'default' && (
+          <span className="pencil" style={{ fontSize: '.72rem' }}>
+            (по подразбиране {data.free_over_default} € — още не е задавано)
+          </span>
+        )}
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
+        <thead>
+          <tr className="font-type" style={{ fontSize: '.68rem', textAlign: 'left',
+            textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--pencil)' }}>
+            <th style={{ padding: '.3rem .4rem' }}>Куриер</th>
+            <th style={{ padding: '.3rem .4rem' }}>До</th>
+            <th style={{ padding: '.3rem .4rem' }}>кг</th>
+            <th style={{ padding: '.3rem .4rem' }}>Тарифа</th>
+            <th style={{ padding: '.3rem .4rem' }}>Буфер</th>
+            <th style={{ padding: '.3rem .4rem' }}>Цена</th>
+            <th style={{ padding: '.3rem .4rem' }}>С н.п.</th>
+            <th style={{ padding: '.3rem .4rem' }}>В сайта</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} style={{ borderTop: '1px solid var(--line)' }}>
+              <td style={{ padding: '.3rem .4rem' }}>{r.courier_bg}</td>
+              <td style={{ padding: '.3rem .4rem' }}>{r.mode_bg}</td>
+              <td style={{ padding: '.3rem .4rem' }}>≤ {r.max_kg}</td>
+              {/* «няма тарифа», never 0.00 € — a zero here reads as free delivery */}
+              <td style={{ padding: '.3rem .4rem' }}>
+                {r.priced ? `${r.label_cost.toFixed(2)} €`
+                  : <span style={{ color: 'var(--red)' }}>няма тарифа</span>}
+              </td>
+              <td style={{ padding: '.3rem .4rem' }}>
+                <BufferCell row={r} busy={busy === String(r.id)}
+                  onSave={(v) => patchRow(r.id, { buffer: v })} />
+              </td>
+              <td style={{ padding: '.3rem .4rem' }}>
+                {r.price_eur === null ? '—' : `${r.price_eur.toFixed(2)} €`}
+              </td>
+              <td style={{ padding: '.3rem .4rem' }}>
+                {r.price_cod_eur === null ? '—' : `${r.price_cod_eur.toFixed(2)} €`}
+              </td>
+              <td style={{ padding: '.3rem .4rem' }}>
+                <input type="checkbox" checked={r.enabled} disabled={busy === String(r.id)}
+                  onChange={() => patchRow(r.id, { enabled: !r.enabled })} />
+              </td>
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr><td colSpan={8} className="pencil" style={{ padding: '.5rem .4rem', fontSize: '.78rem' }}>
+              Още няма тарифи. „Опресни от куриерите" ги изтегля от техните API-та.
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+
+      <span className="pencil" style={{ fontSize: '.72rem' }}>
+        Цената в сайта е тарифата на куриера плюс буфера; при наложен платеж таксата на
+        куриера влиза в същата цена, без отделен ред. Тарифите не се пишат на ръка — идват от
+        API-тата на куриерите при опресняване.
+      </span>
+      </div>
+    </Sheet>
+  )
+}
+
+// The buffer is the one number an owner types, so it is a draft-then-save rather than a
+// save-on-keystroke: an intermediate value like «0.» or «5» on the way to «0.50» would
+// otherwise be written and audited as a real change.
+function BufferCell({ row, busy, onSave }: {
+  row: RateRow; busy: boolean; onSave: (v: number) => void
+}) {
+  const [draft, setDraft] = useState('')
+  const value = draft !== '' ? draft : String(row.buffer)
+  const dirty = draft !== '' && Number(draft) !== row.buffer
+  const suggested = row.suggested_buffer
+  const offModel = suggested !== null && Math.abs(row.buffer - suggested) > 0.001
+  return (
+    <span style={{ display: 'inline-flex', gap: '.3rem', alignItems: 'center' }}>
+      <input className="input-paper" inputMode="decimal" value={value} disabled={busy}
+        style={{ width: '4rem' }} onChange={(e) => setDraft(e.target.value)} />
+      {dirty && (
+        <button className="font-type" onClick={() => { onSave(Number(draft)); setDraft('') }}
+          style={{ padding: '.15rem .45rem', fontSize: '.68rem', cursor: 'pointer', borderRadius: 2,
+            border: '1px solid var(--line)', background: 'var(--paper2)' }}>ок</button>
+      )}
+      {/* the approved model's number, shown only when the set value has drifted from it */}
+      {offModel && !dirty && (
+        <span className="pencil" style={{ fontSize: '.68rem' }} title="стойността от одобрения модел">
+          (предл. {suggested!.toFixed(2)})
+        </span>
+      )}
+    </span>
+  )
+}
+
 
 function NewStaffForm({ roles, onCreated }: { roles: BarsyRole[]; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
