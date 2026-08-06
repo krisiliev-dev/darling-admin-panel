@@ -6,6 +6,7 @@ secret (X-Office-Token == OFFICE_LOOKUP_TOKEN). No panel-user auth — this is t
 external entry point. Empty token in config => the endpoint is DISABLED (403), so it stays off until
 the owner sets the secret. Owner-approved 2026-07-27."""
 import hmac
+import math
 import time
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
@@ -16,15 +17,23 @@ from ..upstream import upstream
 
 router = APIRouter(prefix="/api/public/couriers", tags=["public-couriers"])
 
-# couriers with a WORKING office/locker lookup. speedy + econt are implemented; boxnow/sameday/
-# pigeon/evropat are stubs (base Courier.offices raises NotImplementedError until their creds land),
-# so we don't expose them yet — a request for one returns a clean 404, not a 502. Add them here as
-# each adapter's offices() is implemented.
+# couriers with a WORKING office/locker lookup, i.e. an implemented offices() AND credentials
+# (or, for boxnow, a public feed that needs none).
+#
+# boxnow joined on 2026-08-06: its adapter has been live since the real test waybill, and the
+# comment that used to sit here still called it a stub — which is why the storefront's автомат
+# picker had nothing to talk to. Its locker list comes from BoxNow's PUBLIC locations feed, so
+# it works with no keys at all.
+#
+# sameday is deliberately NOT here. Its adapter exists but the API credentials have not been
+# issued, so every lookup would fail upstream and the picker would show a 502 where a carrier
+# should be. Add it the day the keys land and the five VERIFY-LIVE checks in docs/SAMEDAY.md
+# are done.
 # pigeon: adapter + keys are LIVE (courier.py) but Pigeon has no office in Svishtov yet, so
 # the shop cannot ship with them ??? owner 2026-08-05: keep the carrier DARK on the storefront
 # (class-carriers.php offers whatever the panel serves). Re-add "pigeon" here the moment
 # their Svishtov office opens + PIGEON_PICKUP_OFFICE_ID is set.
-_ALLOWED = {"speedy", "econt"}
+_ALLOWED = {"speedy", "econt", "boxnow"}
 
 
 _OFFICE_TTL = 900.0          # cache the full office list per courier (office networks change rarely)
@@ -58,27 +67,89 @@ def _all_offices(k: str) -> list:
     return offices
 
 
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in kilometres. Good to a few metres over Bulgaria, which is far
+    better than a picker needs, and it costs nothing."""
+    radius = 6371.0088
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi, dlam = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlam / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def _filter_offices(offices: list, city: str = "", lat: float | None = None,
+                    lon: float | None = None, radius_km: float | None = None) -> tuple[list, dict]:
+    """Filter and rank, WITHOUT applying the response cap.
+
+    The cap belongs to the caller and must come last. Capping the source list and filtering
+    the remainder is how `?city=София` once returned a single office: the slice was
+    alphabetical and cut Sofia off before the filter ever ran. On a map the same mistake is
+    worse, because the row it drops is precisely the locker nearest the customer.
+
+    Offices with no coordinates are never silently lost. A radius filter cannot include them
+    — we cannot prove they are near — so they are excluded and COUNTED; without a radius they
+    are appended after the ranked ones, since they can be shown but not ranked.
+    """
+    rows = list(offices)
+    if city.strip():
+        q = _norm(city)
+        rows = [o for o in rows
+                if q in _norm(o.get("city") or "") or q in _norm(o.get("name") or "")]
+    if lat is None or lon is None:
+        return rows, {}
+
+    ranked, unpositioned = [], []
+    for o in rows:
+        olat, olon = o.get("lat"), o.get("lon")
+        if olat is None or olon is None:
+            unpositioned.append(o)
+            continue
+        ranked.append({**o, "distance_km": round(_haversine_km(lat, lon, float(olat), float(olon)), 2)})
+    if radius_km is not None:
+        ranked = [o for o in ranked if o["distance_km"] <= radius_km]
+    ranked.sort(key=lambda o: o["distance_km"])
+    if radius_km is None:
+        ranked.extend(unpositioned)
+        return ranked, {"no_position": len(unpositioned)}
+    return ranked, {"no_position": len(unpositioned)}
+
+
 @router.get("/{key}/offices")
-def public_offices(key: str, city: str = Query("", max_length=120, description="filter by city"),
-                   x_office_token: str | None = Header(default=None)):
-    """City → courier office/locker list for the storefront checkout picker. Token-gated; courier
-    credentials never leave the panel. Returns [{id, name, address, city}]. The `city` filter is a
-    Unicode-normalized, case-insensitive substring match on each office's city (and name)."""
+def public_offices(
+    key: str,
+    city: str = Query("", max_length=120, description="filter by city"),
+    lat: float | None = Query(None, ge=-90, le=90, description="customer latitude — ranks nearest first"),
+    lon: float | None = Query(None, ge=-180, le=180, description="customer longitude"),
+    radius_km: float | None = Query(None, gt=0, le=500, description="keep only offices within this many km of lat/lon"),
+    x_office_token: str | None = Header(default=None),
+):
+    """Courier office/locker list for the storefront checkout picker. Token-gated; courier
+    credentials never leave the panel.
+
+    Returns [{id, name, address, city, lat, lon, kind}] — `kind` is "locker" (автомат) or
+    "office", and lat/lon are floats or null. Pass lat+lon to rank nearest-first and get a
+    `distance_km` on every positioned row; add radius_km to filter as well. `count` is the
+    size of the FILTERED set and `capped` says whether the returned list was truncated, so a
+    caller can tell "these are all of them" from "here are the first _CAP".
+    """
     _check_token(x_office_token)
     k = (key or "").lower()
     if k not in _ALLOWED:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown courier.")
+    if (lat is None) != (lon is None):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "lat and lon must be given together.")
+    if radius_km is not None and lat is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "radius_km needs lat and lon.")
     try:
         offices = _all_offices(k)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"courier lookup failed: {str(e)[:120]}")
-    if city.strip():
-        q = _norm(city)
-        offices = [o for o in offices
-                   if q in _norm(o.get("city") or "") or q in _norm(o.get("name") or "")]
-    return {"courier": k, "count": len(offices), "offices": offices[:_CAP]}
+    rows, meta = _filter_offices(offices, city, lat, lon, radius_km)
+    # THE CAP GOES LAST. See _filter_offices.
+    return {"courier": k, "count": len(rows), "capped": len(rows) > _CAP,
+            "offices": rows[:_CAP], **meta}
 
 
 @router.get("/{key}/quote")

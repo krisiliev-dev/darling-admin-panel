@@ -89,6 +89,23 @@ def _form_pairs(data, prefix=""):
     return out
 
 
+def _coord(v):
+    """A latitude/longitude from a courier feed → float, or None when there isn't one.
+
+    None, never 0.0. Zero is a real point in the Gulf of Guinea, and an office silently
+    placed there is not "unknown" — it is confidently wrong, and it sorts as nearest to
+    nothing anyone will ever stand in. Couriers hand these back as floats (Speedy, Econt) and
+    as strings (Pigeon, BoxNow), so both are accepted.
+    """
+    if v in (None, ""):
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if -180.0 <= f <= 180.0 else None
+
+
 # each entry: env var names for credentials + the API base
 REGISTRY = {
     "speedy":  {"user": "SPEEDY_USER",  "pass": "SPEEDY_PASS",  "base": "https://api.speedy.bg/v1"},
@@ -429,10 +446,19 @@ class Speedy(Courier):
         if city:
             payload["name"] = city
         out = self._post("/location/office", payload)
-        return [{"id": o.get("id"), "name": o.get("name"),
-                 "address": o.get("address", {}).get("fullAddressString", ""),
-                 "city": o.get("address", {}).get("siteName", "")}
-                for o in (out.get("offices") or [])]
+        rows = []
+        for o in (out.get("offices") or []):
+            a = o.get("address") or {}
+            # ⚠ Speedy calls LONGITUDE `x` and LATITUDE `y`. Read in the obvious order this
+            # puts every Bulgarian office in the Indian Ocean and a radius search returns
+            # nothing while looking like it worked. Verified live 2026-08-06: x≈24.7, y≈42.1.
+            rows.append({"id": o.get("id"), "name": o.get("name"),
+                         "address": a.get("fullAddressString", ""),
+                         "city": a.get("siteName", ""),
+                         "lat": _coord(a.get("y")), "lon": _coord(a.get("x")),
+                         # APT = автомат (833 of 1293), OFFICE = counter (460). Verified live.
+                         "kind": "locker" if str(o.get("type") or "").upper() == "APT" else "office"})
+        return rows
 
     def payout_report(self, date_from, date_to):
         """Speedy COD payout report (Payments Service). Verified shape: POST /payments with
@@ -652,10 +678,19 @@ class Econt(Courier):
         # customer picked a bad office" rather than "the nomenclature had a hole". An error that
         # blames a person for a data fault is worse than a louder one, because someone acts on it
         # and rings the customer back. Unselectable is the honest behaviour. (Hermes, 2026-07-31)
-        return [{"id": o.get("code"), "name": o.get("name"),
-                 "address": o.get("address", {}).get("fullAddress", ""),
-                 "city": o.get("address", {}).get("city", {}).get("name", "")}
-                for o in offices if o.get("code") not in (None, "")]
+        rows = []
+        for o in offices:
+            if o.get("code") in (None, ""):
+                continue
+            a = o.get("address") or {}
+            loc = a.get("location") or {}       # one office in 630 has none — hence _coord
+            rows.append({"id": o.get("code"), "name": o.get("name"),
+                         "address": a.get("fullAddress", ""),
+                         "city": (a.get("city") or {}).get("name", ""),
+                         "lat": _coord(loc.get("latitude")), "lon": _coord(loc.get("longitude")),
+                         # isAPS = автомат (38 of 630). isDrive (1) is still a staffed point.
+                         "kind": "locker" if o.get("isAPS") else "office"})
+        return rows
 
     def payout_report(self, date_from, date_to):
         """Econt COD payout report for a period (наложен платеж / CD). Endpoint/field shape per Econt
@@ -799,7 +834,11 @@ class BoxNow(Courier):
             out.append({"id": o.get("id"),
                         "name": str(o.get("name") or o.get("title") or ""),
                         "address": str(o.get("address") or o.get("addressLine1") or ""),
-                        "city": str(o.get("city") or o.get("addressLine2") or "")})
+                        "city": str(o.get("city") or o.get("addressLine2") or ""),
+                        # lat/lng arrive as strings on the public feed. Every BoxNow point is
+                        # an автомат — there is no counter network to distinguish.
+                        "lat": _coord(o.get("lat")), "lon": _coord(o.get("lng")),
+                        "kind": "locker"})
         if city:
             key = "".join(str(city).split()).casefold()
             out = [o for o in out if key in "".join(o["city"].split()).casefold()
@@ -1170,16 +1209,18 @@ class Sameday(Courier):
     def offices(self, city=None):
         """Easybox lockers plus PUDO points, in the shape the office picker expects."""
         out = []
+        # `lon`, not `lng` — every adapter answers in the same shape or the office picker has
+        # to special-case whichever carrier it is talking to.
         for row in self._pages("/api/client/lockers"):
             out.append({"id": row.get("lockerId"), "name": row.get("name"),
                         "city": row.get("city"), "address": row.get("address"),
                         "postcode": row.get("postalCode"), "kind": "locker",
-                        "lat": row.get("lat"), "lng": row.get("lng")})
+                        "lat": _coord(row.get("lat")), "lon": _coord(row.get("lng"))})
         for row in self._pages("/api/client/ooh-locations"):
             out.append({"id": row.get("oohId"), "name": row.get("name"),
                         "city": row.get("city"), "address": row.get("address"),
                         "postcode": row.get("postalCode"), "kind": "pudo",
-                        "lat": row.get("lat"), "lng": row.get("lng")})
+                        "lat": _coord(row.get("lat")), "lon": _coord(row.get("lng"))})
         if city:
             key = "".join(str(city).split()).casefold()
             out = [o for o in out if "".join(str(o["city"] or "").split()).casefold() == key]
@@ -1367,7 +1408,12 @@ class Pigeon(Courier):
                         "address": (o.get("address") if isinstance(o.get("address"), str)
                                     else (o.get("address") or {}).get("full_address", "")) or "",
                         "city": (o.get("city") if isinstance(o.get("city"), str)
-                                 else (o.get("city") or {}).get("name", "")) or ""})
+                                 else (o.get("city") or {}).get("name", "")) or "",
+                        # strings on the wire. /offices returns only type=office on this
+                        # account (183 of 183); their АПС lockers are a separate ?type=locker
+                        # query, so nothing here is claimed to be one.
+                        "lat": _coord(o.get("latitude")), "lon": _coord(o.get("longitude")),
+                        "kind": "locker" if str(o.get("type") or "").lower() == "locker" else "office"})
         if city:
             key = "".join(str(city).split()).casefold()
             out = [o for o in out if key in "".join(o["city"].split()).casefold()
