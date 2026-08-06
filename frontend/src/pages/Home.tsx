@@ -5,6 +5,7 @@ import type { HomeResponse, AgingResponse, IssuesResp } from '../lib/api'
 import { Sheet } from '../components/Paper'
 import { Loading } from '../components/PageHeader'
 import { Stat } from '../components/Stat'
+import { TwoFactorNag } from './TwoFactorNag'
 
 const PERIODS: [string, string][] = [['today', 'Днес'], ['7d', '7 дни'], ['30d', '30 дни']]
 const eur = (n: number) => n.toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
@@ -36,6 +37,9 @@ export function Home() {
 
   return (
     <div style={{ display: 'grid', gap: '1.1rem' }}>
+      {/* Security first, above the KPIs: an un-enrolled account carries this until it enrolls. */}
+      <TwoFactorNag />
+
       {/* header + period toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem', flexWrap: 'wrap' }}>
         <span className="font-type" style={{ color: 'var(--red)', fontWeight: 700, fontSize: '1.05rem' }}>Начало</span>
