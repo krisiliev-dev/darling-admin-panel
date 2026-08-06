@@ -182,7 +182,13 @@ def _new_article_body(ln: CommitLine) -> dict:
         "article_name": ln.name,
         "article_name_ml": {"bg_BG": ln.name},
         "amount_type_id": _UNIT_ID.get(ln.unit, 1),
-        "is_public": 1, "is_for_sale": 1,
+        # is_for_sale=1 so it can be sold at the till the moment it is received; is_public=0
+        # because a product created from a supplier delivery has no photograph yet, and the
+        # owner's rule is that nothing reaches the storefront without one. Somebody adds the
+        # picture and flips it to «Активен» in the product editor, which enforces the same
+        # rule. (Before 2026-08-06 this shipped 1/1 and every delivered line went straight
+        # online, photo or not.)
+        "is_public": 0, "is_for_sale": 1,
     }
     if ln.oversell:
         art["sale_below_zero"] = "YES"                  # orderable at <=0 stock (backorder / dropship)

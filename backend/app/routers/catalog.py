@@ -1040,6 +1040,11 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
     details = _read_details(a)
     brand = next((d["value"] for d in details if d["key"] == _BRAND_DETAIL), "")
     for_sale, public = _flag(a.get("is_for_sale")), _flag(a.get("is_public"))
+    # Three states again: True / False / None ("could not check"). The editor disables the
+    # «Активен» option on False and says why, rather than letting someone pick it and meet a
+    # server error — but the server refuses regardless, because a UI rule is not a rule.
+    _pic = _picture_url(str(a.get("code") or ""), a.get("article_id"))
+    has_image = None if _pic is None else bool(_pic)
     return {
         "article_id": a.get("article_id"), "code": a.get("code") or "",
         "name": _name_for_locale(a), "description": a.get("description") or "",
@@ -1057,7 +1062,7 @@ def get_article(article_id: int, user: User = Depends(current_active_user)):
         "amount_type_id": _int_or_none(a.get("amount_type_id")),
         "seo_title": str(extra.get("seo_title") or ""),
         "seo_description": str(extra.get("seo_description") or ""),
-        "is_for_sale": for_sale, "is_public": public,
+        "is_for_sale": for_sale, "is_public": public, "has_image": has_image,
         # drives the Shopify auto-sync (ACTIVE / Draft / Archive)
         "status": "active" if for_sale and public else ("draft" if for_sale else "withdrawn"),
         "ref_num": str(a.get("ref_num") or ""),          # auto from the delivery — read-only
@@ -1092,6 +1097,56 @@ class AttrIn(BaseModel):
 
 # status → (is_for_sale, is_public). DRAFT = sellable at the till but hidden online.
 _STATUS_FLAGS = {"active": (1, 1), "draft": (1, 0), "withdrawn": (0, 0)}
+
+# A product may not go on the storefront without a photo (owner rule, 2026-08-06). A listing
+# with no picture does not sell and reads as a broken shop, so the flag that puts it online
+# is gated on the ERP actually having one.
+_NO_IMAGE = ("Продуктът няма снимка. Без поне една снимка не може да се пусне в сайта — "
+             "качи снимка в Barsy и опитай пак.")
+_IMAGE_UNKNOWN = ("Не можах да проверя дали продуктът има снимка (Barsy не отговори). "
+                  "Не го пускам в сайта на сляпо — опитай пак след малко.")
+
+
+def _picture_url(code: str, article_id: int) -> str | None:
+    """Does this article have a photo? THREE states, never a boolean:
+
+        "<url>"  Barsy answered and there is a picture
+        ""       Barsy answered and there is none
+        None     we could not ask, or could not read the answer
+
+    The third state is load-bearing. "This product has no photo" and "the ERP did not
+    answer" are different facts and an operator does different things about them; folding
+    the second into the first would tell someone to go and upload a photo that is already
+    there.
+
+    Read via Articles_getlist because picture_url rides in ITS extra_properties (the same
+    call the catalogue sync uses); a plain Articles_get does not carry it.
+    """
+    if not code:
+        return None                      # nothing to filter on — not proof of "no picture"
+    try:
+        rows = barsy.call("Articles_getlist",
+                          {"filters": {"code": str(code)}, "length": 5,
+                           "extra_properties": {"picture_url": 1}})
+    except Exception as e:               # any upstream failure reads as "unknown"
+        log.warning("catalog: picture check for %s failed (%s)", code, e)
+        return None
+    if not isinstance(rows, list):
+        return None
+    row = next((r for r in rows if isinstance(r, dict) and r.get("article_id") == article_id), None)
+    if row is None:
+        return None
+    return str(row.get("picture_url") or "")
+
+
+def _refuse_without_image(code: str, article_id: int) -> None:
+    """Raise unless the article demonstrably has a picture. Fails closed on both the
+    "no picture" and the "could not check" branches, with a DIFFERENT message for each."""
+    pic = _picture_url(code, article_id)
+    if pic is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _IMAGE_UNKNOWN)
+    if not pic:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _NO_IMAGE)
 
 
 class ArticleEdit(BaseModel):
@@ -1151,6 +1206,12 @@ async def update_article(
         _cur = await run_in_threadpool(
             barsy.call, "Articles_get", {"article_id": article_id, "extra_properties": {"extra_data": 1}})
     _cur = _cur if isinstance(_cur, dict) else {}
+    if req.status == "active":
+        # "active" is the one status that sets is_public=1, i.e. puts the product on the
+        # storefront. Checked here, against the ERP, not against our cache: the cache is
+        # refreshed on a sync and someone who has just uploaded a photo in Barsy would
+        # otherwise be told to go and upload it again.
+        _refuse_without_image(str(_cur.get("code") or ""), article_id)
     article: dict = {
         "article_name": req.name.strip(),
         "article_name_ml": _merge_name_ml(_cur.get("article_name_ml"), req.name.strip()),
@@ -1373,8 +1434,29 @@ async def mass_op(req: MassOpRequest, actor: User = Depends(current_owner),
             continue
         old = getattr(pc, attr) if attr else None
         changes.append({"article_id": aid, "code": pc.code, "name": pc.name, "old": old, "new": val})
+    # Putting products online in bulk is the fastest way to publish a photo-less listing, so
+    # the same rule applies here. The check reads ProductCache.has_image rather than asking
+    # Barsy once per selected article — a mass op can cover hundreds. That cache is refreshed
+    # by the catalogue sync, so it can lag; the direction it lags in is safe (a product whose
+    # photo landed after the last sync is held back, not published). Blocked rows are NAMED
+    # in the response, in the preview and after the write, so nobody has to guess which of
+    # their selection did not go.
+    blocked: list = []
+    if req.col == "is_public" and val == "1":
+        allowed = []
+        for c in changes:
+            pc = rows.get(c["article_id"])
+            if pc is not None and not pc.has_image:
+                blocked.append({"article_id": c["article_id"], "code": c["code"], "name": c["name"]})
+            else:
+                allowed.append(c)
+        changes = allowed
     if not req.confirm:
-        return {"dry_run": True, "col": req.col, "value": val, "count": len(changes), "changes": changes}
+        return {"dry_run": True, "col": req.col, "value": val, "count": len(changes),
+                "changes": changes, "blocked": blocked, "blocked_reason": _NO_IMAGE if blocked else ""}
+    if not changes:
+        return {"dry_run": False, "col": req.col, "value": val, "count": 0, "applied": 0,
+                "failed": [], "blocked": blocked, "blocked_reason": _NO_IMAGE if blocked else ""}
     if not barsy_write_live():
         return {"dry_run": True, "gated": True, "note": _GATED, "col": req.col, "value": val,
                 "count": len(changes), "changes": changes, "applied": 0, "failed": []}
@@ -1397,7 +1479,8 @@ async def mass_op(req: MassOpRequest, actor: User = Depends(current_owner),
     await log_action(session, actor, "catalog.mass_op",
                      detail=f"col={req.col} value={val} applied={applied} failed={len(failed)}")
     return {"dry_run": False, "col": req.col, "value": val, "count": len(changes),
-            "applied": applied, "failed": failed}
+            "applied": applied, "failed": failed, "blocked": blocked,
+            "blocked_reason": _NO_IMAGE if blocked else ""}
 
 
 # ================================ Barsy categories + attribute pool (#70 slice 4) =================

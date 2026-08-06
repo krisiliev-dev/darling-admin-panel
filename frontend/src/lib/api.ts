@@ -569,6 +569,9 @@ export interface ArticleDetail {
   seo_description: string
   is_for_sale: boolean
   is_public: boolean
+  // null = the panel could not check with Barsy. Three states, because "no photo" and
+  // "could not ask" mean different things to whoever is looking at the screen.
+  has_image: boolean | null
   status: string                // active | draft | withdrawn (derived from the two flags)
   ref_num: string               // read-only — set by the delivery
   aliases: string[]             // read-only — create-only in Barsy

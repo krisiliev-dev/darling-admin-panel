@@ -202,7 +202,17 @@ async def test_update_status_draft_sends_both_flags(staff_client, barsy_recorder
     assert art["is_for_sale"] == 1 and art["is_public"] == 0
 
 
+def _with_picture(rec, url="http://barsy/img/7.jpg"):
+    """Stub an article that HAS a photo. «Активен» is the status that publishes a product and
+    the panel refuses it without one, so any test that expects the flags to be written has to
+    say which of the two worlds it is in."""
+    rec.set_return("Articles_get", {"article_id": 7, "code": "7001"})
+    rec.set_return("Articles_getlist", [{"article_id": 7, "code": "7001", "picture_url": url}])
+    return rec
+
+
 async def test_update_status_active_and_withdrawn_flags(staff_client, barsy_recorder):
+    _with_picture(barsy_recorder)
     await staff_client.post("/api/catalog/7", json={"name": "Кана", "status": "active"})
     art = barsy_recorder.body_for("Articles_update")["article"]
     assert (art["is_for_sale"], art["is_public"]) == (1, 1)
@@ -210,6 +220,38 @@ async def test_update_status_active_and_withdrawn_flags(staff_client, barsy_reco
     await staff_client.post("/api/catalog/7", json={"name": "Кана", "status": "withdrawn"})
     art = barsy_recorder.body_for("Articles_update")["article"]
     assert (art["is_for_sale"], art["is_public"]) == (0, 0)
+
+
+async def test_publishing_without_a_picture_is_refused(staff_client, barsy_recorder):
+    """The owner's rule: nothing reaches the storefront without a photo. Refused BEFORE the
+    ERP is touched — a write that is going to be wrong should not happen and then be undone."""
+    _with_picture(barsy_recorder, url="")
+    r = await staff_client.post("/api/catalog/7", json={"name": "Кана", "status": "active"})
+    assert r.status_code == 400, r.text
+    assert "снимка" in r.json()["detail"]
+    assert "Articles_update" not in barsy_recorder.operations
+
+
+async def test_a_failed_picture_check_refuses_with_a_different_reason(staff_client, barsy_recorder):
+    """Barsy not answering is not the same fact as the product having no photo, and the two
+    send an operator to different places. Both fail closed; the messages must differ."""
+    barsy_recorder.set_return("Articles_get", {"article_id": 7, "code": "7001"})
+    barsy_recorder.set_return("Articles_getlist", None)      # unreadable answer
+    r = await staff_client.post("/api/catalog/7", json={"name": "Кана", "status": "active"})
+    assert r.status_code == 400, r.text
+    from app.routers import catalog as _cat
+    assert r.json()["detail"] == _cat._IMAGE_UNKNOWN
+    assert "Articles_update" not in barsy_recorder.operations
+
+
+async def test_taking_a_product_off_the_site_never_needs_a_picture(staff_client, barsy_recorder):
+    """The remedy must always work: «Черновa» and «Изтеглен» un-publish, and a product with no
+    photo is exactly the one you need to be able to pull down."""
+    for st in ("draft", "withdrawn"):
+        barsy_recorder.calls.clear()
+        r = await staff_client.post("/api/catalog/7", json={"name": "Кана", "status": st})
+        assert r.status_code == 200, r.text
+        assert barsy_recorder.body_for("Articles_update")["article"]["is_public"] == 0
 
 
 async def test_update_without_status_sends_neither_flag(staff_client, barsy_recorder):

@@ -21,6 +21,12 @@ const STATUS_OPTS: [ArticleStatus, string, string][] = [
 ]
 const isStatus = (s: string): s is ArticleStatus => STATUS_OPTS.some(([v]) => v === s)
 
+// has_image is three-state on the wire: true / false / null ("we could not ask Barsy").
+// Only an explicit false blocks the toggle — on null we let the attempt through and the
+// server explains itself, because greying out a control over a transient ERP hiccup is
+// worse than one refused save.
+const hasNoImage = (d?: { has_image?: boolean | null } | null): boolean => d?.has_image === false
+
 // Enum tables harvested from the live Barsy article form — the ids and their order are Barsy's, not ours.
 // These must never be free-text id boxes: the ids are opaque and a typo silently rewrites the article.
 const TAX_OPTS: [number, string][] = [[2, '20% (Б)'], [1, '0% (А)'], [3, '20% (В)'], [4, '9% (Г)'], [12, '7%'], [100, '0% (Без ДДС)']]
@@ -63,6 +69,9 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
 }) {
   const isEdit = !!edit
   const detInit = edit?.detail
+  // Edit mode only. A NEW product has no article yet: that path goes through the New Product
+  // queue, which already refuses to save a draft with no image, so nothing to block here.
+  const noImage = hasNoImage(detInit)
   // create mode: a stashed/approved draft carries its Разширени back (backend DraftOut.advanced)
   const advInit = edit ? null : draft.advanced || null
   const [namePublic, setNamePublic] = useState(detInit?.name_public || '')
@@ -507,13 +516,27 @@ export function ProductEditor({ draft, onDone, onCancel, edit }: {
           <fieldset style={{ border: '1px dashed var(--line)', borderRadius: 3, padding: '.35rem .6rem .5rem', display: 'grid', gap: '.3rem' }}>
             <legend className="font-type" style={{ fontSize: '.62rem', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '0 .3rem' }}>Статус</legend>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {STATUS_OPTS.map(([v, label, hint]) => (
-                <label key={v} style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: '.82rem', cursor: 'pointer' }}>
-                  <input type="radio" name={`status-${edit ? edit.articleId : 'new'}`} checked={statusA === v} onChange={() => setStatusA(v)} />
-                  <span>{label} <span className="pencil" style={{ fontSize: '.72rem' }}>({hint})</span></span>
-                </label>
-              ))}
+              {STATUS_OPTS.map(([v, label, hint]) => {
+                // A product with no photograph cannot go on the storefront. Disabled rather
+                // than hidden, so the option is visibly there and the reason is next to it —
+                // the server refuses too, this only saves the round trip.
+                const blocked = v === 'active' && noImage
+                return (
+                  <label key={v} title={blocked ? 'Първо качи снимка на продукта.' : ''}
+                    style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: '.82rem',
+                             cursor: blocked ? 'not-allowed' : 'pointer', opacity: blocked ? .45 : 1 }}>
+                    <input type="radio" name={`status-${edit ? edit.articleId : 'new'}`} checked={statusA === v}
+                      disabled={blocked} onChange={() => setStatusA(v)} />
+                    <span>{label} <span className="pencil" style={{ fontSize: '.72rem' }}>({hint})</span></span>
+                  </label>
+                )
+              })}
             </div>
+            {noImage && (
+              <span className="pencil" style={{ fontSize: '.72rem', color: 'var(--red)' }}>
+                Няма снимка — „Активен" е недостъпен. Качи снимка на продукта в Barsy, за да го пуснеш в сайта.
+              </span>
+            )}
             <span className="pencil" style={{ fontSize: '.72rem' }}>Определя дали продуктът се показва в сайта: „Чернова" го праща скрит, „Изтеглен" го архивира.</span>
           </fieldset>
 
