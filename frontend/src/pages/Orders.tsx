@@ -92,7 +92,7 @@ export function Orders({ embedded = false }: { embedded?: boolean } = {}) {
       {/* one card, three tabs */}
       <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
         {tabs.map(([k, label, count]) => (
-          <button key={k} className="font-type" onClick={() => setTab(k)} style={{
+          <button key={k} data-tab={k} className="font-type" onClick={() => setTab(k)} style={{
             padding: '.35rem .8rem', fontSize: '.78rem', cursor: 'pointer', borderRadius: 2,
             border: '1px solid var(--line)', background: tab === k ? 'var(--red)' : 'var(--paper2)',
             color: tab === k ? '#fff' : 'var(--pencil)', display: 'inline-flex', gap: '.35rem', alignItems: 'center',
@@ -114,6 +114,17 @@ export function Orders({ embedded = false }: { embedded?: boolean } = {}) {
 // --------------------------------------------------------------------- order queue ---
 type OrderFilter = 'all' | 'late' | 'cod'
 
+// The cancel endpoint answers in both the panel's and the storefront's vocabulary; the panel reads
+// `waybill` / `courier_message`. `plan` comes back when confirm is false, `dry_run` when
+// COURIER_LIVE is off.
+type CancelWaybill = {
+  state: 'plan' | 'dry_run' | 'cancelled' | 'refused' | 'unknown'
+  waybill?: string
+  courier?: string
+  courier_message?: string
+  already?: boolean
+}
+
 function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | null; mode: 'todo' | 'done'; onLabel: (o: Order) => void; onChange: () => void }) {
   const [filter, setFilter] = useState<OrderFilter>('all')
   const confirm = useConfirm()
@@ -121,6 +132,60 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
   const [msg, setMsg] = useState('')
   // REFUSE — void the order at review (releases the reservation, nothing decremented): the nekorekten
   // fake-customer path. Finalising is no longer a separate action — the Етикет (pack) flow books the sale.
+  // --------------------------------------------------- cancelling a courier waybill ---
+  // Two calls on purpose: the first WITHOUT confirm returns the plan, so the dialog can name the
+  // actual waybill and courier. The operator should not have to trust that we picked the right
+  // parcel — they should be able to read it.
+  const cancelWaybill = async (o: Order) => {
+    const oid = String(o.id).split('/').pop() || o.id
+    setBusy(o.id + 'wb'); setMsg('')
+    try {
+      const plan = await api.post<CancelWaybill>(`/api/orders/${oid}/cancel-waybill`, { confirm: false })
+      if (plan.state === 'dry_run') {
+        setMsg(`${o.name}: проба — изпращането към куриери е изключено, нищо не е изпратено.`)
+        return
+      }
+      if (plan.state === 'cancelled') {
+        setMsg(`${o.name}: товарителница ${plan.waybill} вече е анулирана.`)
+        return
+      }
+      const ok = await confirm({
+        title: 'Анулиране на товарителница',
+        confirmLabel: 'Анулирай',
+        danger: true,
+        message: `${o.name}: товарителница ${plan.waybill} при ${plan.courier}.\n\n`
+          + 'Куриерът анулира само пратка, която още не е взета. Ако вече е взета, ще откаже — '
+          + 'тогава пратката пътува и се урежда директно с куриера.',
+      })
+      if (!ok) return
+      const r = await api.post<CancelWaybill>(`/api/orders/${oid}/cancel-waybill`, { confirm: true })
+      if (r.state === 'cancelled') {
+        setMsg(`${o.name}: товарителница ${r.waybill} е анулирана.`)
+      } else if (r.state === 'refused') {
+        // The courier answered. Kris: inform the operator, and let COD processing carry on.
+        setMsg(`${o.name}: куриерът ОТКАЗА да анулира товарителница ${r.waybill}.`)
+        await confirm({
+          mode: 'alert', title: 'Куриерът отказа',
+          message: `Товарителница ${r.waybill} НЕ е анулирана.\n\n${r.courier_message || ''}\n\n`
+            + 'Пратката е тръгнала. Обработката продължава нормално — при наложен платеж сумата '
+            + 'се очаква както обикновено. Уреди отказа директно с куриера.',
+        })
+      } else {
+        // We could not ask. Not a refusal, not a cancellation — and the difference is the point.
+        setMsg(`${o.name}: неясно — товарителница ${r.waybill} се води ЖИВА.`)
+        await confirm({
+          mode: 'alert', title: 'Няма отговор от куриера',
+          message: `Не можахме да питаме куриера за товарителница ${r.waybill}.\n\n`
+            + 'Това НЕ е отказ и НЕ е анулиране. Товарителницата може още да е валидна, затова се '
+            + 'води ЖИВА и остава в списъка за повторно питане.',
+        })
+      }
+      onChange()
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : 'Грешка при анулиране.')
+    } finally { setBusy('') }
+  }
+
   const act = async (o: Order, kind: 'refuse') => {
     const q = { title: 'Откажи поръчката', confirmLabel: 'Откажи', danger: true,
                 message: `Отказ на ${o.name} — количката се освобождава и нищо не се осчетоводява. (Използвай при съмнителен клиент.)` }
@@ -207,6 +272,12 @@ function OrderQueue({ data, mode, onLabel, onChange }: { data: OrdersResponse | 
                     {late ? '⚠ ' : warn ? '⏳ ' : ''}{timeSinceBg(o.created)}
                   </span>
                 </span>
+                {!needsLabel && (
+                  <span style={{ display: 'flex', gap: '.3rem', justifyContent: 'flex-end' }}>
+                    <button className="btn-paper" style={{ fontSize: '.72rem' }}
+                      disabled={busy === o.id + 'wb'} onClick={() => cancelWaybill(o)}>Анулирай товарителница</button>
+                  </span>
+                )}
                 {needsLabel && (
                   <span style={{ display: 'flex', gap: '.3rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     {/* Етикет is the single pack action: it finalises (decrement + бон + осчетоводяване) →
