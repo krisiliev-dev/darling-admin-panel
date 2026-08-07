@@ -46,9 +46,15 @@ def test_a_failing_check_reports_failure_not_cleanliness(monkeypatch):
     assert out != []
 
 
-def test_health_exposes_drift():
+async def test_health_exposes_drift():
+    """health() is async since 2026-08-07 (it reads the panel DB for cancel staleness), so this
+    caller has to await it — the only place that calls it as a function rather than over HTTP."""
     from app.main import health
-    assert "core_drift" in health()
+    out = await health()
+    assert "core_drift" in out
+    # The staleness of cancellations no courier ever confirmed. A dead retry path produces
+    # silence, not errors, so this age is the thing an alert watches.
+    assert "waybill_cancels" in out
 
 
 def test_line_endings_alone_are_not_drift(tmp_path, monkeypatch):

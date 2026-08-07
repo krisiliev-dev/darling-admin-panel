@@ -209,12 +209,60 @@ app.include_router(home.router)
 app.include_router(webhooks.router)  # Barsy⇄Shopify receivers (HMAC/token-gated, no session auth)
 
 
+async def _waybill_cancel_staleness():
+    """How long the oldest UNCONFIRMED waybill cancellation has been sitting there.
+
+    An `unknown` cancel means we could not reach the courier, so the waybill must be assumed live.
+    Nothing about that state raises an error — it just sits — which is why the thing to alert on is
+    its AGE, not an error count. `oldest_hours` climbing past a few hours means a parcel may still
+    be moving, and still collecting наложен платеж, for an order that no longer exists.
+
+    Returns null rather than raising: health is advice, and a broken reporting query must not be
+    able to fail the startup probe. Count and age only — this endpoint is unauthenticated.
+    """
+    try:
+        import datetime
+
+        from sqlalchemy import select
+
+        from .db import async_session_maker
+        from .models import WaybillCancel
+
+        async with async_session_maker() as s:
+            rows = (await s.execute(
+                select(WaybillCancel.first_seen, WaybillCancel.attempts)
+                .where(WaybillCancel.resolved_at.is_(None)))).all()
+        if not rows:
+            return {"unresolved": 0, "oldest_hours": None, "stalled": 0}
+        now = datetime.datetime.now(datetime.UTC)
+        ages = []
+        for first_seen, _ in rows:
+            if first_seen is None:
+                continue
+            if first_seen.tzinfo is None:
+                first_seen = first_seen.replace(tzinfo=datetime.UTC)   # SQLite drops the tz
+            ages.append((now - first_seen).total_seconds() / 3600)
+        return {"unresolved": len(rows),
+                "oldest_hours": round(max(ages), 1) if ages else None,
+                # Retrying has stopped helping on these; only a person can clear them.
+                "stalled": sum(1 for _, a in rows if (a or 0) >= 8)}
+    except Exception:  # noqa: BLE001 — advice degrades to null, it never fails the probe
+        return None
+
+
 @app.get("/api/health", tags=["meta"])
-def health():
+async def health():
     """Startup probe: catalog DB reachable, couriers registered, and — since 2026-07-31 — whether the
     shared core modules match this repo. `core_drift` non-empty means the panel is executing code the
-    deploy did not update, so a "successful" deploy may have changed nothing (task #98)."""
-    out = core_health()
+    deploy did not update, so a "successful" deploy may have changed nothing (task #98).
+
+    Since 2026-08-07 it also carries `waybill_cancels`, the staleness of cancellations the couriers
+    never confirmed. core_health/core_drift are synchronous DB work and stay off the event loop.
+    """
+    from starlette.concurrency import run_in_threadpool
+
+    out = await run_in_threadpool(core_health)
     if isinstance(out, dict):
-        out["core_drift"] = core_drift()
+        out["core_drift"] = await run_in_threadpool(core_drift)
+        out["waybill_cancels"] = await _waybill_cancel_staleness()
     return out

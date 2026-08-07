@@ -11,6 +11,7 @@ Collapsing them is how a live waybill goes quiet — the courier still collects,
 Everything is faked. Researched against the live APIs on 2026-08-07: every courier only voids a
 waybill that has not been collected yet, so a parcel in transit legitimately answers `refused`.
 """
+import datetime
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -236,3 +237,155 @@ async def test_the_plan_carries_the_aliases_too(owner_client, monkeypatch):
                                     json={"confirm": False})).json()
     assert body["state"] == "plan"
     assert body["waybill"] == "SHIP-9"
+# ============================================================ the reconcile probe (task #103)
+# An `unknown` is the only state that can hide a live waybill, and nothing re-asked it until now.
+async def _make_unknown(client, monkeypatch, *, waybill="SHIP-9"):
+    """Leave one unresolved row behind: the courier could not be reached."""
+    def boom():
+        raise courier_mod.CourierError("Спиди мрежова грешка: connection reset")
+
+    _patch(monkeypatch, state={"status": "shipped", "courier": "speedy",
+                               "tracking": "TRK-1", "label_ref": waybill}, cancel=boom)
+    r = await client.post("/api/orders/2001/cancel-waybill", json={"confirm": True})
+    assert r.json()["state"] == "unknown"
+
+
+async def _age(waybill, *, hours=0.0, attempts=None):
+    """Backdate a row so the gap and cap bounds can be exercised without sleeping."""
+    async with async_session_maker() as s:
+        row = (await s.execute(select(WaybillCancel).where(
+            WaybillCancel.waybill_no == waybill))).scalar_one()
+        old = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=hours)
+        row.first_seen = old
+        row.last_tried = old
+        if attempts is not None:
+            row.attempts = attempts
+        await s.commit()
+
+
+async def test_reconcile_without_confirm_only_returns_the_plan(owner_client, monkeypatch):
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=2)
+    calls = _patch(monkeypatch)
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": False})).json()
+    assert body["state"] == "plan" and body["due"] == 1
+    assert calls == []                                    # nothing was asked of the courier
+
+
+async def test_reconcile_resolves_a_waybill_the_courier_now_confirms(owner_client, monkeypatch):
+    """The whole point: the first attempt never landed, the retry cancels it for real."""
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=2)
+    calls = _patch(monkeypatch)                           # this time cancel() succeeds
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": True})).json()
+    assert body["probed"] == 1 and body["cancelled"] == 1
+    assert calls == ["SHIP-9"]
+    row = await _row()
+    assert row.state == "cancelled" and row.resolved_at is not None
+
+
+async def test_a_refusal_on_reconcile_is_final(owner_client, monkeypatch):
+    """A parcel already collected answers refused, and refused is an ANSWER — it resolves."""
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=2)
+
+    def boom():
+        raise courier_mod.CourierError("Спиди HTTP 409: пратката е взета от куриера")
+
+    _patch(monkeypatch, cancel=boom)
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": True})).json()
+    assert body["refused"] == 1
+    row = await _row()
+    assert row.state == "refused" and row.resolved_at is not None
+    assert "взета от куриера" in row.courier_message      # verbatim, not paraphrased
+
+
+async def test_a_still_unreachable_courier_stays_on_the_worklist(owner_client, monkeypatch):
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=2)
+
+    def boom():
+        raise courier_mod.CourierError("Спиди мрежова грешка: timed out again")
+
+    _patch(monkeypatch, cancel=boom)
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": True})).json()
+    assert body["still_unknown"] == 1
+    row = await _row()
+    assert row.resolved_at is None and row.attempts == 2
+
+
+# ------------------------------------------------------------------------------- the bounds
+async def test_a_row_tried_moments_ago_is_not_asked_again(owner_client, monkeypatch):
+    """THE one. Without the gap this hammers four courier APIs with our own bug, on a schedule."""
+    await _make_unknown(owner_client, monkeypatch)        # last_tried == now
+    calls = _patch(monkeypatch)
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": True})).json()
+    assert body["probed"] == 0
+    assert calls == []
+
+
+async def test_a_row_that_will_never_resolve_stops_being_retried(owner_client, monkeypatch):
+    """A waybill whose courier we have no adapter for can never resolve. Without the cap it
+    retries forever; with it, a human is told to open the courier's own system instead."""
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=48, attempts=8)
+    calls = _patch(monkeypatch)
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": True})).json()
+    assert body["probed"] == 0 and body["stalled"] == 1
+    assert calls == []
+    listing = (await owner_client.get("/api/orders/waybill-cancels/unresolved")).json()
+    assert listing["rows"][0]["stalled"] is True
+    assert listing["stalled"] == 1
+
+
+async def test_reconcile_with_the_gate_off_touches_nothing(owner_client, monkeypatch):
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=2)
+    calls = _patch(monkeypatch, live=False)
+    body = (await owner_client.post("/api/orders/waybill-cancels/reconcile",
+                                    json={"confirm": True})).json()
+    assert body["state"] == "dry_run"
+    assert calls == []
+    row = await _row()
+    assert row.attempts == 1                              # the failed original, and nothing since
+
+
+# --------------------------------------------------------------------------- who may run it
+async def test_a_packer_may_not_reconcile(packer_client, owner_client, monkeypatch):
+    """A packer may cancel the parcel in their hands; firing a burst at four courier APIs on
+    everyone else's parcels is a manager's call."""
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=2)
+    r = await packer_client.post("/api/orders/waybill-cancels/reconcile", json={"confirm": True})
+    assert r.status_code == 403
+
+
+# ------------------------------------------------------------------- staleness, not errors
+async def test_health_reports_the_age_of_the_oldest_unconfirmed_cancel(client, owner_client,
+                                                                       monkeypatch):
+    """A dead retry path produces silence, not errors. The age is the thing to alert on."""
+    body = (await client.get("/api/health")).json()
+    assert body["waybill_cancels"]["unresolved"] == 0
+    assert body["waybill_cancels"]["oldest_hours"] is None
+
+    await _make_unknown(owner_client, monkeypatch)
+    await _age("SHIP-9", hours=5)
+    body = (await client.get("/api/health")).json()
+    assert body["waybill_cancels"]["unresolved"] == 1
+    assert body["waybill_cancels"]["oldest_hours"] >= 4.9
+
+
+async def test_health_never_leaks_a_waybill_number(client, owner_client, monkeypatch):
+    """/api/health is unauthenticated. A count and an age, nothing that identifies an order."""
+    await _make_unknown(owner_client, monkeypatch)
+    raw = (await client.get("/api/health")).text
+    # "#2001" rather than "2001": core_health reports a product count, and a bare "2001" could
+    # legitimately appear inside one. A test that fails on an unrelated catalogue size teaches
+    # people to ignore it.
+    assert "SHIP-9" not in raw and "#2001" not in raw

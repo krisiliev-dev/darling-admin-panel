@@ -475,12 +475,117 @@ async def unresolved_waybill_cancels(
             if first.tzinfo is None:
                 first = first.replace(tzinfo=datetime.UTC)   # SQLite drops tz on the way back
             oldest = round((datetime.datetime.now(datetime.UTC) - first).total_seconds() / 3600, 1)
-    return {"count": len(rows), "oldest_hours": oldest,
+    stalled = sum(1 for r in rows if (r.attempts or 0) >= _RECONCILE_MAX_ATTEMPTS)
+    return {"count": len(rows), "oldest_hours": oldest, "stalled": stalled,
             "rows": [{"waybill_no": r.waybill_no, "courier": r.courier,
                       "order_name": r.order_name, "state": r.state,
                       "message": r.courier_message, "attempts": r.attempts,
+                      # Retrying stopped helping; a person has to open the courier's own system.
+                      "stalled": (r.attempts or 0) >= _RECONCILE_MAX_ATTEMPTS,
                       "first_seen": r.first_seen.isoformat() if r.first_seen else None}
                      for r in rows]}
+
+
+# ------------------------------------------------- reconciling the ones we never heard back on ---
+# An `unknown` is the only state that can hide a live waybill, and it is the only one nothing
+# re-asks. These bounds exist because the retry itself must not become the incident: without a
+# gap this hammers four courier APIs on a schedule, and without a cap a row that can NEVER
+# resolve — an unknown courier name, a waybill the courier has no record of — retries forever.
+_RECONCILE_MIN_GAP_MINUTES = 15
+_RECONCILE_MAX_ATTEMPTS = 8
+_RECONCILE_MAX_BATCH = 25
+
+
+class ReconcileRequest(BaseModel):
+    confirm: bool = False
+    limit: int = _RECONCILE_MAX_BATCH
+
+
+def _reconcile_row_view(r: "WaybillCancel") -> dict:
+    return {"waybill_no": r.waybill_no, "courier": r.courier, "order_name": r.order_name,
+            "state": r.state, "message": r.courier_message, "attempts": r.attempts,
+            "courier_message": r.courier_message, "waybill": r.waybill_no}
+
+
+@router.post("/waybill-cancels/reconcile")
+async def reconcile_waybill_cancels(
+    req: ReconcileRequest,
+    actor: User = Depends(require_roles("owner", "manager")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Re-ask the courier about every cancel that never got an answer.
+
+    Not open to staff or packers, unlike the single cancel: this fires a burst of real calls at
+    four courier APIs on somebody else's parcels, which is a manager's decision rather than a
+    packer's. The single-order cancel stays open to packers because they are the people holding
+    the parcel.
+
+    Same three outcomes per row as the original attempt, and the same rule about which of them
+    resolve: cancelled and refused are final answers, unknown is not and stays on the worklist.
+    Without confirm it returns the PLAN — which rows would be probed and why — because a bulk
+    action against live couriers should be readable before it is run.
+    """
+    now = datetime.datetime.now(datetime.UTC)
+    cutoff = now - datetime.timedelta(minutes=_RECONCILE_MIN_GAP_MINUTES)
+    limit = max(1, min(int(req.limit or _RECONCILE_MAX_BATCH), _RECONCILE_MAX_BATCH))
+
+    # Rows that are unresolved, not yet at the attempt cap, and not tried too recently. The
+    # last_tried comparison is done in Python rather than SQL because SQLite hands these back
+    # naive and the comparison would silently be against a tz-aware `cutoff`.
+    candidates = (await session.execute(
+        select(WaybillCancel).where(WaybillCancel.resolved_at.is_(None))
+        .order_by(WaybillCancel.first_seen))).scalars().all()
+
+    due, stalled, waiting = [], [], []
+    for r in candidates:
+        if (r.attempts or 0) >= _RECONCILE_MAX_ATTEMPTS:
+            stalled.append(r)
+            continue
+        last = r.last_tried
+        if last is not None and last.tzinfo is None:
+            last = last.replace(tzinfo=datetime.UTC)
+        if last is not None and last > cutoff:
+            waiting.append(r)
+            continue
+        due.append(r)
+    due = due[:limit]
+
+    plan = {"state": "plan", "due": len(due), "waiting": len(waiting), "stalled": len(stalled),
+            "rows": [_reconcile_row_view(r) for r in due],
+            "note": ("Повторно питане към куриера — реално действие. "
+                     "Потвърди с confirm=true.")}
+    if not req.confirm:
+        return plan
+    if not get_settings().courier_live:
+        plan["state"] = "dry_run"
+        plan["note"] = "COURIER_LIVE е изключен — нищо не е изпратено към куриера."
+        return plan
+
+    tally = {_CANCEL_OK: 0, _CANCEL_REFUSED: 0, _CANCEL_UNKNOWN: 0}
+    results = []
+    for r in due:
+        r.attempts = (r.attempts or 0) + 1
+        r.last_tried = now
+        try:
+            # courier_mod.get() itself raises on a name we do not have an adapter for. That lands
+            # in the same handler and classifies as `unknown`, which is right: we did not ask.
+            await run_in_threadpool(courier_mod.get(r.courier).cancel, r.waybill_no)
+            state, message = _CANCEL_OK, ""
+        except Exception as e:  # noqa: BLE001 — the verdict IS the classification of this failure
+            state, message = _cancel_verdict(e)
+        r.state = state
+        r.courier_message = message
+        r.resolved_at = now if state in (_CANCEL_OK, _CANCEL_REFUSED) else None
+        tally[state] = tally.get(state, 0) + 1
+        results.append(_reconcile_row_view(r))
+
+    await session.commit()
+    await log_action(session, actor, "orders.reconcile_waybill_cancels",
+                     detail=f"probed={len(due)} cancelled={tally[_CANCEL_OK]} "
+                            f"refused={tally[_CANCEL_REFUSED]} unknown={tally[_CANCEL_UNKNOWN]}")
+    return {"state": "done", "probed": len(due), "cancelled": tally[_CANCEL_OK],
+            "refused": tally[_CANCEL_REFUSED], "still_unknown": tally[_CANCEL_UNKNOWN],
+            "stalled": len(stalled), "rows": results}
 
 
 @router.post("/{order_id}/label")
