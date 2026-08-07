@@ -17,6 +17,16 @@ type CatNode = {
 }
 // What the owner clicked (slug -> on/off; absent = neutral) and what it RESOLVES to.
 type Visibility = { toggles: Record<string, boolean>; enabled_slugs: string[]; count: number }
+type CatPicture = {
+  name: string; size: number | null; type: string
+  url: string; thumbnail_url: string; is_main: boolean
+}
+// `main` is the FILENAME Barsy stores in cat_picture. `orphaned_main` means pictures exist but
+// none of them is it — a different problem from having none, and it needs a choice not an upload.
+type CatPictures = {
+  cat_id: number; slug: string; main: string
+  orphaned_main: boolean; count: number; pictures: CatPicture[]
+}
 type TaxAttr = { name: string; free?: boolean }
 
 // нашите категории носят slug "<родителски>-x<N>" — официалният предшественик (за наследената
@@ -147,12 +157,22 @@ function Node({ node, depth, canManage, busy, vis, onRename, onCreate, onMove, o
 }) {
   // ЛЕНИВО дърво: 14.6k възела — децата се рендират чак при разгъване
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'' | 'rename' | 'add' | 'move'>('')
+  const [mode, setMode] = useState<'' | 'rename' | 'add' | 'move' | 'pics'>('')
+  const [pics, setPics] = useState<CatPictures | null>(null)
+  const [picsErr, setPicsErr] = useState('')
   const [val, setVal] = useState('')
   const [inherited, setInherited] = useState<TaxAttr[] | null>(null)
   const [moveQ, setMoveQ] = useState('')
   const [moveHits, setMoveHits] = useState<{ cat_id: number; path: string }[]>([])
   const kids = node.children || []
+
+  // Lazy on purpose: one Barsy round trip per category, and there are 14,606 of them.
+  const openPics = () => {
+    setMode('pics'); setPics(null); setPicsErr('')
+    api.get<CatPictures>(`/api/catalog/categories/${node.cat_id}/pictures`)
+      .then(setPics)
+      .catch((e) => setPicsErr(e instanceof ApiError ? e.message : 'Неуспешно зареждане на снимките.'))
+  }
 
   const openAdd = () => {
     setMode('add'); setVal(''); setInherited(null)
@@ -205,6 +225,12 @@ function Node({ node, depth, canManage, busy, vis, onRename, onCreate, onMove, o
                 <span className="font-type" data-nophoto={node.slug}
                   style={{ ...chip, color: 'var(--pending)' }}>няма основна снимка</span>
               )}
+              {/* Read-only, so every role gets it. Guarded on cat_id because the endpoint is
+                  keyed by it and the root node carries none. */}
+              {node.cat_id != null && (
+                <button className="btn-paper" style={act} title="снимки в Barsy"
+                  onClick={() => (mode === 'pics' ? setMode('') : openPics())}>сн</button>
+              )}
               {canManage && (
                 <span style={{ display: 'inline-flex', gap: '.2rem' }}>
                   <button className="btn-paper" style={act} disabled={busy} title="включи за сайта"
@@ -236,6 +262,41 @@ function Node({ node, depth, canManage, busy, vis, onRename, onCreate, onMove, o
           </span>
         )}
       </div>
+      {mode === 'pics' && (
+        <div style={{ margin: '.15rem 0 .4rem 2rem', display: 'grid', gap: '.3rem' }}>
+          {picsErr && <span className="font-type" style={{ fontSize: '.72rem', color: 'var(--red)' }}>{picsErr}</span>}
+          {!pics && !picsErr && <span className="pencil" style={{ fontSize: '.72rem' }}>зарежда снимките…</span>}
+          {pics && pics.count === 0 && (
+            <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}
+              data-pics-empty={node.slug}>
+              няма качени снимки — качи банер в Barsy
+            </span>
+          )}
+          {/* NOT the same as having none. Barsy's admin hides this by showing the first file
+              anyway; saying it plainly is the whole reason this panel exists. */}
+          {pics && pics.orphaned_main && (
+            <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}
+              data-pics-orphaned={node.slug}>
+              има снимки, но никоя не е основна — избери коя да е Главна снимка
+            </span>
+          )}
+          {pics && pics.count > 0 && (
+            <div style={{ display: 'flex', gap: '.45rem', flexWrap: 'wrap' }}>
+              {pics.pictures.map((p) => (
+                <span key={p.name} style={{ display: 'grid', gap: '.15rem', justifyItems: 'center' }}>
+                  <img src={p.thumbnail_url || p.url} alt={p.name} loading="lazy"
+                    style={{ width: '5.5rem', height: '3.6rem', objectFit: 'cover', borderRadius: 2,
+                      border: p.is_main ? '2px solid var(--ready)' : '1px solid var(--line)' }} />
+                  <span className="font-type" data-pic={p.name}
+                    style={{ fontSize: '.62rem', color: p.is_main ? 'var(--ready)' : 'var(--pencil)' }}>
+                    {p.is_main ? 'Главна' : p.name.slice(0, 18)}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {mode === 'rename' && canManage && (
         <div style={{ display: 'flex', gap: '.4rem', margin: '.15rem 0 .3rem 2rem' }}>
           <input className="input-paper" value={val} onChange={(e) => setVal(e.target.value)} style={{ width: '18rem' }} />
