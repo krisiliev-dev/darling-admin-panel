@@ -215,5 +215,87 @@ async def test_cod_still_folds_into_the_shown_price(client, public_token):
                                 headers={"x-office-token": public_token})).json()
     cod = (await client.get("/api/public/shipping-rates?weight_kg=1&cod=1",
                             headers={"x-office-token": public_token})).json()
-    assert prepaid["rates"][0]["price_eur"] == 3.94
-    assert cod["rates"][0]["price_eur"] == 4.42
+    # Pick the row by NAME, not by position. public_rates kicks off a background refresh when
+    # the rows are stale, and that refresh seeds any courier the spec marks enabled - so from
+    # 2026-08-07 a boxnow locker row appears here and sorts ahead of speedy. The assertion was
+    # about speedy's COD arithmetic all along; the [0] was an accident of alphabet.
+    def speedy(body):
+        return next(r for r in body["rates"] if r["courier"] == "speedy")
+    assert speedy(prepaid)["price_eur"] == 3.94
+    assert speedy(cod)["price_eur"] == 4.42
+# ------------------------------------------------- policy vs state (BoxNow, 2026-08-07)
+# `enabled` is what checkout reads. `spec_enabled` is what the courier contract says. They
+# diverge whenever a carrier is signed AFTER its rate rows were first seeded, because the spec
+# flag only ever seeds a bracket the first time it appears. BoxNow is exactly that case: four
+# live rows carrying enabled=0 from before its test order was confirmed.
+@pytest.mark.asyncio
+async def test_a_signed_carrier_that_is_still_off_is_reported_as_such(owner_client):
+    """The one that matters. Flipping the spec alone changes nothing about these rows, and a
+    divergence nobody can see is a carrier everybody believes is live that has never served
+    a single rate."""
+    await _put(courier="boxnow", mode="locker", max_kg=1.0,
+               label_cost=1.54, cod_fee=0.0, buffer=0.10, enabled=False)
+    row = (await owner_client.get("/api/shipping-rates")).json()["rates"][0]
+    assert row["spec_enabled"] is True          # the contract says on
+    assert row["enabled"] is False              # the row says off
+    assert row["price_eur"] == 1.64             # 1.54 flat + 0.10 buffer
+    assert row["price_cod_eur"] == 1.64         # COD fee is 0 - card-by-link, never cash
+
+
+@pytest.mark.asyncio
+async def test_an_agreeing_row_reports_no_divergence(owner_client):
+    await _put(courier="speedy", mode="office", max_kg=1.0,
+               label_cost=3.64, cod_fee=0.48, buffer=0.30, enabled=True)
+    row = (await owner_client.get("/api/shipping-rates")).json()["rates"][0]
+    assert row["spec_enabled"] is True and row["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_carrier_the_contract_has_not_signed_reports_spec_off(owner_client):
+    """Pigeon: adapter and keys live, but no Svishtov office to ship FROM yet."""
+    await _put(courier="pigeon", mode="office", max_kg=1.0,
+               label_cost=4.10, cod_fee=0.0, buffer=0.25, enabled=False)
+    row = (await owner_client.get("/api/shipping-rates")).json()["rates"][0]
+    assert row["spec_enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_courier_does_not_crash_the_page(owner_client):
+    """A row for a courier no longer in _SPEC must read as "not in the contract", not 500."""
+    await _put(courier="evropat", mode="office", max_kg=1.0,
+               label_cost=3.00, cod_fee=0.0, buffer=0.30, enabled=False)
+    row = (await owner_client.get("/api/shipping-rates")).json()["rates"][0]
+    assert row["spec_enabled"] is False
+    assert row["suggested_buffer"] is None
+
+
+@pytest.mark.asyncio
+async def test_boxnow_still_does_not_reach_checkout_while_its_row_is_off(client, public_token):
+    """The spec flip must not have turned a carrier on by itself. Checkout reads the ROW."""
+    await _put(courier="boxnow", mode="locker", max_kg=1.0,
+               label_cost=1.54, cod_fee=0.0, buffer=0.10, enabled=False)
+    body = (await client.get("/api/public/shipping-rates?weight_kg=1",
+                             headers={"x-office-token": public_token})).json()
+    assert [r for r in body["rates"] if r["courier"] == "boxnow"] == []
+# ------------------------------------- the BoxNow enable migration (ee66ff778899, 2026-08-07)
+@pytest.mark.asyncio
+async def test_the_migration_turns_boxnow_on_and_leaves_the_others_alone():
+    """A data migration on a MONEY switch, so the blast radius is the thing to test: boxnow rows
+    at enabled=0 go on, and nothing else moves."""
+    from sqlalchemy import text
+    await _put(courier="boxnow", mode="locker", max_kg=1.0,
+               label_cost=1.54, cod_fee=0.0, buffer=0.10, enabled=False)
+    await _put(courier="pigeon", mode="office", max_kg=1.0,
+               label_cost=4.10, cod_fee=0.0, buffer=0.25, enabled=False)
+    await _put(courier="speedy", mode="office", max_kg=1.0,
+               label_cost=3.64, cod_fee=0.48, buffer=0.30, enabled=True)
+    async with async_session_maker() as s:
+        await s.execute(text("UPDATE shipping_rate SET enabled = 1 "
+                             "WHERE courier = 'boxnow' AND enabled = 0"))
+        await s.commit()
+    async with async_session_maker() as s:
+        got = {(r.courier, r.enabled) for r in
+               (await s.execute(select(ShippingRate))).scalars().all()}
+    assert ("boxnow", True) in got
+    assert ("pigeon", False) in got          # a carrier the contract has NOT signed stays dark
+    assert ("speedy", True) in got

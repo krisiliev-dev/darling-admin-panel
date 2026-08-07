@@ -370,6 +370,8 @@ type RateRow = {
   label_cost: number; cod_fee: number; buffer: number
   suggested_buffer: number | null
   enabled: boolean
+  // what the courier CONTRACT says, as opposed to what this row is set to. See the cell below.
+  spec_enabled: boolean
   price_eur: number | null; price_cod_eur: number | null; priced: boolean
   refreshed_at: string | null
 }
@@ -491,8 +493,19 @@ function DeliveryRates() {
                 {r.price_cod_eur === null ? '—' : `${r.price_cod_eur.toFixed(2)} €`}
               </td>
               <td style={{ padding: '.3rem .4rem' }}>
-                <input type="checkbox" checked={r.enabled} disabled={busy === String(r.id)}
-                  onChange={() => patchRow(r.id, { enabled: !r.enabled })} />
+                <span style={{ display: 'inline-flex', gap: '.3rem', alignItems: 'center' }}>
+                  <input type="checkbox" checked={r.enabled} disabled={busy === String(r.id)}
+                    onChange={() => patchRow(r.id, { enabled: !r.enabled })} />
+                  {/* The contract says this carrier is on and this row is not. Shown rather than
+                      reconciled: the switch is the owner's, and quietly flipping money settings
+                      on his behalf is worse than telling him they disagree. */}
+                  {r.spec_enabled && !r.enabled && (
+                    <span className="pencil" style={{ fontSize: '.68rem', color: 'var(--red)' }}
+                      title="Договорът с този куриер е потвърден, но редът още не е пуснат в сайта.">
+                      по договор: да
+                    </span>
+                  )}
+                </span>
               </td>
             </tr>
           ))}

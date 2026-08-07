@@ -49,12 +49,16 @@ _SPEC: dict = {
     # Pigeon: adapter+keys live, but no Svishtov office to ship FROM yet — priced when refresh
     # succeeds, offered only when the owner flips enabled (mirrors public_couriers staying dark).
     "pigeon": {"modes": ("office",), "buffer": {"office": 0.25}, "enabled": False},
-    # BoxNow (2026-08-05): LOCKER-ONLY, contract-flat 1.54 EUR incl VAT, COD fee 0 (owner-
+    # BoxNow: LOCKER-ONLY, contract-flat 1.54 EUR incl VAT, COD fee 0 (owner-
     # confirmed; COD is card-by-link, never cash). Buffer 0.10 — refusal risk is lower than
     # door COD but uncollected-in-48h returns still exist. DARK until the BOX NOW-required
     # test order is confirmed AND the storefront locker picker ships (woo lane) — mode
     # "locker" was announced to the woo agent before this could ever serve.
-    "boxnow": {"modes": ("locker",), "buffer": {"locker": 0.10}, "enabled": False},
+    # 2026-08-07: the BOX NOW test order is CONFIRMED (owner), so the contract policy is ON.
+    # This flag only SEEDS a bracket the first time it appears; the four live rows were seeded
+    # while it was off and still carry enabled=0, which is what checkout reads. The page reports
+    # the difference (spec_enabled below) rather than anyone quietly rewriting owner state.
+    "boxnow": {"modes": ("locker",), "buffer": {"locker": 0.10}, "enabled": True},
 }
 _MODE_BG = {"office": "до офис", "door": "до адрес", "locker": "до автомат"}
 
@@ -188,6 +192,11 @@ async def list_rates(user: User = Depends(require_roles("manager")),
         # value so a drift from the approved model is visible rather than forgotten.
         "suggested_buffer": (_SPEC.get(r.courier) or {}).get("buffer", {}).get(r.mode),
         "enabled": r.enabled,
+        # POLICY vs STATE. `enabled` is what checkout reads; `spec_enabled` is what the contract
+        # says this carrier should be. They diverge whenever a courier is signed after its rows
+        # were first seeded - BoxNow, once its test order was confirmed - and a divergence that
+        # nobody can see is a carrier everyone believes is live and that has never served a rate.
+        "spec_enabled": bool((_SPEC.get(r.courier) or {}).get("enabled")),
         "price_eur": round(r.label_cost + r.buffer, 2) if r.label_cost > 0 else None,
         "price_cod_eur": round(r.label_cost + r.buffer + r.cod_fee, 2) if r.label_cost > 0 else None,
         # a row that was never priced must not read as "0.00 € shipping" on the page either

@@ -87,13 +87,21 @@ async def test_public_rates_math_and_order(owner_client, client, fake_couriers, 
     r = (await client.get("/api/public/shipping-rates?weight_kg=1&cod=0",
                           headers={"X-Office-Token": TOKEN})).json()
     assert r["free_over_eur"] == 77.0
+    # Cheapest first is still the rule; what is cheapest changed. Since the BOX NOW test order
+    # was confirmed (2026-08-07) a boxnow locker row is seeded enabled at 1.54 + 0.10 = 1.64,
+    # which undercuts every counter tariff - so it leads the list and speedy is read by NAME.
     first = r["rates"][0]
-    assert first["courier"] == "speedy" and first["mode"] == "office"     # cheapest first
-    assert first["price_eur"] == 3.94                                      # 3.64 + 0.30 buffer
+    assert first["courier"] == "boxnow" and first["mode"] == "locker"
+    assert first["price_eur"] == 1.64
     assert first["sort"] == 1
-    cod = (await client.get("/api/public/shipping-rates?weight_kg=1&cod=1",
-                            headers={"X-Office-Token": TOKEN})).json()["rates"][0]
-    assert cod["price_eur"] == 4.42                                        # + 0.48 COD, no label
+    sp = next(x for x in r["rates"] if x["courier"] == "speedy" and x["mode"] == "office")
+    assert sp["price_eur"] == 3.94                                         # 3.64 + 0.30 buffer
+    cod_body = (await client.get("/api/public/shipping-rates?weight_kg=1&cod=1",
+                                 headers={"X-Office-Token": TOKEN})).json()
+    sp_cod = next(x for x in cod_body["rates"] if x["courier"] == "speedy" and x["mode"] == "office")
+    assert sp_cod["price_eur"] == 4.42                                     # + 0.48 COD, no label
+    bx_cod = next(x for x in cod_body["rates"] if x["courier"] == "boxnow")
+    assert bx_cod["price_eur"] == 1.64                    # COD fee 0 - card-by-link, never cash
 
 @pytest.mark.asyncio
 async def test_public_rates_bracket_pick(owner_client, client, fake_couriers, public_token):
@@ -140,20 +148,38 @@ async def test_rate_patch_is_manager_gated_and_bounded(owner_client, staff_clien
 @pytest.mark.asyncio
 async def test_boxnow_locker_rows_flat_dark_and_labeled(owner_client, fake_couriers, client, public_token):
     """BoxNow: locker-only rows at the contract-flat price, cod_fee 0 (card-by-link COD),
-    owner-default buffer 0.10, and DARK by default — the public endpoint must NOT serve it
-    until the owner flips enabled after the BOX NOW test order."""
+    owner-default buffer 0.10.
+
+    Was DARK by default until 2026-08-07, when the owner confirmed the BOX NOW test order. The
+    spec flag now seeds new brackets ENABLED, so a fresh refresh serves it - and at 1.64 it is
+    the cheapest thing on the list. Rows that already existed keep whatever the owner set; that
+    divergence is reported as spec_enabled, it is not reconciled behind his back."""
     await owner_client.post("/api/shipping-rates/refresh")
     rows = (await owner_client.get("/api/shipping-rates")).json()["rates"]
     bx = [x for x in rows if x["courier"] == "boxnow"]
     assert bx and all(x["mode"] == "locker" for x in bx)
     assert all(x["label_cost"] == 1.54 and x["cod_fee"] == 0.0 and x["buffer"] == 0.10 for x in bx)
-    assert all(x["enabled"] is False for x in bx)
+    assert all(x["enabled"] is True for x in bx)          # seeded ON since the test order
+    assert all(x["spec_enabled"] is True for x in bx)     # ...and the contract agrees
     pub = (await client.get("/api/public/shipping-rates?weight_kg=2&cod=1",
                             headers={"X-Office-Token": TOKEN})).json()
-    assert all(r["courier"] != "boxnow" for r in pub["rates"])          # dark
-    # flip one bracket on (manager action) → it appears, cheapest, correctly labeled
+    assert any(r["courier"] == "boxnow" for r in pub["rates"])
+    # And the owner can still take it back off: the switch is his, not the spec's. It takes ALL
+    # FOUR brackets - turning off the 1 kg row alone just hands a 0.5 kg parcel to the 3 kg row,
+    # which is the bracket fallback working, not the carrier going dark.
     rid = bx[0]["id"]
-    await owner_client.patch(f"/api/shipping-rates/{rid}", json={"enabled": True})
+    await owner_client.patch(f"/api/shipping-rates/{rid}", json={"enabled": False})
+    still = (await client.get("/api/public/shipping-rates?weight_kg=0.5&cod=1",
+                              headers={"X-Office-Token": TOKEN})).json()
+    bx_still = next(r for r in still["rates"] if r["courier"] == "boxnow")
+    assert bx_still["price_eur"] == 1.64            # same flat price from the next bracket up
+    for row in bx:
+        await owner_client.patch(f"/api/shipping-rates/{row['id']}", json={"enabled": False})
+    off = (await client.get("/api/public/shipping-rates?weight_kg=0.5&cod=1",
+                            headers={"X-Office-Token": TOKEN})).json()
+    assert all(r["courier"] != "boxnow" for r in off["rates"])
+    for row in bx:
+        await owner_client.patch(f"/api/shipping-rates/{row['id']}", json={"enabled": True})
     pub2 = (await client.get("/api/public/shipping-rates?weight_kg=0.5&cod=1",
                              headers={"X-Office-Token": TOKEN})).json()
     got = next(r for r in pub2["rates"] if r["courier"] == "boxnow")
