@@ -312,21 +312,36 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   // dialog. Returns the result string so the scanner card can show it right where the
   // worker is looking — the first fullscreen version put every reaction BEHIND the camera,
   // which read as "Добави does nothing" in the owner's field test.
-  const applyBatch = useCallback(async (counts: Record<string, number>): Promise<string> => {
+  // A second phone on the same pallet was silently stale: the detail only reloaded after
+  // THIS client's own action, so a line another worker had already counted green still read
+  // pending here — and got rescanned. Poll while the page is open and the delivery can
+  // still change; stop once it is finalised or the tab is hidden.
+  useEffect(() => {
+    if (!b || b.status === 'finalised') return
+    const t = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, 10000)
+    return () => window.clearInterval(t)
+  }, [b, load])
+
+  const applyBatch = useCallback(async (counts: Record<string, number>, commitId?: string): Promise<{ ok: boolean; message: string }> => {
     try {
-      const r = await api.post<{ applied: { barcode: string }[]; unknown: string[] }>(`/api/deliveries/${id}/scan-batch`, { counts })
+      const r = await api.post<{ applied: { barcode: string }[]; unknown: string[]; duplicate?: boolean }>(`/api/deliveries/${id}/scan-batch`, { counts, commit_id: commitId })
       const fresh = await load()
-      const m = `✓ ${r.applied.length} кода добавени` + (r.unknown.length ? ` · ${r.unknown.length} непознати` : '')
+      const m = r.duplicate
+        ? '✓ вече е записано'          // the lost-reply retry: the server already had it
+        : `✓ ${r.applied.length} кода добавени` + (r.unknown.length ? ` · ${r.unknown.length} непознати` : '')
       setScanMsg(m)
       if (r.unknown.length) {
         unknownQueueRef.current = r.unknown.slice(1)
         setUnknown({ barcode: r.unknown[0], lines: (fresh?.lines ?? []).filter((l) => l.is_new) })
       }
-      return m
+      return { ok: true, message: m }
     } catch (e) {
       const m = e instanceof ApiError ? e.message : 'Скан грешка — няма връзка'
       setScanMsg(m)
-      return '⚠ ' + m
+      // ok:false keeps the scanner's tally so the worker can retry the SAME commit id
+      return { ok: false, message: '⚠ ' + m + ' — натисни Добави пак' }
     }
   }, [id, load])
 

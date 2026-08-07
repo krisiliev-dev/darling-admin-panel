@@ -73,11 +73,14 @@ export function Kiosk() {
       show(unknown === 0, `✓ ${r.moves.length} кода записани`,
         `${DIR_LABEL[dirRef.current]}${unknown ? ` · ${unknown} непознати` : ''}`)
       load()
-      return `✓ ${r.moves.length} записани${unknown ? ` · ${unknown} непознати` : ''}`
+      return { ok: true, message: `✓ ${r.moves.length} записани${unknown ? ` · ${unknown} непознати` : ''}` }
     } catch (e) {
       const m = e instanceof ApiError ? e.message : 'мрежова грешка — опитай пак'
       show(false, 'грешка', m)
-      return '⚠ ' + m
+      // ok:false keeps the wave-past tally so the worker presses again instead of
+      // re-waving every box. The kiosk ledger is best-effort by design, so it needs no
+      // commit_id: a duplicated move is corrected by ревизия, unlike a delivery tally.
+      return { ok: false, message: '⚠ ' + m }
     }
   }, [show, load])
 

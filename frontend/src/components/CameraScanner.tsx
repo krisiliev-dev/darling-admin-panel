@@ -23,6 +23,13 @@ type BarcodeDetectorCtor = new (opts?: { formats?: string[] }) => { detect(sourc
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code']
 const DETECT_EVERY_MS = 200
+
+/** An id for one tally, reused across retries so the server can refuse a second apply. */
+function newCommitId(): string {
+  const c = globalThis.crypto
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID()
+  return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+}
 const WASM_MAX_WIDTH = 960
 
 async function makeDetector(): Promise<DetectorLike | null> {
@@ -68,7 +75,7 @@ async function makeDetector(): Promise<DetectorLike | null> {
 
 export function CameraScanner({ onCommit, onClose }: {
   /** apply the tally; an optional returned string is shown inside the card as the result */
-  onCommit: (counts: Record<string, number>) => Promise<string | void>
+  onCommit: (counts: Record<string, number>, commitId?: string) => Promise<{ ok: boolean; message: string }>
   onClose: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -77,6 +84,7 @@ export function CameraScanner({ onCommit, onClose }: {
   const streamRef = useRef<MediaStream | null>(null)
   const detectingRef = useRef(false)
   const msgTimer = useRef<number | undefined>(undefined)
+  const commitIdRef = useRef<string>('')
 
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
@@ -173,14 +181,21 @@ export function CameraScanner({ onCommit, onClose }: {
     const counts = effectiveCounts()
     if (Object.keys(counts).length === 0 || busy) return
     setBusy(true)
+    // the SAME id for every retry of this tally, so a lost reply cannot count twice
+    if (!commitIdRef.current) commitIdRef.current = newCommitId()
     try {
-      const result = await onCommit(counts)
-      if (typeof result === 'string') {
-        setMsg(result)
+      const result = await onCommit(counts, commitIdRef.current)
+      if (result.message) {
+        setMsg(result.message)
         window.clearTimeout(msgTimer.current)
         msgTimer.current = window.setTimeout(() => setMsg(''), 5000)
       }
-      // stay open — the worker continues with the next box; the tally starts clean
+      // Only a SUCCESSFUL commit clears the tally. Resetting on failure threw away a
+      // whole box of green chips every time the warehouse wifi blipped, and the worker
+      // had to rescan from scratch — which, on a timeout the server had applied, booked
+      // everything twice. Keep it and let them press Добави again.
+      if (!result.ok) return
+      commitIdRef.current = ''            // a new tally deserves a new id
       resetTracker(trackerRef.current)
       setLocked({}); setOverrides({}); setDwelling([])
     } finally {
