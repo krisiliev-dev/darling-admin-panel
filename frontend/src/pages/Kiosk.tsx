@@ -73,8 +73,11 @@ export function Kiosk() {
       show(unknown === 0, `✓ ${r.moves.length} кода записани`,
         `${DIR_LABEL[dirRef.current]}${unknown ? ` · ${unknown} непознати` : ''}`)
       load()
+      return `✓ ${r.moves.length} записани${unknown ? ` · ${unknown} непознати` : ''}`
     } catch (e) {
-      show(false, 'грешка', e instanceof ApiError ? e.message : 'мрежова грешка — опитай пак')
+      const m = e instanceof ApiError ? e.message : 'мрежова грешка — опитай пак'
+      show(false, 'грешка', m)
+      return '⚠ ' + m
     }
   }, [show, load])
 
@@ -110,6 +113,8 @@ export function Kiosk() {
         ))}
       </div>
 
+      {showCam && <CameraScanner onClose={() => setShowCam(false)} onCommit={commitCamera} />}
+
       <div className="sheet" style={{ padding: '1rem', textAlign: 'center' }}>
         <div className="font-type" style={{ fontSize: '.95rem', color: 'var(--pencil)' }}>
           Мини с продукта покрай четеца — записва се веднага.
@@ -137,8 +142,6 @@ export function Kiosk() {
           </div>
         </div>
       )}
-
-      {showCam && <CameraScanner onClose={() => setShowCam(false)} onCommit={commitCamera} />}
 
       {flash && (
         <div role="status" style={{

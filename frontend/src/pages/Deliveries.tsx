@@ -314,17 +314,26 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
     } catch (e) { setScanMsg(e instanceof ApiError ? e.message : 'Грешка') }
   }
 
-  // one atomic commit from the camera scanner; unknown codes queue through the attach dialog
-  const applyBatch = useCallback(async (counts: Record<string, number>) => {
+  // one atomic commit from the camera scanner; unknown codes queue through the attach
+  // dialog. Returns the result string so the scanner card can show it right where the
+  // worker is looking — the first fullscreen version put every reaction BEHIND the camera,
+  // which read as "Добави does nothing" in the owner's field test.
+  const applyBatch = useCallback(async (counts: Record<string, number>): Promise<string> => {
     try {
       const r = await api.post<{ applied: { barcode: string }[]; unknown: string[] }>(`/api/deliveries/${id}/scan-batch`, { counts })
       const fresh = await load()
-      setScanMsg(`✓ камера: ${r.applied.length} кода` + (r.unknown.length ? ` · ${r.unknown.length} непознати` : ''))
+      const m = `✓ ${r.applied.length} кода добавени` + (r.unknown.length ? ` · ${r.unknown.length} непознати` : '')
+      setScanMsg(m)
       if (r.unknown.length) {
         unknownQueueRef.current = r.unknown.slice(1)
         setUnknown({ barcode: r.unknown[0], lines: (fresh?.lines ?? []).filter((l) => l.is_new) })
       }
-    } catch (e) { setScanMsg(e instanceof ApiError ? e.message : 'Скан грешка') }
+      return m
+    } catch (e) {
+      const m = e instanceof ApiError ? e.message : 'Скан грешка — няма връзка'
+      setScanMsg(m)
+      return '⚠ ' + m
+    }
   }, [id, load])
 
   const finalise = async (force = false) => {
@@ -360,6 +369,8 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
         </div>
         {scanMsg && <div className="font-type" style={{ marginTop: '.5rem', fontSize: '.82rem', color: 'var(--ink)' }}>{scanMsg}</div>}
       </Sheet>
+
+      {showCam && <CameraScanner onClose={() => setShowCam(false)} onCommit={applyBatch} />}
 
       {b.status !== 'finalised' && news.length > 0 && (
         <div className="font-type" style={{ background: 'var(--sticky)', color: '#2b2607', padding: '.7rem .9rem', borderRadius: 3, fontSize: '.84rem' }}>
@@ -405,8 +416,6 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
         )}
         {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.82rem', marginTop: '.5rem' }}>{error}</div>}
       </Sheet>
-
-      {showCam && <CameraScanner onClose={() => setShowCam(false)} onCommit={applyBatch} />}
 
       {/* unknown-barcode → attach to a new product */}
       <AnimatePresence>
