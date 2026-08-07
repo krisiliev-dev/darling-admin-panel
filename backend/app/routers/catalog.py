@@ -1854,6 +1854,99 @@ _ENABLED_FEED: dict = {"t": 0.0, "payload": None}
 def _invalidate_enabled_feed() -> None:
     _ENABLED_FEED["t"] = 0.0
     _ENABLED_FEED["payload"] = None
+    # The banner map is keyed on the ENABLED set, so a visibility change can add or remove
+    # entries from it. Leaving it cached would serve banners for categories that just went dark.
+    _invalidate_banner_map()
+
+
+# The banner map. Separate cache from the enabled feed on purpose: the feed's TTL is short
+# because a stale DISABLE keeps a product sellable, while a stale banner is a slightly old
+# picture. Rebuilding 21 Barsy calls every two minutes to refresh decoration would be silly.
+_BANNER_TTL = 600.0
+_BANNER_CACHE: dict = {"t": 0.0, "map": None}
+_BANNER_MAX = 60          # bound the Barsy round trips; anything larger is logged, not silent
+
+
+def _invalidate_banner_map() -> None:
+    _BANNER_CACHE["t"] = 0.0
+    _BANNER_CACHE["map"] = None
+
+
+def _node_info(root: dict) -> dict:
+    """slug -> {cat_id, cat_picture} over the live tree, in one walk."""
+    out: dict = {}
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        slug = (n.get("slug") or "").strip()
+        if slug and n.get("cat_id") is not None:
+            out[slug] = {"cat_id": n["cat_id"], "cat_picture": n.get("cat_picture") or ""}
+        for c in n.get("children") or []:
+            if isinstance(c, dict):
+                stack.append(c)
+    return out
+
+
+def _pick_banner(files: list, want: str) -> dict | None:
+    """The record whose `name` is cat_picture; failing that, the FIRST file.
+
+    The fallback is the orphaned-main case and is not a guess: deleting a category's main picture
+    clears cat_picture WITHOUT promoting a replacement, so a category can hold pictures while the
+    field is empty. Barsy's own admin UI shows the first file in that situation. Reporting "no
+    banner" instead would be wrong — and was, once.
+    """
+    recs = [f for f in files if isinstance(f, dict)]
+    if not recs:
+        return None
+    if want:
+        for f in recs:
+            if f.get("name") == want:
+                return f
+    return recs[0]
+
+
+def _banner_map_sync(items: list) -> dict:
+    """items: [(slug, cat_id, cat_picture)]. Synchronous — call in a threadpool.
+
+    One Barsy call per category. A failure on ONE category costs that category its banner and
+    nothing else: the storefront falls back to its default. It is logged rather than swallowed,
+    because a category that silently never gets a picture is the kind of thing nobody notices.
+    """
+    out: dict = {}
+    for slug, cat_id, want in items:
+        try:
+            files = barsy.call("Files_getList", {"obj_type": "categories",
+                                                 "obj_property": "PICTURE", "obj_id": cat_id})
+        except Exception as e:  # noqa: BLE001 — fail OPEN, per category
+            log.warning("banner map: Files_getList failed for %s (cat %s): %s", slug, cat_id, e)
+            continue
+        rec = _pick_banner(files if isinstance(files, list) else [], want)
+        if rec and (rec.get("url") or rec.get("thumbnail_url")):
+            out[slug] = {"url": rec.get("url") or "",
+                         "thumbnail_url": rec.get("thumbnail_url") or "",
+                         # True when cat_picture was empty and we fell back — the panel can nudge
+                         # the owner to choose a main picture rather than leaving it to chance.
+                         "orphaned_main": not want}
+    return out
+
+
+async def build_banner_map(root: dict, slugs: list) -> dict:
+    """slug -> {url, thumbnail_url, orphaned_main} for the given (enabled) slugs."""
+    now = time.time()
+    cached = _BANNER_CACHE["map"]
+    if cached is not None and now - _BANNER_CACHE["t"] <= _BANNER_TTL:
+        return cached
+    info = _node_info(root)
+    items = [(s, info[s]["cat_id"], info[s]["cat_picture"]) for s in slugs if s in info]
+    if len(items) > _BANNER_MAX:
+        log.warning("banner map: %d enabled categories, capping Barsy lookups at %d — "
+                    "%d will fall back to the storefront default",
+                    len(items), _BANNER_MAX, len(items) - _BANNER_MAX)
+        items = items[:_BANNER_MAX]
+    out = await run_in_threadpool(_banner_map_sync, items)
+    _BANNER_CACHE["map"] = out
+    _BANNER_CACHE["t"] = now
+    return out
 
 
 async def build_enabled_feed(session: AsyncSession) -> dict:
@@ -1888,8 +1981,17 @@ async def build_enabled_feed(session: AsyncSession) -> dict:
     # is a category the owner believes is published and that has quietly stopped existing, which
     # is exactly the thing that must not be silent.
     orphaned = sorted(s for s, on in toggles.items() if on and s not in by_slug)
+    # Banners fail OPEN: a lookup that dies costs a default image, never the whole feed. The
+    # enabled ids above fail CLOSED (503) because confusing "I don't know" with "nothing is
+    # enabled" would hide the catalogue. Same endpoint, two policies, protecting different things.
+    try:
+        banners = await build_banner_map(root, slugs)
+    except Exception as e:  # noqa: BLE001
+        log.warning("banner map unavailable, serving the feed without banners: %s", e)
+        banners = {}
     payload = {"ids": ids, "slugs": slugs, "count": len(ids),
                "orphaned_slugs": orphaned,
+               "banners": banners,
                "cached_at": now}
     _ENABLED_FEED["payload"] = payload
     _ENABLED_FEED["t"] = now

@@ -17,9 +17,9 @@ TOKEN = "tok-for-tests"
 # REAL Barsy envelope: every node is {"category": {...fields...}, "categories": [...]}.
 # The first version of this fixture was flat, and a flat fixture is precisely what let the tree
 # slimming ship while returning empty nodes for every real category.
-def _n(cat_id, parent_id, name, slug, cnt, children=()):
+def _n(cat_id, parent_id, name, slug, cnt, children=(), picture=""):
     return {"category": {"cat_id": cat_id, "parent_id": parent_id, "cat_name": name,
-                         "slug": slug, "child_articles_cnt": cnt, "cat_picture": ""},
+                         "slug": slug, "child_articles_cnt": cnt, "cat_picture": picture},
             "categories": list(children)}
 
 
@@ -30,7 +30,7 @@ TREE = {"category": {"cat_id": None, "parent_id": None, "cat_name": "root", "slu
             _n(100, None, "dom", "hg", 0, [
                 _n(110, 100, "banya", "hg-1", 3, [
                     _n(111, 110, "dulboko", "hg-1-1", 1),
-                ]),
+                ], picture="banner.png"),
                 _n(120, 100, "dekor", "hg-2", 5),
             ]),
         ]}
@@ -227,3 +227,115 @@ async def test_a_disabled_toggle_for_a_missing_category_is_not_reported(manager_
     body = (await client.get("/api/public/categories/enabled",
                              headers={"X-Office-Token": TOKEN})).json()
     assert body["orphaned_slugs"] == []
+# ============================================================== the banner map (Files_getList)
+def _files(monkeypatch, table, calls=None):
+    """Fake Files_getList: {cat_id: [records]}. Records mimic the real shape.
+
+    WRAPS the recorder rather than replacing it — everything except Files_getList must still
+    reach barsy_recorder, above all Categories_getTree, without which _tree_root fails and the
+    feed correctly answers 503 for reasons that have nothing to do with banners.
+    """
+    prev = catalog_module.barsy.call
+
+    def _call(method, body=None, **kw):
+        if method != "Files_getList":
+            return prev(method, body, **kw)
+        cid = (body or {}).get("obj_id")
+        if calls is not None:
+            calls.append(cid)
+        v = table.get(cid)
+        if isinstance(v, Exception):
+            raise v
+        return v or []
+    monkeypatch.setattr(catalog_module.barsy, "call", _call)
+
+
+def _rec(name, url):
+    return {"name": name, "size": 1, "type": "image/png", "last_modified": None,
+            "url": url, "thumbnail_url": url + "&thumb=1",
+            "delete_url": url + "&del=1", "delete_cache_url": "", "content": None, "file": None}
+
+
+@pytest.fixture(autouse=True)
+def _fresh_banner_cache():
+    catalog_module._invalidate_banner_map()
+
+
+@pytest.mark.asyncio
+async def test_the_banner_url_comes_from_the_file_matching_cat_picture(manager_client, wired,
+                                                                      monkeypatch, client):
+    _files(monkeypatch, {110: [_rec("other.png", "/x/other"), _rec("banner.png", "/x/banner")]})
+    await manager_client.put("/api/catalog/categories/visibility/hg-1", json={"enabled": True})
+    body = (await client.get("/api/public/categories/enabled",
+                             headers={"X-Office-Token": TOKEN})).json()
+    assert body["banners"]["hg-1"]["url"] == "/x/banner"          # matched by NAME, not position
+    assert body["banners"]["hg-1"]["thumbnail_url"] == "/x/banner&thumb=1"
+    assert body["banners"]["hg-1"]["orphaned_main"] is False
+
+
+@pytest.mark.asyncio
+async def test_an_empty_cat_picture_falls_back_to_the_first_file_and_says_so(manager_client,
+                                                                            wired, monkeypatch,
+                                                                            client):
+    """The orphaned-main case: deleting a category's main picture clears cat_picture without
+    promoting a replacement, so the collection outlives the pointer. Barsy's own UI shows the
+    first file; reporting "no banner" would be wrong."""
+    _files(monkeypatch, {120: [_rec("left-behind.png", "/x/left")]})
+    await manager_client.put("/api/catalog/categories/visibility/hg-2", json={"enabled": True})
+    body = (await client.get("/api/public/categories/enabled",
+                             headers={"X-Office-Token": TOKEN})).json()
+    assert body["banners"]["hg-2"]["url"] == "/x/left"
+    assert body["banners"]["hg-2"]["orphaned_main"] is True        # so the panel can nudge
+
+
+@pytest.mark.asyncio
+async def test_a_category_with_no_files_simply_has_no_banner(manager_client, wired, monkeypatch,
+                                                             client):
+    _files(monkeypatch, {110: []})
+    await manager_client.put("/api/catalog/categories/visibility/hg-1", json={"enabled": True})
+    body = (await client.get("/api/public/categories/enabled",
+                             headers={"X-Office-Token": TOKEN})).json()
+    assert "hg-1" not in body["banners"]        # absent, so the storefront serves its default
+    assert body["ids"] == [110]                  # and the category is still ENABLED
+
+
+@pytest.mark.asyncio
+async def test_only_enabled_categories_are_looked_up(manager_client, wired, monkeypatch, client):
+    """One Barsy round trip per category. Doing this for the whole 14,606-node tree would be
+    indefensible, and nothing would fail if it happened — it would just be slow forever."""
+    calls: list = []
+    _files(monkeypatch, {110: [_rec("banner.png", "/x/b")]}, calls=calls)
+    await manager_client.put("/api/catalog/categories/visibility/hg-1", json={"enabled": True})
+    await client.get("/api/public/categories/enabled", headers={"X-Office-Token": TOKEN})
+    assert calls == [110]                        # not hg, not hg-2, not hg-1-1
+
+
+@pytest.mark.asyncio
+async def test_a_banner_failure_does_NOT_become_a_503(manager_client, wired, monkeypatch, client):
+    """THE one. The enabled ids fail CLOSED because an empty list is authoritative; banners fail
+    OPEN because a missing picture costs a default image. Collapsing the two policies would let a
+    Barsy hiccup over decoration hide the entire catalogue."""
+    _files(monkeypatch, {110: RuntimeError("Barsy said no")})
+    await manager_client.put("/api/catalog/categories/visibility/hg-1", json={"enabled": True})
+    r = await client.get("/api/public/categories/enabled", headers={"X-Office-Token": TOKEN})
+    assert r.status_code == 200                  # NOT 503
+    body = r.json()
+    assert body["ids"] == [110]                  # the gate is unaffected
+    assert body["banners"] == {}                 # only the decoration is missing
+
+
+@pytest.mark.asyncio
+async def test_switching_a_category_off_drops_its_banner(manager_client, wired, monkeypatch,
+                                                         client):
+    """The banner map is keyed on the enabled set, so a visibility write must invalidate it —
+    otherwise a category that just went dark keeps serving its picture."""
+    _files(monkeypatch, {110: [_rec("banner.png", "/x/b")]})
+    await manager_client.put("/api/catalog/categories/visibility/hg-1", json={"enabled": True})
+    first = (await client.get("/api/public/categories/enabled",
+                              headers={"X-Office-Token": TOKEN})).json()
+    assert first["banners"]["hg-1"]["url"] == "/x/b"
+
+    await manager_client.put("/api/catalog/categories/visibility/hg-1", json={"enabled": False})
+    second = (await client.get("/api/public/categories/enabled",
+                               headers={"X-Office-Token": TOKEN})).json()
+    assert second["ids"] == [] and second["banners"] == {}
