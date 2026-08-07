@@ -283,6 +283,13 @@ class DeliveryLine(Base):
     # what the supplier's document claimed but never arrived, frozen at finalise so the
     # record survives even though it is derivable from the counts at the time
     short_qty: Mapped[float] = mapped_column(default=0.0)
+    # Разфасовка: the supplier billed `pack_count` packs of `pack_factor` pieces each.
+    # qty stays canonical in PIECES; these record HOW it was arrived at, so a wrong factor
+    # can be found and corrected later instead of being an unexplained quantity.
+    # pack_id is Barsy's Packages id — names are NOT unique („Стек“ is both 6 and 24).
+    pack_id: Mapped[int | None] = mapped_column(nullable=True)
+    pack_factor: Mapped[float] = mapped_column(default=1.0)
+    pack_count: Mapped[float] = mapped_column(default=0.0)
     # pending → confirmed (scanned == received) → mismatch
     status: Mapped[str] = mapped_column(String(16), default="pending")
     intake_draft_id: Mapped[int | None] = mapped_column(nullable=True)  # for new products

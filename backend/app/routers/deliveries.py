@@ -40,6 +40,7 @@ from ..models import (
     ZayavkaLine,
 )
 from ..services import delivery_parse as DP
+from ..services import packages as PK
 from ..services.text import norm
 from ..users import current_active_user, current_owner
 
@@ -144,6 +145,7 @@ def _line_out(ln: DeliveryLine) -> dict:
         "match_method": ln.match_method, "match_confidence": ln.match_confidence,
         "article_id": ln.article_id, "scanned_qty": ln.scanned_qty, "status": ln.status,
         "defect_qty": ln.defect_qty, "received": (ln.qty or 0) - (ln.defect_qty or 0),
+        "pack_id": ln.pack_id, "pack_factor": ln.pack_factor, "pack_count": ln.pack_count,
         "booked": _booked_qty(ln), "short_qty": _shortfall(ln),
         "intake_draft_id": ln.intake_draft_id,
     }
@@ -1500,3 +1502,86 @@ async def _adopt_known_products(session: AsyncSession, parsed: list[dict]) -> in
             r["barcode"] = d.barcode
         rescued += 1
     return rescued
+
+
+# ------------------------------------------------------------------ разфасовка / pack factor (P1) ---
+# A supplier bills "6 каси" and 72 glasses arrive. Booking 6 is the commonest silent stock drift in
+# home goods, and the error is multiplied by the pack size — so the conversion is an explicit human
+# act that shows its arithmetic, never something inferred from a column heading.
+
+
+def _apply_pack(ln: DeliveryLine, pack_count: float, factor: float, pack_id: int | None) -> None:
+    """Set the line's quantity from `pack_count` packs of `factor` pieces.
+
+    `qty` stays canonical in PIECES — a pack of 6 can be opened and one glass sold, so the pack can
+    never be the stock unit. pack_count/pack_factor are kept alongside so a wrong factor can be
+    found and corrected later rather than leaving an unexplained quantity."""
+    ln.pack_id = pack_id
+    ln.pack_factor = factor
+    ln.pack_count = pack_count
+    ln.qty = pack_count * factor
+    _set_line_status(ln)
+
+
+@profiles_router.get("/packages")
+async def list_packages(
+    refresh: bool = False,
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Barsy's Разфасовки, for the per-line pack picker. `refresh=true` re-reads them, so a pack
+    added in Barsy shows up without restarting anything."""
+    packs = await run_in_threadpool(PK.refresh if refresh else PK.fetch)
+    return {"packages": packs}
+
+
+class ApplyPackRequest(BaseModel):
+    # how many PACKS the supplier's document billed
+    pack_count: float
+    # Barsy Packages id. Resolved server-side to its Количество — the client never sends the factor,
+    # so a stale page cannot multiply by a number Barsy no longer holds.
+    pack_id: int | None = None
+    # escape hatch for a pack Barsy does not know yet; requires an explicit number from the operator
+    pack_factor: float | None = None
+
+
+@router.post("/{batch_id}/lines/{line_id}/pack")
+async def apply_pack(
+    batch_id: int, line_id: int, req: ApplyPackRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Receive a line in packs: qty becomes pack_count × the pack's Количество, in pieces."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
+    ln = await session.get(DeliveryLine, line_id)
+    if not ln or ln.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+
+    count = float(req.pack_count or 0)
+    if count <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Броят опаковки трябва да е положителен.")
+
+    if req.pack_id is not None:
+        pack = await run_in_threadpool(PK.by_id, req.pack_id)
+        if pack is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND,
+                                "Разфасовката не е намерена в Barsy (обнови списъка).")
+        factor, pack_id = float(pack["qty"]), int(pack["id"])
+    elif req.pack_factor is not None:
+        factor, pack_id = float(req.pack_factor), None
+        if factor <= 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Разфасовката трябва да е положителна.")
+    else:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Посочи разфасовка или брой в опаковка.")
+
+    _apply_pack(ln, count, factor, pack_id)
+    await log_action(session, actor, "delivery.pack", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} line={line_id} {count:g}x{factor:g}={ln.qty:g}")
+    await session.commit()
+    await session.refresh(ln)
+    return {"ok": True, "line": _line_out(ln)}
