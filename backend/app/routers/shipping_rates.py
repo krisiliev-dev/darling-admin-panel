@@ -59,6 +59,13 @@ _SPEC: dict = {
     # while it was off and still carry enabled=0, which is what checkout reads. The page reports
     # the difference (spec_enabled below) rather than anyone quietly rewriting owner state.
     "boxnow": {"modes": ("locker",), "buffer": {"locker": 0.10}, "enabled": True},
+    # Sameday (2026-08-07): credentials live, locker quotes verified against the real API at
+    # 1.30 EUR (1kg), 1.79 with COD and 1.84 at 5kg. Cheaper than BoxNow, which the owner
+    # explicitly wants - more options for the customer, cheapest first.
+    # LOCKER ONLY for now: door quotes work, but _refresh_courier prices a door bracket with a
+    # city and postcode and NO street, and Sameday refuses a door shipment without one. Adding
+    # "door" would fail every refresh and silently serve stale rows.
+    "sameday": {"modes": ("locker",), "buffer": {"locker": 0.10}, "enabled": True},
 }
 _MODE_BG = {"office": "до офис", "door": "до адрес", "locker": "до автомат"}
 

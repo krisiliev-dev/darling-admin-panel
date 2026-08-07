@@ -974,6 +974,14 @@ class Sameday(Courier):
     SERVICE_DOOR = "24"
     SERVICE_LOCKER = "LN"
     SERVICE_PUDO = "PP"
+    # Return legs. Confirmed present on OUR contract by reading /api/client/services on
+    # 2026-08-07 (RS id 10, LR id 24, alongside CS Ð—Ð°Ð¼Ñ�Ð½Ð° and RD ÐžÐ±Ñ€Ð°Ñ‚Ð½Ð¸ Ð´Ð¾ÐºÑƒÐ¼ÐµÐ½Ñ‚Ð¸).
+    # Not wired into a flow yet: they are how a parcel comes BACK once it can no longer be
+    # cancelled - every courier only voids a waybill before collection - so they belong to the
+    # return-booking feature, not to cancel. Named here so the next person does not have to
+    # rediscover that we already hold them.
+    SERVICE_RETURN = "RS"
+    SERVICE_LOCKER_RETURN = "LR"
 
     PACKAGE_PARCEL = 0            # PackageType::PARCEL
     AWB_PAYMENT_CLIENT = 1        # AwbPaymentType::CLIENT — the shop pays the courier
