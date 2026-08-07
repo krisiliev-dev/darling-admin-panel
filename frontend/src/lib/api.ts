@@ -346,6 +346,11 @@ export interface DeliveryLineRow {
   received: number          // qty - defect_qty: what the document says should arrive
   booked: number            // what ACTUALLY goes to Barsy: counted (if counted) - defects
   short_qty: number         // billed but never arrived (defects are NOT counted here)
+  // разфасовка: the supplier billed pack_count packs of pack_factor pieces. qty stays in
+  // PIECES — the pack is a conversion, never a second stock balance.
+  pack_id: number | null
+  pack_factor: number
+  pack_count: number
   intake_draft_id: number | null
 }
 

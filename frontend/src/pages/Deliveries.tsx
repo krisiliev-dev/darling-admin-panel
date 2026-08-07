@@ -12,6 +12,7 @@ import { DeliveryImportMapper } from '../components/DeliveryImportMapper'
 import { ZayavkaSource } from '../components/ZayavkaSource'
 import { ClaimsPanel, DefectButton, ClaimsBanner } from '../components/ClaimsPanel'
 import { ScanAdjust } from '../components/ScanAdjust'
+import { PackPicker } from '../components/PackPicker'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -513,6 +514,7 @@ function LineTable({ lines, isNew = false, batchId, onChange }: { lines: Deliver
               </td>
               <td style={{ padding: '.3rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{l.price.toFixed(2)} €</td>
               {isNew && <td style={{ padding: '.3rem .35rem' }}>{l.article_id ? <span style={{ color: 'var(--ready)' }}>#{l.article_id}</span> : <span style={{ color: 'var(--pending)' }}>чака</span>}</td>}
+              {batchId != null && <td style={{ padding: '.3rem .35rem' }}><PackPicker batchId={batchId} line={l} onDone={onChange} /></td>}
               {batchId != null && <td style={{ padding: '.3rem .35rem' }}>{l.short_qty > 0 ? <span style={{ color: 'var(--pending)' }} title="заявено, но не е дошло">липсват {l.short_qty}</span> : null}</td>}
               {batchId != null && <td style={{ padding: '.3rem .35rem' }}><ScanAdjust batchId={batchId} line={l} onDone={onChange} /></td>}
               {batchId != null && <td style={{ padding: '.3rem .35rem' }}><DefectButton batchId={batchId} line={l} onDone={onChange} /></td>}
