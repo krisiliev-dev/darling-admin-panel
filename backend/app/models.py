@@ -613,3 +613,29 @@ class ShopfloorMove(Base):
     created_by: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class SupplierImportProfile(Base):
+    """A remembered column layout for one supplier's delivery sheet. The owner's problem:
+    suppliers send different shapes — Код/Наименование/Количество/Цена, or with Баркод, or
+    Код/Наименование/Количество/Баркод and no price — and the auto-detector guesses, and a
+    blank first row makes it read row-2 headers as a product. So: tell the importer ONCE which
+    column is which and which row the data starts on, keyed by supplier, and reuse it next time.
+
+    Columns are 0-based indices; -1 means 'this sheet has no such column'. data_row is 1-based,
+    the first row that is a PRODUCT (so a blank row 1 + headers on row 2 => data_row 3). Matched
+    to a supplier by normalised name, same key the rest of the intake uses."""
+    __tablename__ = "supplier_import_profile"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    supplier: Mapped[str] = mapped_column(String(255), index=True)         # display name
+    supplier_norm: Mapped[str] = mapped_column(String(255), unique=True, index=True)  # match key
+    data_row: Mapped[int] = mapped_column(default=2)                       # 1-based first product row
+    col_code: Mapped[int] = mapped_column(default=0)
+    col_name: Mapped[int] = mapped_column(default=1)
+    col_qty: Mapped[int] = mapped_column(default=2)
+    col_price: Mapped[int] = mapped_column(default=3)
+    col_barcode: Mapped[int] = mapped_column(default=-1)                   # -1 = absent
+    updated_by: Mapped[str] = mapped_column(String(255), default="")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())

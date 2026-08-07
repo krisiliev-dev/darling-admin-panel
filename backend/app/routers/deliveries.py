@@ -27,11 +27,15 @@ from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
-from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, User
+from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, SupplierImportProfile, User
 from ..services import delivery_parse as DP
+from ..services.text import norm
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/deliveries", tags=["deliveries"])
+# static routes (import-profiles, preview) live on their own router, included BEFORE the
+# main one, so GET /api/deliveries/import-profiles is not shadowed by GET /{batch_id}
+profiles_router = APIRouter(prefix="/api/deliveries", tags=["deliveries"])
 
 
 # ------------------------------------------------------------------ parsing (xlsx + csv) ---
@@ -80,27 +84,44 @@ def _match_row(supplier: str, code: str, name: str, qty: float, price: float, ba
     }
 
 
-def _parse_rows(rows: list[list], supplier: str) -> list[dict]:
-    """Detect columns, match each data row → a normalised line dict (mirrors intake_delivery.parse)."""
-    if not rows:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове в таблицата.")
-    header = rows[0]
-    cols = DP.detect_columns(header)
-    if not cols:
-        cols = {"code": 0, "name": 1, "qty": 2, "price": 3}
-        data_rows = rows
+def _parse_rows(rows: list[list], supplier: str,
+                cols: dict | None = None, data_row: int | None = None) -> list[dict]:
+    """Detect columns (or use an explicit per-supplier mapping) and match each data row → a
+    normalised line dict. With `cols` given, `data_row` is the 1-based first PRODUCT row in the
+    ORIGINAL sheet — exact coordinates, so a blank row 1 + header on row 2 is just data_row 3.
+    Without a mapping we strip leading blank rows first, which is the header-row bug's fix on the
+    auto-detect path."""
+    rows = rows or []
+    if cols is not None:
+        start = max(0, (data_row or 1) - 1)
+        data_rows = rows[start:]
+        use = cols
     else:
-        data_rows = rows[1:]
+        stripped = DP.strip_leading_blank(rows)
+        if not stripped:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове в таблицата.")
+        detected = DP.detect_columns(stripped[0])
+        if not detected:
+            use = {"code": 0, "name": 1, "qty": 2, "price": 3}
+            data_rows = stripped
+        else:
+            use = detected
+            data_rows = stripped[1:]
+    if not data_rows:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове за приемане.")
     out = []
     for r in data_rows:
         def cell(field, r=r):        # bind r per-iteration (closure is used within this iteration)
-            j = cols.get(field)
-            return r[j] if j is not None and j < len(r) else None
+            j = use.get(field)
+            if j is None or j < 0:
+                return None
+            return r[j] if j < len(r) else None
         nm = str(cell("name") or "").strip()
         code = str(cell("code") or "").strip()
         if not nm and not code:
             continue
-        out.append(_match_row(supplier, code, nm, DP.to_float(cell("qty")), DP.to_float(cell("price"))))
+        out.append(_match_row(supplier, code, nm, DP.to_float(cell("qty")),
+                              DP.to_float(cell("price")), str(cell("barcode") or "").strip()))
     return out
 
 
@@ -247,11 +268,23 @@ async def create_delivery(
     depot_id: int = Form(1),
     reference: str = Form(""),
     doc_date: str = Form(""),
+    # explicit per-supplier column mapping (0-based; -1 = absent). Sent when the user maps in
+    # the wizard; col_name < 0 means "no mapping supplied, auto-detect / use saved profile".
+    col_code: int = Form(-2),
+    col_name: int = Form(-2),
+    col_qty: int = Form(-2),
+    col_price: int = Form(-2),
+    col_barcode: int = Form(-2),
+    data_row: int = Form(0),
+    save_profile: bool = Form(False),
     actor: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Upload a supplier delivery sheet → parse + match → persist a draft batch with its lines.
-    NEW lines each get a linked intake draft so they surface on the Приемане page for enrichment."""
+    NEW lines each get a linked intake draft so they surface on the Приемане page for enrichment.
+
+    Column resolution, in order: an explicit mapping from the wizard; else this supplier's saved
+    profile; else auto-detect. Saving a profile remembers the mapping for next time."""
     raw = await file.read(_MAX_UPLOAD_BYTES + 1)   # bounded read — don't buffer an oversized upload
     _check_size(raw)
     try:
@@ -260,9 +293,25 @@ async def create_delivery(
         raise
     except Exception as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Не мога да прочета файла: {str(e)[:140]}")
-    parsed = await run_in_threadpool(_parse_rows, rows, supplier)   # first call loads the 22k-row map
+
+    cols: dict | None = None
+    drow: int | None = None
+    explicit = col_name >= 0                         # the wizard sent a real mapping
+    if explicit:
+        cols = {"code": col_code, "name": col_name, "qty": col_qty,
+                "price": col_price, "barcode": col_barcode}
+        drow = data_row or 1
+    else:
+        prof = await _profile_for(session, supplier)
+        if prof is not None:
+            cols, drow = _profile_cols(prof), prof.data_row
+
+    parsed = await run_in_threadpool(_parse_rows, rows, supplier, cols, drow)
     if not parsed:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове за приемане.")
+
+    if save_profile and explicit and cols is not None and supplier.strip():
+        await _save_profile(session, actor, supplier, cols, drow or 1)
 
     source = "csv" if (file.filename or "").lower().endswith(".csv") else "excel"
     return await _persist_batch(session, actor, supplier, supplier_id, depot_id, reference,
@@ -781,3 +830,126 @@ async def scan_batch(
         applied.append({"barcode": code, "count": n, "line": _line_out(ln)})
     await session.commit()
     return {"applied": applied, "unknown": unknown, "summary": _batch_summary(b, lines)}
+
+
+# ------------------------------------------------------------------ import profiles ---
+def _profile_cols(p: SupplierImportProfile) -> dict:
+    cols = {"code": p.col_code, "name": p.col_name, "qty": p.col_qty, "price": p.col_price}
+    if p.col_barcode is not None and p.col_barcode >= 0:
+        cols["barcode"] = p.col_barcode
+    return cols
+
+
+def _profile_out(p: SupplierImportProfile) -> dict:
+    return {"id": p.id, "supplier": p.supplier, "data_row": p.data_row,
+            "col_code": p.col_code, "col_name": p.col_name, "col_qty": p.col_qty,
+            "col_price": p.col_price, "col_barcode": p.col_barcode,
+            "updated_by": p.updated_by,
+            "updated_at": p.updated_at.isoformat() if p.updated_at else None}
+
+
+async def _profile_for(session: AsyncSession, supplier: str) -> SupplierImportProfile | None:
+    key = norm(supplier)
+    if not key:
+        return None
+    return (await session.execute(
+        select(SupplierImportProfile).where(SupplierImportProfile.supplier_norm == key)
+        .limit(1))).scalars().first()
+
+
+async def _save_profile(session: AsyncSession, actor: User, supplier: str,
+                        cols: dict, data_row: int) -> SupplierImportProfile:
+    key = norm(supplier)
+    p = await _profile_for(session, supplier)
+    if p is None:
+        p = SupplierImportProfile(supplier=supplier.strip(), supplier_norm=key)
+        session.add(p)
+    p.supplier = supplier.strip()
+    p.data_row = max(1, int(data_row))
+    p.col_code = int(cols.get("code", -1))
+    p.col_name = int(cols.get("name", 1))
+    p.col_qty = int(cols.get("qty", -1))
+    p.col_price = int(cols.get("price", -1))
+    p.col_barcode = int(cols.get("barcode", -1))
+    p.updated_by = actor.email
+    await session.commit()
+    await session.refresh(p)
+    return p
+
+
+def _col_letters(n: int) -> list[str]:
+    out = []
+    for i in range(n):
+        s, x = "", i
+        while True:
+            s = chr(ord("A") + x % 26) + s
+            x = x // 26 - 1
+            if x < 0:
+                break
+        out.append(s)
+    return out
+
+
+@profiles_router.post("/preview")
+async def preview_delivery(
+    file: UploadFile = File(...),
+    supplier: str = Form(""),
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Read the first rows WITHOUT creating anything, so the wizard can show a grid and let the
+    user map columns + pick the start row. Returns the raw rows (as strings), an auto-detected
+    suggestion, and this supplier's saved profile if one exists."""
+    raw = await file.read(_MAX_UPLOAD_BYTES + 1)
+    _check_size(raw)
+    try:
+        rows = await run_in_threadpool(_rows_from_upload, file.filename or "", raw)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Не мога да прочета файла: {str(e)[:140]}")
+    if not rows:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Празен файл.")
+
+    preview = rows[:20]
+    ncol = max((len(r) for r in preview), default=0)
+    grid = [[("" if c is None else str(c)) for c in (r + [None] * (ncol - len(r)))] for r in preview]
+
+    stripped = DP.strip_leading_blank(rows)
+    leading_blank = len(rows) - len(stripped)
+    detected = DP.detect_columns(stripped[0]) if stripped else {}
+    suggested = {
+        "code": detected.get("code", -1), "name": detected.get("name", -1),
+        "qty": detected.get("qty", -1), "price": detected.get("price", -1),
+        "barcode": detected.get("barcode", -1),
+        # 1-based first product row in ORIGINAL coordinates
+        "data_row": leading_blank + (2 if detected else 1),
+    }
+    prof = await _profile_for(session, supplier)
+    return {"columns": _col_letters(ncol), "rows": grid,
+            "suggested": suggested, "profile": _profile_out(prof) if prof else None}
+
+
+@profiles_router.get("/import-profiles")
+async def list_import_profiles(
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    rows = list((await session.execute(
+        select(SupplierImportProfile).order_by(SupplierImportProfile.supplier))).scalars().all())
+    return {"profiles": [_profile_out(p) for p in rows]}
+
+
+@profiles_router.delete("/import-profiles/{profile_id}")
+async def delete_import_profile(
+    profile_id: int,
+    actor: User = Depends(current_owner),   # a remembered format is shared config → owner/manager
+    session: AsyncSession = Depends(get_async_session),
+):
+    p = await session.get(SupplierImportProfile, profile_id)
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Форматът не е намерен.")
+    await session.delete(p)
+    await session.commit()
+    await log_action(session, actor, "delivery.import_profile.delete", target=p.supplier)
+    return {"ok": True}

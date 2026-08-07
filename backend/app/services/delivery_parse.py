@@ -23,6 +23,7 @@ HEADERS = {
     "name": ("наименование", "име", "name", "продукт", "стока", "описание", "артикул"),
     "qty": ("количество", "к-во", "кол", "брой", "бр", "qty", "quantity", "count"),
     "price": ("цена", "price", "доставна", "ед.цена", "ед. цена", "стойност", "ст-ст", "cost"),
+    "barcode": ("баркод", "barcode", "ean", "щрихкод", "штрих", "gtin"),
 }
 
 
@@ -153,3 +154,18 @@ def resolve_supplier_id(name: str) -> int | None:
             sid = r.get("supplier_id")
             return int(sid) if sid is not None else None
     return None
+
+
+# ------------------------------------------------------------------ blank rows ---
+def is_blank_row(r: list) -> bool:
+    return all(c is None or str(c).strip() == "" for c in r)
+
+
+def strip_leading_blank(rows: list[list]) -> list[list]:
+    """Drop fully-empty rows at the TOP. A supplier who leaves row 1 blank and puts the header
+    on row 2 used to make auto-detect read that header as a product; skipping leading blanks
+    fixes it for the no-profile path too (the owner hit exactly this)."""
+    i = 0
+    while i < len(rows) and is_blank_row(rows[i]):
+        i += 1
+    return rows[i:]

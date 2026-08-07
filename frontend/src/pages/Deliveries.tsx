@@ -8,6 +8,7 @@ import { PageHeader, Loading } from '../components/PageHeader'
 import { Sheet } from '../components/Paper'
 import { useConfirm } from '../components/Confirm'
 import { CameraScanner } from '../components/CameraScanner'
+import { DeliveryImportMapper } from '../components/DeliveryImportMapper'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -128,21 +129,7 @@ function NewDelivery({ onCancel, onCreated }: { onCancel: () => void; onCreated:
   const [error, setError] = useState('')
   const [ocrRows, setOcrRows] = useState<{ supplier_code: string; name: string; qty: number; price: number; barcode: string }[] | null>(null)
   const [ocrNote, setOcrNote] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
   const photoRef = useRef<HTMLInputElement>(null)
-
-  const uploadFile = async (f?: File) => {
-    if (!f) return
-    setBusy(true); setError('')
-    try {
-      const form = new FormData()
-      form.append('file', f)
-      form.append('supplier', supplier); form.append('depot_id', String(depot))
-      form.append('reference', reference); form.append('doc_date', docDate)
-      const b = await api.upload<DeliveryDetailResp>('/api/deliveries', form)
-      onCreated(b.id)
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Неуспешно качване.') } finally { setBusy(false) }
-  }
 
   const uploadPhoto = async (f?: File) => {
     if (!f) return
@@ -192,11 +179,10 @@ function NewDelivery({ onCancel, onCreated }: { onCancel: () => void; onCreated:
         </div>
 
         {mode === 'file' ? (
-          <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
-            <input ref={fileRef} type="file" accept=".xlsx,.xlsm,.csv" style={{ display: 'none' }} onChange={(e) => void uploadFile(e.target.files?.[0])} />
-            <button className="btn-paper btn-red" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? 'обработва…' : 'Качи таблица'}</button>
-            <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)' }}>Excel (.xlsx) или CSV с код, име, количество, цена</span>
-          </div>
+          <DeliveryImportMapper
+            supplier={supplier} depot={depot} reference={reference} docDate={docDate}
+            onCreated={onCreated}
+          />
         ) : (
           <div style={{ display: 'grid', gap: '.5rem' }}>
             <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
