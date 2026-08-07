@@ -5,7 +5,7 @@ import datetime
 import uuid
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import Boolean, DateTime, Index, LargeBinary, String, Text, UniqueConstraint, func, text
+from sqlalchemy import Boolean, DateTime, Index, Integer, LargeBinary, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -674,3 +674,44 @@ class SupplierClaim(Base):
         DateTime(timezone=True), server_default=func.now())
     resolved_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+class WaybillCancel(Base):
+    """One row per waybill we have tried to cancel. THREE states, never a boolean.
+
+        cancelled  the courier confirmed the waybill is void
+        refused    the courier ANSWERED and said no - already collected, in transit, too late
+        unknown    we could not ask, or could not read the answer
+
+    `unknown` is the load-bearing one. A timeout is not a cancellation, and folding "could not
+    ask" into "failed" and then into "probably fine" is how a live waybill becomes invisible -
+    the courier still collects the parcel, still bills for the label, and on a наложен платеж
+    still takes cash from a customer whose order no longer exists. Until a courier positively
+    confirms, the row stays unresolved and stays on the worklist.
+
+    Researched 2026-08-07 against the live APIs: EVERY courier only voids a waybill that has not
+    been collected yet. A parcel already moving comes back `refused`, and that is correct
+    behaviour rather than a bug to engineer around - the recovery for that case is a RETURN leg
+    (Sameday RS/LR), which is a separate booking.
+
+    The courier's own words are kept verbatim in `courier_message`. "Пратката е взета от куриера"
+    and "invalid awb" need different human responses, and paraphrasing both into one generic
+    failure throws away the only thing that tells them apart.
+    """
+    __tablename__ = "waybill_cancel"
+
+    # The claim. Primary key so the INSERT itself is the lock.
+    waybill_no: Mapped[str] = mapped_column(String(64), primary_key=True)
+    courier: Mapped[str] = mapped_column(String(32), nullable=False, server_default="")
+    # order_id is Shopify's gid; order_name is the human "#1042". Both, because the operator
+    # searches by one and the reconciliation joins on the other.
+    order_id: Mapped[str] = mapped_column(String(64), nullable=False, server_default="")
+    order_name: Mapped[str] = mapped_column(String(64), nullable=False, server_default="")
+    state: Mapped[str] = mapped_column(String(16), nullable=False, server_default="unknown")
+    courier_message: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    requested_by: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
+    first_seen: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_tried: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # NULL while unresolved - which is exactly what the staleness watch counts.
+    resolved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -8,10 +8,13 @@ Label creation is a real-world action: it's owner/staff-gated, requires an expli
 flag, is written to the audit log, and only mints a REAL waybill when COURIER_LIVE is on
 (off => a dry-run plan; and a real label additionally requires BARSY_WRITE_LIVE, so cash is
 never collected for an unbooked sale)."""
+import datetime
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -21,7 +24,7 @@ from ..core import barsy, connector, db, shopify_orders
 from ..core import courier as courier_mod
 from ..db import get_async_session
 from ..ids import numeric_oid as _numeric_oid
-from ..models import User
+from ..models import User, WaybillCancel
 from ..upstream import upstream
 from ..users import current_active_user, require_roles
 
@@ -313,6 +316,155 @@ def quote(order_id: str, req: ShipRequest, user: User = Depends(current_active_u
     o = _order_or_404(order_id)
     with upstream(req.courier):
         return courier_mod.get(req.courier).calculate(_shipment_from_order(o, req))
+
+
+# --------------------------------------------------------------- cancelling a waybill ---
+# Researched against the live APIs on 2026-08-07: EVERY courier we use only voids a waybill that
+# has not been collected yet. Speedy cancels only while "not ordered yet", Econt deletes a label
+# before hand-off, BoxNow and Sameday the same. A parcel already moving comes back REFUSED, and
+# that is the correct answer rather than a bug — the recovery for that case is a RETURN leg
+# (Sameday has RS/LR on our contract), which is a separate booking, not a modification.
+_CANCEL_OK = "cancelled"
+_CANCEL_REFUSED = "refused"
+_CANCEL_UNKNOWN = "unknown"
+
+
+def _cancel_verdict(exc: Exception) -> tuple[str, str]:
+    """Did the COURIER say no, or did we fail to ask? Returns (state, message).
+
+    This matters more than it looks. "The courier refused" means the parcel is real and moving,
+    and the operator has to do something about it. "We could not ask" means the waybill may be
+    perfectly cancellable and we simply do not know — and treating that as a refusal, or worse as
+    a success, is how a live waybill goes quiet: the courier still collects, still bills, and on
+    наложен платеж still takes cash for an order that no longer exists.
+
+    HEURISTIC, and worth replacing: the adapters raise CourierError for both cases, so the only
+    signal available is whether the message carries an HTTP status — i.e. whether anything
+    answered us at all. The proper fix is for the adapters to put the status code on the
+    exception; until then this is string-sniffing and the tests below pin both branches.
+    """
+    msg = str(exc)
+    answered = bool(re.search(r"HTTP\s+\d{3}", msg))
+    return (_CANCEL_REFUSED if answered else _CANCEL_UNKNOWN), msg[:500]
+
+
+class CancelWaybillRequest(BaseModel):
+    confirm: bool = False
+
+
+@router.post("/{order_id}/cancel-waybill")
+async def cancel_waybill(
+    order_id: str, req: CancelWaybillRequest,
+    actor: User = Depends(require_roles("staff", "packer")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Cancel the courier waybill for an order. THREE outcomes, never a boolean.
+
+        cancelled  the courier confirmed the waybill is void
+        refused    the courier answered and said no — its own words are returned verbatim
+        unknown    we could not ask; the waybill must be assumed LIVE and stays on the worklist
+
+    Same gates as creating the label, because it is the same kind of action: an explicit confirm
+    (which is what drives the operator's dialog), staff or packer, audit-logged, and COURIER_LIVE
+    deciding whether a real call is made. Without confirm it returns the PLAN, so the dialog can
+    show the operator exactly which waybill and which courier before anything happens.
+
+    Idempotent on the waybill number: a row already recorded as cancelled returns its stored
+    result without calling the courier again.
+    """
+    o = await run_in_threadpool(_order_or_404, order_id)
+    st = shopify_orders.state_map().get(o["id"], {}) or {}
+    # label_ref is the courier's OWN shipment id and is what every adapter's cancel() takes;
+    # `tracking` is the customer-facing number and is only a fallback for older rows.
+    waybill = str(st.get("label_ref") or st.get("tracking") or "").strip()
+    courier = str(st.get("courier") or "").strip()
+    if not waybill:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Тази поръчка няма товарителница за анулиране.")
+    if not courier:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Има товарителница {waybill}, но не е записано с кой куриер — "
+                            "не мога да позная. Анулирай я от системата на куриера.")
+
+    existing = (await session.execute(
+        select(WaybillCancel).where(WaybillCancel.waybill_no == waybill))).scalar_one_or_none()
+    if existing is not None and existing.state == _CANCEL_OK:
+        # Already void. Saying so again is free; asking the courier again is not.
+        return {"state": _CANCEL_OK, "waybill_no": waybill, "courier": courier,
+                "message": existing.courier_message, "already": True}
+
+    plan = {"state": "plan", "waybill_no": waybill, "courier": courier,
+            "order_name": o.get("name", ""),
+            "note": "Анулирането е реално действие — потвърди с confirm=true."}
+    if not req.confirm:
+        return plan
+    if not get_settings().courier_live:
+        plan["state"] = "dry_run"
+        plan["note"] = "COURIER_LIVE е изключен — нищо не е изпратено към куриера."
+        return plan
+
+    now = datetime.datetime.now(datetime.UTC)
+    if existing is None:
+        # The INSERT is the claim. Two routes reach this (the operator dialog and a Woo-side
+        # button, since Woo is not always the origin), and check-then-act would let both through.
+        existing = WaybillCancel(waybill_no=waybill, courier=courier, order_id=str(o["id"]),
+                                 order_name=str(o.get("name") or ""), state=_CANCEL_UNKNOWN,
+                                 requested_by=actor.email or "", first_seen=now, last_tried=now)
+        session.add(existing)
+        try:
+            await session.flush()
+        except IntegrityError:
+            await session.rollback()
+            existing = (await session.execute(select(WaybillCancel).where(
+                WaybillCancel.waybill_no == waybill))).scalar_one()
+    existing.attempts = (existing.attempts or 0) + 1
+    existing.last_tried = now
+
+    try:
+        await run_in_threadpool(courier_mod.get(courier).cancel, waybill)
+        state, message = _CANCEL_OK, ""
+    except Exception as e:  # noqa: BLE001 — the verdict IS the classification of this failure
+        state, message = _cancel_verdict(e)
+
+    existing.state = state
+    existing.courier_message = message
+    # refused is RESOLVED: the courier gave a final answer and there is nothing left to retry.
+    # unknown is not, and that is the whole point of keeping the two apart.
+    existing.resolved_at = now if state in (_CANCEL_OK, _CANCEL_REFUSED) else None
+    await session.commit()
+    await log_action(session, actor, "orders.cancel_waybill",
+                     detail=f"{courier} {waybill} -> {state}")
+    return {"state": state, "waybill_no": waybill, "courier": courier, "message": message,
+            "order_name": o.get("name", "")}
+
+
+@router.get("/waybill-cancels/unresolved")
+async def unresolved_waybill_cancels(
+    actor: User = Depends(require_roles("staff", "packer")),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """The worklist: waybills we tried to cancel and could not confirm.
+
+    Watch STALENESS, not errors. A retry path that has quietly died produces no errors at all —
+    it produces silence, and silence here means a parcel still on its way for an order that was
+    cancelled. `oldest_hours` is the number to alert on.
+    """
+    rows = (await session.execute(
+        select(WaybillCancel).where(WaybillCancel.resolved_at.is_(None))
+        .order_by(WaybillCancel.first_seen))).scalars().all()
+    oldest = None
+    if rows:
+        first = rows[0].first_seen
+        if first is not None:
+            if first.tzinfo is None:
+                first = first.replace(tzinfo=datetime.UTC)   # SQLite drops tz on the way back
+            oldest = round((datetime.datetime.now(datetime.UTC) - first).total_seconds() / 3600, 1)
+    return {"count": len(rows), "oldest_hours": oldest,
+            "rows": [{"waybill_no": r.waybill_no, "courier": r.courier,
+                      "order_name": r.order_name, "state": r.state,
+                      "message": r.courier_message, "attempts": r.attempts,
+                      "first_seen": r.first_seen.isoformat() if r.first_seen else None}
+                     for r in rows]}
 
 
 @router.post("/{order_id}/label")
