@@ -10,6 +10,7 @@ import { useConfirm } from '../components/Confirm'
 import { CameraScanner } from '../components/CameraScanner'
 import { DeliveryImportMapper } from '../components/DeliveryImportMapper'
 import { ZayavkaSource } from '../components/ZayavkaSource'
+import { ClaimsPanel, DefectButton, ClaimsBanner } from '../components/ClaimsPanel'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -77,7 +78,10 @@ function DeliveryList({ onNew, onOpen }: { onNew: () => void; onOpen: (id: numbe
           <input className="input-paper" type="date" value={to} onChange={(e) => setTo(e.target.value)} title="до дата" />
           {(from || to || q || status) && <button className="btn-paper" style={{ fontSize: '.7rem' }} onClick={() => { setQ(''); setStatus(''); setFrom(''); setTo('') }}>изчисти</button>}
         </div>
-        <button className="btn-paper btn-red" onClick={onNew}>+ Обработи нова доставка</button>
+        <div style={{ display: 'flex', gap: '.5rem' }}>
+          <ClaimsPanel />
+          <button className="btn-paper btn-red" onClick={onNew}>+ Обработи нова доставка</button>
+        </div>
       </div>
       <Sheet>
         {!all ? <Loading /> : rows.length === 0 ? (
@@ -357,6 +361,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
           </div>
         </div>
         {scanMsg && <div className="font-type" style={{ marginTop: '.5rem', fontSize: '.82rem', color: 'var(--ink)' }}>{scanMsg}</div>}
+        <ClaimsBanner supplier={b.supplier} />
       </Sheet>
 
       {showCam && <CameraScanner onClose={() => setShowCam(false)} onCommit={applyBatch} />}
@@ -371,13 +376,13 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
       {existing.length > 0 && (
         <Sheet>
           <h3 style={{ fontSize: '.95rem', marginBottom: '.4rem' }}>Заведени продукти ({existing.length})</h3>
-          <LineTable lines={existing} />
+          <LineTable lines={existing} batchId={b.id} onChange={() => void load()} />
         </Sheet>
       )}
       {news.length > 0 && (
         <Sheet>
           <h3 style={{ fontSize: '.95rem', marginBottom: '.4rem' }}>Нови продукти ({news.length})</h3>
-          <LineTable lines={news} isNew />
+          <LineTable lines={news} isNew batchId={b.id} onChange={() => void load()} />
         </Sheet>
       )}
 
@@ -434,7 +439,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   )
 }
 
-function LineTable({ lines, isNew = false }: { lines: DeliveryLineRow[]; isNew?: boolean }) {
+function LineTable({ lines, isNew = false, batchId, onChange }: { lines: DeliveryLineRow[]; isNew?: boolean; batchId?: number; onChange?: () => void }) {
   const rowColor = (l: DeliveryLineRow) =>
     l.status === 'confirmed' ? 'rgba(47,125,79,.14)' : l.status === 'mismatch' ? 'rgba(177,47,38,.14)' : 'transparent'
   return (
@@ -458,6 +463,7 @@ function LineTable({ lines, isNew = false }: { lines: DeliveryLineRow[]; isNew?:
               </td>
               <td style={{ padding: '.3rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{l.price.toFixed(2)} €</td>
               {isNew && <td style={{ padding: '.3rem .35rem' }}>{l.article_id ? <span style={{ color: 'var(--ready)' }}>#{l.article_id}</span> : <span style={{ color: 'var(--pending)' }}>чака</span>}</td>}
+              {batchId != null && <td style={{ padding: '.3rem .35rem' }}><DefectButton batchId={batchId} line={l} onDone={onChange} /></td>}
             </tr>
           ))}
         </tbody>

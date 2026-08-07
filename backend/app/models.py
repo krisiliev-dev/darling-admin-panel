@@ -270,7 +270,9 @@ class DeliveryLine(Base):
     match_confidence: Mapped[str] = mapped_column(String(16), default="")
     article_id: Mapped[int | None] = mapped_column(nullable=True)  # Barsy id (existing or once added)
     scanned_qty: Mapped[float] = mapped_column(default=0.0)
-    # pending → confirmed (scanned == qty) → mismatch (scanned != qty)
+    # units set aside as defective: NOT received into stock; received = qty - defect_qty
+    defect_qty: Mapped[float] = mapped_column(default=0.0)
+    # pending → confirmed (scanned == received) → mismatch
     status: Mapped[str] = mapped_column(String(16), default="pending")
     intake_draft_id: Mapped[int | None] = mapped_column(nullable=True)  # for new products
 
@@ -641,3 +643,29 @@ class SupplierImportProfile(Base):
     updated_by: Mapped[str] = mapped_column(String(255), default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+
+
+class SupplierClaim(Base):
+    """A defective unit set aside during goods-in. Per the owner's rule it is NOT booked into stock
+    (Barsy never sees defectives); instead the supplier owes a replacement / credit / refund, and
+    that debt is tracked here to resolution. Opened from a delivery line; surfaced in Рекламации and
+    as an outstanding-claims banner on the next delivery from the same supplier. Panel-owned (admin.db).
+    status: pending → replacement | credit | refund | rejected."""
+    __tablename__ = "supplier_claims"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    batch_id: Mapped[int] = mapped_column(index=True)          # the delivery it was found on
+    line_id: Mapped[int | None] = mapped_column(nullable=True)  # the delivery line it came from
+    supplier: Mapped[str] = mapped_column(String(255), default="", index=True)
+    supplier_code: Mapped[str] = mapped_column(String(64), default="")  # THEIR code, for the reclaim
+    name: Mapped[str] = mapped_column(String(255), default="")
+    qty: Mapped[float] = mapped_column(default=0.0)            # defective units set aside
+    price: Mapped[float] = mapped_column(default=0.0)          # delivery/cost price, for the claim value
+    note: Mapped[str] = mapped_column(Text, default="")        # what is wrong with them
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    resolution_note: Mapped[str] = mapped_column(Text, default="")  # what the supplier agreed to
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)

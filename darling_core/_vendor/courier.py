@@ -986,6 +986,7 @@ class Sameday(Courier):
         self._tok_exp = 0.0
         self._svc = None
         self._pp = None
+        self._points_by_id = None
 
     # --- money ---------------------------------------------------------------------
     @classmethod
@@ -1065,8 +1066,9 @@ class Sameday(Courier):
                 if e.code in (401, 403) and attempt == 1:
                     self._tok = None
                     continue
-                detail = e.read().decode("utf-8", "replace")[:300]
-                if e.code == 422 and "clientInternalReference" in detail:
+                text = e.read().decode("utf-8", "replace")
+                detail = self._error_detail(text)
+                if e.code == 422 and "clientInternalReference" in text:
                     raise CourierError(
                         "Sameday: този номер на поръчка ВЕЧЕ има издаден товарителница "
                         "(clientInternalReference не е уникален). НЕ добавяй суфикс — "
@@ -1075,6 +1077,58 @@ class Sameday(Courier):
                 raise CourierError(f"Sameday HTTP {e.code}: {detail}")
             except Exception as e:
                 raise CourierError(f"Sameday мрежова грешка: {e}")
+
+    @staticmethod
+    def _error_detail(text):
+        """Pull the fields that actually failed out of a Sameday validation body.
+
+        Their 400 is a tree of field names, nearly all of them EMPTY, and the ones carrying
+        real messages sit well past the first 300 characters. Truncating the raw body
+        therefore hides the diagnosis every single time: the locker failure read as a list of
+        empty objects and took a urlopen spy to identify. Falls back to the raw text when the
+        shape is not what we expect, because a body we cannot parse is still evidence.
+        """
+        try:
+            d = json.loads(text)
+        except Exception:
+            return text[:300]
+        errs = d.get("errors") if isinstance(d, dict) else None
+        if not isinstance(errs, dict):
+            return text[:300]
+        bad = {}
+
+        def kids(node):
+            """Children are a dict of field names, or a LIST for collections like parcels."""
+            c = node.get("children")
+            if isinstance(c, dict):
+                return list(c.items())
+            if isinstance(c, list):
+                return list(enumerate(c))
+            return []
+
+        def walk(prefix, node):
+            if not isinstance(node, dict):
+                return
+            msgs = node.get("errors")
+            if msgs:
+                bad[prefix] = msgs
+            for k, v in kids(node):
+                walk(f"{prefix}.{k}" if prefix else str(k), v)
+
+        try:
+            for k, v in kids(errs):
+                walk(str(k), v)
+        except Exception:
+            # This function exists to EXPLAIN a failure. If it cannot, it must hand back the
+            # raw body rather than raise a second, unrelated error over the top of the first.
+            return text[:300]
+        parts = [f"{k}: " + "; ".join(str(m) for m in v) for k, v in bad.items()]
+        top = errs.get("errors") or []
+        if top:
+            parts.append("; ".join(str(m) for m in top))
+        if not parts:
+            return text[:300]
+        return (str(d.get("message") or "").strip() + " — " + " | ".join(parts))[:800]
 
     def _pages(self, path, params=None):
         """Concatenate a paginated GET (data + currentPage/pages)."""
@@ -1123,6 +1177,28 @@ class Sameday(Courier):
         raise CourierError("Sameday: няма пункт за приемане по подразбиране в акаунта — "
                            "задай го в eAWB или сложи SAMEDAY_PICKUP_POINT_ID в ~/.hermes/.env.")
 
+    def _points(self):
+        """id -> pickup point, built once per adapter instance.
+
+        offices() is two paged endpoints and ~2.5k rows; a quote must not pay for that every
+        time it prices a basket. Keyed on str(id) because the locker list and the OOH list
+        number their points in the same space but do not agree on the type.
+        """
+        if self._points_by_id is None:
+            self._points_by_id = {str(o["id"]): o for o in self.offices()
+                                  if o.get("id") is not None}
+        return self._points_by_id
+
+    def _point(self, office_id):
+        """The chosen pickup point, or a refusal. NEVER a blank dict: every caller below uses
+        this to fill fields Sameday validates, and a falsy default would put us straight back
+        to the 400 this exists to prevent."""
+        p = self._points().get(str(office_id))
+        if p is None:
+            raise CourierError(f"Sameday: няма автомат или офис с id {office_id} "
+                               "в техния списък.")
+        return p
+
     def _county_for(self, city):
         """Sameday needs the окръг/област next to the city. Their nomenclature knows it, so
         we ask instead of making the operator type it."""
@@ -1144,11 +1220,29 @@ class Sameday(Courier):
         a = shp.address or {}
         city = a.get("city") or ""
         county = a.get("county") or a.get("region") or ""
+        postcode = str(a.get("postcode") or a.get("postal_code") or "")
         street = ", ".join(x for x in (a.get("street"), a.get("street_no")) if x)
         if shp.office_id:
-            # For a locker/PUDO drop Sameday still wants a postal address block; their own
-            # plugin copies it off the chosen locker.
-            street = street or "-"
+            # Sameday validates the recipient address block even when the parcel goes to a
+            # locker: `address` must be >= 3 characters, and city/county must be resolvable
+            # (a postal code resolves both). Until 2026-08-07 this sent "-" and two blanks,
+            # and EVERY locker quote came back 400 Validation Failed. Copy it off the chosen
+            # point, which is what their own plugin does and what the old comment already said.
+            p = self._point(shp.office_id)
+            street = street or str(p.get("address") or "")
+            city = city or str(p.get("city") or "")
+            postcode = postcode or str(p.get("postcode") or "")
+            # The county is NOT optional for a locker either, and the postal code does not
+            # stand in for it - measured against the live API on 2026-08-07. Their own record
+            # for the point carries it, so there is no second lookup to get wrong.
+            _c = p.get("county")
+            if isinstance(_c, dict):
+                _c = _c.get("name")
+            county = county or str(_c or "")
+            if len(street.strip()) < 3:
+                # Some points carry a name but a stub address. The name is a real location
+                # string; "-" is not, and it is the exact value their validator rejected.
+                street = str(p.get("name") or "").strip()
         if not shp.office_id:
             if not city:
                 raise CourierError("Sameday: липсва населено място на получателя.")
@@ -1157,14 +1251,25 @@ class Sameday(Courier):
             county = county or self._county_for(city) or ""
             if not county:
                 raise CourierError(f"Sameday: не намерих областта за „{city}“ в номенклатурата им.")
-        return {"name": shp.recipient, "phoneNumber": shp.phone, "address": street or "-",
-                "personType": self.PERSON_INDIVIDUAL, "cityString": city,
-                "countyString": county, "email": shp.email or ""}
+        out = {"name": shp.recipient, "phoneNumber": shp.phone, "address": street or "-",
+               "personType": self.PERSON_INDIVIDUAL, "cityString": city,
+               "countyString": county, "email": shp.email or ""}
+        if postcode:
+            # Optional, and only sent when we have one: their validator accepts a postal code
+            # INSTEAD of county/city, which is the sturdier of the two ways to satisfy it.
+            out["postalCode"] = postcode
+        return out
 
     def _body(self, shp: "Shipment", reference=None):
         """ONE builder for the quote and the booking, so the two cannot disagree about COD
         — the Speedy incident, which cost a fee per order until someone reconciled a payout."""
-        code = self.SERVICE_LOCKER if shp.office_id else self.SERVICE_DOOR
+        # PUDO points are service PP, lockers are LN. This sent LN for both, which prices
+        # and books a counter drop as an easybox drop.
+        kind = self._point(shp.office_id).get("kind") if shp.office_id else None
+        if not shp.office_id:
+            code = self.SERVICE_DOOR
+        else:
+            code = self.SERVICE_PUDO if kind == "pudo" else self.SERVICE_LOCKER
         body = {
             "pickupPoint": self._pickup_point(),
             "contactPerson": None,
@@ -1191,8 +1296,12 @@ class Sameday(Courier):
             if shp.office_id:
                 # LN goes in lockerLastMile, PP in oohLastMile — same id space, different
                 # field, and sending the wrong one is their documented "invalid
-                # lockerLastMile" error.
-                body["lockerLastMile"] = shp.office_id
+                # lockerLastMile" error. The kind comes from the point itself rather than
+                # from a guess about the id.
+                if kind == "pudo":
+                    body["oohLastMile"] = shp.office_id
+                else:
+                    body["lockerLastMile"] = shp.office_id
         return body
 
     # --- interface -------------------------------------------------------------------
@@ -1215,11 +1324,27 @@ class Sameday(Courier):
             out.append({"id": row.get("lockerId"), "name": row.get("name"),
                         "city": row.get("city"), "address": row.get("address"),
                         "postcode": row.get("postalCode"), "kind": "locker",
+                        # county rides along for the AWB: their validator wants it by name and
+                        # a postal code does not resolve it on the BG instance, whatever the
+                        # error message offers. Additive - other adapters simply omit it.
+                        "county": row.get("county"),
                         "lat": _coord(row.get("lat")), "lon": _coord(row.get("lng"))})
+        seen = {str(o["id"]) for o in out if o.get("id") is not None}
         for row in self._pages("/api/client/ooh-locations"):
-            out.append({"id": row.get("oohId"), "name": row.get("name"),
+            oid = row.get("oohId")
+            if oid is None or str(oid) in seen:
+                # The OOH list is a SUBSET VIEW of the same easyboxes, not a second network:
+                # measured 2026-08-07, all 839 of its ids were already in the locker list and
+                # every one had oohType 0. Appending them blind listed 839 points twice and
+                # labelled the copy a counter, which prices and books an easybox as a PUDO.
+                continue
+            # oohType 0 is an easybox; anything else is a genuine out-of-home counter. Read
+            # the flag rather than assuming the endpoint implies the kind.
+            kind = "locker" if str(row.get("oohType")) == "0" else "pudo"
+            out.append({"id": oid, "name": row.get("name"),
                         "city": row.get("city"), "address": row.get("address"),
-                        "postcode": row.get("postalCode"), "kind": "pudo",
+                        "postcode": row.get("postalCode"), "kind": kind,
+                        "county": row.get("county"),
                         "lat": _coord(row.get("lat")), "lon": _coord(row.get("lng"))})
         if city:
             key = "".join(str(city).split()).casefold()

@@ -342,6 +342,8 @@ export interface DeliveryLineRow {
   article_id: number | null
   scanned_qty: number
   status: string            // pending | confirmed | mismatch
+  defect_qty: number        // units set aside as defective (not received into stock)
+  received: number          // qty - defect_qty: what the storeload actually books
   intake_draft_id: number | null
 }
 

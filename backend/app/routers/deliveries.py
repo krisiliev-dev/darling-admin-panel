@@ -27,7 +27,16 @@ from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
-from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, SupplierImportProfile, User, Zayavka, ZayavkaLine
+from ..models import (
+    DeliveryBatch,
+    DeliveryLine,
+    IntakeDraft,
+    SupplierClaim,
+    SupplierImportProfile,
+    User,
+    Zayavka,
+    ZayavkaLine,
+)
 from ..services import delivery_parse as DP
 from ..services.text import norm
 from ..users import current_active_user, current_owner
@@ -132,6 +141,7 @@ def _line_out(ln: DeliveryLine) -> dict:
         "price": ln.price, "barcode": ln.barcode, "is_new": ln.is_new, "match_code": ln.match_code,
         "match_method": ln.match_method, "match_confidence": ln.match_confidence,
         "article_id": ln.article_id, "scanned_qty": ln.scanned_qty, "status": ln.status,
+        "defect_qty": ln.defect_qty, "received": (ln.qty or 0) - (ln.defect_qty or 0),
         "intake_draft_id": ln.intake_draft_id,
     }
 
@@ -238,8 +248,11 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
             # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
             "currency_id": _cfg.barsy_currency_id, "price_mode": _cfg.barsy_price_mode,
         },
-        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
-                      "current_price": str(ln.price)} for ln in lines],
+        # received = claimed - defective; a fully-defective line is not booked at all
+        "articles": [{"article_id": int(ln.article_id),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
+                      "amount": str((ln.qty or 0) - (ln.defect_qty or 0)),
+                      "current_price": str(ln.price)}
+                     for ln in lines if (ln.qty or 0) - (ln.defect_qty or 0) > 0],
         "action_type": "save_and_close",
     }
     if b.supplier_id:
@@ -506,7 +519,7 @@ class ScanRequest(BaseModel):
 
 
 def _set_line_status(ln: DeliveryLine) -> None:
-    q = ln.qty or 0
+    q = (ln.qty or 0) - (ln.defect_qty or 0)   # scan-confirm targets the RECEIVED qty
     if ln.scanned_qty == 0:
         ln.status = "pending"
     elif math.isclose(ln.scanned_qty, q, abs_tol=1e-9):
@@ -720,8 +733,11 @@ async def finalise(
             # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
             "currency_id": settings.barsy_currency_id, "price_mode": settings.barsy_price_mode,
         },
-        "articles": [{"article_id": int(ln.article_id), "amount": str(ln.qty),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
-                      "current_price": str(ln.price)} for ln in lines],
+        # received = claimed - defective; a fully-defective line is not booked at all
+        "articles": [{"article_id": int(ln.article_id),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
+                      "amount": str((ln.qty or 0) - (ln.defect_qty or 0)),
+                      "current_price": str(ln.price)}
+                     for ln in lines if (ln.qty or 0) - (ln.defect_qty or 0) > 0],
         "action_type": "save_and_close",
     }
     if b.supplier_id:
@@ -1019,3 +1035,152 @@ async def create_from_zayavka(
     parsed = await run_in_threadpool(_parsed_from_zayavka_lines, z.supplier, lines)
     return await _persist_batch(session, actor, z.supplier, z.supplier_id or 0, 1, "", "",
                                 "zayavka", parsed, zayavka_id=z.id)
+
+
+# ------------------------------------------------------------------ defectives + claims (D3) ---
+# A worker sets aside a defective unit at goods-in. The owner's rule: it is NOT booked into stock,
+# and the supplier owes a replacement / credit / refund. So a line carries defect_qty (received =
+# qty − defect_qty; the storeload books only good units) and each defect opens a SupplierClaim that
+# Рекламации tracks to resolution. Static /claims* routes live on profiles_router (included before
+# the main router) so GET /{batch_id} does not shadow them; /{batch_id}/… defect route is safe on
+# the main router because its first segment is dynamic.
+_CLAIM_STATES = {"pending", "replacement", "credit", "refund", "rejected"}
+
+
+def _claim_out(c: SupplierClaim) -> dict:
+    return {
+        "id": c.id, "batch_id": c.batch_id, "line_id": c.line_id, "supplier": c.supplier,
+        "supplier_code": c.supplier_code, "name": c.name, "qty": c.qty, "price": c.price,
+        "note": c.note, "status": c.status, "resolution_note": c.resolution_note,
+        "created_by": c.created_by,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "resolved_at": c.resolved_at.isoformat() if c.resolved_at else None,
+    }
+
+
+class DefectRequest(BaseModel):
+    qty: float
+    note: str = ""
+
+
+@router.post("/{batch_id}/lines/{line_id}/defect")
+async def mark_defect(
+    batch_id: int, line_id: int, req: DefectRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Set aside N units of a line as defective. received = qty − defect_qty, so the line recolours
+    against the received target and the eventual storeload books only good units. Opens (or updates)
+    the line's pending SupplierClaim; qty=0 clears the defect and removes a still-pending claim.
+    Refuses a finalised delivery and a defect count above the delivered qty."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status == "finalised":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана — не се променя.")
+    ln = await session.get(DeliveryLine, line_id)
+    if not ln or ln.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    qty = float(req.qty or 0)
+    if qty < 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дефектното количество не може да е отрицателно.")
+    if qty > (ln.qty or 0):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дефектното количество надвишава доставеното.")
+
+    ln.defect_qty = qty
+    _set_line_status(ln)   # the received target shrank — recolour against qty − defect
+
+    existing = (await session.execute(
+        select(SupplierClaim).where(SupplierClaim.line_id == ln.id,
+                                    SupplierClaim.status == "pending"))).scalars().first()
+    claim_id: int | None = None
+    note = (req.note or "").strip()
+    if qty == 0:
+        if existing is not None:
+            await session.delete(existing)   # a mis-tap is undone, not left as a phantom claim
+    elif existing is not None:
+        existing.qty = qty
+        existing.price = ln.price or 0.0
+        existing.note = note
+        claim_id = existing.id
+    else:
+        claim = SupplierClaim(
+            batch_id=batch_id, line_id=ln.id, supplier=b.supplier or "",
+            supplier_code=ln.supplier_code or "", name=ln.name or "",
+            qty=qty, price=ln.price or 0.0, note=note, status="pending",
+            created_by=actor.email)
+        session.add(claim)
+        await session.flush()
+        claim_id = claim.id
+
+    await log_action(session, actor, "delivery.defect", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} line={line_id} qty={qty}")
+    await session.commit()
+    await session.refresh(ln)
+    return {"ok": True, "line": _line_out(ln), "claim_id": claim_id}
+
+
+@profiles_router.get("/claims")
+async def list_claims(
+    state: str = "",
+    supplier: str = "",
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """The Рекламации list. state: '' = all, 'open' = pending only, 'resolved' = everything else,
+    or an exact status. Optionally narrow to one supplier."""
+    q = select(SupplierClaim)
+    if state == "open":
+        q = q.where(SupplierClaim.status == "pending")
+    elif state == "resolved":
+        q = q.where(SupplierClaim.status != "pending")
+    elif state:
+        q = q.where(SupplierClaim.status == state)
+    if supplier:
+        q = q.where(SupplierClaim.supplier == supplier)
+    rows = list((await session.execute(
+        q.order_by(SupplierClaim.created_at.desc()).limit(500))).scalars().all())
+    return {"claims": [_claim_out(c) for c in rows]}
+
+
+@profiles_router.get("/claims-open")
+async def open_claims_for_supplier(
+    supplier: str = "",
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Outstanding (pending) claims — the banner on a delivery keyed by supplier. No supplier = all."""
+    q = select(SupplierClaim).where(SupplierClaim.status == "pending")
+    if supplier:
+        q = q.where(SupplierClaim.supplier == supplier)
+    rows = list((await session.execute(
+        q.order_by(SupplierClaim.created_at.desc()))).scalars().all())
+    return {"count": len(rows), "supplier": supplier, "claims": [_claim_out(c) for c in rows]}
+
+
+class ResolveRequest(BaseModel):
+    status: str
+    note: str = ""
+
+
+@profiles_router.post("/claims/{claim_id}/resolve")
+async def resolve_claim(
+    claim_id: int, req: ResolveRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Record what the supplier agreed to: замяна / кредит / връщане на пари / отказан. Setting it
+    back to 'pending' reopens the claim (clears resolved_at)."""
+    c = await session.get(SupplierClaim, claim_id)
+    if not c:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Рекламацията не е намерена.")
+    if req.status not in _CLAIM_STATES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невалиден статус.")
+    c.status = req.status
+    c.resolution_note = (req.note or "").strip()
+    c.resolved_at = None if req.status == "pending" else _dt.datetime.now(_dt.UTC)
+    await log_action(session, actor, "delivery.claim.resolve", target=c.supplier,
+                     detail=f"claim={claim_id} -> {req.status}")
+    await session.commit()
+    await session.refresh(c)
+    return {"ok": True, "claim": _claim_out(c)}

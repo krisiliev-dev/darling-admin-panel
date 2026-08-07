@@ -31,8 +31,23 @@ def _sd():
     s.base = "https://api.sameday.bg"
     s._tok, s._tok_exp, s._svc, s._pp = None, 0.0, None, None
     s._svc = [{"id": 7, "serviceCode": "24", "name": "Sameday 24H"},
-              {"id": 9, "serviceCode": "LN", "name": "LockerNextDay"}]
+              {"id": 9, "serviceCode": "LN", "name": "LockerNextDay"},
+              {"id": 11, "serviceCode": "PP", "name": "PUDO"}]
     s._pp = 4242
+    # _body resolves the pickup point now, so an office_id has to resolve to something. The
+    # shape is exactly what offices() emits, county included — that field is why locker quotes
+    # were failing, so a fixture without it would test the wrong thing.
+    s._points_by_id = {
+        "88123": {"id": "88123", "name": "easybox 1210 София Черковна", "kind": "locker",
+                  "city": "София", "address": "ул. Черковна 38А ТЦ Арко Вара",
+                  "postcode": "1505", "county": "София-град", "lat": 42.7, "lon": 23.3},
+        "77001": {"id": "77001", "name": "Офис Свищов", "kind": "pudo",
+                  "city": "Свищов", "address": "ул. Дунав 3", "postcode": "5250",
+                  "county": "Велико Търново", "lat": 43.6, "lon": 25.3},
+        "55555": {"id": "55555", "name": "easybox Русе Парк", "kind": "locker",
+                  "city": "Русе", "address": "-", "postcode": "7000",
+                  "county": "Русе", "lat": 43.8, "lon": 25.9},
+    }
     return s
 
 
@@ -338,3 +353,144 @@ def test_an_unimplemented_adapter_fails_in_bulgarian_not_with_a_traceback():
     with pytest.raises(CourierError) as e:
         ev.calculate(_shp())
     assert "Европът" in str(e.value)
+# ============================================================================================
+# The 2026-08-07 live findings. Every locker quote returned HTTP 400 and four separate defects
+# were stacked behind each other. These pin all four.
+# ============================================================================================
+
+# ------------------------------------------------- 1. the recipient address block was fake
+def test_a_locker_recipient_is_filled_from_the_chosen_point():
+    """Sameday validates the recipient address EVEN FOR A LOCKER. This used to send "-" and two
+    blank strings, and every locker quote came back 400 Validation Failed."""
+    r = _sd()._body(_shp(office_id="88123", address=None))["awbRecipient"]
+    assert r["address"] == "ул. Черковна 38А ТЦ Арко Вара"
+    assert r["cityString"] == "София"
+    assert r["countyString"] == "София-град"
+    assert r["postalCode"] == "1505"
+
+
+def test_a_locker_recipient_never_sends_the_dash_placeholder():
+    """Their validator's exact words: "This value is too short. It should have 3 characters or
+    more." A single hyphen is what it was rejecting."""
+    r = _sd()._body(_shp(office_id="88123", address=None))["awbRecipient"]
+    assert r["address"] != "-"
+    assert len(r["address"].strip()) >= 3
+
+
+def test_a_point_with_a_stub_address_falls_back_to_its_name():
+    """Some points carry a real name and a placeholder address. The name is a location string;
+    "-" is not."""
+    r = _sd()._body(_shp(office_id="55555", address=None))["awbRecipient"]
+    assert r["address"] == "easybox Русе Парк"
+
+
+def test_the_order_address_still_wins_over_the_point():
+    """A locker order that DOES carry an address must not have it overwritten — the point fills
+    gaps, it does not take over."""
+    r = _sd()._body(_shp(office_id="88123"))["awbRecipient"]
+    assert r["cityString"] == "Свищов"          # from the order, not the София locker
+
+
+def test_an_unknown_point_is_refused_not_sent_blank():
+    """Fail closed: an id we cannot resolve must not become an empty address block, which is
+    precisely the 400 this whole change exists to stop."""
+    with pytest.raises(CourierError) as e:
+        _sd()._body(_shp(office_id="does-not-exist", address=None))
+    assert "does-not-exist" in str(e.value)
+
+
+# ------------------------------------------------- 2. county is not resolvable from a postcode
+def test_the_county_rides_along_from_the_point():
+    """Measured live: a postal code does NOT resolve the county on their BG instance, whatever
+    the error message offers. The point's own record carries it."""
+    r = _sd()._body(_shp(office_id="77001", address=None))["awbRecipient"]
+    assert r["countyString"] == "Велико Търново"
+
+
+# ------------------------------------------------- 3. offices() listed 839 points twice
+def _pages_stub(lockers, ooh):
+    def _pages(self, path, params=None):
+        return lockers if "lockers" in path else ooh
+    return _pages
+
+
+def test_offices_dedupes_a_point_that_is_in_both_lists(monkeypatch):
+    """/api/client/ooh-locations is a SUBSET VIEW of the same easyboxes, not a second network:
+    measured 2026-08-07, all 839 of its ids were already lockers. Concatenating listed them
+    twice and labelled the copy a counter, which prices an easybox as a PUDO drop."""
+    lockers = [{"lockerId": 1, "name": "A", "city": "София", "address": "ул. 1",
+                "postalCode": "1000", "county": "София-град", "lat": "42.7", "lng": "23.3"}]
+    ooh = [{"oohId": 1, "oohType": 0, "name": "A", "city": "София", "address": "ул. 1",
+            "postalCode": "1000", "county": "София-град", "lat": "42.7", "lng": "23.3"}]
+    monkeypatch.setattr(Sameday, "_pages", _pages_stub(lockers, ooh))
+    out = _sd().offices()
+    assert len(out) == 1
+    assert [o["id"] for o in out] == [1]
+    assert out[0]["kind"] == "locker"
+
+
+def test_offices_keeps_a_point_that_is_only_in_the_ooh_list(monkeypatch):
+    lockers = [{"lockerId": 1, "name": "A", "city": "София", "address": "ул. 1",
+                "postalCode": "1000", "county": "София-град", "lat": "1", "lng": "2"}]
+    ooh = [{"oohId": 2, "oohType": 3, "name": "B", "city": "Русе", "address": "ул. 2",
+            "postalCode": "7000", "county": "Русе", "lat": "3", "lng": "4"}]
+    monkeypatch.setattr(Sameday, "_pages", _pages_stub(lockers, ooh))
+    out = _sd().offices()
+    assert sorted(o["id"] for o in out) == [1, 2]
+
+
+def test_the_kind_is_read_from_ooh_type_not_from_the_endpoint(monkeypatch):
+    """oohType 0 IS an easybox. Calling everything from that endpoint a PUDO is what mislabelled
+    839 lockers."""
+    lockers = []
+    ooh = [{"oohId": 9, "oohType": 0, "name": "box", "city": "С", "address": "ул",
+            "postalCode": "1", "county": "c", "lat": "1", "lng": "2"},
+           {"oohId": 10, "oohType": 2, "name": "counter", "city": "С", "address": "ул",
+            "postalCode": "1", "county": "c", "lat": "1", "lng": "2"}]
+    monkeypatch.setattr(Sameday, "_pages", _pages_stub(lockers, ooh))
+    out = {o["id"]: o["kind"] for o in _sd().offices()}
+    assert out == {9: "locker", 10: "pudo"}
+
+
+def test_a_pudo_order_uses_service_pp_and_ooh_last_mile():
+    """LN goes in lockerLastMile, PP in oohLastMile — the adapter's own comment said so while
+    the code put every id in lockerLastMile and priced every point as a locker."""
+    body = _sd()._body(_shp(office_id="77001", address=None), reference="R")
+    assert body["service"] == 11                     # the PP service id
+    assert body["oohLastMile"] == "77001"
+    assert "lockerLastMile" not in body
+
+
+# ------------------------------------------------- 4. the error formatter hid the diagnosis
+def test_error_detail_surfaces_only_the_children_that_failed():
+    """Their 400 is a tree of field names, nearly all EMPTY, with the real messages well past
+    the 300 characters the old code truncated to. Every failure read as a list of empty objects."""
+    body = ('{"code":400,"message":"Validation Failed","errors":{"children":{'
+            '"pickupPoint":{},"service":{},"awbRecipient":{"children":{'
+            '"address":{"errors":["This value is too short."]},'
+            '"email":{}}}}}}')
+    out = Sameday._error_detail(body)
+    assert "awbRecipient.address" in out
+    assert "This value is too short." in out
+    assert "pickupPoint" not in out          # empty children are noise, not diagnosis
+
+
+def test_error_detail_survives_a_list_shaped_children_node():
+    """THE one. Symfony uses a LIST for collection children (parcels), so children.items()
+    raised AttributeError and replaced a diagnosable HTTP 400 with an unrelated Python error.
+    A formatter that can raise destroys the evidence it exists to present."""
+    body = ('{"code":400,"message":"Validation Failed","errors":{"children":{'
+            '"parcels":{"children":[{"errors":["weight required"]}]},'
+            '"service":{}}}}')
+    out = Sameday._error_detail(body)
+    assert "weight required" in out
+
+
+def test_error_detail_falls_back_to_the_raw_body_when_it_cannot_parse():
+    assert "not json at all" in Sameday._error_detail("not json at all")
+
+
+def test_error_detail_falls_back_when_nothing_carries_an_error():
+    body = '{"code":400,"message":"Validation Failed","errors":{"children":{"a":{},"b":{}}}}'
+    out = Sameday._error_detail(body)
+    assert "Validation Failed" in out
