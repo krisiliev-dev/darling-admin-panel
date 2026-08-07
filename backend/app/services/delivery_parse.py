@@ -60,8 +60,30 @@ _SUPPLIER_CODES_PATH = os.path.join(_DATA, "supplier_codes.jsonl")
 _BARCODES_PATH = os.path.join(_DATA, "barcodes.jsonl")
 
 
-@lru_cache(maxsize=1)
+def _stamp(path: str) -> float:
+    """The file's mtime, used as a CACHE KEY. A plain lru_cache over a file read pins the
+    first version for the life of the process: regenerating the snapshot changed nothing
+    until a restart, which is half of why a product we created stayed invisible."""
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
+
+
+def refresh_catalog_caches() -> None:
+    """Drop the cached snapshots. Call after creating an article in Barsy so the very next
+    lookup re-reads whatever is on disk instead of a snapshot taken before it existed."""
+    _supplier_index_at.cache_clear()
+    _barcode_index_at.cache_clear()
+    _seed_by_code_at.cache_clear()
+
+
 def supplier_index() -> dict:
+    return _supplier_index_at(_stamp(_SUPPLIER_CODES_PATH))
+
+
+@lru_cache(maxsize=2)
+def _supplier_index_at(_mtime: float) -> dict:
     """Load the supplier-code mapping into fast lookup tables. Keys are normalised."""
     by_sup_ref: dict[tuple, dict] = {}   # (supplier, their code) -> row   [strongest]
     by_ref: dict[str, dict] = {}         # their code alone        -> row   [medium]
@@ -79,8 +101,12 @@ def supplier_index() -> dict:
             "by_sup_name": by_sup_name, "by_name": by_name}
 
 
-@lru_cache(maxsize=1)
 def barcode_index() -> dict:
+    return _barcode_index_at(_stamp(_BARCODES_PATH))
+
+
+@lru_cache(maxsize=2)
+def _barcode_index_at(_mtime: float) -> dict:
     """Two maps from the catalogue's known EANs: ean→our code, and our code→[eans]."""
     ean_to_code: dict[str, str] = {}
     code_to_eans: dict[str, list] = {}
@@ -92,8 +118,12 @@ def barcode_index() -> dict:
     return {"ean_to_code": ean_to_code, "code_to_eans": code_to_eans}
 
 
-@lru_cache(maxsize=1)
 def seed_by_code() -> dict:
+    return _seed_by_code_at(0.0)
+
+
+@lru_cache(maxsize=2)
+def _seed_by_code_at(_mtime: float) -> dict:
     """Our own catalogue keyed by our code — a secondary net when a sheet already uses our codes."""
     out: dict[str, dict] = {}
     for p in products():

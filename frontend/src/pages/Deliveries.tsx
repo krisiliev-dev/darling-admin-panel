@@ -296,7 +296,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const advanceUnknown = useCallback((lines?: DeliveryLineRow[]) => {
     const code = unknownQueueRef.current.shift()
     if (!code) { setUnknown(null); return }
-    setUnknown({ barcode: code, lines: (lines ?? b?.lines ?? []).filter((l) => l.is_new) })
+    setUnknown({ barcode: code, lines: (lines ?? b?.lines ?? []).filter((l) => !l.barcode) })
   }, [b])
 
   const attach = async (lineId: number) => {
@@ -334,7 +334,9 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
       setScanMsg(m)
       if (r.unknown.length) {
         unknownQueueRef.current = r.unknown.slice(1)
-        setUnknown({ barcode: r.unknown[0], lines: (fresh?.lines ?? []).filter((l) => l.is_new) })
+        // barcode-less, not is_new: a product created minutes ago is no longer is_new but is
+        // exactly what the worker is holding
+        setUnknown({ barcode: r.unknown[0], lines: (fresh?.lines ?? []).filter((l) => !l.barcode) })
       }
       return { ok: true, message: m }
     } catch (e) {

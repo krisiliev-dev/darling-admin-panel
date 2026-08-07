@@ -28,6 +28,7 @@ from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
 from ..models import DeliveryBatch, DeliveryLine, DraftImage, DraftSupplier, IntakeDraft, NameRecipe, User
+from ..services import delivery_parse as DP
 from ..users import current_active_user, current_owner
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
@@ -520,6 +521,9 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
         return {"live": True, "created": False, "error": "Barsy не върна article_id."}
     d.barsy_article_id = aid
     d.code = d.code or _extract_code(out)          # Barsy assigns + returns the SKU
+    # the catalogue snapshots were taken before this product existed; drop them so the next
+    # delivery does not read it as NEW all over again and mint a second Barsy article
+    DP.refresh_catalog_caches()
     d.status = "pushed"
     d.pushed_at = _dt.datetime.now(_dt.UTC)
     up = await _upload_pending_images(session, d.id, aid)
