@@ -74,6 +74,7 @@ from .routers import (
     reports,
     risk,
     shipping_rates,
+    shopfloor,
     store_ops,
     summary,
     twofa,
@@ -201,6 +202,7 @@ app.include_router(reports.router)
 app.include_router(shipping_rates.router)
 app.include_router(risk.router)
 app.include_router(summary.router)
+app.include_router(shopfloor.router)
 app.include_router(store_ops.router)
 app.include_router(home.router)
 app.include_router(webhooks.router)  # Barsy⇄Shopify receivers (HMAC/token-gated, no session auth)

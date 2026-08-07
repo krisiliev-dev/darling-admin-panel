@@ -25,6 +25,7 @@ import { ProductEdit } from './pages/ProductEdit'
 import { Reports } from './pages/Reports'
 import { CategoryTree } from './pages/CategoryTree'
 import { Accounts } from './pages/Accounts'
+import { Kiosk } from './pages/Kiosk'
 
 export default function App() {
   const { me, loading } = useAuth()
@@ -78,6 +79,8 @@ export default function App() {
         <Route path="marki-v2" element={<Navigate to="/products/brands" replace />} />
         <Route path="marki-v2/:brandId" element={<BrandRegistryV2 />} />
         <Route path="assistant" element={<Assistant />} />
+        {/* the warehouse-door tablet lives here — every role may use the door */}
+        <Route path="kiosk" element={<Kiosk />} />
         <Route path="clients" element={canManage ? <Clients /> : <Navigate to="/" replace />} />
         <Route path="accounts" element={canManage ? <Accounts /> : <Navigate to="/" replace />} />
         <Route path="reports" element={canManage ? <Reports /> : <Navigate to="/" replace />} />

@@ -590,3 +590,26 @@ class ShippingRate(Base):
     enabled: Mapped[bool] = mapped_column(default=False)     # owner: offered in checkout
     refreshed_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+
+
+class ShopfloorMove(Base):
+    """One item through the warehouse door — the mounted-tablet kiosk. direction 'out' =
+    към магазина, 'back' = обратно в склада.
+
+    PANEL-LOCAL LEDGER BY DESIGN: Barsy keeps ONE depot and total stock (the каса already
+    decrements it on sale); this ledger splits the total into warehouse vs shopfloor as a
+    DERIVED view. The kiosk is best-effort — a missed scan under a-client-is-waiting
+    pressure skews a report, never ERP stock — and ревизия corrects drift. The owner chose
+    this over per-product „капацитет в магазина" fields (2026-08-07). code may be blank:
+    an unknown barcode is recorded raw rather than refused, because the kiosk never blocks."""
+    __tablename__ = "shopfloor_move"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    barcode: Mapped[str] = mapped_column(String(64), index=True)
+    code: Mapped[str] = mapped_column(String(64), default="", index=True)   # ours, when resolved
+    name: Mapped[str] = mapped_column(String(255), default="")
+    qty: Mapped[int] = mapped_column(default=1)
+    direction: Mapped[str] = mapped_column(String(8), index=True)           # out | back
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
