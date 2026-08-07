@@ -552,6 +552,53 @@ def _set_line_status(ln: DeliveryLine) -> None:
         ln.status = "mismatch"       # over- or under-count on a piece-goods line
 
 
+async def _bump_scan(session: AsyncSession, ln: DeliveryLine, n: float) -> None:
+    """Increment scanned_qty in SQL, never in Python. Two workers on one pallet were doing an
+    unlocked read-modify-write (both read 3, both write 4) and silently losing beeps."""
+    await session.execute(
+        update(DeliveryLine).where(DeliveryLine.id == ln.id)
+        .values(scanned_qty=DeliveryLine.scanned_qty + n))
+    await session.refresh(ln)
+    _set_line_status(ln)
+
+
+def _candidate_lines(lines: list[DeliveryLine], code: str) -> list[DeliveryLine]:
+    """Every line a scanned code could belong to — by its own barcode first, else by resolving the
+    EAN through the catalogue to our code. A list, not the first hit: the same article legitimately
+    appears on two rows (two lots at two prices)."""
+    cands = [x for x in lines if x.barcode and x.barcode == code]
+    if not cands:
+        our = DP.barcode_index()["ean_to_code"].get(code)
+        if our:
+            cands = [x for x in lines if x.match_code and x.match_code == our]
+    return cands
+
+
+def _distribute(cands: list[DeliveryLine], n: float) -> list[tuple[DeliveryLine, float]]:
+    """Spread n scanned units across lines carrying the same code, filling each to its RECEIVED
+    target (qty - defect) before spilling into the next. Without this every beep lands on row 1,
+    which over-scans into mismatch while row 2 sits at 0 — and both block finalise."""
+    out: list[tuple[DeliveryLine, float]] = []
+    left = n
+    for x in cands:
+        if left <= 0:
+            break
+        room = ((x.qty or 0) - (x.defect_qty or 0)) - (x.scanned_qty or 0)
+        if room <= 0:
+            continue
+        take = min(left, room)
+        out.append((x, take))
+        left -= take
+    if left > 0:
+        # the surplus belongs on the last candidate — MERGED into its take, not appended as a
+        # second entry, or one over-scan reports twice and the first report reads 'confirmed'
+        if out and out[-1][0] is cands[-1]:
+            out[-1] = (out[-1][0], out[-1][1] + left)
+        else:
+            out.append((cands[-1], left))
+    return out
+
+
 async def _guard_not_finalised(session: AsyncSession, batch_id: int) -> None:
     """Refuse mutations to a delivery that's already been sent to Barsy (local record must not drift
     from what Barsy recorded)."""
@@ -578,20 +625,14 @@ async def scan(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Празен баркод.")
     lines = await _lines(session, b.id)
 
-    # 1) a line already carrying this barcode
-    ln = next((x for x in lines if x.barcode and x.barcode == code), None)
-    # 2) resolve the EAN → our code → the line matched to that code
-    if ln is None:
-        our = DP.barcode_index()["ean_to_code"].get(code)
-        if our:
-            ln = next((x for x in lines if x.match_code and x.match_code == our), None)
-
-    if ln is None:
+    cands = _candidate_lines(lines, code)
+    if not cands:
         new_lines = [_line_out(x) for x in lines if x.is_new]
         return {"matched": False, "unknown": True, "barcode": code, "new_lines": new_lines}
 
-    ln.scanned_qty += 1
-    _set_line_status(ln)
+    # one unit, but still pick the line with room — the same article can sit on two rows
+    ln, take = _distribute(cands, 1)[0]
+    await _bump_scan(session, ln, take)
     await session.commit()
     return {"matched": True, "line": _line_out(ln)}
 
@@ -615,8 +656,7 @@ async def attach_barcode(
     if not ln.is_new:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Само нов продукт може да получи баркод тук.")
     ln.barcode = (req.barcode or "").strip()
-    ln.scanned_qty += 1
-    _set_line_status(ln)
+    await _bump_scan(session, ln, 1)
     if ln.intake_draft_id:
         d = await session.get(IntakeDraft, ln.intake_draft_id)
         if d and not d.barcode:
@@ -861,21 +901,17 @@ async def scan_batch(
             raise HTTPException(status.HTTP_400_BAD_REQUEST,
                                 f"Невалиден брой за {code} (1–500).")
     lines = await _lines(session, b.id)
-    ean_to_code = DP.barcode_index()["ean_to_code"]
     applied: list[dict] = []
     unknown: list[str] = []
     for code, n in counts.items():
-        ln = next((x for x in lines if x.barcode and x.barcode == code), None)
-        if ln is None:
-            our = ean_to_code.get(code)
-            if our:
-                ln = next((x for x in lines if x.match_code and x.match_code == our), None)
-        if ln is None:
+        cands = _candidate_lines(lines, code)
+        if not cands:
             unknown.append(code)
             continue
-        ln.scanned_qty += n
-        _set_line_status(ln)
-        applied.append({"barcode": code, "count": n, "line": _line_out(ln)})
+        # fill each same-code line to its target before spilling into the next
+        for ln, take in _distribute(cands, n):
+            await _bump_scan(session, ln, take)
+            applied.append({"barcode": code, "count": take, "line": _line_out(ln)})
     await session.commit()
     return {"applied": applied, "unknown": unknown, "summary": _batch_summary(b, lines)}
 
@@ -1091,6 +1127,10 @@ def _claim_out(c: SupplierClaim) -> dict:
 class DefectRequest(BaseModel):
     qty: float
     note: str = ""
+    # what the caller believed the current defect count was. Absolute set is the right
+    # semantics ("2 of these are broken"), but two workers each marking one broken unit
+    # would otherwise land on 1 and lose the other. Optional: older clients still work.
+    expected_defect_qty: float | None = None
 
 
 @router.post("/{batch_id}/lines/{line_id}/defect")
@@ -1116,6 +1156,11 @@ async def mark_defect(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дефектното количество не може да е отрицателно.")
     if qty > (ln.qty or 0):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Дефектното количество надвишава доставеното.")
+    if (req.expected_defect_qty is not None
+            and abs((ln.defect_qty or 0) - req.expected_defect_qty) > 1e-9):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Междувременно е отбелязано друго количество ({ln.defect_qty}). "
+                            "Обнови и опитай пак.")
 
     ln.defect_qty = qty
     _set_line_status(ln)   # the received target shrank — recolour against qty − defect
@@ -1308,3 +1353,55 @@ async def reconcile_finalise(
                      detail=f"batch={batch_id} doc_num={b.doc_num} not in Barsy")
     await session.commit()
     return {"ok": True, "action": "released", "doc_num": b.doc_num}
+
+
+# ------------------------------------------------------------------ take a scan back (H2/A4) ---
+# scanned_qty could only ever go UP, and the natural working order is scan-everything-THEN-inspect:
+# a worker scans 10, finds 2 cracked, taps Дефектен 2 — the received target drops to 8 while scanned
+# stays 10, so the line is permanently red and finalise is blocked. A single double-beep does the
+# same. This is the way back.
+
+
+def _scan_adjust_body(ln: DeliveryLine, delta: float | None, reset: bool) -> float:
+    """The new scanned_qty. Never negative — an over-correction should land on zero, not below it."""
+    if reset:
+        return 0.0
+    return max(0.0, (ln.scanned_qty or 0) + (delta or 0))
+
+
+class ScanAdjustRequest(BaseModel):
+    delta: float | None = None      # negative to take scans back; positive to add by hand
+    reset: bool = False             # clear the line's tally outright
+
+
+@router.post("/{batch_id}/lines/{line_id}/scan-adjust")
+async def scan_adjust(
+    batch_id: int, line_id: int, req: ScanAdjustRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Correct a line's scan tally: −1 for a double-beep, reset to recount a box from scratch.
+    Applied in SQL so it cannot lose a concurrent beep from a second phone."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
+    ln = await session.get(DeliveryLine, line_id)
+    if not ln or ln.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    if req.delta is None and not req.reset:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма промяна.")
+
+    target = _scan_adjust_body(ln, req.delta, req.reset)
+    # absolute set (the caller stated the intended end state), but computed from the row we just
+    # read — the clamp at zero is what makes a blind "−1" safe to tap repeatedly
+    await session.execute(
+        update(DeliveryLine).where(DeliveryLine.id == line_id).values(scanned_qty=target))
+    await session.refresh(ln)
+    _set_line_status(ln)
+    await log_action(session, actor, "delivery.scan_adjust", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} line={line_id} -> {target}")
+    await session.commit()
+    await session.refresh(ln)
+    return {"ok": True, "line": _line_out(ln)}
