@@ -138,7 +138,7 @@ async def test_the_tree_carries_the_enabled_set_without_changing_its_nodes(manag
     assert body["enabled_slugs"] == ["hg-2"]
     node = body["tree"]["children"][0]
     assert set(node.keys()) == {"cat_id", "parent_id", "name", "slug",
-                                "child_articles_cnt", "cat_picture", "children"}
+                                "child_articles_cnt", "children"}
 
 
 # ====================================================================== the storefront feed

@@ -1718,6 +1718,20 @@ def _slim_cat_node(n: dict) -> dict:
 
     Accepts BOTH shapes: `n` may be the wrapper or the inner category dict, so _tree_root's
     hand-built root still works unchanged.
+
+    NO cat_picture HERE, deliberately — it was added on 2026-08-07 and removed the same day.
+    getTree DOES carry the key on every node, which is why a shape probe says "it is there", but
+    it is NEVER populated: measured against live Barsy after a real picture was uploaded to a
+    category and the form saved, `cat_picture` came back null from BOTH Categories_getTree and
+    Categories_Get while the admin UI showed the thumbnail. Presence is not value.
+
+    Carrying it would mean `inner.get("cat_picture") or ""` returning "" forever, which reads as
+    "this category has no banner" — the same falsy-degradation described above, in the same
+    function, for the second time in one day.
+
+    The banner comes from Files_getList {obj_type: "categories", obj_property: "PICTURE", obj_id},
+    per category, so the slug -> banner map is built and cached by the caller rather than
+    inherited from the tree.
     """
     wrapped = n.get("category")
     inner: dict = wrapped if isinstance(wrapped, dict) else n
@@ -1725,9 +1739,6 @@ def _slim_cat_node(n: dict) -> dict:
     return {"cat_id": inner.get("cat_id"), "parent_id": inner.get("parent_id"),
             "name": inner.get("cat_name") or "", "slug": inner.get("slug") or "",
             "child_articles_cnt": int(inner.get("child_articles_cnt") or 0),
-            # The category banner. Captured, not guessed: getTree carries cat_picture, so the
-            # storefront resolves slug -> banner from the one cached call it already makes.
-            "cat_picture": inner.get("cat_picture") or "",
             "children": [_slim_cat_node(c) for c in kids if isinstance(c, dict)]}
 
 

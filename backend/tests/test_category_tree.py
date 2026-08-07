@@ -52,7 +52,7 @@ async def test_tree_is_slim_and_cached(owner_client, barsy_recorder):
     r = (await owner_client.get("/api/catalog/categories/tree")).json()["tree"]
     dom = r["children"][0]
     assert set(dom.keys()) == {"cat_id", "parent_id", "name", "slug",
-                               "child_articles_cnt", "cat_picture", "children"}
+                               "child_articles_cnt", "children"}
     assert dom["slug"] == "hg" and dom["children"][0]["child_articles_cnt"] == 2
     await owner_client.get("/api/catalog/categories/tree")
     assert barsy_recorder.operations.count("Categories_getTree") == 1   # second hit = cache
