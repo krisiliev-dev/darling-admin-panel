@@ -81,8 +81,12 @@ export function ClaimsBanner({ supplier }: { supplier: string }) {
 
   useEffect(() => {
     if (!supplier) { setClaims([]); return }
+    // A banner is decoration: if the response is anything other than a claims array
+    // (mis-routed mock, error envelope, API drift) it must degrade to 'no claims',
+    // never throw on .length and take the whole delivery page down with it.
     api.get<{ claims: Claim[] }>(`/api/deliveries/claims-open?supplier=${encodeURIComponent(supplier)}`)
-      .then((d) => setClaims(d.claims)).catch(() => setClaims([]))
+      .then((d) => setClaims(Array.isArray(d?.claims) ? d.claims : []))
+      .catch(() => setClaims([]))
   }, [supplier])
 
   if (claims.length === 0) return null
@@ -117,7 +121,7 @@ export function ClaimsPanel() {
     setClaims(null)
     try {
       const d = await api.get<{ claims: Claim[] }>(`/api/deliveries/claims?state=${state}`)
-      setClaims(d.claims)
+      setClaims(Array.isArray(d?.claims) ? d.claims : [])
     } catch { setClaims([]) }
   }, [state])
 

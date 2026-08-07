@@ -519,7 +519,9 @@ class ScanRequest(BaseModel):
 
 
 def _set_line_status(ln: DeliveryLine) -> None:
-    q = (ln.qty or 0) - (ln.defect_qty or 0)   # scan-confirm targets the RECEIVED qty
+    # scan-confirm targets the RECEIVED qty. getattr: this helper is also driven with
+    # line-shaped stubs (tests) that predate defect_qty — a missing attr means no defects.
+    q = (ln.qty or 0) - (getattr(ln, "defect_qty", 0) or 0)
     if ln.scanned_qty == 0:
         ln.status = "pending"
     elif math.isclose(ln.scanned_qty, q, abs_tol=1e-9):
