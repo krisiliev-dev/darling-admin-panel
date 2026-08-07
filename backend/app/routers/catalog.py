@@ -2073,6 +2073,48 @@ async def clear_category_enabled(
     return {"ok": True, "slug": slug, "enabled": None}
 
 
+@router.get("/categories/{cat_id:int}/pictures")
+async def category_pictures(
+    cat_id: int,
+    user: User = Depends(current_active_user),
+) -> dict:
+    """Барси снимките на една категория + коя е Главната.
+
+    Read-only passthrough over Files_getList. Each Barsy record already carries a ready-made
+    `url` and `thumbnail_url`, so nothing here builds a URL.
+
+    THREE STATES, because `cat_picture` is three-valued and collapsing it is a real bug we have
+    already paid for: no pictures at all; a named main picture; or pictures present with no main
+    (`orphaned_main`) — which happens when the main one is deleted, since Barsy does not promote
+    a replacement. The admin UI masks that by showing the first file anyway; this does not.
+    """
+    with upstream("Barsy снимки"):
+        files = await run_in_threadpool(
+            barsy.call, "Files_getList",
+            {"obj_type": "categories", "obj_property": "PICTURE", "obj_id": cat_id})
+    if isinstance(files, dict):                 # some surfaces wrap the list in the method name
+        files = files.get("Files_getList") or []
+    recs = [f for f in (files or []) if isinstance(f, dict)]
+
+    # cat_picture is the FILENAME of the main picture — match on `name`, not position or id.
+    with upstream("Barsy категории"):
+        root = await run_in_threadpool(_tree_root)
+    node = _find_cat(root, cat_id)
+    if node is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Категорията не е намерена.")
+    main_name = (node.get("cat_picture") or "").strip()
+
+    pictures = [{"name": r.get("name") or "", "size": r.get("size"),
+                 "type": r.get("type") or "",
+                 "url": r.get("url") or "", "thumbnail_url": r.get("thumbnail_url") or "",
+                 "is_main": bool(main_name) and r.get("name") == main_name}
+                for r in recs]
+    return {"cat_id": cat_id, "slug": node.get("slug") or "", "main": main_name,
+            # pictures exist but none is marked main -> the owner has to choose one
+            "orphaned_main": bool(pictures) and not any(p["is_main"] for p in pictures),
+            "count": len(pictures), "pictures": pictures}
+
+
 @router.get("/categories/tree")
 async def category_tree(user: User = Depends(current_active_user),
                         session: AsyncSession = Depends(get_async_session)) -> dict:

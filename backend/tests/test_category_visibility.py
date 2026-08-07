@@ -339,3 +339,72 @@ async def test_switching_a_category_off_drops_its_banner(manager_client, wired, 
     second = (await client.get("/api/public/categories/enabled",
                                headers={"X-Office-Token": TOKEN})).json()
     assert second["ids"] == [] and second["banners"] == {}
+# ==================================================== the category-pictures read endpoint
+def _pics(monkeypatch, table):
+    """Fake Files_getList, delegating everything else to barsy_recorder (the tree especially)."""
+    prev = catalog_module.barsy.call
+
+    def _call(method, body=None, **kw):
+        if method != "Files_getList":
+            return prev(method, body, **kw)
+        return table.get((body or {}).get("obj_id"), [])
+    monkeypatch.setattr(catalog_module.barsy, "call", _call)
+
+
+def _file(name, url="/f/x"):
+    return {"name": name, "size": 10, "type": "image/png", "url": url,
+            "thumbnail_url": url + "&t=1", "delete_url": url + "&d=1"}
+
+
+@pytest.mark.asyncio
+async def test_it_marks_which_picture_is_the_main_one(owner_client, wired, monkeypatch):
+    """cat_picture holds the FILENAME, so is_main is a name match — not an index, not an id."""
+    _pics(monkeypatch, {110: [_file("other.png"), _file("banner.png")]})
+    body = (await owner_client.get("/api/catalog/categories/110/pictures")).json()
+    assert body["count"] == 2 and body["main"] == "banner.png"
+    by_name = {p["name"]: p for p in body["pictures"]}
+    assert by_name["banner.png"]["is_main"] is True
+    assert by_name["other.png"]["is_main"] is False
+    assert body["orphaned_main"] is False
+
+
+@pytest.mark.asyncio
+async def test_pictures_with_no_main_are_reported_as_orphaned_not_smoothed_over(
+        owner_client, wired, monkeypatch):
+    """THE one. Deleting a category's main picture clears cat_picture WITHOUT promoting a
+    replacement, so the collection outlives the pointer. Barsy's own admin UI hides this by
+    rendering the first file anyway — which is exactly why it took hours to spot. Here it is
+    named, so the owner is asked to choose instead of being shown a lie."""
+    _pics(monkeypatch, {120: [_file("left-behind.png")]})     # hg-2 has no cat_picture
+    body = (await owner_client.get("/api/catalog/categories/120/pictures")).json()
+    assert body["main"] == ""
+    assert body["count"] == 1
+    assert body["orphaned_main"] is True
+    assert body["pictures"][0]["is_main"] is False            # nothing is nominated
+
+
+@pytest.mark.asyncio
+async def test_no_pictures_is_not_orphaned(owner_client, wired, monkeypatch):
+    """Empty and orphaned are different problems: one needs an upload, the other needs a choice."""
+    _pics(monkeypatch, {120: []})
+    body = (await owner_client.get("/api/catalog/categories/120/pictures")).json()
+    assert body["count"] == 0 and body["orphaned_main"] is False
+
+
+@pytest.mark.asyncio
+async def test_the_ready_made_urls_are_passed_through_untouched(owner_client, wired, monkeypatch):
+    """Barsy hands back url and thumbnail_url complete. Building our own would be a second place
+    for the path to be wrong."""
+    _pics(monkeypatch, {110: [_file("banner.png", url="/endpoints/res/files_get?id=9")]})
+    p = (await owner_client.get("/api/catalog/categories/110/pictures")).json()["pictures"][0]
+    assert p["url"] == "/endpoints/res/files_get?id=9"
+    assert p["thumbnail_url"] == "/endpoints/res/files_get?id=9&t=1"
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_category_is_404_not_an_empty_list(owner_client, wired, monkeypatch):
+    """An empty list would read as "this category has no pictures", which is a different fact
+    from "there is no such category"."""
+    _pics(monkeypatch, {})
+    r = await owner_client.get("/api/catalog/categories/999999/pictures")
+    assert r.status_code == 404
