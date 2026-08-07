@@ -1719,19 +1719,26 @@ def _slim_cat_node(n: dict) -> dict:
     Accepts BOTH shapes: `n` may be the wrapper or the inner category dict, so _tree_root's
     hand-built root still works unchanged.
 
-    NO cat_picture HERE, deliberately — it was added on 2026-08-07 and removed the same day.
-    getTree DOES carry the key on every node, which is why a shape probe says "it is there", but
-    it is NEVER populated: measured against live Barsy after a real picture was uploaded to a
-    category and the form saved, `cat_picture` came back null from BOTH Categories_getTree and
-    Categories_Get while the admin UI showed the thumbnail. Presence is not value.
+    cat_picture IS carried here, and holds the banner's FILE NAME — not a URL and not an id.
+    Resolve it against Files_getList {obj_type: "categories", obj_property: "PICTURE", obj_id},
+    whose records expose ready-made `url` and `thumbnail_url`.
 
-    Carrying it would mean `inner.get("cat_picture") or ""` returning "" forever, which reads as
-    "this category has no banner" — the same falsy-degradation described above, in the same
-    function, for the second time in one day.
+    It was briefly removed on 2026-08-07 after a measurement found it null. The measurement was
+    correct and the conclusion was not: it was taken on a category whose main picture had been
+    uploaded and then DELETED, and deleting the main picture clears cat_picture WITHOUT promoting
+    any remaining file. Re-measured on a clean category straight after an upload, both
+    Categories_Get and Categories_getTree carry it. One category with an unusual history had been
+    read as the general case.
 
-    The banner comes from Files_getList {obj_type: "categories", obj_property: "PICTURE", obj_id},
-    per category, so the slug -> banner map is built and cached by the caller rather than
-    inherited from the tree.
+    THREE-VALUED, so do not treat empty as "no banner":
+      * non-empty                              -> that filename is the banner
+      * empty BUT Files_getList non-empty      -> orphaned main; fall back to the first file or
+                                                  ask the owner to choose. NOT "no banner".
+      * empty AND Files_getList empty          -> genuinely none; serve the default.
+
+    The admin UI masks the orphaned case by rendering the first file as Главна снимка, so the
+    screen and the API disagree without either being wrong. Full capture:
+    docs/BARSY_CATEGORY_FILES_AND_DELETE_20260807.md
     """
     wrapped = n.get("category")
     inner: dict = wrapped if isinstance(wrapped, dict) else n
@@ -1739,6 +1746,9 @@ def _slim_cat_node(n: dict) -> dict:
     return {"cat_id": inner.get("cat_id"), "parent_id": inner.get("parent_id"),
             "name": inner.get("cat_name") or "", "slug": inner.get("slug") or "",
             "child_articles_cnt": int(inner.get("child_articles_cnt") or 0),
+            # The banner's FILENAME (not a URL, not an id) — resolve it against Files_getList's
+            # `url`. May legitimately be empty while the category still HAS pictures; see above.
+            "cat_picture": inner.get("cat_picture") or "",
             "children": [_slim_cat_node(c) for c in kids if isinstance(c, dict)]}
 
 

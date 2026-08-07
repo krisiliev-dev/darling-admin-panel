@@ -20,7 +20,8 @@ TREE = {"category": {"cat_id": None, "parent_id": None, "cat_name": "\u041e\u044
                      "slug": None, "child_articles_cnt": 43},
         "categories": [
             _n(100, None, "\u0414\u043e\u043c", "hg", 0, [
-                _n(110, 100, "\u041a\u0443\u0445\u043d\u044f", "hg-11", 2),
+                _n(110, 100, "\u041a\u0443\u0445\u043d\u044f", "hg-11", 2,
+                   picture="banner.png"),
                 _n(120, 100, "\u041f\u0440\u043e\u043c\u043e", "hg-x1", 0),
             ]),
         ]}
@@ -52,7 +53,7 @@ async def test_tree_is_slim_and_cached(owner_client, barsy_recorder):
     r = (await owner_client.get("/api/catalog/categories/tree")).json()["tree"]
     dom = r["children"][0]
     assert set(dom.keys()) == {"cat_id", "parent_id", "name", "slug",
-                               "child_articles_cnt", "children"}
+                               "child_articles_cnt", "cat_picture", "children"}
     assert dom["slug"] == "hg" and dom["children"][0]["child_articles_cnt"] == 2
     await owner_client.get("/api/catalog/categories/tree")
     assert barsy_recorder.operations.count("Categories_getTree") == 1   # second hit = cache
@@ -156,3 +157,27 @@ def test_children_are_unwrapped_from_the_barsy_envelope():
     dom = root["children"][0]
     assert dom["cat_id"] == 100 and dom["slug"] == "hg"
     assert dom["children"][0]["cat_id"] == 110 and dom["children"][0]["slug"] == "hg-11"
+
+
+def test_cat_picture_carries_the_filename_and_survives_slimming():
+    """cat_picture holds the banner's FILE NAME. Captured live 2026-08-07: on a clean category
+    immediately after an upload, both Categories_Get and Categories_getTree return it."""
+    root = catalog_module._slim_cat_node(
+        {**TREE["category"], "categories": TREE["categories"]})
+    kuhnya = root["children"][0]["children"][0]
+    assert kuhnya["slug"] == "hg-11"
+    assert kuhnya["cat_picture"] == "banner.png"
+
+
+def test_an_empty_cat_picture_is_not_the_same_as_no_pictures():
+    """The orphaned-main case, and the reason this field is three-valued rather than a boolean.
+
+    Deleting a category's main picture clears cat_picture and Barsy does NOT promote a remaining
+    file into its place — so a category can hold pictures while cat_picture is "". A caller that
+    reads "" as "no banner" will report a category as bannerless while its picture sits in the
+    collection, which is exactly how this field was misread on 2026-08-07."""
+    root = catalog_module._slim_cat_node(
+        {**TREE["category"], "categories": TREE["categories"]})
+    promo = root["children"][0]["children"][1]
+    assert promo["slug"] == "hg-x1"
+    assert promo["cat_picture"] == ""        # empty here means "ask Files_getList", not "none"
