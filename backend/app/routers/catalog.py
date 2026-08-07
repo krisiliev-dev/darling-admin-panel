@@ -1682,8 +1682,14 @@ async def put_article_suppliers(article_id: int, req: ArticleSuppliersIn,
 #     duplicate name/slug → 501).
 #   * UPDATE  = Categories_update {"cat_id": <TOP LEVEL>, "cat": {...}} — rename, move (parent_id),
 #     cat_name_public + description all verified; slug stays untouched when omitted.
-#   * DELETE  = does NOT exist on this install („Тази структура няма дефинирана функция триене";
-#     Categories_delete 501/500s on every body shape; Categories_remove is unknown) → honest 501.
+#   * DELETE  = Categories_Delete {"cats": [{"id": N, "parent_id": "P", "weight": 1}],
+#     "mode": "0"} — IMPLEMENTED in delete_category() below. An earlier note here claimed delete
+#     did not exist on this install and that we returned an honest 501; that was wrong, and it
+#     sat above working code contradicting it. Re-captured live 2026-08-07 on a throwaway
+#     category which vanished from the tree. Modes: "0" without articles (they are
+#     decategorised, not deleted), "1" together with articles and modifiers, "2" move first.
+#     ONLY mode "0" is verified — mode "1" destroys articles, so do not probe it casually.
+#     Full contract: docs/BARSY_CATEGORY_FILES_AND_DELETE_20260807.md
 #   * THROTTLE: category writes take MINUTES on this tier and a client timeout does NOT mean
 #     failure (a timed-out move landed) → long timeout + re-read-to-confirm before erroring.
 # Slug policy (owner-confirmed): parent slug + "-x<N>" — official taxonomy segments are numeric,
