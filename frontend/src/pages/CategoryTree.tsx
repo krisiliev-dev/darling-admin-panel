@@ -11,8 +11,12 @@ import { PageHeader, Loading } from '../components/PageHeader'
 // повторно четене при бавен отговор) се показва на потребителя.
 type CatNode = {
   cat_id: number | null; parent_id: number | null; name: string; slug: string
+  // The banner's FILENAME, or "". Empty does NOT mean "no pictures" — see the indicator below.
+  cat_picture: string
   child_articles_cnt: number; children: CatNode[]
 }
+// What the owner clicked (slug -> on/off; absent = neutral) and what it RESOLVES to.
+type Visibility = { toggles: Record<string, boolean>; enabled_slugs: string[]; count: number }
 type TaxAttr = { name: string; free?: boolean }
 
 // нашите категории носят slug "<родителски>-x<N>" — официалният предшественик (за наследената
@@ -28,11 +32,18 @@ export function CategoryTree() {
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [vis, setVis] = useState<Visibility | null>(null)
+  const [rules, setRules] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
     api.get<{ tree: CatNode }>('/api/catalog/categories/tree')
       .then((r) => setRoot(r.tree)).catch(() => setRoot(null)).finally(() => setLoading(false))
+    // Separate call on purpose: the tree is a ~10-minute cached proxy over Barsy, while
+    // visibility is panel state that changes the moment somebody clicks. Folding them together
+    // would either stale the toggles or throw away the tree cache on every flip.
+    api.get<Visibility>('/api/catalog/categories/visibility')
+      .then(setVis).catch(() => setVis(null))
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -48,6 +59,21 @@ export function CategoryTree() {
       setNote('')
       setError(e instanceof ApiError ? e.message : 'Записът се провали.')
     } finally { setBusy(false) }
+  }
+
+  // ---------------------------------------------------------------- visibility (3 states) ---
+  // enabled=true -> публична; enabled=false -> изключена И скрива всичко под нея;
+  // изчистване (DELETE) -> неутрална: скрита сама по себе си, но вече не скрива децата си.
+  const setVisibility = async (n: CatNode, enabled: boolean) => {
+    if (!n.slug) return
+    await write(() => api.put<{ note?: string }>(
+      `/api/catalog/categories/visibility/${encodeURIComponent(n.slug)}`, { enabled }),
+      enabled ? 'Категорията е включена за сайта.' : 'Категорията е изключена (скрива и подкатегориите си).')
+  }
+  const clearVisibility = async (n: CatNode) => {
+    if (!n.slug) return
+    await write(() => api.del(`/api/catalog/categories/visibility/${encodeURIComponent(n.slug)}`),
+      'Върната в неутрално състояние — вече не скрива подкатегориите си.')
   }
 
   const rename = (n: CatNode, name: string) =>
@@ -73,6 +99,24 @@ export function CategoryTree() {
   return (
     <div style={{ display: 'grid', gap: '.8rem' }}>
       <PageHeader title="Категории" subtitle="дървото на Barsy — slug = Shopify таксономия (неизменим)" />
+      <div style={{ display: 'flex', gap: '.6rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <span className="font-type" style={{ fontSize: '.75rem', color: 'var(--pencil)' }}>
+          {vis ? `${vis.count} включени категории` : 'зареждане на видимостта…'}
+        </span>
+        <button className="btn-paper" style={{ fontSize: '.68rem', padding: '.05rem .4rem' }}
+          onClick={() => setRules((r) => !r)}>изисквания към снимките</button>
+      </div>
+      {rules && (
+        <div className="sticky-note" style={{ maxWidth: '38rem', fontSize: '.78rem' }}>
+          <strong>Банер на категория</strong>
+          <ul style={{ margin: '.3rem 0 0 1rem', padding: 0 }}>
+            <li>хоризонтална (landscape), минимум 2000px широчина</li>
+            <li>обектът вляво или в центъра</li>
+            <li>чисто място в ДЯСНАТА ТРЕТА — там стои заглавието</li>
+            <li>без текст и без лога върху снимката</li>
+          </ul>
+        </div>
+      )}
       {note && <div className="font-type" style={{ fontSize: '.78rem', color: 'var(--ready)' }}>{note}</div>}
       {error && <div className="font-type" style={{ fontSize: '.78rem', color: 'var(--red)' }}>{error}</div>}
       {loading && !root ? <Loading /> : !root ? (
@@ -81,7 +125,8 @@ export function CategoryTree() {
         <div style={{ fontSize: '.85rem' }}>
           {root.children.map((c) => (
             <Node key={String(c.cat_id)} node={c} depth={0} canManage={canManage} busy={busy}
-              onRename={rename} onCreate={create} onMove={move} onDelete={remove} />
+              vis={vis} onRename={rename} onCreate={create} onMove={move} onDelete={remove}
+              onEnable={setVisibility} onClear={clearVisibility} />
           ))}
         </div>
       )}
@@ -89,12 +134,16 @@ export function CategoryTree() {
   )
 }
 
-function Node({ node, depth, canManage, busy, onRename, onCreate, onMove, onDelete }: {
+function Node({ node, depth, canManage, busy, vis, onRename, onCreate, onMove, onDelete,
+                onEnable, onClear }: {
   node: CatNode; depth: number; canManage: boolean; busy: boolean
+  vis: Visibility | null
   onRename: (n: CatNode, name: string) => void
   onCreate: (parent: CatNode, name: string) => void
   onMove: (n: CatNode, target: number) => void
   onDelete: (n: CatNode) => void
+  onEnable: (n: CatNode, enabled: boolean) => void
+  onClear: (n: CatNode) => void
 }) {
   // ЛЕНИВО дърво: 14.6k възела — децата се рендират чак при разгъване
   const [open, setOpen] = useState(false)
@@ -131,6 +180,48 @@ function Node({ node, depth, canManage, busy, onRename, onCreate, onMove, onDele
           onClick={() => setOpen((o) => !o)} aria-label={open ? 'свий' : 'разгъни'}>{open ? '▾' : '▸'}</button>
         <span>{node.name}</span>
         {node.slug && <span className="font-type" style={chip}>{node.slug}</span>}
+        {node.slug && (() => {
+          // own = what was clicked (undefined -> neutral); on = what the storefront will see.
+          const own = vis?.toggles?.[node.slug]
+          const on = !!vis?.enabled_slugs?.includes(node.slug)
+          const label = own === true ? 'вкл' : own === false ? 'изкл' : '—'
+          const colour = on ? 'var(--ready)' : own === false ? 'var(--red)' : 'var(--pencil)'
+          return (
+            <>
+              <span className="font-type" data-vis={node.slug}
+                style={{ ...chip, color: colour, borderColor: colour }}>{label}</span>
+              {/* Clicked ON but resolving OFF means an ancestor is switched off. Saying so is the
+                  difference between an operator trusting the panel and not. */}
+              {own === true && !on && (
+                <span className="font-type" style={{ ...chip, color: 'var(--pending)', borderStyle: 'dashed' }}>
+                  скрита от родител
+                </span>
+              )}
+              {/* Only meaningful on categories that are actually live. cat_picture is the banner
+                  FILENAME; empty means there is no MAIN picture — which is NOT the same as
+                  having no pictures, since deleting the main one leaves the rest orphaned. The
+                  wording says основна deliberately; the tree cannot see the collection. */}
+              {on && !node.cat_picture && (
+                <span className="font-type" data-nophoto={node.slug}
+                  style={{ ...chip, color: 'var(--pending)' }}>няма основна снимка</span>
+              )}
+              {canManage && (
+                <span style={{ display: 'inline-flex', gap: '.2rem' }}>
+                  <button className="btn-paper" style={act} disabled={busy} title="включи за сайта"
+                    onClick={() => onEnable(node, true)}>вкл</button>
+                  <button className="btn-paper" style={act} disabled={busy}
+                    title="изключи — скрива и всички подкатегории"
+                    onClick={() => onEnable(node, false)}>изкл</button>
+                  {own !== undefined && (
+                    <button className="btn-paper" style={act} disabled={busy}
+                      title="неутрална — скрита сама, но не скрива подкатегориите"
+                      onClick={() => onClear(node)}>—</button>
+                  )}
+                </span>
+              )}
+            </>
+          )
+        })()}
         {node.child_articles_cnt > 0 && (
           <span className="font-type" style={{ ...chip, borderStyle: 'dashed' }}>{node.child_articles_cnt} арт.</span>
         )}
@@ -185,6 +276,7 @@ function Node({ node, depth, canManage, busy, onRename, onCreate, onMove, onDele
       )}
       {open && kids.map((c) => (
         <Node key={String(c.cat_id)} node={c} depth={depth + 1} canManage={canManage} busy={busy}
+          vis={vis} onEnable={onEnable} onClear={onClear}
           onRename={onRename} onCreate={onCreate} onMove={onMove} onDelete={onDelete} />
       ))}
     </div>
