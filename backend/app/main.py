@@ -67,6 +67,7 @@ from .routers import (
     orders,
     pricing,
     products,
+    public_categories,
     public_couriers,
     publish_audit,
     purchasing,
@@ -206,6 +207,7 @@ app.include_router(summary.router)
 app.include_router(shopfloor.router)
 app.include_router(store_ops.router)
 app.include_router(home.router)
+app.include_router(public_categories.router)  # storefront visibility feed (token-gated)
 app.include_router(webhooks.router)  # Barsy⇄Shopify receivers (HMAC/token-gated, no session auth)
 
 

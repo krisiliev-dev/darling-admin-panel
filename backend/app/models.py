@@ -715,3 +715,47 @@ class WaybillCancel(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False)
     # NULL while unresolved - which is exactly what the staleness watch counts.
     resolved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ScanCommit(Base):
+    """One camera commit, recorded so a retried commit cannot count twice. The scanner generates the
+    id BEFORE sending and reuses it on retry: if the reply was lost to warehouse wifi but the server
+    DID apply the tally, the retry arrives with the same id and is refused. A barcode tally is the
+    one place a lost reply is routine, and the cost of getting it wrong is doubled stock.
+    Panel-owned (admin.db); rows are audit crumbs, never authoritative for quantities."""
+    __tablename__ = "scan_commits"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    batch_id: Mapped[int] = mapped_column(index=True)
+    # DB-enforced: the uniqueness IS the idempotency guarantee, not a check-then-act in Python
+    commit_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+class CategoryVisibility(Base):
+    """One row per category the owner has TOUCHED. Absence is meaningful.
+
+        row absent          neutral   - off for itself, but does NOT disable its descendants
+        enabled = True      on
+        enabled = False     off       - and CASCADES: everything beneath it is off too
+
+    Those three are not decoration. The owner's default-on set is the 21 level-2 Home & Garden
+    categories hg-1..hg-21, whose PARENT (`hg`) is deliberately untouched. If absence meant
+    "disabled" for ancestors as well as for the node itself, every one of those 21 would resolve
+    to OFF because its parent was never switched on, and the owner's stated configuration could
+    not be expressed at all. So absence is neutral upward and off for the node itself:
+
+        resolved(node) = own row says True  AND  no ANCESTOR row says False
+
+    Keyed on slug (the Shopify taxonomy id, immutable per the #85c policy) rather than cat_id, so
+    the seed below can live in the migration as visible data and so a Barsy re-import that
+    renumbers cat_id cannot silently re-point which categories are public.
+    """
+    __tablename__ = "category_visibility"
+
+    slug: Mapped[str] = mapped_column(String(128), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("0"))
+    # Who and when, because "why is this category off?" is a question somebody will ask at 9am.
+    updated_by: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)

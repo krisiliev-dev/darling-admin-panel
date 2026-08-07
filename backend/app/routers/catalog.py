@@ -8,6 +8,7 @@ weight, oversell and the sale/publish status — plus the accounting/stock-behav
 A Barsy field with no control here is unmanageable and invisible to staff, so read-back and write
 must stay in step with the live article form."""
 import asyncio
+import datetime
 import re
 import time
 import typing
@@ -30,7 +31,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_session
-from ..models import User
+from ..models import CategoryVisibility, User
 from ..services import barsy_bulk as _bulk
 from ..upstream import upstream
 from ..users import current_active_user, current_owner, require_roles
@@ -1740,13 +1741,199 @@ def _new_cat_id(out) -> int | None:
     return None
 
 
+# ------------------------------------------------------------------- category visibility ---
+# Barsy has NO visibility field on a category (schema captured 2026-08-07), so this is panel-side
+# state. The banner went the other way for the opposite reason: Barsy HAS a picture field.
+
+
+def _resolve_enabled_slugs(root: dict, toggles: dict) -> set:
+    """Which categories are ACTUALLY on, given the owner's toggles and the live tree.
+
+        resolved(node) = own row says True  AND  no ANCESTOR row says False
+
+    The asymmetry is load-bearing and was nearly got wrong. A missing row means "off" for the node
+    itself, but it must be NEUTRAL for that node's descendants. The owner's default-on set is
+    hg-1..hg-21, whose parent `hg` is deliberately untouched — if a missing ancestor row counted as
+    disabled, all 21 would resolve to off and the owner's stated configuration could not be
+    expressed at all. Explicitly switching `hg` off, on the other hand, must take all 21 with it.
+
+    One pass over the tree, carrying the ancestor verdict down. The taxonomy is 14 606 nodes, so a
+    per-node ancestor walk would be quadratic; this is linear.
+    """
+    out: set = set()
+    stack = [(root, False)]                      # (node, an ancestor said False)
+    while stack:
+        node, blocked = stack.pop()
+        slug = (node.get("slug") or "").strip()
+        verdict = toggles.get(slug) if slug else None
+        if verdict is True and not blocked:
+            out.add(slug)
+        # `blocked` for the children: inherited, or set here by an explicit False.
+        child_blocked = blocked or (verdict is False)
+        for c in node.get("children") or []:
+            if isinstance(c, dict):
+                stack.append((c, child_blocked))
+    return out
+
+
+def _slug_to_id(root: dict) -> dict:
+    """slug -> cat_id over the live tree. The storefront asked for ids; the panel stores slugs."""
+    out: dict = {}
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        slug = (node.get("slug") or "").strip()
+        if slug and node.get("cat_id") is not None:
+            out[slug] = node["cat_id"]
+        for c in node.get("children") or []:
+            if isinstance(c, dict):
+                stack.append(c)
+    return out
+
+
+async def _toggles(session: AsyncSession) -> dict:
+    rows = (await session.execute(select(CategoryVisibility))).scalars().all()
+    return {r.slug: bool(r.enabled) for r in rows}
+
+
+# The storefront feed's own cache. Short TTL because this is the gate on what the public can see:
+# a stale ENABLE is a category that appears late, but a stale DISABLE is a product still selling
+# from a category the owner switched off. Writes invalidate it outright rather than waiting.
+_ENABLED_FEED_TTL = 120.0
+_ENABLED_FEED: dict = {"t": 0.0, "payload": None}
+
+
+def _invalidate_enabled_feed() -> None:
+    _ENABLED_FEED["t"] = 0.0
+    _ENABLED_FEED["payload"] = None
+
+
+async def build_enabled_feed(session: AsyncSession) -> dict:
+    """The authoritative answer to "which categories are on", for the storefront.
+
+    Raises rather than returning an empty set when it cannot work the answer out — Barsy
+    unreachable, tree unparseable. The caller turns that into a 503. Returning {"ids": []} on
+    failure would be indistinguishable from the owner having enabled nothing, and the storefront
+    would have to assume the worse of the two every time the ERP hiccuped.
+
+    `ids` and `slugs` are the same categories twice: the panel stores slugs (immutable taxonomy
+    ids), the storefront asked for cat_ids. count == len(ids) always.
+    """
+    now = time.time()
+    cached = _ENABLED_FEED["payload"]
+    if cached is not None and now - _ENABLED_FEED["t"] <= _ENABLED_FEED_TTL:
+        return cached
+    root = await run_in_threadpool(_tree_root)
+    if not isinstance(root, dict) or not root:
+        raise RuntimeError("category tree unavailable")
+    toggles = await _toggles(session)
+    resolved = _resolve_enabled_slugs(root, toggles)
+    by_slug = _slug_to_id(root)
+    slugs = sorted(resolved)
+    # Every resolved slug came FROM the tree, so this lookup cannot miss.
+    ids = [by_slug[s] for s in slugs]
+    # ids and slugs describe the SAME categories, so they stay the same length and count is
+    # len(ids). The storefront asked which to trust if they could ever disagree; they cannot.
+    #
+    # Orphans are computed from the TOGGLES, not from the resolved set — a slug Barsy no longer
+    # has is absent from the tree, so it never resolves and could never show up on that side. It
+    # is a category the owner believes is published and that has quietly stopped existing, which
+    # is exactly the thing that must not be silent.
+    orphaned = sorted(s for s, on in toggles.items() if on and s not in by_slug)
+    payload = {"ids": ids, "slugs": slugs, "count": len(ids),
+               "orphaned_slugs": orphaned,
+               "cached_at": now}
+    _ENABLED_FEED["payload"] = payload
+    _ENABLED_FEED["t"] = now
+    return payload
+
+
+class CategoryEnabledIn(BaseModel):
+    enabled: bool
+
+
+@router.get("/categories/visibility")
+async def category_visibility(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> dict:
+    """The owner's toggles, plus what they RESOLVE to against the live tree.
+
+    Both, on purpose. `toggles` is what was clicked; `enabled_slugs` is what the storefront will
+    actually see. They differ whenever a parent is switched off, and showing only the first is how
+    an operator ends up insisting a category is on while the site disagrees.
+    """
+    with upstream("Barsy категории"):
+        root = await run_in_threadpool(_tree_root)
+    toggles = await _toggles(session)
+    resolved = _resolve_enabled_slugs(root, toggles)
+    return {"toggles": toggles, "enabled_slugs": sorted(resolved), "count": len(resolved)}
+
+
+@router.put("/categories/visibility/{slug}")
+async def set_category_enabled(
+    slug: str, req: CategoryEnabledIn,
+    actor: User = Depends(require_roles("manager")),
+    session: AsyncSession = Depends(get_async_session),
+) -> dict:
+    """Switch a category on or off for the website. Manager and up; audited.
+
+    Writes an EXPLICIT row either way. Setting False is not the same as deleting the row: False
+    cascades to descendants, absence does not.
+    """
+    slug = (slug or "").strip()
+    if not slug:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Липсва slug на категория.")
+    row = (await session.execute(select(CategoryVisibility).where(
+        CategoryVisibility.slug == slug))).scalar_one_or_none()
+    if row is None:
+        row = CategoryVisibility(slug=slug)
+        session.add(row)
+    row.enabled = bool(req.enabled)
+    row.updated_by = actor.email or ""
+    row.updated_at = datetime.datetime.now(datetime.UTC)
+    await session.commit()
+    await log_action(session, actor, "catalog.category_visibility", target=slug,
+                     detail=f"enabled={row.enabled}")
+    # The feed caches. A disable that takes ten minutes to land is a product still selling from a
+    # category the owner just switched off, so the write invalidates rather than waiting out a TTL.
+    _invalidate_enabled_feed()
+    return {"ok": True, "slug": slug, "enabled": row.enabled}
+
+
+@router.delete("/categories/visibility/{slug}")
+async def clear_category_enabled(
+    slug: str,
+    actor: User = Depends(require_roles("manager")),
+    session: AsyncSession = Depends(get_async_session),
+) -> dict:
+    """Back to NEUTRAL — off for itself, no longer forcing its descendants off.
+
+    Without this the third state is unreachable: an ancestor switched off could never be returned
+    to "not my business" without switching it on, which would be a different thing entirely.
+    """
+    slug = (slug or "").strip()
+    row = (await session.execute(select(CategoryVisibility).where(
+        CategoryVisibility.slug == slug))).scalar_one_or_none()
+    if row is not None:
+        await session.delete(row)
+        await session.commit()
+    await log_action(session, actor, "catalog.category_visibility", target=slug, detail="cleared")
+    _invalidate_enabled_feed()
+    return {"ok": True, "slug": slug, "enabled": None}
+
+
 @router.get("/categories/tree")
-async def category_tree(user: User = Depends(current_active_user)) -> dict:
+async def category_tree(user: User = Depends(current_active_user),
+                        session: AsyncSession = Depends(get_async_session)) -> dict:
     """Дървото на категориите — слим прокси над Categories_getTree (кеш ~10 мин; инвалидира се
     при запис от панела и от категорийния webhook през _CAT_CACHE reset)."""
     with upstream("Barsy категории"):
         root = await run_in_threadpool(_tree_root)
-    return {"tree": root}
+    # Returned ALONGSIDE the tree, never written into it: `root` is the shared ~10-minute cache,
+    # and stamping one request's resolved flags into those dicts would serve them to everyone.
+    resolved = _resolve_enabled_slugs(root, await _toggles(session))
+    return {"tree": root, "enabled_slugs": sorted(resolved)}
 
 
 class CategoryCreateIn(BaseModel):
