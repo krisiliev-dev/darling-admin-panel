@@ -9,6 +9,7 @@ import { Sheet } from '../components/Paper'
 import { useConfirm } from '../components/Confirm'
 import { CameraScanner } from '../components/CameraScanner'
 import { DeliveryImportMapper } from '../components/DeliveryImportMapper'
+import { ZayavkaSource } from '../components/ZayavkaSource'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -124,7 +125,7 @@ function NewDelivery({ onCancel, onCreated }: { onCancel: () => void; onCreated:
   const [depot, setDepot] = useState(1)
   const [reference, setReference] = useState('')
   const [docDate, setDocDate] = useState('')
-  const [mode, setMode] = useState<'file' | 'photo'>('file')
+  const [mode, setMode] = useState<'file' | 'photo' | 'zayavka'>('file')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [ocrRows, setOcrRows] = useState<{ supplier_code: string; name: string; qty: number; price: number; barcode: string }[] | null>(null)
@@ -169,7 +170,7 @@ function NewDelivery({ onCancel, onCreated }: { onCancel: () => void; onCreated:
         </div>
 
         <div style={{ display: 'flex', gap: '.4rem', margin: '.9rem 0 .5rem' }}>
-          {([['file', '📄 Excel / CSV файл'], ['photo', '📷 Нямам файл, само хартия']] as ['file' | 'photo', string][]).map(([k, l]) => (
+          {([['file', '📄 Excel / CSV файл'], ['photo', '📷 Нямам файл, само хартия'], ['zayavka', '📋 От заявка']] as ['file' | 'photo' | 'zayavka', string][]).map(([k, l]) => (
             <button key={k} className="font-type" onClick={() => { setMode(k); setOcrRows(null) }} style={{
               padding: '.35rem .8rem', fontSize: '.76rem', cursor: 'pointer', borderRadius: 2,
               border: '1px solid var(--line)', background: mode === k ? 'var(--paper)' : 'var(--paper2)',
@@ -178,12 +179,13 @@ function NewDelivery({ onCancel, onCreated }: { onCancel: () => void; onCreated:
           ))}
         </div>
 
-        {mode === 'file' ? (
+        {mode === 'file' && (
           <DeliveryImportMapper
             supplier={supplier} depot={depot} reference={reference} docDate={docDate}
             onCreated={onCreated}
           />
-        ) : (
+        )}
+        {mode === 'photo' && (
           <div style={{ display: 'grid', gap: '.5rem' }}>
             <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
               <input ref={photoRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => void uploadPhoto(e.target.files?.[0])} />
@@ -193,6 +195,7 @@ function NewDelivery({ onCancel, onCreated }: { onCancel: () => void; onCreated:
             {ocrRows && <OcrEditor rows={ocrRows} note={ocrNote} onChange={setOcrRows} onCreate={() => void createFromRows()} busy={busy} />}
           </div>
         )}
+        {mode === 'zayavka' && <ZayavkaSource onCreated={onCreated} />}
         {error && <div style={{ color: 'var(--red)', fontFamily: 'var(--type)', fontSize: '.82rem', marginTop: '.6rem' }}>{error}</div>}
       </Sheet>
     </div>

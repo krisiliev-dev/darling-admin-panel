@@ -27,7 +27,7 @@ from ..barsy_ids import extract_id
 from ..config import get_settings
 from ..core import barsy
 from ..db import get_async_session
-from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, SupplierImportProfile, User
+from ..models import DeliveryBatch, DeliveryLine, IntakeDraft, SupplierImportProfile, User, Zayavka, ZayavkaLine
 from ..services import delivery_parse as DP
 from ..services.text import norm
 from ..users import current_active_user, current_owner
@@ -253,6 +253,7 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
     b.storeload_id = extract_id(out, ("article_id", "storeload_id", "id"))
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
+    await _flip_zayavka_received(session, b)
     await session.commit()
     await log_action(session, actor, "delivery.autofinalise", target=b.supplier or b.reference,
                      detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
@@ -319,13 +320,13 @@ async def create_delivery(
 
 
 async def _persist_batch(session, actor, supplier, supplier_id, depot_id, reference, doc_date,
-                         source, parsed: list[dict]) -> dict:
+                         source, parsed: list[dict], zayavka_id: int | None = None) -> dict:
     """Create a DeliveryBatch + its lines; each NEW line gets a linked intake draft so it surfaces
     on Приемане for enrichment. Shared by the file, edited-rows and OCR create paths."""
     b = DeliveryBatch(supplier=(supplier or "").strip(), supplier_id=supplier_id or None,
                       depot_id=depot_id or 1, reference=(reference or "").strip(),
                       doc_date=(doc_date or "").strip(), source=source, status="draft",
-                      created_by=actor.email)
+                      zayavka_id=zayavka_id, created_by=actor.email)
     session.add(b)
     await session.flush()
     for p in parsed:
@@ -769,6 +770,7 @@ async def finalise(
     b.storeload_id = extract_id(out, ("article_id", "storeload_id", "id"))
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
+    await _flip_zayavka_received(session, b)
     await session.commit()
     await log_action(session, actor, "delivery.finalise", target=b.supplier or b.reference,
                      detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
@@ -953,3 +955,67 @@ async def delete_import_profile(
     await session.commit()
     await log_action(session, actor, "delivery.import_profile.delete", target=p.supplier)
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ receive from a Заявка ---
+async def _flip_zayavka_received(session: AsyncSession, b: DeliveryBatch) -> None:
+    """When a delivery made from a заявка finalises, mark that заявка 'received' — the receiving
+    step is what Barsy calls converting a request to „Заредени"."""
+    if not b.zayavka_id:
+        return
+    z = await session.get(Zayavka, b.zayavka_id)
+    if z is not None and z.status != "received":
+        z.status = "received"
+
+
+def _parsed_from_zayavka_lines(supplier: str, lines: list) -> list[dict]:
+    """Build the same normalised line dicts the sheet parser produces, from заявка lines. Prefer
+    the supplier's code for matching, fall back to our code; carry the barcode if the line has one."""
+    out = []
+    for ln in lines:
+        code = (ln.supplier_code or ln.code or "").strip()
+        out.append(_match_row(supplier, code, ln.name or "", ln.qty or 0.0,
+                              ln.delivery_price or 0.0, (ln.barcode or "").strip()))
+    return out
+
+
+@profiles_router.get("/zayavki-open")
+async def list_open_zayavki(
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Sent заявки that can be received — the picker in the 'От заявка' source of the wizard."""
+    rows = list((await session.execute(
+        select(Zayavka).where(Zayavka.status == "sent")
+        .order_by(Zayavka.created_at.desc()).limit(100))).scalars().all())
+    counts = dict((zid, n) for zid, n in (await session.execute(
+        select(ZayavkaLine.zayavka_id, func.count()).group_by(ZayavkaLine.zayavka_id))).all())
+    return {"zayavki": [{
+        "id": z.id, "supplier": z.supplier, "reference": "",
+        "created_at": z.created_at.isoformat() if z.created_at else None,
+        "lines": int(counts.get(z.id, 0)),
+    } for z in rows]}
+
+
+@profiles_router.post("/from-zayavka/{zayavka_id}", status_code=status.HTTP_201_CREATED)
+async def create_from_zayavka(
+    zayavka_id: int,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Start receiving a delivery from a sent заявка: build a draft batch from its lines and link
+    it back, so finalising flips the заявка to 'received'. Refuses an already-received/cancelled one."""
+    z = await session.get(Zayavka, zayavka_id)
+    if z is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявката не е намерена.")
+    if z.status in ("received", "cancelled"):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Заявката вече е приета или отказана.")
+    lines = list((await session.execute(
+        select(ZayavkaLine).where(ZayavkaLine.zayavka_id == z.id)
+        .order_by(ZayavkaLine.id))).scalars().all())
+    if not lines:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Заявката няма редове.")
+    parsed = await run_in_threadpool(_parsed_from_zayavka_lines, z.supplier, lines)
+    return await _persist_batch(session, actor, z.supplier, z.supplier_id or 0, 1, "", "",
+                                "zayavka", parsed, zayavka_id=z.id)
