@@ -6,6 +6,7 @@ import pytest
 
 from app.routers import catalog as catalog_module
 
+
 # REAL Barsy envelope: every node is {"category": {...fields...}, "categories": [...]}.
 # This fixture used to be FLAT, which is why a slimming function that produced 14,606 empty
 # nodes against the live payload passed this suite. Measured on the box 2026-08-07.
