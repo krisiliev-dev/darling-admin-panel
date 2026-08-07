@@ -160,20 +160,9 @@ async def test_reconcile_refuses_a_healthy_batch(owner_client):
     assert (await owner_client.post(f"/api/deliveries/{bid}/reconcile")).status_code == 409
 
 
-# ── A3: autofinalise yields to a scan in progress ─────────────────────────────
-@pytest.mark.asyncio
-async def test_autofinalise_yields_while_a_scan_is_in_progress(owner_client):
-    """The owner's trigger is 'all products created', but booking a pallet somebody is still
-    counting would make their shortage unrecordable."""
-    bid = await _batch()
-    async with async_session_maker() as s:
-        ln = (await s.execute(
-            deliveries.select(DeliveryLine).where(DeliveryLine.batch_id == bid))).scalars().first()
-        ln.scanned_qty = 1.0          # counting started, 3 claimed -> not confirmed
-        ln.status = "mismatch"
-        await s.commit()
-        b = await s.get(DeliveryBatch, bid)
-        from app.models import User as U
-        actor = (await s.execute(deliveries.select(U))).scalars().first()
-        out = await deliveries.autofinalise_if_ready(s, b.id, actor)
-    assert out["ready"] is False and out.get("scan_in_progress") is True
+# ── A3 superseded: autofinalise is GONE (owner reversed it 2026-08-07) ───────
+def test_nothing_finalises_a_delivery_automatically():
+    """The scan-in-progress compromise is moot: no code path sends a storeload without a human.
+    Guarding the NAME as well as the behaviour, so reintroducing it has to be deliberate."""
+    assert not hasattr(deliveries, "autofinalise_if_ready")
+    assert hasattr(deliveries, "refresh_delivery_readiness")

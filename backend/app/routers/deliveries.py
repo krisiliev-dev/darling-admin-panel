@@ -202,96 +202,33 @@ def _catalog_ids_for_codes(codes: set) -> dict:
     return out
 
 
-async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, actor: User) -> dict:
-    """Called after a NEW product is created in Barsy (from Нов продукт save): if the delivery now has
-    ALL its new products created and every existing line resolved, send its storeload automatically —
-    ONE Barsy delivery, no manual step (owner asked for this). Not ready → {ready: False}, no write.
+async def refresh_delivery_readiness(session: AsyncSession, batch_id: int | None) -> dict:
+    """Recompute a delivery's status after one of its new products is created in Barsy.
 
-    Only reached on the live path (caller already checked DELIVERY_BARSY_LIVE). The scan-confirm gate
-    is NOT enforced here — the owner defined the trigger as 'all products created'; the manual Доставки
-    finalise keeps the scan gate for the careful path."""
+    This deliberately does NOT send anything. It used to: the last product being created fired the
+    whole storeload automatically. The owner reversed that (2026-08-07) — a delivery going to Barsy
+    with nobody pressing anything left the operator unsure it had happened at all, and it could book
+    a pallet somebody was still counting. A human presses Финализирай now; the button is already
+    blocked until every product exists, and finalise() refuses independently.
+
+    Keeping the status honest is the whole job here — and it fixes a real bug, because
+    _recompute_status ran once at creation and never again, so a delivery whose products had all
+    been created still displayed „чакат нови продукти" indefinitely."""
     if batch_id is None:
         return {"ready": False}
     b = await session.get(DeliveryBatch, batch_id)
     if not b:
         return {"ready": False}
-    if b.status == "finalised":
+    if b.status in ("finalised", "finalising"):
         return {"ready": True, "sent": False, "already": True, "storeload_id": b.storeload_id}
     lines = await _lines(session, batch_id)
-    if not lines or any(ln.qty <= 0 for ln in lines):
-        return {"ready": False}
-    if any(ln.is_new and ln.article_id is None for ln in lines):
-        return {"ready": False}                      # still new products to create
-    # The owner's trigger is 'all products created', NOT a scan gate — but if someone is
-    # part-way through counting (some lines scanned, not all confirmed), booking now would
-    # freeze the delivery at document quantities and make their shortage unrecordable.
-    # Yield and let them finish; the manual finalise is still there.
-    if any(ln.scanned_qty for ln in lines) and any(ln.status != "confirmed" for ln in lines):
-        return {"ready": False, "scan_in_progress": True}
-    # resolve any existing lines' Barsy id by code
-    to_resolve = [ln for ln in lines if ln.article_id is None]
-    if to_resolve:
-        try:
-            cmap = await run_in_threadpool(_catalog_ids_for_codes, {ln.match_code for ln in to_resolve})
-        except Exception:
-            return {"ready": False}
-        for ln in to_resolve:
-            aid = cmap.get(ln.match_code)
-            if aid is not None:
-                ln.article_id = aid
-    if any(ln.article_id is None for ln in lines):
-        return {"ready": False}                      # something still unresolved → wait
-    # atomic claim so two concurrent saves can't double-send the storeload
-    claim = await session.execute(
-        update(DeliveryBatch).where(DeliveryBatch.id == batch_id,
-                                    DeliveryBatch.status.not_in(("finalised", "finalising")))
-        .values(status="finalising"))
+    _recompute_status(b, lines)
     await session.commit()
-    if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
-        return {"ready": True, "sent": False, "already": True}
-    doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
-    b.doc_num = doc_num                      # persisted so /reconcile can probe Barsy for it
-    b.finalise_started_at = _dt.datetime.now(_dt.UTC)
-    await session.commit()
-    _cfg = get_settings()
-    payload = {
-        "store_load": {
-            "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
-            "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
-            # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
-            "currency_id": _cfg.barsy_currency_id, "price_mode": _cfg.barsy_price_mode,
-        },
-        # received = claimed - defective; a fully-defective line is not booked at all
-        "articles": [{"article_id": int(ln.article_id),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
-                      "amount": str((ln.qty or 0) - (ln.defect_qty or 0)),
-                      "current_price": str(ln.price)}
-                     for ln in lines if (ln.qty or 0) - (ln.defect_qty or 0) > 0],
-        "action_type": "save_and_close",
-    }
-    if b.supplier_id:
-        payload["store_load"]["supplier_id"] = b.supplier_id  # type: ignore[index]  # SQLAlchemy/fastapi-users stub gap, not a bug
-    try:
-        out = await run_in_threadpool(barsy.call, "Storeloads_create", payload)
-    except barsy.BarsyUncertainError as e:
-        # Barsy may already hold this storeload. Releasing the claim would invite a retry that
-        # books it twice, so stay 'finalising' and wait for /reconcile.
-        await session.commit()
-        return {"ready": True, "sent": False, "uncertain": True, "error": str(e)[:160]}
-    except Exception as e:
-        b.status = "ready"                           # release the claim so it can be retried
-        await session.commit()
-        return {"ready": True, "sent": False, "error": str(e)[:160]}
-    b.storeload_id = extract_id(out, ("storeload_id", "id"))   # a storeload, never an article
-    b.status = "finalised"
-    b.finalised_at = _dt.datetime.now(_dt.UTC)
-    await _flip_zayavka_received(session, b)
-    await session.commit()
-    await log_action(session, actor, "delivery.autofinalise", target=b.supplier or b.reference,
-                     detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
-    return {"ready": True, "sent": True, "storeload_id": b.storeload_id}
+    awaiting = sum(1 for ln in lines if ln.is_new and ln.article_id is None)
+    return {"ready": bool(lines) and awaiting == 0, "sent": False,
+            "status": b.status, "awaiting_products": awaiting}
 
 
-# ------------------------------------------------------------------ create (upload) ---
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_delivery(
     file: UploadFile = File(...),

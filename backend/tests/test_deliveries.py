@@ -504,9 +504,12 @@ async def test_compose_name_v3(owner_client):
 
 
 @pytest.mark.asyncio
-async def test_live_save_autocreates_article_and_autofinalises(owner_client, barsy_recorder, monkeypatch):
-    """With DELIVERY_BARSY_LIVE on: saving the delivery's last new product auto-creates the article,
-    uploads its image, and — all new products now created — auto-sends ONE storeload for the delivery."""
+async def test_live_save_creates_the_article_but_never_sends_the_delivery(owner_client, barsy_recorder, monkeypatch):
+    """With DELIVERY_BARSY_LIVE on: saving the delivery's last new product creates the article and
+    uploads its image — and then STOPS. The delivery becomes ready and waits for a human.
+
+    This used to auto-send the storeload. The owner reversed that (2026-08-07): a delivery going to
+    Barsy with nobody pressing anything left the operator unsure whether it had happened at all."""
     import app.routers.intake as intake_r
     monkeypatch.setattr(intake_r, "get_settings",
                         lambda: SimpleNamespace(delivery_barsy_live=True, barsy_depot_id=1, barsy_currency_id=1, barsy_price_mode=1, barsy_min_profit_percent=0.0))
@@ -522,8 +525,9 @@ async def test_live_save_autocreates_article_and_autofinalises(owner_client, bar
             json={"code": "OUR-NEW", "name": "Нов"})).json()
     assert body["barsy"]["created"] is True and body["barsy"]["article_id"] == 7001
     assert body["barsy"]["images_uploaded"] == 1
-    assert body["barsy"]["delivery"]["sent"] is True and body["barsy"]["delivery"]["storeload_id"] == 9100
-    assert barsy_recorder.operations.count("Storeloads_create") == 1     # exactly ONE delivery
+    assert body["barsy"]["delivery"]["sent"] is False        # a human presses Финализирай
+    assert body["barsy"]["delivery"]["ready"] is True        # … and the page now says it is ready
+    assert barsy_recorder.operations.count("Storeloads_create") == 0     # nothing went to Barsy
 
 
 @pytest.mark.asyncio

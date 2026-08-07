@@ -536,8 +536,10 @@ async def _save_to_barsy(session: AsyncSession, d: IntakeDraft, actor: User) -> 
             line.article_id = aid
             line.is_new = False
         await session.commit()
-        from .deliveries import autofinalise_if_ready
-        note["delivery"] = await autofinalise_if_ready(session, line.batch_id if line else None, actor)
+        # NOT a finalise: only refreshes the delivery's status so the page stops saying it is
+        # waiting for products. The operator presses Финализирай themselves (owner, 2026-08-07).
+        from .deliveries import refresh_delivery_readiness
+        note["delivery"] = await refresh_delivery_readiness(session, line.batch_id if line else None)
     else:
         await session.commit()
     return note
