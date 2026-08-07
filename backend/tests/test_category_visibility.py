@@ -14,18 +14,25 @@ from app.routers import public_categories as pub_module
 TOKEN = "tok-for-tests"
 
 # hg (untouched by the owner) > hg-1, hg-2 (both switched on) ; hg-1 > hg-1-1 (untouched)
+# REAL Barsy envelope: every node is {"category": {...fields...}, "categories": [...]}.
+# The first version of this fixture was flat, and a flat fixture is precisely what let the tree
+# slimming ship while returning empty nodes for every real category.
+def _n(cat_id, parent_id, name, slug, cnt, children=()):
+    return {"category": {"cat_id": cat_id, "parent_id": parent_id, "cat_name": name,
+                         "slug": slug, "child_articles_cnt": cnt, "cat_picture": ""},
+            "categories": list(children)}
+
+
+# hg (untouched by the owner) > hg-1, hg-2 (both switched on) ; hg-1 > hg-1-1 (untouched)
 TREE = {"category": {"cat_id": None, "parent_id": None, "cat_name": "root", "slug": None,
                      "child_articles_cnt": 0},
         "categories": [
-            {"cat_id": 100, "parent_id": None, "cat_name": "dom", "slug": "hg",
-             "child_articles_cnt": 0, "categories": [
-                 {"cat_id": 110, "parent_id": 100, "cat_name": "banya", "slug": "hg-1",
-                  "child_articles_cnt": 3, "categories": [
-                      {"cat_id": 111, "parent_id": 110, "cat_name": "dulboko", "slug": "hg-1-1",
-                       "child_articles_cnt": 1, "categories": []}]},
-                 {"cat_id": 120, "parent_id": 100, "cat_name": "dekor", "slug": "hg-2",
-                  "child_articles_cnt": 5, "categories": []},
-             ]},
+            _n(100, None, "dom", "hg", 0, [
+                _n(110, 100, "banya", "hg-1", 3, [
+                    _n(111, 110, "dulboko", "hg-1-1", 1),
+                ]),
+                _n(120, 100, "dekor", "hg-2", 5),
+            ]),
         ]}
 
 
@@ -131,7 +138,7 @@ async def test_the_tree_carries_the_enabled_set_without_changing_its_nodes(manag
     assert body["enabled_slugs"] == ["hg-2"]
     node = body["tree"]["children"][0]
     assert set(node.keys()) == {"cat_id", "parent_id", "name", "slug",
-                                "child_articles_cnt", "children"}
+                                "child_articles_cnt", "cat_picture", "children"}
 
 
 # ====================================================================== the storefront feed

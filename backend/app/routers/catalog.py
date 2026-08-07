@@ -1702,11 +1702,32 @@ def _invalidate_category_caches() -> None:
 
 
 def _slim_cat_node(n: dict) -> dict:
-    """getTree node → the 6 fields the panel needs. Children nest under `categories` upstream."""
-    kids = n.get("categories") or []
-    return {"cat_id": n.get("cat_id"), "parent_id": n.get("parent_id"),
-            "name": n.get("cat_name") or "", "slug": n.get("slug") or "",
-            "child_articles_cnt": int(n.get("child_articles_cnt") or 0),
+    """getTree node → the fields the panel needs, UNWRAPPING Barsy's envelope.
+
+    Barsy nests every node as {"category": {...fields...}, "categories": [...children...]}. This
+    used to read the fields straight off `n`, which is the wrapper for every node except the root
+    (_tree_root unwraps that one by hand), so all 14,606 children came back with cat_id=None and
+    slug="" — measured on the live box on 2026-08-07:
+
+        panel's own slimming, real payload:  {"slimmed_nodes": 14606, "with_a_slug": 0}
+        unwrapping instead:                  {"nodes": 14606, "with_a_slug": 14606}
+
+    The empty defaults are what hid it. A field that quietly becomes "" when the lookup misses
+    cannot tell you the lookup missed — a defensive construct that degrades to a falsy value is
+    not a guard, and here it turned a structural mismatch into plausible-looking empty data.
+
+    Accepts BOTH shapes: `n` may be the wrapper or the inner category dict, so _tree_root's
+    hand-built root still works unchanged.
+    """
+    wrapped = n.get("category")
+    inner: dict = wrapped if isinstance(wrapped, dict) else n
+    kids = n.get("categories") or inner.get("categories") or []
+    return {"cat_id": inner.get("cat_id"), "parent_id": inner.get("parent_id"),
+            "name": inner.get("cat_name") or "", "slug": inner.get("slug") or "",
+            "child_articles_cnt": int(inner.get("child_articles_cnt") or 0),
+            # The category banner. Captured, not guessed: getTree carries cat_picture, so the
+            # storefront resolves slug -> banner from the one cached call it already makes.
+            "cat_picture": inner.get("cat_picture") or "",
             "children": [_slim_cat_node(c) for c in kids if isinstance(c, dict)]}
 
 

@@ -6,16 +6,22 @@ import pytest
 
 from app.routers import catalog as catalog_module
 
-TREE = {"category": {"cat_id": None, "parent_id": None, "cat_name": "Основна", "slug": None,
-                     "child_articles_cnt": 43},
+# REAL Barsy envelope: every node is {"category": {...fields...}, "categories": [...]}.
+# This fixture used to be FLAT, which is why a slimming function that produced 14,606 empty
+# nodes against the live payload passed this suite. Measured on the box 2026-08-07.
+def _n(cat_id, parent_id, name, slug, cnt, children=(), picture=""):
+    return {"category": {"cat_id": cat_id, "parent_id": parent_id, "cat_name": name,
+                         "slug": slug, "child_articles_cnt": cnt, "cat_picture": picture},
+            "categories": list(children)}
+
+
+TREE = {"category": {"cat_id": None, "parent_id": None, "cat_name": "\u041e\u0441\u043d\u043e\u0432\u043d\u0430",
+                     "slug": None, "child_articles_cnt": 43},
         "categories": [
-            {"cat_id": 100, "parent_id": None, "cat_name": "Дом", "slug": "hg",
-             "child_articles_cnt": 0, "categories": [
-                 {"cat_id": 110, "parent_id": 100, "cat_name": "Кухня", "slug": "hg-11",
-                  "child_articles_cnt": 2, "categories": []},
-                 {"cat_id": 120, "parent_id": 100, "cat_name": "Промо", "slug": "hg-x1",
-                  "child_articles_cnt": 0, "categories": []},
-             ]},
+            _n(100, None, "\u0414\u043e\u043c", "hg", 0, [
+                _n(110, 100, "\u041a\u0443\u0445\u043d\u044f", "hg-11", 2),
+                _n(120, 100, "\u041f\u0440\u043e\u043c\u043e", "hg-x1", 0),
+            ]),
         ]}
 
 
@@ -44,7 +50,8 @@ async def test_tree_is_slim_and_cached(owner_client, barsy_recorder):
     _wire(barsy_recorder)
     r = (await owner_client.get("/api/catalog/categories/tree")).json()["tree"]
     dom = r["children"][0]
-    assert set(dom.keys()) == {"cat_id", "parent_id", "name", "slug", "child_articles_cnt", "children"}
+    assert set(dom.keys()) == {"cat_id", "parent_id", "name", "slug",
+                               "child_articles_cnt", "cat_picture", "children"}
     assert dom["slug"] == "hg" and dom["children"][0]["child_articles_cnt"] == 2
     await owner_client.get("/api/catalog/categories/tree")
     assert barsy_recorder.operations.count("Categories_getTree") == 1   # second hit = cache
@@ -137,3 +144,14 @@ async def test_write_gate_dry_runs(owner_client, barsy_recorder, monkeypatch):
                                  json={"parent_id": 100, "name": "Ново"})).json()
     assert r["gated"] is True
     assert "Categories_create" not in barsy_recorder.operations
+
+
+def test_children_are_unwrapped_from_the_barsy_envelope():
+    """The regression that mattered. Barsy wraps every node; reading fields off the wrapper gave
+    cat_id=None and slug="" for all 14,606 categories, and the empty defaults made it look like
+    ordinary sparse data instead of a structural mismatch."""
+    root = catalog_module._slim_cat_node(
+        {**TREE["category"], "categories": TREE["categories"]})
+    dom = root["children"][0]
+    assert dom["cat_id"] == 100 and dom["slug"] == "hg"
+    assert dom["children"][0]["cat_id"] == 110 and dom["children"][0]["slug"] == "hg-11"
