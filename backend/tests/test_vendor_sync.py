@@ -22,7 +22,16 @@ import pytest
 _HERE = pathlib.Path(__file__).resolve()
 _ADMIN_PANEL = _HERE.parents[2]                     # …/admin-panel
 _VENDOR = _ADMIN_PANEL / "darling_core" / "_vendor"
-_SIBLING = _ADMIN_PANEL.parent / "agent-pipeline"   # …/product-review/agent-pipeline
+
+# The connector has lived in two places. Pre-reorg it was the `agent-pipeline` sibling, which is
+# still the layout on the PANEL BOX; the 2026-08-01 reorg moved the laptop copy to `connector`.
+# Only checking the old name meant this test skipped on the laptop as well as in CI from the reorg
+# onward — and a skip is green, so the drift it exists to catch went unnoticed until 2026-08-08,
+# when production turned out to be running a barsy_api without the uncertain-write protection that
+# CI had been testing. Check both, and make the skip reason say which.
+_CANDIDATES = [_ADMIN_PANEL.parent / "agent-pipeline",   # pre-reorg / panel box layout
+               _ADMIN_PANEL.parent / "connector"]        # post-reorg laptop layout
+_SIBLING = next((p for p in _CANDIDATES if p.is_dir()), _CANDIDATES[0])
 
 # the modules darling_core re-exports; a mismatch in any of them changes runtime behaviour
 _MIRRORED = [
@@ -36,7 +45,8 @@ def _sha(p: pathlib.Path) -> str:
 
 
 @pytest.mark.skipif(not _SIBLING.is_dir(),
-                    reason="agent-pipeline sibling absent (CI) — nothing to compare against")
+                    reason=f"connector tree absent — looked for {[str(p) for p in _CANDIDATES]}; "
+                           "nothing to compare against (expected in CI, NOT on a dev machine)")
 @pytest.mark.parametrize("name", _MIRRORED)
 def test_vendor_matches_the_runtime_connector(name):
     vendored, live = _VENDOR / name, _SIBLING / name
@@ -49,4 +59,9 @@ def test_vendor_matches_the_runtime_connector(name):
         f"_vendor/{name} has DRIFTED from agent-pipeline/{name}.\n"
         f"CI tests _vendor while the box runs agent-pipeline, so this drift means CI is validating code "
         f"that is not what ships. Re-sync before committing:\n"
-        f"    cp ../agent-pipeline/{name} darling_core/_vendor/{name}")
+        f"    CHECK WHICH SIDE IS NEWER FIRST - do not copy on autopilot.\n"
+        f"    Usually _vendor is the stale snapshot and the connector wins:\n"
+        f"        cp <connector>/{name} darling_core/_vendor/{name}\n"
+        f"    But on 2026-08-08 it was the OTHER way round: _vendor held the uncertain-write\n"
+        f"    protection and the connector - which is what production runs - did not, so copying\n"
+        f"    in the usual direction would have deleted it from CI too. Diff them and decide.")
