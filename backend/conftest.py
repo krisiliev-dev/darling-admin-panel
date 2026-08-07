@@ -68,6 +68,35 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 @pytest.fixture(autouse=True)
+def _no_outbound_http(monkeypatch, request):
+    """Enforce the promise at the top of this file: tests do not go out to the internet.
+
+    Barsy was already stubbed. The COURIERS were not — they call urllib directly, and the
+    sixteen tests that hit /api/public/shipping-rates fire a background refresh against the
+    live Speedy, Econt, BoxNow and Pigeon APIs. The suite grew from about 17 minutes to over
+    45 as carriers were enabled, and had to be killed twice on 2026-08-07. Worse than slow: a
+    gate that four other companies can turn red is not a gate, and CI runs this same suite.
+
+    The failure is deliberately LOUD and names the URL, because the point is to find the call
+    and stub it, not to make the symptom quieter. A test that genuinely needs the network can
+    say so with @pytest.mark.allow_http.
+    """
+    if request.node.get_closest_marker("allow_http"):
+        return
+    import urllib.request
+
+    def _blocked(req, *a, **k):
+        url = getattr(req, "full_url", None) or req
+        raise RuntimeError(
+            f"outbound HTTP blocked in tests: {url}\n"
+            "Stub the adapter (see the fake_couriers fixture), or mark the test "
+            "@pytest.mark.allow_http if it really must leave the machine."
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", _blocked)
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """The auth rate limiter is process-global in-memory state. Every test shares the same
     `testclient` IP, so without this the per-ip request cap would leak across tests and start
@@ -79,12 +108,46 @@ def _reset_rate_limiter():
     ratelimit._reqs._hits.clear()
 
 
+_SCHEMA_BUILT = False
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _fresh_db():
-    """A clean schema for every test."""
+    """Empty tables for every test — WITHOUT rebuilding the schema for every test.
+
+    This used to drop_all + create_all before each of ~1370 tests. --durations showed the cost
+    was almost entirely fixture SETUP (4-13 seconds per test by 2026-08-07), and it grew every
+    time anyone added a table: the suite went from about 17 minutes to over 45 as three agents
+    landed new tables in one week, and had to be killed twice.
+
+    What the tests actually need is an empty database, not a newly minted one. So the schema is
+    created ONCE per session and the rows are deleted between tests. Deleting in reverse
+    sorted_tables order respects foreign keys.
+
+    Kept function-scoped on purpose: a session-scoped async fixture would need a session-scoped
+    event loop, and rearranging pytest-asyncio's loop scoping to save one drop_all is how you
+    turn a performance fix into a week of flaky tests.
+
+    NOTE for anyone adding tables: nothing extra is needed. Base.metadata is the source of truth
+    here, so a new model is picked up automatically — which is exactly why this had grown so
+    expensive without anyone choosing it.
+    """
+    global _SCHEMA_BUILT
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+        if not _SCHEMA_BUILT:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+            _SCHEMA_BUILT = True
+        else:
+            for table in reversed(Base.metadata.sorted_tables):
+                await conn.execute(table.delete())
+            try:
+                # Only exists when a table uses AUTOINCREMENT. Without this an id sequence would
+                # keep climbing across tests, so a test asserting "the first row is id 1" would
+                # pass alone and fail in a full run — the worst kind of failure to debug.
+                await conn.exec_driver_sql("DELETE FROM sqlite_sequence")
+            except Exception:
+                pass
     yield
 
 

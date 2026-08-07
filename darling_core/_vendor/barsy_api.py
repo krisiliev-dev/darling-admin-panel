@@ -51,7 +51,24 @@ class BarsyError(RuntimeError):
     pass
 
 
-def call(method, body=None, bid=None, timeout=60):
+class BarsyUncertainError(BarsyError):
+    """A WRITE whose outcome is UNKNOWN — the request may or may not have been applied.
+    Never retry blindly on this: probe for the record (e.g. Storeloads_getlist by doc_num)
+    and decide. Retrying a goods-in that actually landed books the stock twice."""
+
+
+# Method-name hints for a READ. Anything not matching is treated as a WRITE, which is the
+# fail-safe direction: an unrecognised method loses automatic retries rather than risking
+# a duplicate side effect.
+_READ_HINTS = ("_get", "_list", "_info", "_search", "_find", "_report", "_check", "_exists")
+
+
+def _is_read_method(method):
+    m = (method or "").lower()
+    return any(h in m for h in _READ_HINTS)
+
+
+def call(method, body=None, bid=None, timeout=60, is_read=None):
     """POST one Barsy API method. `body` is a dict/list (JSON). Returns parsed JSON.
     `bid` selects a non-default trade object (?bid=). Raises BarsyError on HTTP/API error."""
     base, user, pw = _env()
@@ -67,6 +84,7 @@ def call(method, body=None, bid=None, timeout=60):
     import time as _time
     payload = None
     last = None
+    read_only = _is_read_method(method) if is_read is None else bool(is_read)
     for attempt in range(4):
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Content-Type", "application/json")
@@ -77,16 +95,28 @@ def call(method, body=None, bid=None, timeout=60):
             break
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")[:500]
-            if ("зает" in detail or e.code in (501, 502, 503, 504)) and attempt < 3:
+            # "зает"/501 is an explicit refusal — the server did NOT do the work, so a retry
+            # is safe even for a write. 502/503/504 is ambiguous (a gateway can drop the reply
+            # to work that WAS applied), so only reads retry on those.
+            busy = ("зает" in detail) or e.code == 501
+            if (busy or (read_only and e.code in (502, 503, 504))) and attempt < 3:
                 last = f"HTTP {e.code}: {detail[:120]}"
                 _time.sleep(1.5 * (attempt + 1))
                 continue
+            if not read_only and not busy and e.code in (502, 503, 504):
+                raise BarsyUncertainError(
+                    f"HTTP {e.code} on {method} — outcome UNKNOWN, do not retry blindly: {detail[:200]}")
             raise BarsyError(f"HTTP {e.code} on {method}: {detail}")
         except (TimeoutError, urllib.error.URLError, OSError) as e:
             last = getattr(e, "reason", None) or str(e)
-            if attempt < 3:
+            # A timeout on a WRITE is the dangerous case: Barsy may have committed and only the
+            # reply was lost. Never re-POST it — hand the caller an uncertain error to probe.
+            if read_only and attempt < 3:
                 _time.sleep(1.5 * (attempt + 1))
                 continue
+            if not read_only:
+                raise BarsyUncertainError(
+                    f"connection error on {method} — outcome UNKNOWN, do not retry blindly: {last}")
             raise BarsyError(f"connection error on {method} after retries: {last}")
     if payload is None:
         raise BarsyError(f"no response on {method}: {last}")

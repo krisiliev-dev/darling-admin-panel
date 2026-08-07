@@ -155,6 +155,11 @@ class DeliveryBatch(Base):
     # ready (all confirmed + every line has a Barsy article) → finalised (storeload sent)
     status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
     storeload_id: Mapped[int | None] = mapped_column(nullable=True)
+    # the deterministic doc_num sent to Barsy, persisted BEFORE the write so a delivery whose
+    # outcome is unknown can be reconciled by probing Barsy for this number
+    doc_num: Mapped[str] = mapped_column(String(64), default="")
+    finalise_started_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
     # source заявка (Заявки page); finalising this delivery flips it to 'received'
     zayavka_id: Mapped[int | None] = mapped_column(nullable=True, default=None)
     created_by: Mapped[str] = mapped_column(String(255), default="")

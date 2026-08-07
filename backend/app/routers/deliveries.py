@@ -151,7 +151,9 @@ def _batch_summary(b: DeliveryBatch, lines: list[DeliveryLine]) -> dict:
     return {
         "id": b.id, "supplier": b.supplier, "supplier_id": b.supplier_id, "depot_id": b.depot_id,
         "reference": b.reference, "doc_date": b.doc_date, "source": b.source, "status": b.status,
-        "storeload_id": b.storeload_id, "created_by": b.created_by,
+        "storeload_id": b.storeload_id, "doc_num": b.doc_num,
+        "finalise_started_at": b.finalise_started_at.isoformat() if b.finalise_started_at else None,
+        "created_by": b.created_by,
         "created_at": b.created_at.isoformat() if b.created_at else None,
         "finalised_at": b.finalised_at.isoformat() if b.finalised_at else None,
         "total": len(lines), "new": sum(1 for ln in lines if ln.is_new),
@@ -218,6 +220,12 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
         return {"ready": False}
     if any(ln.is_new and ln.article_id is None for ln in lines):
         return {"ready": False}                      # still new products to create
+    # The owner's trigger is 'all products created', NOT a scan gate — but if someone is
+    # part-way through counting (some lines scanned, not all confirmed), booking now would
+    # freeze the delivery at document quantities and make their shortage unrecordable.
+    # Yield and let them finish; the manual finalise is still there.
+    if any(ln.scanned_qty for ln in lines) and any(ln.status != "confirmed" for ln in lines):
+        return {"ready": False, "scan_in_progress": True}
     # resolve any existing lines' Barsy id by code
     to_resolve = [ln for ln in lines if ln.article_id is None]
     if to_resolve:
@@ -240,6 +248,9 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
     if claim.rowcount == 0:  # type: ignore[attr-defined]  # SQLAlchemy/fastapi-users stub gap, not a bug
         return {"ready": True, "sent": False, "already": True}
     doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
+    b.doc_num = doc_num                      # persisted so /reconcile can probe Barsy for it
+    b.finalise_started_at = _dt.datetime.now(_dt.UTC)
+    await session.commit()
     _cfg = get_settings()
     payload = {
         "store_load": {
@@ -259,11 +270,16 @@ async def autofinalise_if_ready(session: AsyncSession, batch_id: int | None, act
         payload["store_load"]["supplier_id"] = b.supplier_id  # type: ignore[index]  # SQLAlchemy/fastapi-users stub gap, not a bug
     try:
         out = await run_in_threadpool(barsy.call, "Storeloads_create", payload)
+    except barsy.BarsyUncertainError as e:
+        # Barsy may already hold this storeload. Releasing the claim would invite a retry that
+        # books it twice, so stay 'finalising' and wait for /reconcile.
+        await session.commit()
+        return {"ready": True, "sent": False, "uncertain": True, "error": str(e)[:160]}
     except Exception as e:
         b.status = "ready"                           # release the claim so it can be retried
         await session.commit()
         return {"ready": True, "sent": False, "error": str(e)[:160]}
-    b.storeload_id = extract_id(out, ("article_id", "storeload_id", "id"))
+    b.storeload_id = extract_id(out, ("storeload_id", "id"))   # a storeload, never an article
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
     await _flip_zayavka_received(session, b)
@@ -526,10 +542,11 @@ def _set_line_status(ln: DeliveryLine) -> None:
         ln.status = "pending"
     elif math.isclose(ln.scanned_qty, q, abs_tol=1e-9):
         ln.status = "confirmed"
-    elif q != int(q) and ln.scanned_qty >= math.floor(q):
+    elif q != int(q) and math.floor(q) <= ln.scanned_qty <= math.ceil(q):
         # a fractional-unit line (e.g. 2.5 kg loose goods) can't be piece-scanned to an exact count,
         # so an integer scan count would never equal q and the line would block finalise forever.
-        # A scan of at least the whole-number part confirms receipt of such a line.
+        # A scan of the whole-number part confirms it — but BOUNDED above, or a runaway camera
+        # tally of 40 on a 2.5 kg line would still read as confirmed.
         ln.status = "confirmed"
     else:
         ln.status = "mismatch"       # over- or under-count on a piece-goods line
@@ -539,8 +556,8 @@ async def _guard_not_finalised(session: AsyncSession, batch_id: int) -> None:
     """Refuse mutations to a delivery that's already been sent to Barsy (local record must not drift
     from what Barsy recorded)."""
     b = await session.get(DeliveryBatch, batch_id)
-    if b and b.status == "finalised":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана — не се променя.")
+    if b and b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката се финализира — не се променя.")
 
 
 @router.post("/{batch_id}/scan")
@@ -554,8 +571,8 @@ async def scan(
     b = await session.get(DeliveryBatch, batch_id)
     if not b:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
-    if b.status == "finalised":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
     code = (req.barcode or "").strip()
     if not code:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Празен баркод.")
@@ -647,7 +664,8 @@ async def delete_delivery(
     b = await session.get(DeliveryBatch, batch_id)
     if not b:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
-    if b.status == "finalised":
+    if b.status in ("finalised", "finalising"):
+        # deleting mid-write would land the goods in Barsy with no local record at all
         raise HTTPException(status.HTTP_409_CONFLICT, "Финализирана доставка не се изтрива.")
     lines = await _lines(session, batch_id)
     draft_ids = [ln.intake_draft_id for ln in lines if ln.intake_draft_id]
@@ -728,6 +746,9 @@ async def finalise(
     # deterministic doc_num per batch → if the write is retried, Barsy rejects the duplicate doc_num
     # instead of recording a second goods-in.
     doc_num = ((b.reference or "DZ").strip().replace(" ", "-")[:36] or "DZ") + f"-B{b.id}"
+    b.doc_num = doc_num                      # persisted so /reconcile can probe Barsy for it
+    b.finalise_started_at = _dt.datetime.now(_dt.UTC)
+    await session.commit()
     payload = {
         "store_load": {
             "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
@@ -781,11 +802,18 @@ async def finalise(
             warnings.append("Доставчикът не бе намерен в Barsy — без supplier_id.")
     try:
         out = await run_in_threadpool(barsy.call, "Storeloads_create", payload)
+    except barsy.BarsyUncertainError as e:
+        # The write may have landed. Do NOT release the claim — a blind retry would book the
+        # goods twice. Leave it 'finalising' for the owner-only /reconcile probe.
+        await session.commit()
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            "Barsy не отговори ясно — доставката може да е записана. "
+                            f"Използвай 'Свери' ({doc_num}), не повтаряй. {str(e)[:120]}")
     except Exception as e:
         b.status = "ready"            # release the claim so it can be retried
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (доставка): {str(e)[:180]}")
-    b.storeload_id = extract_id(out, ("article_id", "storeload_id", "id"))
+    b.storeload_id = extract_id(out, ("storeload_id", "id"))   # a storeload, never an article
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
     await _flip_zayavka_received(session, b)
@@ -820,8 +848,8 @@ async def scan_batch(
     b = await session.get(DeliveryBatch, batch_id)
     if not b:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
-    if b.status == "finalised":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
     counts = {(k or "").strip(): v for k, v in req.counts.items() if (k or "").strip()}
     if not counts:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Празно сканиране.")
@@ -1078,8 +1106,8 @@ async def mark_defect(
     b = await session.get(DeliveryBatch, batch_id)
     if not b:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
-    if b.status == "finalised":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана — не се променя.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката се финализира — не се променя.")
     ln = await session.get(DeliveryLine, line_id)
     if not ln or ln.batch_id != batch_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
@@ -1186,3 +1214,97 @@ async def resolve_claim(
     await session.commit()
     await session.refresh(c)
     return {"ok": True, "claim": _claim_out(c)}
+
+
+# ------------------------------------------------------------------ stuck-finalise reconcile (H1) ---
+# A delivery whose Barsy write timed out stays 'finalising' on purpose: releasing it would invite a
+# retry that books the goods a second time. The way out is to ASK Barsy whether it has the doc_num
+# we persisted before the write, and act on the answer — never to guess.
+
+
+def _storeload_doc_num(row: dict) -> str:
+    """doc_num out of a Storeloads_getlist row, whatever Barsy called it this time."""
+    for k in ("doc_num", "docNum", "document_number", "doc_number", "number"):
+        v = row.get(k)
+        if v not in (None, ""):
+            return str(v).strip()
+    return ""
+
+
+def _find_storeload_by_doc_num(doc_num: str, depot_id: int) -> tuple[bool, int | None]:
+    """(found, storeload_id) for a doc_num. Runs in a threadpool — plain sync Barsy calls.
+    A read, so barsy.call may safely retry it."""
+    out = barsy.call("Storeloads_getlist", {"depot_id": depot_id}, is_read=True)
+    rows = out if isinstance(out, list) else (out.get("data") or out.get("storeloads") or [])
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if _storeload_doc_num(row) == doc_num:
+            return True, extract_id(row, ("storeload_id", "id"))
+    return False, None
+
+
+@profiles_router.get("/stuck")
+async def list_stuck_finalising(
+    _: User = Depends(current_owner),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Deliveries stranded mid-finalise. Each needs a /reconcile decision before it can move."""
+    rows = list((await session.execute(
+        select(DeliveryBatch).where(DeliveryBatch.status == "finalising")
+        .order_by(DeliveryBatch.id))).scalars().all())
+    return {"stuck": [{
+        "id": b.id, "supplier": b.supplier, "reference": b.reference, "doc_num": b.doc_num,
+        "finalise_started_at": b.finalise_started_at.isoformat() if b.finalise_started_at else None,
+    } for b in rows]}
+
+
+@router.post("/{batch_id}/reconcile")
+async def reconcile_finalise(
+    batch_id: int,
+    actor: User = Depends(current_owner),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Resolve a delivery stranded in 'finalising' by asking Barsy whether it holds our doc_num.
+
+    Found     -> adopt the storeload id, mark finalised, flip the заявка. No second write.
+    Not found -> the goods were never booked; release the claim back to 'ready' so it can be retried.
+    Owner-only: it decides whether stock exists."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status == "finalised":
+        return {"ok": True, "action": "already", "storeload_id": b.storeload_id}
+    if b.status != "finalising":
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Тази доставка не е блокирала при финализиране.")
+    if not b.doc_num:
+        # stranded before doc_num was persisted (pre-H1 row) — nothing was sent, safe to release
+        b.status = "ready"
+        await log_action(session, actor, "delivery.reconcile.released", target=b.supplier,
+                         detail=f"batch={batch_id} no doc_num")
+        await session.commit()
+        return {"ok": True, "action": "released", "reason": "no doc_num recorded"}
+
+    try:
+        found, sid = await run_in_threadpool(_find_storeload_by_doc_num, b.doc_num, b.depot_id or 1)
+    except Exception as e:
+        # Barsy still unreachable — leave it stuck. Guessing here is exactly the double-booking risk.
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            f"Barsy не отговори — доставката остава за сверяване. {str(e)[:160]}")
+
+    if found:
+        b.storeload_id = sid
+        b.status = "finalised"
+        b.finalised_at = _dt.datetime.now(_dt.UTC)
+        await _flip_zayavka_received(session, b)
+        await log_action(session, actor, "delivery.reconcile.adopted", target=b.supplier,
+                         detail=f"batch={batch_id} doc_num={b.doc_num} storeload={sid}")
+        await session.commit()
+        return {"ok": True, "action": "adopted", "storeload_id": sid, "doc_num": b.doc_num}
+
+    b.status = "ready"
+    await log_action(session, actor, "delivery.reconcile.released", target=b.supplier,
+                     detail=f"batch={batch_id} doc_num={b.doc_num} not in Barsy")
+    await session.commit()
+    return {"ok": True, "action": "released", "doc_num": b.doc_num}
