@@ -343,7 +343,9 @@ export interface DeliveryLineRow {
   scanned_qty: number
   status: string            // pending | confirmed | mismatch
   defect_qty: number        // units set aside as defective (not received into stock)
-  received: number          // qty - defect_qty: what the storeload actually books
+  received: number          // qty - defect_qty: what the document says should arrive
+  booked: number            // what ACTUALLY goes to Barsy: counted (if counted) - defects
+  short_qty: number         // billed but never arrived (defects are NOT counted here)
   intake_draft_id: number | null
 }
 
@@ -366,6 +368,8 @@ export interface DeliveryDetailResp {
   confirmed: number
   mismatched: number
   new_pending: number
+  shortfall_reason: string
+  short_lines: number
   lines: DeliveryLineRow[]
 }
 

@@ -249,6 +249,10 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const [scanMsg, setScanMsg] = useState('')
   const [unknown, setUnknown] = useState<{ barcode: string; lines: DeliveryLineRow[] } | null>(null)
   const [finalising, setFinalising] = useState(false)
+  // set only when the backend refuses a SHORT finalise; the delivery is fine, it just needs
+  // an explanation before less-than-billed goes into Barsy
+  const [shortPrompt, setShortPrompt] = useState('')
+  const [shortReason, setShortReason] = useState('')
   const [result, setResult] = useState<{ dry_run: boolean; storeload_id?: number | null; warnings: string[] } | null>(null)
   const bufferRef = useRef('')
   const [showCam, setShowCam] = useState(false)
@@ -347,13 +351,20 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
     }
   }, [id, load])
 
-  const finalise = async (force = false) => {
-    if (!(await confirm({ confirmLabel: 'Финализирай', message: 'Финализиране на доставката и изпращане към Barsy?' }))) return
+  const finalise = async (force = false, reason = '') => {
+    if (!reason && !(await confirm({ confirmLabel: 'Финализирай', message: 'Финализиране на доставката и изпращане към Barsy?' }))) return
     setFinalising(true); setError(''); setResult(null)
     try {
-      const r = await api.post<{ dry_run: boolean; storeload_id?: number | null; warnings: string[] }>(`/api/deliveries/${id}/finalise`, { confirm: true, force })
-      setResult(r); await load()
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Финализирането се провали.') } finally { setFinalising(false) }
+      const r = await api.post<{ dry_run: boolean; storeload_id?: number | null; warnings: string[] }>(`/api/deliveries/${id}/finalise`, { confirm: true, force, shortfall_reason: reason })
+      setResult(r); setShortPrompt(''); setShortReason(''); await load()
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : 'Финализирането се провали.'
+      // a shortfall is not a failure — it wants an explanation, so ask for one instead of
+      // dead-ending the operator on a red message they cannot act on
+      if (e instanceof ApiError && e.status === 409 && msg.includes('shortfall_reason')) {
+        setShortPrompt(msg.replace(' — посочи причина (shortfall_reason).', ''))
+      } else { setError(msg) }
+    } finally { setFinalising(false) }
   }
 
   if (!b) return <Loading />
@@ -416,10 +427,31 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
               {b.mismatched > 0 && canFinalise && b.new_pending === 0 &&
                 <button className="btn-paper" onClick={() => void finalise(true)} disabled={finalising}>Финализирай въпреки разликите</button>}
               {!canFinalise && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pencil)' }}>само собственик/мениджър финализира</span>}
+              {b.short_lines > 0 && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}>⚠ {b.short_lines} реда с липсващи количества</span>}
               {b.new_pending > 0 && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}>първо завърши новите продукти в „Нов продукт“</span>}
             </>
           )}
         </div>
+        {shortPrompt && (
+          <div className="font-type" style={{ marginTop: '.6rem', padding: '.5rem .7rem', border: '1px solid var(--pending)', borderRadius: 3, fontSize: '.82rem' }}>
+            <div style={{ marginBottom: '.4rem' }}>{shortPrompt}</div>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+              <input
+                autoFocus type="text" value={shortReason}
+                placeholder="Причина (напр. две липсват, шофьорът потвърди)"
+                onChange={(e) => setShortReason(e.target.value)}
+                style={{ flex: '1 1 16rem', fontSize: '.82rem', padding: '.25rem .4rem' }}
+                aria-label="Причина за липсващото количество"
+              />
+              <button className="btn-paper btn-red" disabled={finalising || !shortReason.trim()}
+                onClick={() => void finalise(true, shortReason.trim())}>
+                Заведи само дошлото
+              </button>
+              <button className="btn-paper" disabled={finalising}
+                onClick={() => { setShortPrompt(''); setShortReason('') }}>Отказ</button>
+            </div>
+          </div>
+        )}
         {result && (
           <div className="font-type" style={{ marginTop: '.6rem', fontSize: '.8rem', color: result.dry_run ? 'var(--pending)' : 'var(--ready)' }}>
             {result.dry_run ? 'Проба (нищо не е записано в Barsy)' : `Изпратено · доставка #${result.storeload_id}`}
@@ -481,6 +513,7 @@ function LineTable({ lines, isNew = false, batchId, onChange }: { lines: Deliver
               </td>
               <td style={{ padding: '.3rem .35rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{l.price.toFixed(2)} €</td>
               {isNew && <td style={{ padding: '.3rem .35rem' }}>{l.article_id ? <span style={{ color: 'var(--ready)' }}>#{l.article_id}</span> : <span style={{ color: 'var(--pending)' }}>чака</span>}</td>}
+              {batchId != null && <td style={{ padding: '.3rem .35rem' }}>{l.short_qty > 0 ? <span style={{ color: 'var(--pending)' }} title="заявено, но не е дошло">липсват {l.short_qty}</span> : null}</td>}
               {batchId != null && <td style={{ padding: '.3rem .35rem' }}><ScanAdjust batchId={batchId} line={l} onDone={onChange} /></td>}
               {batchId != null && <td style={{ padding: '.3rem .35rem' }}><DefectButton batchId={batchId} line={l} onDone={onChange} /></td>}
             </tr>

@@ -158,6 +158,9 @@ class DeliveryBatch(Base):
     # the deterministic doc_num sent to Barsy, persisted BEFORE the write so a delivery whose
     # outcome is unknown can be reconciled by probing Barsy for this number
     doc_num: Mapped[str] = mapped_column(String(64), default="")
+    # why this delivery was accepted short — required before a short finalise goes
+    # through, so an under-delivery leaves an explanation rather than just a smaller number
+    shortfall_reason: Mapped[str] = mapped_column(Text, default="")
     finalise_started_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
     # source заявка (Заявки page); finalising this delivery flips it to 'received'
@@ -277,6 +280,9 @@ class DeliveryLine(Base):
     scanned_qty: Mapped[float] = mapped_column(default=0.0)
     # units set aside as defective: NOT received into stock; received = qty - defect_qty
     defect_qty: Mapped[float] = mapped_column(default=0.0)
+    # what the supplier's document claimed but never arrived, frozen at finalise so the
+    # record survives even though it is derivable from the counts at the time
+    short_qty: Mapped[float] = mapped_column(default=0.0)
     # pending → confirmed (scanned == received) → mismatch
     status: Mapped[str] = mapped_column(String(16), default="pending")
     intake_draft_id: Mapped[int | None] = mapped_column(nullable=True)  # for new products

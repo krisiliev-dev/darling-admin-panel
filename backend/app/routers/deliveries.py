@@ -144,6 +144,7 @@ def _line_out(ln: DeliveryLine) -> dict:
         "match_method": ln.match_method, "match_confidence": ln.match_confidence,
         "article_id": ln.article_id, "scanned_qty": ln.scanned_qty, "status": ln.status,
         "defect_qty": ln.defect_qty, "received": (ln.qty or 0) - (ln.defect_qty or 0),
+        "booked": _booked_qty(ln), "short_qty": _shortfall(ln),
         "intake_draft_id": ln.intake_draft_id,
     }
 
@@ -154,6 +155,8 @@ def _batch_summary(b: DeliveryBatch, lines: list[DeliveryLine]) -> dict:
         "id": b.id, "supplier": b.supplier, "supplier_id": b.supplier_id, "depot_id": b.depot_id,
         "reference": b.reference, "doc_date": b.doc_date, "source": b.source, "status": b.status,
         "storeload_id": b.storeload_id, "doc_num": b.doc_num,
+        "shortfall_reason": b.shortfall_reason,
+        "short_lines": sum(1 for ln in lines if _shortfall(ln) > 0),
         "finalise_started_at": b.finalise_started_at.isoformat() if b.finalise_started_at else None,
         "created_by": b.created_by,
         "created_at": b.created_at.isoformat() if b.created_at else None,
@@ -475,6 +478,24 @@ class ScanRequest(BaseModel):
     barcode: str
 
 
+def _booked_qty(ln: DeliveryLine) -> float:
+    """What actually goes into Barsy for this line.
+
+    A COUNT beats the paper. Booking `qty` when the worker counted fewer is how a short delivery
+    became phantom stock: the supplier's document said 10, 8 arrived, and Barsy was told 10.
+    Lines nobody scanned still fall back to the document — trusting the paper is then an explicit
+    choice rather than something that silently overrode a physical count. Defects never book."""
+    counted = ln.scanned_qty if (ln.scanned_qty or 0) > 0 else (ln.qty or 0)
+    return max(0.0, counted - (ln.defect_qty or 0))
+
+
+def _shortfall(ln: DeliveryLine) -> float:
+    """How much of the claimed (non-defective) quantity never turned up. Defects are NOT a shortfall
+    — those arrived and are handled as a claim; this is what the supplier billed but did not send."""
+    claimed = max(0.0, (ln.qty or 0) - (ln.defect_qty or 0))
+    return max(0.0, claimed - _booked_qty(ln))
+
+
 def _set_line_status(ln: DeliveryLine) -> None:
     # scan-confirm targets the RECEIVED qty. getattr: this helper is also driven with
     # line-shaped stubs (tests) that predate defect_qty — a missing attr means no defects.
@@ -694,6 +715,10 @@ async def delete_delivery(
 class FinaliseRequest(BaseModel):
     confirm: bool = False
     force: bool = False        # allow finalise despite scan mismatches (records a warning)
+    # why the delivery is being accepted short. A shortfall is NOT blocked — partial
+    # deliveries are normal — but it must be explained, so the under-delivery leaves a
+    # record instead of just a smaller number nobody can account for later.
+    shortfall_reason: str = ""
 
 
 @router.post("/{batch_id}/finalise")
@@ -753,6 +778,18 @@ async def finalise(
     if unconfirmed:
         warnings.append(f"{len(unconfirmed)} реда финализирани без пълно сканиране.")
 
+    # gate 3 (tolerance, not a block): something was billed but did not arrive.
+    short_lines = [ln for ln in lines if _shortfall(ln) > 0]
+    reason = (req.shortfall_reason or "").strip()
+    if short_lines and not reason:
+        missing = sum(_shortfall(ln) for ln in short_lines)
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{len(short_lines)} реда са по-малко от заявеното ({missing:g} бр. общо). "
+            "Ще бъде заведено само дошлото — посочи причина (shortfall_reason).")
+    if short_lines:
+        warnings.append(f"{len(short_lines)} реда заведени по-малко от документа: {reason}")
+
     settings = get_settings()
     # deterministic doc_num per batch → if the write is retried, Barsy rejects the duplicate doc_num
     # instead of recording a second goods-in.
@@ -767,11 +804,12 @@ async def finalise(
             # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
             "currency_id": settings.barsy_currency_id, "price_mode": settings.barsy_price_mode,
         },
-        # received = claimed - defective; a fully-defective line is not booked at all
+        # what ARRIVED, not what was billed: the counted quantity where a count exists, minus
+        # defectives. A line that arrived empty is not booked at all.
         "articles": [{"article_id": int(ln.article_id),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
-                      "amount": str((ln.qty or 0) - (ln.defect_qty or 0)),
+                      "amount": str(_booked_qty(ln)),
                       "current_price": str(ln.price)}
-                     for ln in lines if (ln.qty or 0) - (ln.defect_qty or 0) > 0],
+                     for ln in lines if _booked_qty(ln) > 0],
         "action_type": "save_and_close",
     }
     if b.supplier_id:
@@ -824,13 +862,17 @@ async def finalise(
         b.status = "ready"            # release the claim so it can be retried
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Barsy (доставка): {str(e)[:180]}")
+    for ln in lines:
+        ln.short_qty = _shortfall(ln)      # frozen: the counts can be edited later, this cannot
+    b.shortfall_reason = reason
     b.storeload_id = extract_id(out, ("storeload_id", "id"))   # a storeload, never an article
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
     await _flip_zayavka_received(session, b)
     await session.commit()
     await log_action(session, actor, "delivery.finalise", target=b.supplier or b.reference,
-                     detail=f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}")
+                     detail=(f"batch={b.id} storeload={b.storeload_id} lines={len(lines)}"
+                             + (f" short={len(short_lines)} reason={reason[:80]}" if short_lines else "")))
     return {"ok": True, "dry_run": False, "storeload_id": b.storeload_id,
             "storeload_payload": payload, "warnings": warnings}
 
