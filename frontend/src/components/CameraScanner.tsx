@@ -1,27 +1,75 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createTracker, dwellingCodes, lockedTally, resetTracker, trackFrame } from '../lib/scanTally'
+import { createTracker, dwellingCodes, GAP_MS, lockedTally, quadToRect, resetTracker, trackFrame } from '../lib/scanTally'
 
-// The phone camera AS the barcode scanner (Доставки). The worker opens a box, points the
-// phone, and every barcode in view is detected at once — several items of the same code count
-// as separate instances (separate bounding boxes). A code must dwell ~1s before it locks
+// The phone camera AS the barcode scanner. The worker opens a box, points the phone, and
+// every barcode in view is detected at once — several items of the same code count as
+// separate instances (separate bounding boxes). A code must dwell ~1s before it locks
 // (amber → green overlay), so a barcode flashing past a moving camera never books anything.
 // Locked codes gather into a tally the worker can correct (a closed кашон of 12 is scanned
-// once and typed, not unpacked), then one Добави commits the whole tally atomically to
-// /scan-batch. The tracking rules live in lib/scanTally.ts, pure and unit-tested.
+// once and typed, not unpacked for the camera), then one Добави commits the whole tally
+// atomically. The tracking rules live in lib/scanTally.ts, pure and unit-tested.
 //
-// Detection uses the native BarcodeDetector API (Chrome/Android — the warehouse phone).
-// Where it is missing (iOS Safari, Firefox) the panel says so honestly and the HID-scanner
-// path keeps working — this component is an upgrade, not a replacement.
+// TWO DECODERS, one interface. The camera is only the eyes; READING barcodes out of the
+// pixels needs a decoder, and that is what iPhones lack: every iOS browser is WebKit and
+// none ships the BarcodeDetector API (the owner hit exactly this on 2026-08-07). So:
+//   • native BarcodeDetector where it exists (Chrome/Android) — fast, free;
+//   • zxing-wasm otherwise — OUR decoder, lazy-loaded ~1MB, frames downscaled to ≤960px
+//     before decoding to keep an older phone responsive. Slower per frame, so its tracker
+//     gets a wider dwell gap (see scanTally) or two honest consecutive frames could read
+//     as a "gap" and nothing would ever lock.
+// The unsupported message now appears only when BOTH decoders are unavailable AND the
+// camera itself cannot open — the HID-scanner path keeps working regardless.
 
-type DetectedBarcode = { rawValue: string; boundingBox: DOMRectReadOnly }
-type BarcodeDetectorLike = { detect(source: CanvasImageSource): Promise<DetectedBarcode[]> }
-type BarcodeDetectorCtor = new (opts?: { formats?: string[] }) => BarcodeDetectorLike
+type Box = { x: number; y: number; width: number; height: number }
+type Detected = { rawValue: string; boundingBox: Box }
+type DetectorLike = { kind: 'native' | 'wasm'; detect(v: HTMLVideoElement): Promise<Detected[]> }
+
+type NativeDetected = { rawValue: string; boundingBox: DOMRectReadOnly }
+type BarcodeDetectorCtor = new (opts?: { formats?: string[] }) => { detect(source: CanvasImageSource): Promise<NativeDetected[]> }
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code']
 const DETECT_EVERY_MS = 200
+const WASM_MAX_WIDTH = 960
 
-function getDetectorCtor(): BarcodeDetectorCtor | undefined {
-  return (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector
+async function makeDetector(): Promise<DetectorLike | null> {
+  const Ctor = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector
+  if (Ctor) {
+    const d = new Ctor({ formats: FORMATS })
+    return {
+      kind: 'native',
+      detect: async (v) => (await d.detect(v)).map((r) => ({
+        rawValue: r.rawValue,
+        boundingBox: { x: r.boundingBox.x, y: r.boundingBox.y, width: r.boundingBox.width, height: r.boundingBox.height },
+      })),
+    }
+  }
+  try {
+    const { readBarcodes } = await import('zxing-wasm/reader')
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    return {
+      kind: 'wasm',
+      detect: async (v) => {
+        const vw = v.videoWidth, vh = v.videoHeight
+        if (!vw || !vh) return []
+        const scale = Math.min(1, WASM_MAX_WIDTH / vw)
+        const w = Math.round(vw * scale), h = Math.round(vh * scale)
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
+        ctx.drawImage(v, 0, 0, w, h)
+        const img = ctx.getImageData(0, 0, w, h)
+        // no `formats` filter on purpose: a mistyped format name would throw and read as
+        // "camera broken"; reading all symbologies costs a little CPU and no correctness
+        const results = await readBarcodes(img, { tryHarder: true, maxNumberOfSymbols: 32 })
+        return results.filter((r) => (r.text || '').trim()).map((r) => ({
+          rawValue: r.text,
+          boundingBox: quadToRect(r.position, scale),
+        }))
+      },
+    }
+  } catch {
+    return null
+  }
 }
 
 export function CameraScanner({ onCommit, onClose }: {
@@ -43,19 +91,30 @@ export function CameraScanner({ onCommit, onClose }: {
   const [torchOn, setTorchOn] = useState(false)
 
   useEffect(() => {
-    const Ctor = getDetectorCtor()
-    if (!Ctor) {
-      setErr('Този браузър няма вграден баркод детектор. Отвори страницата с Chrome на Android — или продължи с четеца, той работи както досега.')
-      return
-    }
     let interval: number | undefined
     let cancelled = false
-    const detector = new Ctor({ formats: FORMATS })
 
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    }).then((stream) => {
+    void (async () => {
+      const detector = await makeDetector()
+      if (cancelled) return
+      if (!detector) {
+        setErr('Този браузър не може да чете баркодове от камерата (нито вграден детектор, нито WASM декодерът се зареди). Четецът с кабел работи както досега.')
+        return
+      }
+      // the WASM decoder can take several hundred ms per frame on an older phone — widen
+      // the dwell gap so two honest consecutive frames never read as "left the view"
+      trackerRef.current = createTracker(detector.kind === 'wasm' ? 1500 : GAP_MS)
+
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        })
+      } catch {
+        setErr('Няма достъп до камерата. Разреши камерата за този сайт (Настройки → Safari/Chrome → Камера) и опитай пак.')
+        return
+      }
       if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return }
       streamRef.current = stream
       const video = videoRef.current
@@ -82,9 +141,7 @@ export function CameraScanner({ onCommit, onClose }: {
           }
         })()
       }, DETECT_EVERY_MS)
-    }).catch(() => {
-      setErr('Няма достъп до камерата. Разреши камерата за този сайт и опитай пак.')
-    })
+    })()
 
     return () => {
       cancelled = true
@@ -184,7 +241,7 @@ export function CameraScanner({ onCommit, onClose }: {
           </div>
         )}
         <button className="btn-paper btn-red" onClick={() => void commit()} disabled={busy || total === 0} style={{ fontSize: '1rem', padding: '.6rem' }}>
-          {busy ? 'записва…' : `Добави в доставката (${total})`}
+          {busy ? 'записва…' : `Добави (${total})`}
         </button>
       </div>
     </div>
@@ -192,7 +249,7 @@ export function CameraScanner({ onCommit, onClose }: {
 }
 
 function drawOverlay(video: HTMLVideoElement, canvas: HTMLCanvasElement | null,
-                     dets: DetectedBarcode[], locked: Record<string, number>) {
+                     dets: Detected[], locked: Record<string, number>) {
   if (!canvas) return
   // canvas buffer in VIDEO pixel space; CSS scales both video and canvas identically
   // (both fill the container), so boxes land on the barcodes they belong to. object-fit:

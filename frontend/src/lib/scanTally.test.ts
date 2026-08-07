@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTracker, dwellingCodes, GAP_MS, LOCK_MS, lockedTally, resetTracker, trackFrame, type Tracker } from './scanTally'
+import { createTracker, dwellingCodes, GAP_MS, LOCK_MS, lockedTally, quadToRect, resetTracker, trackFrame, type Tracker } from './scanTally'
 
 const d = (v: string) => ({ rawValue: v })
 
@@ -77,5 +77,39 @@ describe('scanTally', () => {
     expect(lockedTally(t)).toEqual({ '111': 1 })
     resetTracker(t)
     expect(lockedTally(t)).toEqual({})
+  })
+})
+
+describe('scanTally on a slow decoder (the WASM/iPhone path)', () => {
+  it('a widened per-tracker gap keeps slow honest frames dwelling instead of restarting', () => {
+    // WASM decode on an older phone can take ~700ms/frame — over the native GAP_MS, so a
+    // default tracker would restart the dwell every frame and never lock. The wasm tracker
+    // is created with a wider gap and the same frames lock normally.
+    const strict = createTracker()                        // native gap (600)
+    const wide = createTracker(1500)                      // the wasm tracker
+    for (const t of [strict, wide]) {
+      trackFrame(t, [d('111')], 0)
+      trackFrame(t, [d('111')], 700)
+      trackFrame(t, [d('111')], 1400)
+    }
+    expect(lockedTally(strict)).toEqual({})               // kept restarting — by design
+    expect(lockedTally(wide)).toEqual({ '111': 1 })
+  })
+})
+
+describe('quadToRect', () => {
+  it('boxes a quadrilateral and rescales decoder coordinates back to video pixels', () => {
+    // decoded on a half-scale frame → the overlay box must be twice as large
+    const r = quadToRect({
+      topLeft: { x: 10, y: 20 }, topRight: { x: 50, y: 22 },
+      bottomRight: { x: 52, y: 40 }, bottomLeft: { x: 12, y: 38 },
+    }, 0.5)
+    expect(r).toEqual({ x: 20, y: 40, width: (52 - 10) * 2, height: (40 - 20) * 2 })
+  })
+
+  it('a zero scale falls back to 1 instead of dividing by zero', () => {
+    const q = { topLeft: { x: 1, y: 1 }, topRight: { x: 3, y: 1 },
+                bottomRight: { x: 3, y: 2 }, bottomLeft: { x: 1, y: 2 } }
+    expect(quadToRect(q, 0)).toEqual({ x: 1, y: 1, width: 2, height: 1 })
   })
 })
