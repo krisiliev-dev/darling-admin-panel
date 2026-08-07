@@ -348,10 +348,26 @@ def _cancel_verdict(exc: Exception) -> tuple[str, str]:
     return (_CANCEL_REFUSED if answered else _CANCEL_UNKNOWN), msg[:500]
 
 
+def _with_aliases(payload: dict) -> dict:
+    """Return the same fields under both sets of names.
+
+    The panel UI is written against `waybill_no` and `message`; the storefront asked for
+    `waybill` and `courier_message` (ring, 2026-08-07). Neither is more correct, and picking one
+    silently breaks the other consumer — so both are present and they are the same values, never
+    computed twice.
+    """
+    payload["waybill"] = payload.get("waybill_no", "")
+    payload["courier_message"] = payload.get("message", "")
+    return payload
+
+
 class CancelWaybillRequest(BaseModel):
     confirm: bool = False
 
 
+# Two paths, one handler. `/waybill/cancel` is the storefront's spelling, `/cancel-waybill` is
+# the panel's; Woo is not always the origin of a cancellation, so both callers get a route.
+@router.post("/{order_id}/waybill/cancel")
 @router.post("/{order_id}/cancel-waybill")
 async def cancel_waybill(
     order_id: str, req: CancelWaybillRequest,
@@ -390,18 +406,18 @@ async def cancel_waybill(
         select(WaybillCancel).where(WaybillCancel.waybill_no == waybill))).scalar_one_or_none()
     if existing is not None and existing.state == _CANCEL_OK:
         # Already void. Saying so again is free; asking the courier again is not.
-        return {"state": _CANCEL_OK, "waybill_no": waybill, "courier": courier,
-                "message": existing.courier_message, "already": True}
+        return _with_aliases({"state": _CANCEL_OK, "waybill_no": waybill, "courier": courier,
+                              "message": existing.courier_message, "already": True})
 
     plan = {"state": "plan", "waybill_no": waybill, "courier": courier,
             "order_name": o.get("name", ""),
             "note": "Анулирането е реално действие — потвърди с confirm=true."}
     if not req.confirm:
-        return plan
+        return _with_aliases(plan)
     if not get_settings().courier_live:
         plan["state"] = "dry_run"
         plan["note"] = "COURIER_LIVE е изключен — нищо не е изпратено към куриера."
-        return plan
+        return _with_aliases(plan)
 
     now = datetime.datetime.now(datetime.UTC)
     if existing is None:
@@ -434,8 +450,8 @@ async def cancel_waybill(
     await session.commit()
     await log_action(session, actor, "orders.cancel_waybill",
                      detail=f"{courier} {waybill} -> {state}")
-    return {"state": state, "waybill_no": waybill, "courier": courier, "message": message,
-            "order_name": o.get("name", "")}
+    return _with_aliases({"state": state, "waybill_no": waybill, "courier": courier,
+                          "message": message, "order_name": o.get("name", "")})
 
 
 @router.get("/waybill-cancels/unresolved")

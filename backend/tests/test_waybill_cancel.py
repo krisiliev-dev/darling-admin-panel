@@ -206,3 +206,33 @@ async def test_a_resolved_cancel_leaves_the_worklist(owner_client, monkeypatch):
     body = (await owner_client.get("/api/orders/waybill-cancels/unresolved")).json()
     assert body["count"] == 0
     assert body["oldest_hours"] is None
+# ------------------------------------------------------- the storefront's spelling of the same
+# Woo rang on 2026-08-07 asking for POST /{id}/waybill/cancel -> {state, courier_message,
+# waybill}, not having seen this was already shipped under other names. Both spellings answer.
+async def test_the_storefront_route_reaches_the_same_handler(owner_client, monkeypatch):
+    calls = _patch(monkeypatch)
+    r = await owner_client.post("/api/orders/2001/waybill/cancel", json={"confirm": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "cancelled"
+    assert calls == ["SHIP-9"]
+
+
+async def test_both_key_spellings_carry_the_same_values(owner_client, monkeypatch):
+    def boom():
+        raise courier_mod.CourierError("Спиди HTTP 409: пратката е взета от куриера")
+
+    _patch(monkeypatch, cancel=boom)
+    body = (await owner_client.post("/api/orders/2001/waybill/cancel",
+                                    json={"confirm": True})).json()
+    assert body["waybill"] == body["waybill_no"] == "SHIP-9"
+    assert body["courier_message"] == body["message"]
+    assert "взета от куриера" in body["courier_message"]
+
+
+async def test_the_plan_carries_the_aliases_too(owner_client, monkeypatch):
+    """The dialog is drawn from the plan, so the plan must speak both dialects as well."""
+    _patch(monkeypatch)
+    body = (await owner_client.post("/api/orders/2001/cancel-waybill",
+                                    json={"confirm": False})).json()
+    assert body["state"] == "plan"
+    assert body["waybill"] == "SHIP-9"
