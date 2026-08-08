@@ -14,6 +14,7 @@ import { ClaimsPanel, DefectButton, ClaimsBanner } from '../components/ClaimsPan
 import { ScanAdjust } from '../components/ScanAdjust'
 import { PackPicker } from '../components/PackPicker'
 import { InvoicePanel } from '../components/InvoicePanel'
+import { DocumentsPanel } from '../components/DocumentsPanel'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -437,6 +438,9 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
         <div style={{ marginTop: '.6rem' }}>
           <InvoicePanel batch={b} onSaved={() => void load()} />
         </div>
+        {/* detaching an invoice link is an accounting act — owner/manager only, mirroring
+            the backend's current_owner guard rather than trusting the button to be hidden */}
+        <DocumentsPanel batchId={b.id} canDelete={canFinalise} />
         {shortPrompt && (
           <div className="font-type" style={{ marginTop: '.6rem', padding: '.5rem .7rem', border: '1px solid var(--pending)', borderRadius: 3, fontSize: '.82rem' }}>
             <div style={{ marginBottom: '.4rem' }}>{shortPrompt}</div>
