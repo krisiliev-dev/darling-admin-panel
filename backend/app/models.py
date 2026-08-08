@@ -158,6 +158,12 @@ class DeliveryBatch(Base):
     # the deterministic doc_num sent to Barsy, persisted BEFORE the write so a delivery whose
     # outcome is unknown can be reconciled by probing Barsy for this number
     doc_num: Mapped[str] = mapped_column(String(64), default="")
+    # THE THREE DATES. `doc_date` above is the document's own date and is reused as-is.
+    # arrival = when the goods physically landed; posting = when it hit the books, which
+    # follows ARRIVAL rather than the button-press, because backdating a receipt after a
+    # sale permanently corrupts the moving-average себестойност.
+    arrival_date: Mapped[str] = mapped_column(String(32), default="")
+    posting_date: Mapped[str] = mapped_column(String(32), default="")
     # document-level invoice values, as printed
     doc_discount_pct: Mapped[float] = mapped_column(default=0.0)
     currency: Mapped[str] = mapped_column(String(8), default="EUR")

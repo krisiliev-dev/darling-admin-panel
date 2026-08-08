@@ -169,6 +169,8 @@ def _batch_summary(b: DeliveryBatch, lines: list[DeliveryLine]) -> dict:
         "shortfall_reason": b.shortfall_reason,
         "short_lines": sum(1 for ln in lines if _shortfall(ln) > 0),
         # the invoice as printed, so the page can prefill instead of asking twice
+        "arrival_date": b.arrival_date, "posting_date": b.posting_date,
+        "date_warnings": _date_warnings(b),
         "doc_discount_pct": b.doc_discount_pct, "currency": b.currency,
         "fx_rate": b.fx_rate, "invoice_total": b.invoice_total,
         "reconciliation": _reconcile_invoice(b, lines),
@@ -322,7 +324,7 @@ async def _persist_batch(session, actor, supplier, supplier_id, depot_id, refere
     b = DeliveryBatch(supplier=(supplier or "").strip(), supplier_id=supplier_id or None,
                       depot_id=depot_id or 1, reference=(reference or "").strip(),
                       doc_date=(doc_date or "").strip(), source=source, status="draft",
-                      zayavka_id=zayavka_id, created_by=actor.email)
+                      arrival_date=_today(), zayavka_id=zayavka_id, created_by=actor.email)
     session.add(b)
     await session.flush()
     for p in parsed:
@@ -845,6 +847,7 @@ async def finalise(
             "Ще бъде заведено само дошлото — посочи причина (shortfall_reason).")
     if short_lines:
         warnings.append(f"{len(short_lines)} реда заведени по-малко от документа: {reason}")
+    warnings.extend(_date_warnings(b))
 
     settings = get_settings()
     # deterministic doc_num per batch → if the write is retried, Barsy rejects the duplicate doc_num
@@ -855,7 +858,9 @@ async def finalise(
     await session.commit()
     payload = {
         "store_load": {
-            "depot_id": b.depot_id, "doc_date": b.doc_date or time.strftime("%Y-%m-%d"),
+            # the goods-in is dated when the goods ARRIVED; the document keeps its own date
+            "depot_id": b.depot_id,
+            "doc_date": b.doc_date or b.arrival_date or time.strftime("%Y-%m-%d"),
             "doc_num": doc_num, "operation_type": 1, "doc_type_id": 1,
             # prices are EUR + VAT-inclusive — see barsy_currency_id / barsy_price_mode (COGS correctness)
             "currency_id": settings.barsy_currency_id, "price_mode": settings.barsy_price_mode,
@@ -921,6 +926,9 @@ async def finalise(
     for ln in lines:
         ln.short_qty = _shortfall(ln)      # frozen: the counts can be edited later, this cannot
     b.shortfall_reason = reason
+    # posted AT ARRIVAL, not at the button-press: backdating a receipt after the goods have
+    # been sold permanently corrupts the moving-average себестойност
+    b.posting_date = b.arrival_date or _today()
     b.storeload_id = extract_id(out, ("storeload_id", "id"))   # a storeload, never an article
     b.status = "finalised"
     b.finalised_at = _dt.datetime.now(_dt.UTC)
@@ -1912,3 +1920,95 @@ async def deliveries_for_document(
                     "status": b.status, "amount": d.amount,
                     "doc_type": DOC_TYPES.get(d.doc_type_id, "?")})
     return {"invoice_ref": ref, "deliveries": out, "count": len(out), "total_amount": total}
+
+
+# ------------------------------------------------------------------ the three dates (P9) ---
+# A delivery has three dates that routinely differ, and collapsing them loses real information:
+#   arrival  — when the goods physically landed on the table
+#   document — what the supplier's invoice is dated (already on the batch as doc_date)
+#   posting  — when it hit the books
+#
+# Two consequences make this worth columns rather than a single date. ЗДДС чл.113 wants the invoice
+# issued within 5 days of the tax event, so the arrival-to-document gap is a compliance signal we
+# can surface for free. And a receipt BACKDATED after the goods have already been sold permanently
+# corrupts the moving-average себестойност — that error never washes out of the average — so the
+# posting date follows arrival rather than whenever somebody got round to pressing the button.
+
+_VAT_INVOICE_DAYS = 5      # ЗДДС чл.113: invoice within 5 days of the tax event
+
+
+def _as_date(s: str):
+    """A YYYY-MM-DD string → date, or None. Sheets carry all sorts; a value we cannot read must not
+    become a silent 'today', because that is how a wrong posting date gets into the books."""
+    txt = (s or "").strip()[:10]
+    if not txt:
+        return None
+    try:
+        return _dt.date.fromisoformat(txt)
+    except ValueError:
+        return None
+
+
+def _today() -> str:
+    return _dt.datetime.now(_dt.UTC).date().isoformat()
+
+
+def _date_warnings(b: DeliveryBatch) -> list[str]:
+    """Things worth telling the operator about the dates. Warnings, not blocks — the paperwork is
+    what it is, and refusing to record reality just teaches people to lie to the form."""
+    out: list[str] = []
+    arrival = _as_date(b.arrival_date)
+    doc = _as_date(b.doc_date)
+    if arrival and doc:
+        gap = (doc - arrival).days
+        if gap > _VAT_INVOICE_DAYS:
+            out.append(f"Фактурата е с {gap} дни след получаването "
+                       f"(ЗДДС чл.113 иска до {_VAT_INVOICE_DAYS}).")
+        elif gap < -_VAT_INVOICE_DAYS:
+            out.append(f"Фактурата е с {abs(gap)} дни ПРЕДИ получаването — провери датите.")
+    return out
+
+
+class DatesRequest(BaseModel):
+    arrival_date: str | None = None
+    doc_date: str | None = None
+    posting_date: str | None = None
+
+
+@router.post("/{batch_id}/dates")
+async def set_dates(
+    batch_id: int, req: DatesRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Correct the dates on a delivery. Refuses a FUTURE arrival — goods cannot have landed
+    tomorrow, and a mistyped year is the usual cause."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Доставката е финализирана — датите не се променят.")
+
+    for field, value in (("arrival_date", req.arrival_date), ("doc_date", req.doc_date),
+                         ("posting_date", req.posting_date)):
+        if value is None:
+            continue
+        txt = value.strip()
+        if txt and _as_date(txt) is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                f"Невалидна дата ({field}) — очаква се ГГГГ-ММ-ДД.")
+        setattr(b, field, txt)
+
+    arrival = _as_date(b.arrival_date)
+    if arrival and arrival > _dt.datetime.now(_dt.UTC).date():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Датата на получаване е в бъдещето.")
+
+    await log_action(session, actor, "delivery.dates", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} arrival={b.arrival_date} doc={b.doc_date} "
+                            f"posting={b.posting_date}")
+    await session.commit()
+    await session.refresh(b)
+    return {"ok": True, "arrival_date": b.arrival_date, "doc_date": b.doc_date,
+            "posting_date": b.posting_date, "warnings": _date_warnings(b)}
