@@ -832,3 +832,31 @@ class DeliveryInvoice(Base):
     created_by: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
+
+
+class DeliveryLineBarcode(Base):
+    """One of possibly several barcodes on a delivery line.
+
+    A product legitimately carries more than one code — a repackaged EAN, a second supplier's
+    sticker, the manufacturer's original — and both Barsy and our own catalogue already model that
+    (`barcode_index()` maps code → [eans], a LIST). Only the delivery line was stuck at one, so a
+    product created at intake could be given exactly one code and never its others.
+
+    A table rather than a JSON column because this gets QUERIED: 'which line does this beep belong
+    to' is the scanner's whole job, and a JSON blob would turn that into a scan of every line.
+
+    `DeliveryLine.barcode` stays populated with the FIRST code as a compatibility shim, so every
+    existing query, export and in-flight delivery keeps working unchanged."""
+    __tablename__ = "delivery_line_barcodes"
+    __table_args__ = (
+        # the same code twice on one line is a mis-tap; the same code on ANOTHER line is legitimate
+        # (two lots of one article), and stays allowed
+        UniqueConstraint("line_id", "barcode", name="uq_line_barcode"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    line_id: Mapped[int] = mapped_column(index=True)
+    barcode: Mapped[str] = mapped_column(String(64), index=True)
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())

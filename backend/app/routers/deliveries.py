@@ -32,6 +32,7 @@ from ..models import (
     DeliveryBatch,
     DeliveryInvoice,
     DeliveryLine,
+    DeliveryLineBarcode,
     IntakeDraft,
     ScanCommit,
     SupplierClaim,
@@ -601,6 +602,20 @@ async def _code_from_our_own_drafts(session: AsyncSession, barcode: str) -> str:
     return (d.code or "").strip() if d is not None else ""
 
 
+async def _lines_by_extra_barcode(session: AsyncSession, batch_id: int,
+                                 code: str) -> list[DeliveryLine]:
+    """Lines carrying `code` as one of their ADDITIONAL barcodes. The line row itself only holds the
+    first; without this a product's second code would scan as unknown forever."""
+    rows = list((await session.execute(
+        select(DeliveryLineBarcode).where(DeliveryLineBarcode.barcode == code))).scalars().all())
+    out: list[DeliveryLine] = []
+    for r in rows:
+        ln = await session.get(DeliveryLine, r.line_id)
+        if ln is not None and ln.batch_id == batch_id and ln not in out:
+            out.append(ln)
+    return out
+
+
 def _candidate_lines(lines: list[DeliveryLine], code: str) -> list[DeliveryLine]:
     """Every line a scanned code could belong to — by its own barcode first, else by resolving the
     EAN through the catalogue to our code. A list, not the first hit: the same article legitimately
@@ -666,6 +681,8 @@ async def scan(
 
     cands = _candidate_lines(lines, code)
     if not cands:
+        cands = await _lines_by_extra_barcode(session, b.id, code)
+    if not cands:
         ours = await _code_from_our_own_drafts(session, code)
         if ours:
             cands = [x for x in lines if ours in ((x.match_code or ''), (x.supplier_code or ''))]
@@ -705,7 +722,13 @@ async def attach_barcode(
     if (ln.barcode or "").strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Редът вече има баркод.")
-    ln.barcode = (req.barcode or "").strip()
+    code = (req.barcode or "").strip()
+    if _is_placeholder(code):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Това е служебен баркод (нули) — среща се при много продукти и не става за разпознаване.")
+    # ADDS, not replaces: a line may legitimately carry several codes
+    await _add_line_barcode(session, ln, code, actor.email)
     await _bump_scan(session, ln, 1)
     if ln.intake_draft_id:
         d = await session.get(IntakeDraft, ln.intake_draft_id)
@@ -1007,6 +1030,8 @@ async def scan_batch(
     unknown: list[str] = []
     for code, n in counts.items():
         cands = _candidate_lines(lines, code)
+        if not cands:
+            cands = await _lines_by_extra_barcode(session, b.id, code)
         if not cands:
             ours = await _code_from_our_own_drafts(session, code)
             if ours:
@@ -2012,3 +2037,145 @@ async def set_dates(
     await session.refresh(b)
     return {"ok": True, "arrival_date": b.arrival_date, "doc_date": b.doc_date,
             "posting_date": b.posting_date, "warnings": _date_warnings(b)}
+
+
+# ------------------------------------------------------------------ several barcodes a line (Q2) ---
+# A product carries more than one code more often than not, and the catalogue has always known that
+# (`barcode_index()` maps code -> [eans]). Only the delivery LINE was stuck at one.
+
+# Supplier sheets are padded with filler codes. This one is real: it EXISTS in barcodes.jsonl
+# against multiple products, so treating it as an identifier silently ties a beep to whichever row
+# happened to be first. Recorded as a trap long before this; now it is enforced.
+PLACEHOLDER_BARCODES = {"0000000000000", "000000000000", "0000000", "0", ""}
+
+
+def _is_placeholder(code: str) -> bool:
+    c = (code or "").strip()
+    return c in PLACEHOLDER_BARCODES or set(c) == {"0"}
+
+
+async def _line_barcodes(session: AsyncSession, line_id: int) -> list[str]:
+    rows = list((await session.execute(
+        select(DeliveryLineBarcode).where(DeliveryLineBarcode.line_id == line_id)
+        .order_by(DeliveryLineBarcode.id))).scalars().all())
+    return [r.barcode for r in rows]
+
+
+async def _add_line_barcode(session: AsyncSession, ln: DeliveryLine, code: str,
+                            actor_email: str) -> bool:
+    """Attach a code to a line. Returns False if it was already there — a repeat beep is not an
+    error, it just should not create a duplicate. Keeps `ln.barcode` as the FIRST code so every
+    existing consumer keeps working."""
+    code = (code or "").strip()
+    if not code:
+        return False
+    existing = await _line_barcodes(session, ln.id)
+    if code in existing:
+        return False
+    session.add(DeliveryLineBarcode(line_id=ln.id, barcode=code, created_by=actor_email))
+    if not (ln.barcode or "").strip():
+        ln.barcode = code          # compatibility shim: the first code stays on the line itself
+    await session.flush()
+    return True
+
+
+async def _barcode_is_taken(session: AsyncSession, batch_id: int, code: str,
+                            except_line: int | None = None) -> DeliveryLine | None:
+    """Another line in THIS delivery already carrying this code. Two lots of one article are
+    allowed to share a code, so this informs rather than forbids — but the operator should know
+    before a beep silently lands somewhere they did not expect."""
+    rows = list((await session.execute(
+        select(DeliveryLineBarcode).where(DeliveryLineBarcode.barcode == code))).scalars().all())
+    for r in rows:
+        if except_line is not None and r.line_id == except_line:
+            continue
+        other = await session.get(DeliveryLine, r.line_id)
+        if other is not None and other.batch_id == batch_id:
+            return other
+    return None
+
+
+class AddBarcodeRequest(BaseModel):
+    barcode: str
+
+
+@router.get("/{batch_id}/lines/{line_id}/barcodes")
+async def list_line_barcodes(
+    batch_id: int, line_id: int,
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    ln = await session.get(DeliveryLine, line_id)
+    if not ln or ln.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+    return {"barcodes": await _line_barcodes(session, line_id)}
+
+
+@router.post("/{batch_id}/lines/{line_id}/barcodes")
+async def add_line_barcode(
+    batch_id: int, line_id: int, req: AddBarcodeRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Add ANOTHER barcode to a line — the whole point of this endpoint versus attach-barcode,
+    which historically replaced the one code a line could hold."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
+    ln = await session.get(DeliveryLine, line_id)
+    if not ln or ln.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+
+    code = (req.barcode or "").strip()
+    if _is_placeholder(code):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Това е служебен баркод (нули) — среща се при много продукти и не става за разпознаване.")
+
+    clash = await _barcode_is_taken(session, batch_id, code, except_line=line_id)
+    added = await _add_line_barcode(session, ln, code, actor.email)
+    await log_action(session, actor, "delivery.barcode.add", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} line={line_id} code={code} added={added}")
+    await session.commit()
+    await session.refresh(ln)
+    return {
+        "ok": True, "added": added,
+        "barcodes": await _line_barcodes(session, line_id),
+        "line": _line_out(ln),
+        # informational: two lots of one article legitimately share a code
+        "also_on_line": clash.id if clash is not None else None,
+    }
+
+
+@router.delete("/{batch_id}/lines/{line_id}/barcodes/{code}")
+async def remove_line_barcode(
+    batch_id: int, line_id: int, code: str,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
+    ln = await session.get(DeliveryLine, line_id)
+    if not ln or ln.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Редът не е намерен.")
+
+    row = (await session.execute(
+        select(DeliveryLineBarcode).where(DeliveryLineBarcode.line_id == line_id,
+                                          DeliveryLineBarcode.barcode == code))).scalars().first()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Баркодът не е закачен към този ред.")
+    await session.delete(row)
+    await session.flush()
+    # keep the shim honest: if the removed code was the one on the line, promote the next
+    remaining = [c for c in await _line_barcodes(session, line_id) if c != code]
+    if (ln.barcode or "").strip() == code:
+        ln.barcode = remaining[0] if remaining else ""
+    await log_action(session, actor, "delivery.barcode.remove", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} line={line_id} code={code}")
+    await session.commit()
+    return {"ok": True, "barcodes": remaining}
