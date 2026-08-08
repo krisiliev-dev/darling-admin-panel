@@ -79,7 +79,8 @@ def _rows_from_upload(filename: str, raw: bytes) -> list[list]:
     raise HTTPException(status.HTTP_400_BAD_REQUEST, "Качи Excel (.xlsx) или CSV файл.")
 
 
-def _match_row(supplier: str, code: str, name: str, qty: float, price: float, barcode: str = "") -> dict:
+def _match_row(supplier: str, code: str, name: str, qty: float, price: float, barcode: str = "",
+               discount_pct: float = 0.0, includes_vat: bool = True) -> dict:
     """Match one raw row against the catalogue → a normalised line dict (existing vs new).
     Shared by the sheet parser, the edited-rows path and OCR."""
     m = DP.match_existing(supplier, code, name)
@@ -92,13 +93,18 @@ def _match_row(supplier: str, code: str, name: str, qty: float, price: float, ba
     return {
         "supplier_code": code, "name": (m["name"] if m else name), "qty": qty, "price": price,
         "barcode": barcode, "is_new": m is None,
+        # the line AS PRINTED — what the cost is derived from. `price` above stays the legacy
+        # single number so nothing already in flight changes value.
+        "printed_price": price, "line_discount_pct": discount_pct,
+        "price_includes_vat": includes_vat,
         "match_code": (m or {}).get("code", ""), "match_method": (m or {}).get("method", ""),
         "match_confidence": (m or {}).get("confidence", ""),
     }
 
 
 def _parse_rows(rows: list[list], supplier: str,
-                cols: dict | None = None, data_row: int | None = None) -> list[dict]:
+                cols: dict | None = None, data_row: int | None = None,
+                includes_vat: bool = True) -> list[dict]:
     """Detect columns (or use an explicit per-supplier mapping) and match each data row → a
     normalised line dict. With `cols` given, `data_row` is the 1-based first PRODUCT row in the
     ORIGINAL sheet — exact coordinates, so a blank row 1 + header on row 2 is just data_row 3.
@@ -134,7 +140,8 @@ def _parse_rows(rows: list[list], supplier: str,
         if not nm and not code:
             continue
         out.append(_match_row(supplier, code, nm, DP.to_float(cell("qty")),
-                              DP.to_float(cell("price")), str(cell("barcode") or "").strip()))
+                              DP.to_float(cell("price")), str(cell("barcode") or "").strip(),
+                              DP.to_float(cell("discount")), includes_vat))
     return out
 
 
@@ -310,6 +317,9 @@ async def _persist_batch(session, actor, supplier, supplier_id, depot_id, refere
             price=p["price"], barcode=p.get("barcode", ""), is_new=p["is_new"],
             match_code=p["match_code"], match_method=p["match_method"],
             match_confidence=p["match_confidence"], article_id=p.get("article_id"),
+            printed_price=p.get("printed_price", 0.0),
+            price_includes_vat=p.get("price_includes_vat", True),
+            line_discount_pct=p.get("line_discount_pct", 0.0),
             status="pending")
         session.add(ln)
         await session.flush()

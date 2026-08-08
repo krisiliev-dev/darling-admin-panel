@@ -673,6 +673,10 @@ class SupplierImportProfile(Base):
     col_qty: Mapped[int] = mapped_column(default=2)
     col_price: Mapped[int] = mapped_column(default=3)
     col_barcode: Mapped[int] = mapped_column(default=-1)                   # -1 = absent
+    col_discount: Mapped[int] = mapped_column(default=-1)                  # % off, per line
+    # whether THIS supplier prints prices with VAT already in them. A property of their
+    # paperwork, not of any one delivery, so it belongs on the remembered profile.
+    price_includes_vat: Mapped[bool] = mapped_column(default=True)
     updated_by: Mapped[str] = mapped_column(String(255), default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())

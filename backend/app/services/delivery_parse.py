@@ -24,6 +24,8 @@ HEADERS = {
     "qty": ("количество", "к-во", "кол", "брой", "бр", "qty", "quantity", "count"),
     "price": ("цена", "price", "доставна", "ед.цена", "ед. цена", "стойност", "ст-ст", "cost"),
     "barcode": ("баркод", "barcode", "ean", "щрихкод", "штрих", "gtin"),
+    # deliberately NOT "%" — far too common a header to guess a discount from
+    "discount": ("отстъпка", "discount", "намаление", "рабат", "търг. отст."),
 }
 
 
