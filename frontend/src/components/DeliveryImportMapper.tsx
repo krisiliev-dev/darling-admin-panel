@@ -12,17 +12,18 @@ import type { DeliveryDetailResp } from '../lib/api'
 // /api/deliveries with the mapping. A saved profile pre-fills the mapping; auto-detect fills
 // it otherwise.
 
-type Suggested = { code: number; name: number; qty: number; price: number; barcode: number; data_row: number }
-type Profile = { data_row: number; col_code: number; col_name: number; col_qty: number; col_price: number; col_barcode: number }
+type Suggested = { code: number; name: number; qty: number; price: number; barcode: number; discount?: number; data_row: number }
+type Profile = { data_row: number; col_code: number; col_name: number; col_qty: number; col_price: number; col_barcode: number; col_discount?: number; price_includes_vat?: boolean }
 type Preview = { columns: string[]; rows: string[][]; suggested: Suggested; profile: Profile | null }
 
-type FieldKey = 'code' | 'name' | 'qty' | 'price' | 'barcode'
+type FieldKey = 'code' | 'name' | 'qty' | 'price' | 'barcode' | 'discount'
 const FIELDS: { key: FieldKey; label: string; required?: boolean }[] = [
   { key: 'code', label: 'Код' },
   { key: 'name', label: 'Наименование', required: true },
   { key: 'qty', label: 'Количество', required: true },
   { key: 'price', label: 'Цена' },
   { key: 'barcode', label: 'Баркод' },
+  { key: 'discount', label: 'Отстъпка %' },
 ]
 
 const ABSENT = -1
@@ -34,8 +35,11 @@ export function DeliveryImportMapper({ supplier, depot, reference, docDate, onCr
   const fileRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [pre, setPre] = useState<Preview | null>(null)
-  const [map, setMap] = useState<Record<FieldKey, number>>({ code: ABSENT, name: ABSENT, qty: ABSENT, price: ABSENT, barcode: ABSENT })
+  const [map, setMap] = useState<Record<FieldKey, number>>({ code: ABSENT, name: ABSENT, qty: ABSENT, price: ABSENT, barcode: ABSENT, discount: ABSENT })
   const [dataRow, setDataRow] = useState(1)
+  // whether THIS supplier prints prices with VAT already in them. Defaults true because
+  // that is what the panel has always assumed; the saved profile overrides it below.
+  const [incVat, setIncVat] = useState(true)
   const [saveProfile, setSaveProfile] = useState(true)
   const [savedNote, setSavedNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -50,10 +54,11 @@ export function DeliveryImportMapper({ supplier, depot, reference, docDate, onCr
       const p = await api.upload<Preview>('/api/deliveries/preview', form)
       setPre(p)
       const src = p.profile
-        ? { code: p.profile.col_code, name: p.profile.col_name, qty: p.profile.col_qty, price: p.profile.col_price, barcode: p.profile.col_barcode, data_row: p.profile.data_row }
+        ? { code: p.profile.col_code, name: p.profile.col_name, qty: p.profile.col_qty, price: p.profile.col_price, barcode: p.profile.col_barcode, discount: p.profile.col_discount ?? ABSENT, data_row: p.profile.data_row }
         : p.suggested
-      setMap({ code: src.code, name: src.name, qty: src.qty, price: src.price, barcode: src.barcode })
+      setMap({ code: src.code, name: src.name, qty: src.qty, price: src.price, barcode: src.barcode, discount: src.discount ?? ABSENT })
       setDataRow(src.data_row || 1)
+      if (p.profile) setIncVat(p.profile.price_includes_vat !== false)
       if (p.profile) setSavedNote(`Зареден запаметен формат за „${supplier || 'този доставчик'}“.`)
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Не мога да прочета файла.') } finally { setBusy(false) }
   }
@@ -69,7 +74,9 @@ export function DeliveryImportMapper({ supplier, depot, reference, docDate, onCr
       form.append('reference', reference); form.append('doc_date', docDate)
       form.append('col_code', String(map.code)); form.append('col_name', String(map.name))
       form.append('col_qty', String(map.qty)); form.append('col_price', String(map.price))
-      form.append('col_barcode', String(map.barcode)); form.append('data_row', String(dataRow))
+      form.append('col_barcode', String(map.barcode)); form.append('col_discount', String(map.discount))
+      form.append('data_row', String(dataRow))
+      form.append('price_includes_vat', incVat ? 'true' : 'false')
       form.append('save_profile', saveProfile ? 'true' : 'false')
       const b = await api.upload<DeliveryDetailResp>('/api/deliveries', form)
       onCreated(b.id)
@@ -147,6 +154,11 @@ export function DeliveryImportMapper({ supplier, depot, reference, docDate, onCr
           </div>
 
           <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+            <input type="checkbox" checked={incVat} onChange={(e) => setIncVat(e.target.checked)} />
+            {/* Barsy warns this one corrupts себестойност silently if it is wrong */}
+            <span title="Ако цените във фактурата са с включено ДДС">Цените са с ДДС</span>
+          </label>
+          <label className="font-type" style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.8rem' }}>
             <input type="checkbox" checked={saveProfile} onChange={(e) => setSaveProfile(e.target.checked)} />
             <span className="font-type" style={{ fontSize: '.8rem' }}>
               Запомни този формат за „{supplier || 'този доставчик'}“ {supplier ? '' : '(въведи доставчик, за да се запамети)'}

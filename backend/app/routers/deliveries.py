@@ -257,7 +257,11 @@ async def create_delivery(
     col_qty: int = Form(-2),
     col_price: int = Form(-2),
     col_barcode: int = Form(-2),
+    col_discount: int = Form(-2),
     data_row: int = Form(0),
+    # does THIS supplier print prices with VAT already in them? Remembered on the profile,
+    # because it is a fact about their paperwork, not about one delivery.
+    price_includes_vat: bool = Form(True),
     save_profile: bool = Form(False),
     actor: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
@@ -278,22 +282,27 @@ async def create_delivery(
 
     cols: dict | None = None
     drow: int | None = None
+    inc_vat = True
     explicit = col_name >= 0                         # the wizard sent a real mapping
     if explicit:
         cols = {"code": col_code, "name": col_name, "qty": col_qty,
-                "price": col_price, "barcode": col_barcode}
+                "price": col_price, "barcode": col_barcode, "discount": col_discount}
         drow = data_row or 1
+        inc_vat = price_includes_vat
     else:
         prof = await _profile_for(session, supplier)
         if prof is not None:
             cols, drow = _profile_cols(prof), prof.data_row
+            # the remembered answer wins over the form default: an operator who did not
+            # touch the wizard should get what this supplier was set up with
+            inc_vat = bool(prof.price_includes_vat)
 
-    parsed = await run_in_threadpool(_parse_rows, rows, supplier, cols, drow)
+    parsed = await run_in_threadpool(_parse_rows, rows, supplier, cols, drow, inc_vat)
     if not parsed:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Няма редове за приемане.")
 
     if save_profile and explicit and cols is not None and supplier.strip():
-        await _save_profile(session, actor, supplier, cols, drow or 1)
+        await _save_profile(session, actor, supplier, cols, drow or 1, inc_vat)
 
     source = "csv" if (file.filename or "").lower().endswith(".csv") else "excel"
     return await _persist_batch(session, actor, supplier, supplier_id, depot_id, reference,
@@ -1005,6 +1014,8 @@ def _profile_cols(p: SupplierImportProfile) -> dict:
     cols = {"code": p.col_code, "name": p.col_name, "qty": p.col_qty, "price": p.col_price}
     if p.col_barcode is not None and p.col_barcode >= 0:
         cols["barcode"] = p.col_barcode
+    if p.col_discount is not None and p.col_discount >= 0:
+        cols["discount"] = p.col_discount
     return cols
 
 
@@ -1012,6 +1023,8 @@ def _profile_out(p: SupplierImportProfile) -> dict:
     return {"id": p.id, "supplier": p.supplier, "data_row": p.data_row,
             "col_code": p.col_code, "col_name": p.col_name, "col_qty": p.col_qty,
             "col_price": p.col_price, "col_barcode": p.col_barcode,
+            "col_discount": p.col_discount,
+            "price_includes_vat": p.price_includes_vat,
             "updated_by": p.updated_by,
             "updated_at": p.updated_at.isoformat() if p.updated_at else None}
 
@@ -1026,7 +1039,8 @@ async def _profile_for(session: AsyncSession, supplier: str) -> SupplierImportPr
 
 
 async def _save_profile(session: AsyncSession, actor: User, supplier: str,
-                        cols: dict, data_row: int) -> SupplierImportProfile:
+                        cols: dict, data_row: int,
+                        price_includes_vat: bool = True) -> SupplierImportProfile:
     key = norm(supplier)
     p = await _profile_for(session, supplier)
     if p is None:
@@ -1039,6 +1053,8 @@ async def _save_profile(session: AsyncSession, actor: User, supplier: str,
     p.col_qty = int(cols.get("qty", -1))
     p.col_price = int(cols.get("price", -1))
     p.col_barcode = int(cols.get("barcode", -1))
+    p.col_discount = int(cols.get("discount", -1))
+    p.price_includes_vat = bool(price_includes_vat)
     p.updated_by = actor.email
     await session.commit()
     await session.refresh(p)
