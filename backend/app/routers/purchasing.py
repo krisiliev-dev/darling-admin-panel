@@ -49,6 +49,12 @@ def suppliers(user: User = Depends(current_active_user)):
     """Registered suppliers from Barsy."""
     with upstream("Barsy доставчици"):
         rows = barsy.call("Suppliers_getlist", {"extra_properties": ["min"]})
+    # The delete_flag test is REDUNDANT, not broken: `extra_properties:["min"]` already excludes
+    # deleted suppliers server-side (measured — 55 rows vs 57 without it, and the two it omits
+    # are exactly the two flagged deleted). Kept rather than removed because dropping the `min`
+    # would make it load-bearing again, and a deleted guard cannot come back on its own. Same
+    # pattern at catalog.py, intake.py and services/delivery_parse.py — see
+    # claude/BARSY_LIST_SHAPES_20260808.md.
     out = [{"supplier_id": r.get("supplier_id"), "supplier_name": r.get("supplier_name", "")}
            for r in (rows or []) if not r.get("delete_flag")]
     out.sort(key=lambda s: s["supplier_name"])
@@ -117,18 +123,30 @@ class POCreate(BaseModel):
 
 @router.get("/orders")
 def list_orders(user: User = Depends(current_active_user)):
-    """Storeloads (заявки + получени доставки) from Barsy. status: 0=draft, 1=closed."""
+    """Storeloads (получени доставки) from Barsy. status: 0=draft, 1=closed.
+
+    ONLY the fields the list actually carries. Measured 2026-08-08: `Storeloads_getlist` returns
+    barsy_id, depot_id, doc_type_id, doc_type_name, status, store_load_id — and nothing else
+    (claude/BARSY_LIST_SHAPES_20260808.md). This used to also return supplier_id, supplier,
+    doc_num, doc_date and total, every one of which was permanently empty because the key is not
+    in the response. Returning an empty string is worse than returning nothing: it looks like a
+    document with no supplier rather than like a field we never fetched.
+
+    THE SUPPLIER, NUMBER, DATE AND TOTAL LIVE ON `Storeloads_get`, one call per document. If a
+    page ever needs them, copy what deliveries.py does for its reconcile — newest first, bounded
+    by a cap, and say so when the cap is hit rather than truncating quietly. It is deliberately
+    not done here: nothing in the frontend calls this endpoint today, and 43 extra Barsy round
+    trips per page load is not a cost to pay before there is a page.
+    """
     with upstream("Barsy зареждания"):
         rows = barsy.call("Storeloads_getlist", {})
     out = []
     for r in (rows or []):
         st = r.get("status")
         out.append({
-            "id": r.get("store_load_id"), "supplier_id": r.get("supplier_id"),
-            "supplier": r.get("supplier_name") or "",
+            "id": r.get("store_load_id"), "depot_id": r.get("depot_id"),
             "status": "closed" if st == 1 else "draft",
-            "doc_type": r.get("doc_type_name") or "", "doc_num": r.get("doc_num") or "",
-            "doc_date": r.get("doc_date") or "", "total": r.get("total"),
+            "doc_type": r.get("doc_type_name") or "",
         })
     return {"orders": out}
 
