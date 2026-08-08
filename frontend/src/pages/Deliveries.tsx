@@ -15,6 +15,7 @@ import { ScanAdjust } from '../components/ScanAdjust'
 import { PackPicker } from '../components/PackPicker'
 import { InvoicePanel } from '../components/InvoicePanel'
 import { DocumentsPanel } from '../components/DocumentsPanel'
+import { DatesPanel } from '../components/DatesPanel'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -435,6 +436,7 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
             </>
           )}
         </div>
+        <DatesPanel batch={b} onSaved={() => void load()} />
         <div style={{ marginTop: '.6rem' }}>
           <InvoicePanel batch={b} onSaved={() => void load()} />
         </div>

@@ -376,6 +376,10 @@ export interface DeliveryDetailResp {
   shortfall_reason: string
   short_lines: number
   // the invoice as printed, and whether the derived lines add up to it
+  // the three dates: goods landed / what the paper says / when it hit the books
+  arrival_date: string
+  posting_date: string
+  date_warnings: string[]
   doc_discount_pct: number
   currency: string
   fx_rate: number
