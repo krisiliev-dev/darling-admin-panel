@@ -30,6 +30,7 @@ from ..core import barsy
 from ..db import get_async_session
 from ..models import (
     DeliveryBatch,
+    DeliveryInvoice,
     DeliveryLine,
     IntakeDraft,
     ScanCommit,
@@ -1766,3 +1767,148 @@ async def set_invoice(
     await session.refresh(b)
     lines = await _lines(session, batch_id)
     return {"ok": True, "reconciliation": _reconcile_invoice(b, lines)}
+
+
+# ------------------------------------------------------------------ delivery documents (P7) ---
+# Barsy's own Тип документ values, read off the live Ново зареждане screen 2026-08-07. Their ids
+# verbatim, so the panel and Barsy describe the same document the same way — which matters the day
+# somebody reconciles the two by hand.
+DOC_TYPES: dict[int, str] = {
+    1: "Фактура",
+    11: "Фактура ЧВ",
+    2: "Стокова разписка",
+    5: "Дебитно известие",
+    4: "Кредитно известие",
+    6: "Митническа декларация",
+    3: "Друго",
+    -1: "Неизвестен",
+}
+
+# A стокова разписка is the GOODS document: it says the things arrived, not that they were billed.
+# Receiving on one and attaching the фактура later is the whole reason this table exists.
+GOODS_ONLY_TYPES = {2}
+
+
+def _doc_out(d: DeliveryInvoice) -> dict:
+    return {
+        "id": d.id, "batch_id": d.batch_id,
+        "doc_type_id": d.doc_type_id, "doc_type": DOC_TYPES.get(d.doc_type_id, "?"),
+        "invoice_ref": d.invoice_ref, "doc_date": d.doc_date, "amount": d.amount,
+        "note": d.note, "created_by": d.created_by,
+        "created_at": d.created_at.isoformat() if d.created_at else None,
+        "goods_only": d.doc_type_id in GOODS_ONLY_TYPES,
+    }
+
+
+async def _documents(session: AsyncSession, batch_id: int) -> list[DeliveryInvoice]:
+    return list((await session.execute(
+        select(DeliveryInvoice).where(DeliveryInvoice.batch_id == batch_id)
+        .order_by(DeliveryInvoice.id))).scalars().all())
+
+
+@profiles_router.get("/doc-types")
+async def list_doc_types(_: User = Depends(current_active_user)):
+    """Barsy's document types, for the picker. Ordered as their own dropdown orders them."""
+    order = [1, 11, 2, 5, 4, 6, 3, -1]
+    return {"doc_types": [{"id": i, "name": DOC_TYPES[i], "goods_only": i in GOODS_ONLY_TYPES}
+                          for i in order]}
+
+
+class DocumentRequest(BaseModel):
+    doc_type_id: int = 1
+    invoice_ref: str = ""
+    doc_date: str = ""
+    amount: float = 0.0
+    note: str = ""
+
+
+@router.get("/{batch_id}/documents")
+async def list_documents(
+    batch_id: int,
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    docs = await _documents(session, batch_id)
+    return {"documents": [_doc_out(d) for d in docs]}
+
+
+@router.post("/{batch_id}/documents", status_code=status.HTTP_201_CREATED)
+async def add_document(
+    batch_id: int, req: DocumentRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Attach a document to a delivery. Allowed AFTER finalise on purpose: the goods arriving and
+    the invoice arriving are different events, and the фактура routinely turns up days later."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if req.doc_type_id not in DOC_TYPES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Непознат тип документ.")
+    ref = (req.invoice_ref or "").strip()[:64]
+    if not ref:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Липсва номер на документа.")
+    if req.amount < 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Сумата не може да е отрицателна.")
+
+    d = DeliveryInvoice(batch_id=batch_id, doc_type_id=req.doc_type_id, invoice_ref=ref,
+                        doc_date=(req.doc_date or "").strip()[:32], amount=req.amount,
+                        note=(req.note or "").strip(), created_by=actor.email)
+    session.add(d)
+    try:
+        await session.flush()
+    except IntegrityError:
+        # the unique constraint is per (batch, type, ref) — the SAME document on ANOTHER delivery
+        # is legitimate and unaffected, which is the N:M case working as intended
+        await session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Този документ вече е закачен към тази доставка.") from None
+    await log_action(session, actor, "delivery.document.add", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} type={req.doc_type_id} ref={ref}")
+    await session.commit()
+    await session.refresh(d)
+    return _doc_out(d)
+
+
+@router.delete("/{batch_id}/documents/{doc_id}")
+async def remove_document(
+    batch_id: int, doc_id: int,
+    actor: User = Depends(current_owner),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Detach a document. Owner-only: an invoice link is an accounting fact, not a scratch note."""
+    d = await session.get(DeliveryInvoice, doc_id)
+    if not d or d.batch_id != batch_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Документът не е намерен.")
+    await session.delete(d)
+    await log_action(session, actor, "delivery.document.remove", target=str(batch_id),
+                     detail=f"batch={batch_id} doc={doc_id} ref={d.invoice_ref}")
+    await session.commit()
+    return {"ok": True}
+
+
+@profiles_router.get("/by-document")
+async def deliveries_for_document(
+    invoice_ref: str,
+    _: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Every delivery carrying this document number — the other direction of the N:M link, and the
+    reason it is a join table: one invoice covering three deliveries is answerable in one query."""
+    ref = (invoice_ref or "").strip()
+    if not ref:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Липсва номер на документа.")
+    docs = list((await session.execute(
+        select(DeliveryInvoice).where(DeliveryInvoice.invoice_ref == ref)
+        .order_by(DeliveryInvoice.batch_id))).scalars().all())
+    out = []
+    total = 0.0
+    for d in docs:
+        b = await session.get(DeliveryBatch, d.batch_id)
+        if b is None:
+            continue      # the delivery was deleted; the document row is orphaned, not a crash
+        total += d.amount or 0
+        out.append({"batch_id": b.id, "supplier": b.supplier, "reference": b.reference,
+                    "status": b.status, "amount": d.amount,
+                    "doc_type": DOC_TYPES.get(d.doc_type_id, "?")})
+    return {"invoice_ref": ref, "deliveries": out, "count": len(out), "total_amount": total}

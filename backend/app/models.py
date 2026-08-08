@@ -791,3 +791,38 @@ class CategoryVisibility(Base):
     updated_by: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class DeliveryInvoice(Base):
+    """A document attached to a delivery — фактура, стокова разписка, кредитно известие, …
+
+    A JOIN table, not a column on the batch, and that is the whole point. Kris, asked whether one
+    invoice can cover several deliveries: „I imagine it does or we might have cases where it does.
+    So a many to many link is preferable." One invoice may cover three deliveries; one delivery may
+    be split across two invoices. A nullable invoice_ref column would have to be migrated across
+    live goods-in records the first time either happens.
+
+    It is also what separates the GOODS event from the MONEY event: stock can be received on a
+    стокова разписка today and the фактура attached next week, which is how Barsy itself models it
+    (their Тип документ dropdown, ids mirrored verbatim in DOC_TYPES).
+
+    Panel-owned (admin.db). Barsy stays the system of record for the storeload itself."""
+    __tablename__ = "delivery_invoices"
+    __table_args__ = (
+        # the same document must not be attached to one delivery twice; it MAY be attached to
+        # several different deliveries, which is exactly the N:M case
+        UniqueConstraint("batch_id", "doc_type_id", "invoice_ref", name="uq_delivery_document"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    batch_id: Mapped[int] = mapped_column(index=True)
+    # Barsy's own Тип документ ids, verified live 2026-08-07 — see DOC_TYPES
+    doc_type_id: Mapped[int] = mapped_column(default=1, index=True)
+    invoice_ref: Mapped[str] = mapped_column(String(64), default="", index=True)
+    doc_date: Mapped[str] = mapped_column(String(32), default="")
+    # what THIS document says, which need not be the whole delivery when one invoice spans several
+    amount: Mapped[float] = mapped_column(default=0.0)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
