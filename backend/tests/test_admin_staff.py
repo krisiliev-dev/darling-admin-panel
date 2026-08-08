@@ -89,27 +89,87 @@ async def test_owner_can_create_privileged_role(owner_client, barsy_recorder):
 
 
 # --- GET /api/admin/staff → Users_getlist mapping ----------------------------------
-async def test_get_staff_maps_barsy_rows(owner_client, barsy_recorder):
+async def test_get_staff_resolves_role_id_by_joining_the_role_name(owner_client, barsy_recorder):
+    """MEASURED shape: Users_getlist returns delete_flag, fname, full_name, lname, role_name,
+    user_id, user_name — no role_id, no email, under any of five request variants
+    (claude/BARSY_LIST_SHAPES_20260808.md). The previous fixture invented an `email` key and the
+    previous assertion pinned role_id to None, so the Settings role dropdown never pre-selecting
+    anyone's role had a green test behind it."""
     barsy_recorder.set_return("Users_getlist", [
-        {"user_id": 1, "user_name": "boss", "full_name": "Шефа",
-         "role_name": "Мениджър", "email": "boss@x.bg"},
+        {"user_id": 1, "user_name": "boss", "full_name": "Шефа", "role_name": "Мениджър"},
         {"user_id": 2, "user_name": "gone", "role_name": "Служител", "delete_flag": 1},
         {"user_id": 3, "user_name": "ivan", "fname": "Иван", "lname": "Петров",
-         "role_name": "Оператор", "email": "ivan@x.bg"},
+         "role_name": "Оператор"},
+    ])
+    barsy_recorder.set_return("Roles_getlist", [
+        {"role_id": 1, "role_name": "Мениджър", "role_weight": 1},
+        {"role_id": 4, "role_name": "Оператор", "role_weight": 4},
+        {"role_id": 5, "role_name": "Служител", "role_weight": 5},
     ])
     r = await owner_client.get("/api/admin/staff")
     assert r.status_code == 200, r.text
     staff = r.json()["staff"]
-    # CONTRACT CHANGED 2026-07-30: `delete_flag` is Barsy's „Блокиран", NOT a deletion (a real delete
-    # removes the row entirely). Blocked users must stay VISIBLE and marked, or offboarding is one-way
-    # — nobody could see who is blocked or un-block them.
+    # CONTRACT (2026-07-30): `delete_flag` is Barsy's „Блокиран", NOT a deletion — a real delete
+    # removes the row. Blocked users stay VISIBLE and marked, or offboarding is one-way.
     assert [s["user_id"] for s in staff] == [1, 2, 3]
     assert staff[1]["blocked"] is True and staff[0]["blocked"] is False
-    assert staff[0] == {"user_id": 1, "user_name": "boss", "full_name": "Шефа",
-                        "role": "Мениджър", "role_id": None, "email": "boss@x.bg", "blocked": False}
-    # full_name synthesized from fname/lname when absent
-    assert staff[2]["full_name"] == "Иван Петров"
-    assert staff[2]["role"] == "Оператор"
+    assert staff[0]["role"] == "Мениджър" and staff[0]["role_id"] == 1
+    assert staff[2]["role"] == "Оператор" and staff[2]["role_id"] == 4
+    assert staff[2]["full_name"] == "Иван Петров"      # synthesized from fname/lname
+    # Barsy's users list carries no email at all, so this is "" — asserted so that the day a
+    # detail surface is wired up, this test says so instead of quietly passing.
+    assert staff[0]["email"] == ""
+
+
+async def test_an_unknown_role_name_leaves_the_id_unset(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Users_getlist", [
+        {"user_id": 1, "user_name": "boss", "role_name": "Роля-която-я-няма"}])
+    barsy_recorder.set_return("Roles_getlist", [{"role_id": 1, "role_name": "Мениджър"}])
+    staff = (await owner_client.get("/api/admin/staff")).json()["staff"]
+    assert staff[0]["role"] == "Роля-която-я-няма"     # the name still shows
+    assert staff[0]["role_id"] is None
+
+
+async def test_a_duplicated_role_name_resolves_to_nothing(owner_client, barsy_recorder):
+    """Barsy does not stop an owner naming two roles alike. Picking the first would show someone
+    a role they do not hold, and the id is what a save would write back — so an ambiguous name
+    resolves to None and the UI shows its placeholder."""
+    barsy_recorder.set_return("Users_getlist", [
+        {"user_id": 1, "user_name": "boss", "role_name": "Оператор"},
+        {"user_id": 2, "user_name": "ivan", "role_name": "Мениджър"}])
+    barsy_recorder.set_return("Roles_getlist", [
+        {"role_id": 4, "role_name": "Оператор"},
+        {"role_id": 7, "role_name": "Оператор"},          # same name, different id
+        {"role_id": 1, "role_name": "Мениджър"}])
+    staff = (await owner_client.get("/api/admin/staff")).json()["staff"]
+    assert staff[0]["role_id"] is None, "an ambiguous name must not be guessed at"
+    assert staff[1]["role_id"] == 1, "the unambiguous ones still resolve"
+
+
+async def test_a_deleted_role_does_not_lend_its_name(owner_client, barsy_recorder):
+    barsy_recorder.set_return("Users_getlist", [
+        {"user_id": 1, "user_name": "boss", "role_name": "Стара"}])
+    barsy_recorder.set_return("Roles_getlist", [
+        {"role_id": 9, "role_name": "Стара", "delete_flag": 1}])
+    staff = (await owner_client.get("/api/admin/staff")).json()["staff"]
+    assert staff[0]["role_id"] is None
+
+
+async def test_the_staff_list_survives_roles_being_unreadable(owner_client, barsy_recorder):
+    """Fail OPEN: this is presentation, not money. Losing the id must not lose the page — and the
+    degradation is visible, because the UI shows its "no id" placeholder."""
+    def boom(_body):
+        raise RuntimeError("Barsy е зает")
+
+    barsy_recorder.set_return("Users_getlist", [
+        {"user_id": 1, "user_name": "boss", "role_name": "Мениджър"}])
+    barsy_recorder.set_return("Roles_getlist", boom)
+    r = await owner_client.get("/api/admin/staff")
+    assert r.status_code == 200, r.text
+    staff = r.json()["staff"]
+    assert staff[0]["user_name"] == "boss"
+    assert staff[0]["role"] == "Мениджър"
+    assert staff[0]["role_id"] is None
 
 
 async def test_get_staff_is_owner_only(staff_client, barsy_recorder):

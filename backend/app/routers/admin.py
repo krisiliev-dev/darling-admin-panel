@@ -19,6 +19,30 @@ from ..users import current_owner_strict, current_sysadmin
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def _role_ids_by_name(roles) -> dict[str, int]:
+    """{role_name: role_id}, and ONLY for names that are unambiguous.
+
+    `Users_getlist` returns `role_name` but not `role_id`, and no request variant changes that —
+    measured, five of them (claude/BARSY_LIST_SHAPES_20260808.md). The id therefore has to come
+    from `Roles_getlist`, joined on the name.
+
+    A name seen twice resolves to NOTHING. Barsy does not stop an owner naming two roles alike,
+    and quietly picking the first would show someone a role they do not hold; the caller returns
+    None instead and the UI says so. Role names are unique on this install today (4 roles) —
+    which is a fact about today, not a guarantee.
+    """
+    seen: dict[str, int | None] = {}
+    for r in roles or []:
+        if not isinstance(r, dict) or r.get("delete_flag"):
+            continue
+        name = (r.get("role_name") or "").strip()
+        rid = r.get("role_id")
+        if not name or rid is None:
+            continue
+        seen[name] = None if name in seen else int(rid)     # a second sighting poisons the entry
+    return {k: v for k, v in seen.items() if v is not None}
+
+
 @router.get("/staff")
 def staff(user: User = Depends(current_sysadmin)):
     """Staff from Barsy (Users_getlist) — Barsy is the source of truth for accounts + roles.
@@ -28,10 +52,25 @@ def staff(user: User = Depends(current_sysadmin)):
     one-way: nobody could see who is blocked, let alone un-block them. They come back marked instead."""
     with upstream("Barsy потребители"):
         rows = barsy.call("Users_getlist", {})
+    # Roles are a second call because the users list does not carry role_id (see below). It
+    # FAILS OPEN: if roles cannot be read, every row gets role_id=None and the page still
+    # lists staff. This is presentation, not money, and the degradation is visible — the UI
+    # shows its "no id" placeholder rather than pretending.
+    try:
+        with upstream("Barsy роли"):
+            role_rows = barsy.call("Roles_getlist", {})
+    except Exception:
+        role_rows = []
+    by_name = _role_ids_by_name(role_rows)
     return {"staff": [
         {"user_id": r.get("user_id"), "user_name": r.get("user_name", ""),
          "full_name": r.get("full_name") or f"{r.get('fname','')} {r.get('lname','')}".strip(),
-         "role": r.get("role_name", ""), "role_id": r.get("role_id"),
+         "role": r.get("role_name", ""),
+         "role_id": by_name.get((r.get("role_name") or "").strip()),
+         # Barsy's users list carries NO email — measured across five request variants
+         # (claude/BARSY_LIST_SHAPES_20260808.md), so this is always "". Left rather than
+         # removed because the field is part of the panel's contract; finding a real source
+         # needs a detail surface nobody has probed.
          "email": r.get("email", ""), "blocked": bool(r.get("delete_flag"))}
         for r in (rows or [])]}
 

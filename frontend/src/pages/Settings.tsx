@@ -154,11 +154,17 @@ function StaffRow({ s, roles, onChanged }: { s: StaffMember; roles: BarsyRole[];
         {s.full_name || s.user_name}
         {s.blocked && <span style={{ fontSize: '.7rem', color: 'var(--red)', fontWeight: 400 }}> · блокиран</span>}
       </span>
+      {/* Barsy's users list carries no email (measured, five request variants), so this has
+          always fallen through to the username. The fallback is what made it look intentional. */}
       <span style={{ color: 'var(--pencil)' }}>{s.email || s.user_name}</span>
       {roles.length > 0 ? (
         <select className="input-paper" style={{ width: 'auto', fontSize: '.74rem' }}
           aria-label={`Роля на ${s.user_name}`} value={s.role_id ?? ''} disabled={busy}
           onChange={(e) => void changeRole(Number(e.target.value))}>
+          {/* Fires when the role name could not be resolved to an id - an unknown name, or one
+              Barsy has on two roles at once (the backend refuses to guess between them). It used
+              to fire for EVERY row, because Users_getlist carries no role_id at all and nothing
+              resolved it; that made the dropdown permanently unselected and looked deliberate. */}
           {s.role_id === null && <option value="">{s.role || '—'}</option>}
           {roles.map((r) => <option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}
         </select>
