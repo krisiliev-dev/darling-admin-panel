@@ -167,6 +167,10 @@ def _batch_summary(b: DeliveryBatch, lines: list[DeliveryLine]) -> dict:
         "storeload_id": b.storeload_id, "doc_num": b.doc_num,
         "shortfall_reason": b.shortfall_reason,
         "short_lines": sum(1 for ln in lines if _shortfall(ln) > 0),
+        # the invoice as printed, so the page can prefill instead of asking twice
+        "doc_discount_pct": b.doc_discount_pct, "currency": b.currency,
+        "fx_rate": b.fx_rate, "invoice_total": b.invoice_total,
+        "reconciliation": _reconcile_invoice(b, lines),
         "finalise_started_at": b.finalise_started_at.isoformat() if b.finalise_started_at else None,
         "created_by": b.created_by,
         "created_at": b.created_at.isoformat() if b.created_at else None,

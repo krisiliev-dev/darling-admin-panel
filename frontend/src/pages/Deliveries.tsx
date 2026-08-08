@@ -13,6 +13,7 @@ import { ZayavkaSource } from '../components/ZayavkaSource'
 import { ClaimsPanel, DefectButton, ClaimsBanner } from '../components/ClaimsPanel'
 import { ScanAdjust } from '../components/ScanAdjust'
 import { PackPicker } from '../components/PackPicker'
+import { InvoicePanel } from '../components/InvoicePanel'
 
 // Доставки — receiving deliveries. List past deliveries → process a new one (supplier + warehouse +
 // Excel/CSV or a photo) → the sheet is split into already-in-catalog vs NEW → staff scan-confirm
@@ -432,6 +433,9 @@ function DeliveryDetail({ id, onBack }: { id: number; onBack: () => void }) {
               {b.new_pending > 0 && <span className="font-type" style={{ fontSize: '.74rem', color: 'var(--pending)' }}>първо завърши новите продукти в „Нов продукт“</span>}
             </>
           )}
+        </div>
+        <div style={{ marginTop: '.6rem' }}>
+          <InvoicePanel batch={b} onSaved={() => void load()} />
         </div>
         {shortPrompt && (
           <div className="font-type" style={{ marginTop: '.6rem', padding: '.5rem .7rem', border: '1px solid var(--pending)', borderRadius: 3, fontSize: '.82rem' }}>

@@ -375,6 +375,17 @@ export interface DeliveryDetailResp {
   new_pending: number
   shortfall_reason: string
   short_lines: number
+  // the invoice as printed, and whether the derived lines add up to it
+  doc_discount_pct: number
+  currency: string
+  fx_rate: number
+  invoice_total: number
+  reconciliation: {
+    available: boolean
+    net?: number; vat?: number; gross?: number
+    invoice_total?: number; residual?: number; reconciles?: boolean
+    unpriced_lines?: number
+  }
   lines: DeliveryLineRow[]
 }
 
