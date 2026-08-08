@@ -123,3 +123,32 @@ def reconcile(lines: list[dict], invoice_total, *, with_vat: bool = True) -> dic
         # a stotinka either way is arithmetic; more than that is somebody's mistake
         "reconciles": abs(residual) <= Decimal("0.01"),
     }
+
+
+def barsy_unit_price(printed_price, *, includes_vat: bool, vat_group_id=2,
+                     line_discount_pct=0, doc_discount_pct=0, fx_rate=1,
+                     barsy_expects_vat_inclusive: bool = True) -> Decimal:
+    """The unit price to SEND to Barsy — discounted and converted, with VAT put back if Barsy is
+    expecting a gross price.
+
+    This exists because of a trap worth spelling out. `barsy_price_mode = 1` means "the unit prices
+    we send are VAT-INCLUSIVE", and Barsy strips the VAT itself to compute себестойност (polarity
+    confirmed in their storeloads/getlist docs: 0 => без включено ДДС, 1 => с включено ДДС). So
+    handing Barsy a NET price while still declaring mode 1 would make it strip VAT a second time and
+    understate cost by ~17% — silently, which is the exact failure this whole slice exists to
+    prevent.
+
+    net_unit_price() stays the single source of truth for the arithmetic; this only re-grosses at
+    the end when the ERP contract calls for a gross number. Set
+    barsy_expects_vat_inclusive=False if price_mode is ever flipped to 0.
+
+    What genuinely changes versus what we sent before: the printed price used to go through raw, so
+    a line discount, a document discount and a currency rate were all ignored. Those are applied
+    now. VAT handling stays exactly where it already worked."""
+    net = net_unit_price(printed_price, includes_vat=includes_vat, vat_group_id=vat_group_id,
+                         line_discount_pct=line_discount_pct, doc_discount_pct=doc_discount_pct,
+                         fx_rate=fx_rate)
+    if not barsy_expects_vat_inclusive:
+        return net
+    return (net * (Decimal("1") + vat_rate(vat_group_id))).quantize(
+        UNIT, rounding=ROUND_HALF_UP)

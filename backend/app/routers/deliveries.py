@@ -39,6 +39,7 @@ from ..models import (
     Zayavka,
     ZayavkaLine,
 )
+from ..services import costing as CO
 from ..services import delivery_parse as DP
 from ..services import packages as PK
 from ..services.text import norm
@@ -480,6 +481,35 @@ class ScanRequest(BaseModel):
     barcode: str
 
 
+def _cost_kwargs(ln: DeliveryLine, b: DeliveryBatch) -> dict:
+    return {
+        "includes_vat": bool(ln.price_includes_vat),
+        "vat_group_id": ln.vat_group_id or 2,
+        "line_discount_pct": ln.line_discount_pct or 0,
+        "doc_discount_pct": b.doc_discount_pct or 0,
+        "fx_rate": b.fx_rate or 1,
+    }
+
+
+def _unit_price_for_barsy(ln: DeliveryLine, b: DeliveryBatch) -> float:
+    """The unit price sent to Barsy: discounted and FX-converted, still GROSS.
+
+    Gross because `barsy_price_mode = 1` declares our prices VAT-inclusive and Barsy strips the VAT
+    itself; sending a net price under that contract would strip it twice and understate cost by
+    ~17%, invisibly. A line with no printed_price falls back to the legacy `price` untouched, so a
+    delivery already in flight does not change value under the operator."""
+    if (ln.printed_price or 0) <= 0:
+        return float(ln.price or 0)
+    return float(CO.barsy_unit_price(ln.printed_price, **_cost_kwargs(ln, b)))
+
+
+def _net_unit_cost(ln: DeliveryLine, b: DeliveryBatch) -> float:
+    """The fully-net unit cost — for HUMANS reconciling against the invoice, not for Barsy."""
+    if (ln.printed_price or 0) <= 0:
+        return float(ln.price or 0)
+    return float(CO.net_unit_price(ln.printed_price, **_cost_kwargs(ln, b)))
+
+
 def _booked_qty(ln: DeliveryLine) -> float:
     """What actually goes into Barsy for this line.
 
@@ -810,7 +840,7 @@ async def finalise(
         # defectives. A line that arrived empty is not booked at all.
         "articles": [{"article_id": int(ln.article_id),  # type: ignore[arg-type]  # SQLAlchemy/fastapi-users stub gap, not a bug
                       "amount": str(_booked_qty(ln)),
-                      "current_price": str(ln.price)}
+                      "current_price": str(_unit_price_for_barsy(ln, b))}
                      for ln in lines if _booked_qty(ln) > 0],
         "action_type": "save_and_close",
     }
@@ -1312,7 +1342,7 @@ async def resolve_claim(
 
 
 def _storeload_doc_num(row: dict) -> str:
-    """doc_num out of a Storeloads_getlist row, whatever Barsy called it this time."""
+    """doc_num out of a storeload record, whatever Barsy called it this time."""
     for k in ("doc_num", "docNum", "document_number", "doc_number", "number"):
         v = row.get(k)
         if v not in (None, ""):
@@ -1320,16 +1350,63 @@ def _storeload_doc_num(row: dict) -> str:
     return ""
 
 
+# Storeloads_getlist does NOT return a document number — measured on the live box 2026-08-08,
+# 43/43 rows, with and without depot_id. The list carries only barsy_id, depot_id, doc_type_id,
+# doc_type_name, status and store_load_id. The number lives on the DETAIL call. Matching against
+# the list therefore always missed, and a miss is reported to the owner as "not booked".
+_RECONCILE_SCAN_CAP = 200
+
+
+def _storeload_detail(store_load_id: int) -> dict:
+    """One storeload, unwrapped. Barsy wraps some detail payloads in the method name and some in
+    a `store_load` key; both shapes have been seen, so handle both rather than guess."""
+    out = barsy.call("Storeloads_get", {"store_load_id": store_load_id}, is_read=True)
+    if isinstance(out, dict) and isinstance(out.get("Storeloads_get"), dict):
+        out = out["Storeloads_get"]
+    if isinstance(out, dict) and isinstance(out.get("store_load"), dict):
+        out = out["store_load"]
+    return out if isinstance(out, dict) else {}
+
+
 def _find_storeload_by_doc_num(doc_num: str, depot_id: int) -> tuple[bool, int | None]:
     """(found, storeload_id) for a doc_num. Runs in a threadpool — plain sync Barsy calls.
-    A read, so barsy.call may safely retry it."""
+
+    Reads only, so barsy.call may safely retry them.
+
+    FAILS CLOSED. `False` is returned ONLY after every candidate has been read successfully and
+    none matched, because `False` is what releases a batch for a second finalise. Anything that
+    stops the search early — an unreadable row, an unreadable list, the scan cap — raises, and
+    the caller turns that into a 502 that leaves the delivery stuck for a human. Being unable to
+    check is not evidence of absence."""
     out = barsy.call("Storeloads_getlist", {"depot_id": depot_id}, is_read=True)
-    rows = out if isinstance(out, list) else (out.get("data") or out.get("storeloads") or [])
+    if isinstance(out, list):
+        rows = out
+    elif isinstance(out, dict):
+        rows = out.get("Storeloads_getlist") or out.get("data") or out.get("storeloads") or []
+    else:
+        raise RuntimeError(f"Storeloads_getlist returned {type(out).__name__}, not a list")
+    rows = [r for r in rows if isinstance(r, dict)]
+
+    # newest first: a delivery strands mid-finalise, so its document is one of the most recent
+    rows.sort(key=lambda r: int(r.get("store_load_id") or 0), reverse=True)
+    if len(rows) > _RECONCILE_SCAN_CAP:
+        raise RuntimeError(
+            f"{len(rows)} storeloads is more than the {_RECONCILE_SCAN_CAP} this can scan — "
+            "check the document in Barsy by hand rather than releasing the delivery")
+
     for row in rows:
-        if not isinstance(row, dict):
-            continue
-        if _storeload_doc_num(row) == doc_num:
-            return True, extract_id(row, ("storeload_id", "id"))
+        # if a future Barsy build starts putting the number in the list, use it and skip a call
+        num = _storeload_doc_num(row)
+        # the LIST and DETAIL rows spell it `store_load_id`; the CREATE response uses
+        # `storeload_id`. Measured, not guessed — asking for the wrong one returns None,
+        # which would finalise a batch with no document to point at.
+        sid = extract_id(row, ("store_load_id", "storeload_id", "id"))
+        if not num:
+            if sid is None:
+                raise RuntimeError("a storeload row has neither a doc_num nor an id")
+            num = _storeload_doc_num(_storeload_detail(sid))   # raises if Barsy will not answer
+        if num == doc_num:
+            return True, sid
     return False, None
 
 
@@ -1585,3 +1662,77 @@ async def apply_pack(
     await session.commit()
     await session.refresh(ln)
     return {"ok": True, "line": _line_out(ln)}
+
+
+# ------------------------------------------------------------------ invoice reconciliation (P3) ---
+# Does the delivery add up to what the invoice says? The residual is the useful number: a stotinka
+# is rounding, more than that is somebody's mistake, and keeping it is what lets a human tell them
+# apart instead of arguing about whose spreadsheet is right.
+
+
+def _reconcile_invoice(b: DeliveryBatch, lines: list[DeliveryLine]) -> dict:
+    """Derived totals vs the invoice total as printed. Uses the RECEIVED quantity, not the claimed
+    one — a delivery that arrived short should reconcile against what arrived, otherwise the
+    residual just restates the shortfall we already recorded."""
+    priced = [ln for ln in lines if (ln.printed_price or 0) > 0]
+    if not priced or not (b.invoice_total or 0):
+        return {"available": False}
+    rows = [{
+        "qty": _booked_qty(ln),
+        "printed_price": ln.printed_price,
+        **_cost_kwargs(ln, b),
+    } for ln in priced]
+    r = CO.reconcile(rows, b.invoice_total)
+    return {
+        "available": True,
+        "net": float(r["net"]), "vat": float(r["vat"]), "gross": float(r["gross"]),
+        "invoice_total": float(r["invoice_total"]),
+        "residual": float(r["residual"]), "reconciles": r["reconciles"],
+        # lines with no printed price cannot be checked — say so rather than quietly excluding them
+        "unpriced_lines": len(lines) - len(priced),
+    }
+
+
+class InvoiceRequest(BaseModel):
+    """The document-level printed values. Per-line ones arrive with the sheet."""
+    doc_discount_pct: float | None = None
+    currency: str | None = None
+    fx_rate: float | None = None
+    invoice_total: float | None = None
+
+
+@router.post("/{batch_id}/invoice")
+async def set_invoice(
+    batch_id: int, req: InvoiceRequest,
+    actor: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Record what the invoice says at document level, so the lines can be checked against it."""
+    b = await session.get(DeliveryBatch, batch_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Доставката не е намерена.")
+    if b.status in ("finalised", "finalising"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Доставката е финализирана или се финализира.")
+    if req.doc_discount_pct is not None:
+        if not (0 <= req.doc_discount_pct < 100):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Отстъпката трябва да е между 0 и 100%.")
+        b.doc_discount_pct = req.doc_discount_pct
+    if req.currency is not None:
+        cur = req.currency.strip().upper()
+        if cur not in ("EUR", "BGN"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Валутата трябва да е EUR или BGN.")
+        b.currency = cur
+    if req.fx_rate is not None:
+        if req.fx_rate <= 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Курсът трябва да е положителен.")
+        b.fx_rate = req.fx_rate
+    if req.invoice_total is not None:
+        if req.invoice_total < 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Сумата не може да е отрицателна.")
+        b.invoice_total = req.invoice_total
+    await log_action(session, actor, "delivery.invoice", target=b.supplier or b.reference,
+                     detail=f"batch={batch_id} total={b.invoice_total} disc={b.doc_discount_pct}%")
+    await session.commit()
+    await session.refresh(b)
+    lines = await _lines(session, batch_id)
+    return {"ok": True, "reconciliation": _reconcile_invoice(b, lines)}

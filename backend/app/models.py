@@ -158,6 +158,13 @@ class DeliveryBatch(Base):
     # the deterministic doc_num sent to Barsy, persisted BEFORE the write so a delivery whose
     # outcome is unknown can be reconciled by probing Barsy for this number
     doc_num: Mapped[str] = mapped_column(String(64), default="")
+    # document-level invoice values, as printed
+    doc_discount_pct: Mapped[float] = mapped_column(default=0.0)
+    currency: Mapped[str] = mapped_column(String(8), default="EUR")
+    fx_rate: Mapped[float] = mapped_column(default=1.0)
+    invoice_total: Mapped[float] = mapped_column(default=0.0)   # gross, as printed
+    # derived minus printed, frozen at finalise: a stotinka is rounding, more is a discrepancy
+    rounding_residual: Mapped[float] = mapped_column(default=0.0)
     # why this delivery was accepted short — required before a short finalise goes
     # through, so an under-delivery leaves an explanation rather than just a smaller number
     shortfall_reason: Mapped[str] = mapped_column(Text, default="")
@@ -283,6 +290,14 @@ class DeliveryLine(Base):
     # what the supplier's document claimed but never arrived, frozen at finalise so the
     # record survives even though it is derivable from the counts at the time
     short_qty: Mapped[float] = mapped_column(default=0.0)
+    # THE INVOICE LINE AS PRINTED. `price` above stays the legacy single number so a delivery
+    # already in flight keeps its value; these are what the cost is DERIVED from when present.
+    printed_price: Mapped[float] = mapped_column(default=0.0)
+    # whether printed_price already contains VAT — Barsy's own tooltip warns that getting
+    # this wrong makes себестойността compute incorrectly, so it is stored per line
+    price_includes_vat: Mapped[bool] = mapped_column(default=True)
+    vat_group_id: Mapped[int] = mapped_column(default=2)      # 2 = BG 20% (Б)
+    line_discount_pct: Mapped[float] = mapped_column(default=0.0)
     # Разфасовка: the supplier billed `pack_count` packs of `pack_factor` pieces each.
     # qty stays canonical in PIECES; these record HOW it was arrived at, so a wrong factor
     # can be found and corrected later instead of being an unexplained quantity.
