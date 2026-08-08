@@ -988,6 +988,9 @@ async def _push_supplier_links(session: AsyncSession, d: IntakeDraft, article_id
                 "suppliers_note": "Suppliers_getlist: \u043d\u0435\u043e\u0447\u0430\u043a\u0432\u0430\u043d \u043e\u0442\u0433\u043e\u0432\u043e\u0440"}
     by_fold: dict[str, list] = {}
     for b in (cat or []):
+        # REDUNDANT, not broken: extra_properties:["min"] already excludes deleted suppliers
+        # server-side (measured - 55 rows vs 57, and the two omitted are exactly the two
+        # flagged). Kept because dropping the `min` would make it load-bearing again.
         if b.get("delete_flag"):
             continue
         by_fold.setdefault(_fold_supplier(b.get("supplier_name", "")), []).append(b)

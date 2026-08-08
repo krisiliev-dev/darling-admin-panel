@@ -1627,6 +1627,9 @@ async def put_article_suppliers(article_id: int, req: ArticleSuppliersIn,
     if any(r.supplier_id is None for r in req.rows):
         cat = await run_in_threadpool(barsy.call, "Suppliers_getlist", {"extra_properties": ["min"]})
         for b in (cat if isinstance(cat, list) else []):
+            # REDUNDANT, not broken: extra_properties:["min"] already excludes deleted suppliers
+            # server-side (measured - 55 rows vs 57, and the two omitted are exactly the two
+            # flagged). Kept because dropping the `min` would make it load-bearing again.
             if b.get("delete_flag"):
                 continue
             by_fold.setdefault(_fold_supplier(b.get("supplier_name", "")), []).append(b)

@@ -180,6 +180,9 @@ def resolve_supplier_id(name: str) -> int | None:
     rows = barsy.call("Suppliers_getlist", {"extra_properties": ["min"]}) or []
     target = norm(name)
     for r in rows:
+        # REDUNDANT, not broken: extra_properties:["min"] already excludes deleted suppliers
+        # server-side (measured - 55 rows vs 57, and the two omitted are exactly the two
+        # flagged). Kept because dropping the `min` would make it load-bearing again.
         if r.get("delete_flag"):
             continue
         if norm(r.get("supplier_name")) == target:
