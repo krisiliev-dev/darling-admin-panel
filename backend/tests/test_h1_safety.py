@@ -166,3 +166,91 @@ def test_nothing_finalises_a_delivery_automatically():
     Guarding the NAME as well as the behaviour, so reintroducing it has to be deliberate."""
     assert not hasattr(deliveries, "autofinalise_if_ready")
     assert hasattr(deliveries, "refresh_delivery_readiness")
+# ── the reconcile probe itself: Storeloads_getlist has no doc_num ─────────────
+# Measured live 2026-08-08: list rows carry barsy_id, depot_id, doc_type_id, doc_type_name,
+# status, store_load_id — and nothing else. The number is only on Storeloads_get.
+def _live_shape(n=3):
+    return [{"barsy_id": 100 + i, "depot_id": 1, "doc_type_id": 1, "doc_type_name": "Доставка",
+             "status": 2, "store_load_id": 500 + i} for i in range(n)]
+
+
+def _fake_barsy(monkeypatch, rows, details, fail_detail_for=()):
+    """Fake Barsy: a thin list plus a detail call per storeload, like the real one."""
+    seen = {"detail_calls": []}
+
+    def call(method, body=None, **kw):
+        if method == "Storeloads_getlist":
+            return rows
+        if method == "Storeloads_get":
+            sid = body["store_load_id"]
+            seen["detail_calls"].append(sid)
+            if sid in fail_detail_for:
+                raise barsy_api.BarsyError(f"HTTP 503 on Storeloads_get {sid}")
+            return {"store_load": {"store_load_id": sid, "doc_num": details.get(sid, "")}}
+        raise AssertionError(f"unexpected method {method}")
+
+    monkeypatch.setattr(deliveries.barsy, "call", call)
+    return seen
+
+
+def test_it_finds_the_document_through_the_detail_call(monkeypatch):
+    """THE regression. The list has no doc_num, so matching on the list alone never hit and the
+    probe always reported the goods unbooked — on the one path that exists for the case where
+    they might be."""
+    seen = _fake_barsy(monkeypatch, _live_shape(3),
+                       {500: "OTHER-B1", 501: "DZ-B7", 502: "OTHER-B2"})
+    found, sid = deliveries._find_storeload_by_doc_num("DZ-B7", 1)
+    assert found is True
+    assert sid == 501
+    assert seen["detail_calls"], "the number is not in the list — it has to ask for the detail"
+
+
+def test_absence_is_only_reported_after_every_row_was_read(monkeypatch):
+    seen = _fake_barsy(monkeypatch, _live_shape(3),
+                       {500: "A", 501: "B", 502: "C"})
+    found, sid = deliveries._find_storeload_by_doc_num("DZ-NOPE", 1)
+    assert (found, sid) == (False, None)
+    assert sorted(seen["detail_calls"]) == [500, 501, 502], "every candidate must be checked"
+
+
+def test_an_unreadable_detail_raises_instead_of_reporting_absence(monkeypatch):
+    """Being unable to check is not evidence of absence. `False` here would release the delivery
+    and authorise a second goods-in; the caller turns the raise into a 502 that leaves it stuck."""
+    _fake_barsy(monkeypatch, _live_shape(3), {500: "A", 502: "C"}, fail_detail_for=(501,))
+    with pytest.raises(barsy_api.BarsyError):
+        deliveries._find_storeload_by_doc_num("DZ-B7", 1)
+
+
+def test_the_scan_cap_raises_rather_than_reporting_absence(monkeypatch):
+    """Stopping the search is not the same fact as the document being absent."""
+    rows = _live_shape(deliveries._RECONCILE_SCAN_CAP + 1)
+    _fake_barsy(monkeypatch, rows, {})
+    with pytest.raises(RuntimeError):
+        deliveries._find_storeload_by_doc_num("DZ-B7", 1)
+
+
+def test_a_list_that_is_not_a_list_raises(monkeypatch):
+    """An unexpected shape must not degrade to "no rows", which reads as "Barsy holds nothing"."""
+    monkeypatch.setattr(deliveries.barsy, "call", lambda *a, **k: "не мога")
+    with pytest.raises(RuntimeError):
+        deliveries._find_storeload_by_doc_num("DZ-B7", 1)
+
+
+def test_a_doc_num_in_the_list_is_used_without_a_detail_call(monkeypatch):
+    """If a future Barsy build starts returning it, do not pay for 43 round trips to learn what
+    is already in hand."""
+    rows = _live_shape(2)
+    rows[1]["doc_num"] = "DZ-B7"
+    seen = _fake_barsy(monkeypatch, rows, {500: "A"})
+    found, sid = deliveries._find_storeload_by_doc_num("DZ-B7", 1)
+    assert (found, sid) == (True, 501)
+    assert 501 not in seen["detail_calls"]
+
+
+def test_the_newest_storeload_is_checked_first(monkeypatch):
+    """A delivery strands mid-finalise, so its document is among the most recent. Checking the
+    oldest first would spend the whole list before finding it."""
+    seen = _fake_barsy(monkeypatch, _live_shape(3), {502: "DZ-B7"})
+    found, _ = deliveries._find_storeload_by_doc_num("DZ-B7", 1)
+    assert found is True
+    assert seen["detail_calls"][0] == 502, "highest store_load_id first"
